@@ -12,7 +12,7 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
-val springDataVersion = "3.5.1"
+val springDataVersion = "4.1.1"
 val testcontainersVersion = "1.21.4"
 val defaultChronicleKernelImage =
     "cratis/chronicle:16.44.1-development@sha256:3e0216892632f87e5386649cf8c1a189573cf82999abf14b7f6031863a6e545f"
