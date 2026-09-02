@@ -54,6 +54,7 @@ subprojects {
             compilerOptions {
                 jvmTarget.set(JvmTarget.JVM_17)
                 allWarningsAsErrors.set(true)
+                freeCompilerArgs.add("-J-Xmx2g")
             }
         }
     }
