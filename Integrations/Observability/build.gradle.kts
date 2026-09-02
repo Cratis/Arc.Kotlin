@@ -8,7 +8,7 @@ plugins {
     id("com.vanniktech.maven.publish")
 }
 
-val springBootVersion = "3.5.3"
+val springBootVersion = "4.1.1"
 val micrometerVersion = "1.15.1"
 val openTelemetryVersion = "1.49.0"
 val slf4jVersion = "2.0.17"
