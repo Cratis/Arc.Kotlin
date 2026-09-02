@@ -14,6 +14,7 @@ dependencies {
     api(project(":Source"))
     api("org.springframework.boot:spring-boot:$springBootVersion")
     api("org.springframework.boot:spring-boot-autoconfigure:$springBootVersion")
+    api("com.fasterxml.jackson.core:jackson-databind")
 
     compileOnly("org.springframework.boot:spring-boot-starter-web:$springBootVersion")
     compileOnly("org.springframework.boot:spring-boot-starter-websocket:$springBootVersion")
