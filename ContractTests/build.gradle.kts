@@ -41,7 +41,7 @@ dependencies {
     testImplementation("io.mockk:mockk:1.13.14")
 
     add(chronicleRealKernelTest.implementationConfigurationName, project(":Integrations:Chronicle"))
-    add(chronicleRealKernelTest.implementationConfigurationName, "org.junit.jupiter:junit-jupiter:5.11.4")
+    add(chronicleRealKernelTest.implementationConfigurationName, "org.junit.jupiter:junit-jupiter:6.1.3")
     add(chronicleRealKernelTest.implementationConfigurationName, "org.testcontainers:testcontainers:$testcontainersVersion")
     add(chronicleRealKernelTest.runtimeOnlyConfigurationName, "org.junit.platform:junit-platform-launcher")
 }

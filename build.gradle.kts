@@ -68,7 +68,7 @@ subprojects {
             options.compilerArgs.addAll(listOf("-Xlint:all", "-Werror"))
         }
 
-        dependencies.add("testImplementation", "org.junit.jupiter:junit-jupiter:5.11.4")
+        dependencies.add("testImplementation", "org.junit.jupiter:junit-jupiter:6.1.3")
         dependencies.add("testRuntimeOnly", "org.junit.platform:junit-platform-launcher")
 
         tasks.withType<Test>().configureEach {
