@@ -53,3 +53,4 @@ public final class io/cratis/arc/gradle/GenerateArcProxiesCli {
 	public static final fun main ([Ljava/lang/String;)V
 }
 
+

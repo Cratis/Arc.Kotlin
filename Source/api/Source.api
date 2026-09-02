@@ -2580,3 +2580,4 @@ public final class io/cratis/arc/validation/UrlValidator : jakarta/validation/Co
 	public synthetic fun isValid (Ljava/lang/Object;Ljakarta/validation/ConstraintValidatorContext;)Z
 }
 
+
