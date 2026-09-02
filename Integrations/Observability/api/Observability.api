@@ -1,0 +1,30 @@
+public class io/cratis/arc/observability/springboot/ArcObservabilityAutoConfiguration {
+	public fun <init> ()V
+	public fun arcObservabilityBeanPostProcessor (Lio/micrometer/observation/ObservationRegistry;Lio/cratis/arc/observability/springboot/ArcObservabilityProperties;)Lorg/springframework/beans/factory/config/BeanPostProcessor;
+}
+
+public final class io/cratis/arc/observability/springboot/ArcObservabilityProperties {
+	public fun <init> ()V
+	public fun isCorrelationBaggageEnabled ()Z
+	public fun isCorrelationLoggingEnabled ()Z
+	public fun isEnabled ()Z
+	public fun setCorrelationBaggageEnabled (Z)V
+	public fun setCorrelationLoggingEnabled (Z)V
+	public fun setEnabled (Z)V
+}
+
+public final class io/cratis/arc/observability/springboot/ArcObservationNames {
+	public static final field AUTHENTICATION Ljava/lang/String;
+	public static final field COMMAND Ljava/lang/String;
+	public static final field IDENTITY_DETAILS Ljava/lang/String;
+	public static final field OBSERVABLE_QUERY Ljava/lang/String;
+	public static final field QUERY Ljava/lang/String;
+}
+
+public final class io/cratis/arc/observability/springboot/ArcObservationTags {
+	public static final field ARTIFACT Ljava/lang/String;
+	public static final field CORRELATION_ID Ljava/lang/String;
+	public static final field OPERATION Ljava/lang/String;
+	public static final field OUTCOME Ljava/lang/String;
+	public static final field QUERY Ljava/lang/String;
+}

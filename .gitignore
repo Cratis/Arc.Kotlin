@@ -1,0 +1,31 @@
+# Gradle and build output
+.gradle/
+.kotlin/
+**/build/
+ContractTests/TypeScript/generated/
+ContractTests/TypeScript/node_modules/
+
+# JVM artifacts and diagnostics
+*.class
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+*.war
+*.log
+hs_err_pid*
+replay_pid*
+
+# IDEs and editors
+.idea/
+*.iml
+.vscode/
+.project
+.classpath
+.settings/
+
+# Operating system files
+.DS_Store
+Thumbs.db
+
+# Local AI work and task artifacts
+.ai-work/
+.pi/

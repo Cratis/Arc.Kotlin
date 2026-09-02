@@ -1,0 +1,2581 @@
+public final class io/cratis/arc/ExceptionDetailRedactor {
+	public static final field INSTANCE Lio/cratis/arc/ExceptionDetailRedactor;
+	public static final field REDACTED_MESSAGE Ljava/lang/String;
+	public static final fun redact (Lio/cratis/arc/results/CommandResult;Z)Lio/cratis/arc/results/CommandResult;
+	public static final fun redact (Lio/cratis/arc/results/QueryResult;Z)Lio/cratis/arc/results/QueryResult;
+}
+
+public final class io/cratis/arc/artifacts/ArcArtifactManifest {
+	public static final field CURRENT_FORMAT_VERSION I
+	public static final field Companion Lio/cratis/arc/artifacts/ArcArtifactManifest$Companion;
+	public fun <init> (Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Ljava/util/List;)V
+	public fun <init> (Ljava/lang/String;Ljava/util/List;Ljava/util/List;)V
+	public fun <init> (Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/util/List;)V
+	public fun <init> (Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/util/List;)V
+	public fun <init> (Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/util/List;I)V
+	public fun <init> (Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/util/List;ILjava/util/List;)V
+	public fun <init> (Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/util/List;ILjava/util/List;Ljava/util/List;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/util/List;ILjava/util/List;Ljava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getCommands ()Ljava/util/List;
+	public final fun getConcepts ()Ljava/util/List;
+	public final fun getEnums ()Ljava/util/List;
+	public final fun getFormatVersion ()I
+	public final fun getInterfaces ()Ljava/util/List;
+	public final fun getModuleName ()Ljava/lang/String;
+	public final fun getQueries ()Ljava/util/List;
+	public final fun getTypes ()Ljava/util/List;
+}
+
+public final class io/cratis/arc/artifacts/ArcArtifactManifest$Companion {
+}
+
+public abstract class io/cratis/arc/artifacts/ArcArtifactModule {
+	protected fun <init> (Ljava/util/List;Ljava/util/List;)V
+	protected fun <init> (Ljava/util/List;Ljava/util/List;Ljava/util/List;)V
+	protected fun <init> (Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/util/List;)V
+	protected fun <init> (Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/util/List;)V
+	protected fun <init> (Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/util/List;)V
+	public synthetic fun <init> (Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getCommandHandlers ()Ljava/util/List;
+	public final fun getConcepts ()Ljava/util/List;
+	public final fun getEnums ()Ljava/util/List;
+	public final fun getInterfaces ()Ljava/util/List;
+	public final fun getQueryPerformers ()Ljava/util/List;
+	public final fun getTypes ()Ljava/util/List;
+}
+
+public final class io/cratis/arc/artifacts/ArcArtifactModuleRegistry {
+	public static final field INSTANCE Lio/cratis/arc/artifacts/ArcArtifactModuleRegistry;
+	public static final fun register (Lio/cratis/arc/artifacts/ArcArtifactModule;Lio/cratis/arc/commands/CommandHandlerRegistry;Lio/cratis/arc/queries/QueryPerformerRegistry;)V
+}
+
+public abstract interface annotation class io/cratis/arc/artifacts/Command : java/lang/annotation/Annotation {
+}
+
+public abstract interface annotation class io/cratis/arc/artifacts/CommandKey : java/lang/annotation/Annotation {
+}
+
+public abstract interface annotation class io/cratis/arc/artifacts/FromServices : java/lang/annotation/Annotation {
+}
+
+public abstract interface annotation class io/cratis/arc/artifacts/ReadModel : java/lang/annotation/Annotation {
+}
+
+public abstract interface annotation class io/cratis/arc/artifacts/TreatWarningsAsErrors : java/lang/annotation/Annotation {
+}
+
+public final class io/cratis/arc/authentication/AsyncAuthentication {
+	public static final field Companion Lio/cratis/arc/authentication/AsyncAuthentication$Companion;
+	public static final synthetic fun fromCoroutineScope (Lio/cratis/arc/authentication/Authentication;Lkotlinx/coroutines/CoroutineScope;)Lio/cratis/arc/authentication/AsyncAuthentication;
+	public final fun handleAuthentication (Lio/cratis/arc/authentication/AuthenticationRequestContext;)Ljava/util/concurrent/CompletionStage;
+}
+
+public final class io/cratis/arc/authentication/AsyncAuthentication$Companion {
+	public final synthetic fun fromCoroutineScope (Lio/cratis/arc/authentication/Authentication;Lkotlinx/coroutines/CoroutineScope;)Lio/cratis/arc/authentication/AsyncAuthentication;
+}
+
+public abstract interface class io/cratis/arc/authentication/AsyncAuthenticationHandler {
+	public abstract fun handleAuthentication (Lio/cratis/arc/authentication/AuthenticationRequestContext;)Ljava/util/concurrent/CompletionStage;
+}
+
+public final class io/cratis/arc/authentication/AsyncAuthenticationHandlerAdapter : io/cratis/arc/authentication/AuthenticationHandler {
+	public fun <init> (Lio/cratis/arc/authentication/AsyncAuthenticationHandler;)V
+	public fun handleAuthentication (Lio/cratis/arc/authentication/AuthenticationRequestContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public abstract interface class io/cratis/arc/authentication/Authentication {
+	public abstract fun getHasHandlers ()Z
+	public abstract fun handleAuthentication (Lio/cratis/arc/authentication/AuthenticationRequestContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/authentication/AuthenticationFailure {
+	public fun <init> (Lio/cratis/arc/authentication/AuthenticationFailureReason;)V
+	public fun <init> (Ljava/util/List;)V
+	public final fun getReason ()Lio/cratis/arc/authentication/AuthenticationFailureReason;
+	public final fun getReasons ()Ljava/util/List;
+}
+
+public final class io/cratis/arc/authentication/AuthenticationFailureReason : io/cratis/arc/concepts/ConceptAs {
+	public static final field Companion Lio/cratis/arc/authentication/AuthenticationFailureReason$Companion;
+	public fun <init> (Ljava/lang/String;)V
+	public final fun copy (Ljava/lang/String;)Lio/cratis/arc/authentication/AuthenticationFailureReason;
+	public static synthetic fun copy$default (Lio/cratis/arc/authentication/AuthenticationFailureReason;Ljava/lang/String;ILjava/lang/Object;)Lio/cratis/arc/authentication/AuthenticationFailureReason;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public static final fun of (Ljava/lang/String;)Lio/cratis/arc/authentication/AuthenticationFailureReason;
+	public fun toString ()Ljava/lang/String;
+	public synthetic fun value ()Ljava/lang/Object;
+	public fun value ()Ljava/lang/String;
+}
+
+public final class io/cratis/arc/authentication/AuthenticationFailureReason$Companion {
+	public final fun of (Ljava/lang/String;)Lio/cratis/arc/authentication/AuthenticationFailureReason;
+}
+
+public abstract interface class io/cratis/arc/authentication/AuthenticationHandler {
+	public abstract fun handleAuthentication (Lio/cratis/arc/authentication/AuthenticationRequestContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/authentication/AuthenticationHandlerKt {
+	public static final fun asAuthenticationHandler (Lio/cratis/arc/authentication/AsyncAuthenticationHandler;)Lio/cratis/arc/authentication/AuthenticationHandler;
+}
+
+public abstract interface class io/cratis/arc/authentication/AuthenticationOutcome {
+}
+
+public final class io/cratis/arc/authentication/AuthenticationOutcome$Anonymous : io/cratis/arc/authentication/AuthenticationOutcome {
+	public static final field INSTANCE Lio/cratis/arc/authentication/AuthenticationOutcome$Anonymous;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/cratis/arc/authentication/AuthenticationOutcome$Authenticated : io/cratis/arc/authentication/AuthenticationOutcome {
+	public fun <init> (Lio/cratis/arc/authorization/ArcPrincipal;)V
+	public final fun component1 ()Lio/cratis/arc/authorization/ArcPrincipal;
+	public final fun copy (Lio/cratis/arc/authorization/ArcPrincipal;)Lio/cratis/arc/authentication/AuthenticationOutcome$Authenticated;
+	public static synthetic fun copy$default (Lio/cratis/arc/authentication/AuthenticationOutcome$Authenticated;Lio/cratis/arc/authorization/ArcPrincipal;ILjava/lang/Object;)Lio/cratis/arc/authentication/AuthenticationOutcome$Authenticated;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getPrincipal ()Lio/cratis/arc/authorization/ArcPrincipal;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/cratis/arc/authentication/AuthenticationOutcome$Failed : io/cratis/arc/authentication/AuthenticationOutcome {
+	public fun <init> (Lio/cratis/arc/authentication/AuthenticationFailure;)V
+	public final fun component1 ()Lio/cratis/arc/authentication/AuthenticationFailure;
+	public final fun copy (Lio/cratis/arc/authentication/AuthenticationFailure;)Lio/cratis/arc/authentication/AuthenticationOutcome$Failed;
+	public static synthetic fun copy$default (Lio/cratis/arc/authentication/AuthenticationOutcome$Failed;Lio/cratis/arc/authentication/AuthenticationFailure;ILjava/lang/Object;)Lio/cratis/arc/authentication/AuthenticationOutcome$Failed;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getFailure ()Lio/cratis/arc/authentication/AuthenticationFailure;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/cratis/arc/authentication/AuthenticationOutcomeKt {
+	public static final synthetic fun getOutcome (Lio/cratis/arc/authentication/AuthenticationResult;)Lio/cratis/arc/authentication/AuthenticationOutcome;
+}
+
+public final class io/cratis/arc/authentication/AuthenticationRequestContext {
+	public fun <init> ()V
+	public fun <init> (Ljava/util/Map;)V
+	public fun <init> (Ljava/util/Map;Ljava/util/Map;)V
+	public fun <init> (Ljava/util/Map;Ljava/util/Map;Lio/cratis/arc/authorization/ArcPrincipal;)V
+	public fun <init> (Ljava/util/Map;Ljava/util/Map;Lio/cratis/arc/authorization/ArcPrincipal;Lio/cratis/arc/tenancy/TenantId;)V
+	public synthetic fun <init> (Ljava/util/Map;Ljava/util/Map;Lio/cratis/arc/authorization/ArcPrincipal;Lio/cratis/arc/tenancy/TenantId;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getCookies ()Ljava/util/Map;
+	public final fun getHeaders ()Ljava/util/Map;
+	public final fun getPrincipal ()Lio/cratis/arc/authorization/ArcPrincipal;
+	public final fun getTenant ()Lio/cratis/arc/tenancy/TenantId;
+	public final fun header (Ljava/lang/String;)Ljava/lang/String;
+	public final fun headerValues (Ljava/lang/String;)Ljava/util/List;
+}
+
+public final class io/cratis/arc/authentication/AuthenticationResult {
+	public static final field ANONYMOUS Lio/cratis/arc/authentication/AuthenticationResult;
+	public static final field Companion Lio/cratis/arc/authentication/AuthenticationResult$Companion;
+	public fun <init> ()V
+	public fun <init> (Lio/cratis/arc/authorization/ArcPrincipal;)V
+	public fun <init> (Lio/cratis/arc/authorization/ArcPrincipal;Lio/cratis/arc/authentication/AuthenticationFailure;)V
+	public synthetic fun <init> (Lio/cratis/arc/authorization/ArcPrincipal;Lio/cratis/arc/authentication/AuthenticationFailure;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public static final fun failed (Lio/cratis/arc/authentication/AuthenticationFailureReason;)Lio/cratis/arc/authentication/AuthenticationResult;
+	public static final fun failed (Ljava/util/List;)Lio/cratis/arc/authentication/AuthenticationResult;
+	public final fun getFailure ()Lio/cratis/arc/authentication/AuthenticationFailure;
+	public final fun getPrincipal ()Lio/cratis/arc/authorization/ArcPrincipal;
+	public final fun isAuthenticated ()Z
+	public static final fun succeeded (Lio/cratis/arc/authorization/ArcPrincipal;)Lio/cratis/arc/authentication/AuthenticationResult;
+}
+
+public final class io/cratis/arc/authentication/AuthenticationResult$Companion {
+	public final fun failed (Lio/cratis/arc/authentication/AuthenticationFailureReason;)Lio/cratis/arc/authentication/AuthenticationResult;
+	public final fun failed (Ljava/util/List;)Lio/cratis/arc/authentication/AuthenticationResult;
+	public final fun succeeded (Lio/cratis/arc/authorization/ArcPrincipal;)Lio/cratis/arc/authentication/AuthenticationResult;
+}
+
+public final class io/cratis/arc/authentication/DefaultAuthentication : io/cratis/arc/authentication/Authentication {
+	public fun <init> (Ljava/util/List;)V
+	public fun getHasHandlers ()Z
+	public fun handleAuthentication (Lio/cratis/arc/authentication/AuthenticationRequestContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public abstract interface annotation class io/cratis/arc/authorization/AllowAnonymous : java/lang/annotation/Annotation {
+}
+
+public final class io/cratis/arc/authorization/ArcPrincipal {
+	public static final field Companion Lio/cratis/arc/authorization/ArcPrincipal$Companion;
+	public fun <init> ()V
+	public fun <init> (Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Z)V
+	public fun <init> (Ljava/lang/String;ZLjava/util/Set;)V
+	public fun <init> (Ljava/lang/String;ZLjava/util/Set;Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;ZLjava/util/Set;Ljava/lang/String;Ljava/util/List;)V
+	public fun <init> (Ljava/lang/String;ZLjava/util/Set;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;ZLjava/util/Set;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public static final fun anonymous ()Lio/cratis/arc/authorization/ArcPrincipal;
+	public final fun getAuthenticationScheme ()Ljava/lang/String;
+	public final fun getClaims ()Ljava/util/List;
+	public final fun getId ()Ljava/lang/String;
+	public final fun getName ()Ljava/lang/String;
+	public final fun getRoles ()Ljava/util/Set;
+	public final fun isAuthenticated ()Z
+	public final fun isInRole (Ljava/lang/String;)Z
+}
+
+public final class io/cratis/arc/authorization/ArcPrincipal$Companion {
+	public final fun anonymous ()Lio/cratis/arc/authorization/ArcPrincipal;
+}
+
+public final class io/cratis/arc/authorization/AuthorizationEvaluator {
+	public fun <init> (Lio/cratis/arc/authorization/AuthorizationPolicyRegistry;)V
+	public final fun evaluate (Lio/cratis/arc/metadata/AuthorizationMetadata;Lio/cratis/arc/authorization/ArcPrincipal;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun getPolicies ()Lio/cratis/arc/authorization/AuthorizationPolicyRegistry;
+}
+
+public abstract interface class io/cratis/arc/authorization/AuthorizationPolicy {
+	public abstract fun evaluate (Lio/cratis/arc/authorization/ArcPrincipal;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public abstract interface class io/cratis/arc/authorization/AuthorizationPolicyRegistry {
+	public abstract fun find (Ljava/lang/String;)Lio/cratis/arc/authorization/AuthorizationPolicy;
+	public abstract fun register (Ljava/lang/String;Lio/cratis/arc/authorization/AuthorizationPolicy;)V
+}
+
+public final class io/cratis/arc/authorization/AuthorizationResult {
+	public static final field Companion Lio/cratis/arc/authorization/AuthorizationResult$Companion;
+	public fun <init> (Z)V
+	public fun <init> (ZLjava/lang/String;)V
+	public synthetic fun <init> (ZLjava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public static final fun failure (Ljava/lang/String;)Lio/cratis/arc/authorization/AuthorizationResult;
+	public final fun getFailureReason ()Ljava/lang/String;
+	public final fun isAuthorized ()Z
+	public static final fun success ()Lio/cratis/arc/authorization/AuthorizationResult;
+}
+
+public final class io/cratis/arc/authorization/AuthorizationResult$Companion {
+	public final fun failure (Ljava/lang/String;)Lio/cratis/arc/authorization/AuthorizationResult;
+	public final fun success ()Lio/cratis/arc/authorization/AuthorizationResult;
+}
+
+public abstract interface annotation class io/cratis/arc/authorization/Authorize : java/lang/annotation/Annotation {
+	public abstract fun policy ()Ljava/lang/String;
+	public abstract fun roles ()[Ljava/lang/String;
+	public abstract fun schemes ()[Ljava/lang/String;
+}
+
+public final class io/cratis/arc/authorization/ConcurrentAuthorizationPolicyRegistry : io/cratis/arc/authorization/AuthorizationPolicyRegistry {
+	public fun <init> ()V
+	public fun find (Ljava/lang/String;)Lio/cratis/arc/authorization/AuthorizationPolicy;
+	public fun register (Ljava/lang/String;Lio/cratis/arc/authorization/AuthorizationPolicy;)V
+}
+
+public final class io/cratis/arc/authorization/DuplicateAuthorizationPolicyException : java/lang/IllegalArgumentException {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun getPolicyName ()Ljava/lang/String;
+}
+
+public abstract interface annotation class io/cratis/arc/authorization/Roles : java/lang/annotation/Annotation {
+	public abstract fun value ()[Ljava/lang/String;
+}
+
+public abstract interface annotation class io/cratis/arc/authorization/RolesContainer : java/lang/annotation/Annotation {
+	public abstract fun value ()[Lio/cratis/arc/authorization/Roles;
+}
+
+public final class io/cratis/arc/commands/ArcOneOf {
+	public static final field Companion Lio/cratis/arc/commands/ArcOneOf$Companion;
+	public synthetic fun <init> (Ljava/lang/Object;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public static final fun alternative (Ljava/lang/Object;)Lio/cratis/arc/commands/ArcOneOf;
+	public final fun getValue ()Ljava/lang/Object;
+	public static final fun of (Ljava/lang/Object;)Lio/cratis/arc/commands/ArcOneOf;
+}
+
+public final class io/cratis/arc/commands/ArcOneOf$Companion {
+	public final fun alternative (Ljava/lang/Object;)Lio/cratis/arc/commands/ArcOneOf;
+	public final fun of (Ljava/lang/Object;)Lio/cratis/arc/commands/ArcOneOf;
+}
+
+public final class io/cratis/arc/commands/AsyncCommandPipeline {
+	public static final field Companion Lio/cratis/arc/commands/AsyncCommandPipeline$Companion;
+	public final fun execute (Ljava/lang/Object;Lio/cratis/arc/commands/CommandExecutionOptions;)Ljava/util/concurrent/CompletionStage;
+	public static final synthetic fun fromCoroutineScope (Lio/cratis/arc/commands/CommandPipeline;Lkotlinx/coroutines/CoroutineScope;)Lio/cratis/arc/commands/AsyncCommandPipeline;
+	public final fun validate (Ljava/lang/Object;Lio/cratis/arc/commands/CommandExecutionOptions;)Ljava/util/concurrent/CompletionStage;
+}
+
+public final class io/cratis/arc/commands/AsyncCommandPipeline$Companion {
+	public final synthetic fun fromCoroutineScope (Lio/cratis/arc/commands/CommandPipeline;Lkotlinx/coroutines/CoroutineScope;)Lio/cratis/arc/commands/AsyncCommandPipeline;
+}
+
+public abstract interface class io/cratis/arc/commands/AuthorizationCommandFilter : io/cratis/arc/commands/CommandFilter {
+}
+
+public final class io/cratis/arc/commands/CannotResolveCommandDependency : java/lang/IllegalStateException {
+	public fun <init> (Ljava/lang/Class;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Class;)V
+	public final fun getCommandType ()Ljava/lang/Class;
+	public final fun getDependencyType ()Ljava/lang/Class;
+	public final fun getMethodName ()Ljava/lang/String;
+	public final fun getParameterName ()Ljava/lang/String;
+}
+
+public final class io/cratis/arc/commands/CommandAuthorizationFilter : io/cratis/arc/commands/AuthorizationCommandFilter {
+	public fun <init> (Lio/cratis/arc/commands/CommandHandlerRegistry;Lio/cratis/arc/authorization/AuthorizationEvaluator;)V
+	public fun execute (Lio/cratis/arc/commands/CommandContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/commands/CommandContext {
+	public fun <init> (Ljava/util/UUID;Ljava/lang/Object;Ljava/lang/Class;Lio/cratis/arc/authorization/ArcPrincipal;Lio/cratis/arc/commands/ServiceResolver;)V
+	public fun <init> (Ljava/util/UUID;Ljava/lang/Object;Ljava/lang/Class;Lio/cratis/arc/authorization/ArcPrincipal;Ljava/lang/String;Lio/cratis/arc/commands/ServiceResolver;)V
+	public fun <init> (Ljava/util/UUID;Ljava/lang/Object;Ljava/lang/Class;Lio/cratis/arc/authorization/ArcPrincipal;Ljava/lang/String;Ljava/lang/String;Lio/cratis/arc/commands/ServiceResolver;)V
+	public fun <init> (Ljava/util/UUID;Ljava/lang/Object;Ljava/lang/Class;Lio/cratis/arc/authorization/ArcPrincipal;Ljava/lang/String;Ljava/lang/String;Lio/cratis/arc/results/ValidationResultSeverity;Lio/cratis/arc/commands/ServiceResolver;)V
+	public fun <init> (Ljava/util/UUID;Ljava/lang/Object;Ljava/lang/Class;Lio/cratis/arc/authorization/ArcPrincipal;Ljava/lang/String;Ljava/lang/String;Lio/cratis/arc/results/ValidationResultSeverity;Lio/cratis/arc/commands/ServiceResolver;Z)V
+	public fun <init> (Ljava/util/UUID;Ljava/lang/Object;Ljava/lang/Class;Lio/cratis/arc/authorization/ArcPrincipal;Ljava/lang/String;Ljava/lang/String;Lio/cratis/arc/results/ValidationResultSeverity;Lio/cratis/arc/commands/ServiceResolver;ZLjava/lang/Object;)V
+	public fun <init> (Ljava/util/UUID;Ljava/lang/Object;Ljava/lang/Class;Lio/cratis/arc/authorization/ArcPrincipal;Ljava/lang/String;Ljava/lang/String;Lio/cratis/arc/results/ValidationResultSeverity;Lio/cratis/arc/commands/ServiceResolver;ZLjava/lang/Object;Ljava/util/Map;)V
+	public fun <init> (Ljava/util/UUID;Ljava/lang/Object;Ljava/lang/Class;Lio/cratis/arc/authorization/ArcPrincipal;Ljava/lang/String;Ljava/lang/String;Lio/cratis/arc/results/ValidationResultSeverity;Lio/cratis/arc/commands/ServiceResolver;ZLjava/lang/Object;Ljava/util/Map;Ljava/util/Collection;)V
+	public fun <init> (Ljava/util/UUID;Ljava/lang/Object;Ljava/lang/Class;Lio/cratis/arc/authorization/ArcPrincipal;Ljava/lang/String;Ljava/lang/String;Lio/cratis/arc/results/ValidationResultSeverity;Lio/cratis/arc/commands/ServiceResolver;ZLjava/lang/Object;Ljava/util/Map;Ljava/util/Collection;Ljava/lang/Object;)V
+	public synthetic fun <init> (Ljava/util/UUID;Ljava/lang/Object;Ljava/lang/Class;Lio/cratis/arc/authorization/ArcPrincipal;Ljava/lang/String;Ljava/lang/String;Lio/cratis/arc/results/ValidationResultSeverity;Lio/cratis/arc/commands/ServiceResolver;ZLjava/lang/Object;Ljava/util/Map;Ljava/util/Collection;Ljava/lang/Object;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getAllowedValidationSeverity ()Lio/cratis/arc/results/ValidationResultSeverity;
+	public final fun getCommand ()Ljava/lang/Object;
+	public final fun getCommandKey ()Ljava/lang/Object;
+	public final fun getCommandType ()Ljava/lang/Class;
+	public final fun getCorrelationId ()Ljava/util/UUID;
+	public final fun getExecutionToken ()Lio/cratis/arc/commands/CommandExecutionToken;
+	public final fun getExposeExceptionDetails ()Z
+	public final fun getPrincipal ()Lio/cratis/arc/authorization/ArcPrincipal;
+	public final fun getProvidedValues ()Ljava/util/List;
+	public final fun getResponse ()Ljava/lang/Object;
+	public final fun getServiceResolver ()Lio/cratis/arc/commands/ServiceResolver;
+	public final fun getTenantId ()Ljava/lang/String;
+	public final fun getTenantNamespace ()Ljava/lang/String;
+	public final fun getValues ()Ljava/util/Map;
+}
+
+public abstract interface class io/cratis/arc/commands/CommandContextValuesProvider {
+	public abstract fun provide (Ljava/lang/Object;)Ljava/util/Map;
+}
+
+public final class io/cratis/arc/commands/CommandExecutionOptions {
+	public static final field Companion Lio/cratis/arc/commands/CommandExecutionOptions$Companion;
+	public fun <init> (Ljava/util/UUID;Lio/cratis/arc/authorization/ArcPrincipal;Lio/cratis/arc/commands/ServiceResolver;)V
+	public fun <init> (Ljava/util/UUID;Lio/cratis/arc/authorization/ArcPrincipal;Lio/cratis/arc/commands/ServiceResolver;Ljava/lang/String;)V
+	public fun <init> (Ljava/util/UUID;Lio/cratis/arc/authorization/ArcPrincipal;Lio/cratis/arc/commands/ServiceResolver;Ljava/lang/String;Ljava/lang/String;)V
+	public fun <init> (Ljava/util/UUID;Lio/cratis/arc/authorization/ArcPrincipal;Lio/cratis/arc/commands/ServiceResolver;Ljava/lang/String;Ljava/lang/String;Lio/cratis/arc/results/ValidationResultSeverity;)V
+	public fun <init> (Ljava/util/UUID;Lio/cratis/arc/authorization/ArcPrincipal;Lio/cratis/arc/commands/ServiceResolver;Ljava/lang/String;Ljava/lang/String;Lio/cratis/arc/results/ValidationResultSeverity;Z)V
+	public synthetic fun <init> (Ljava/util/UUID;Lio/cratis/arc/authorization/ArcPrincipal;Lio/cratis/arc/commands/ServiceResolver;Ljava/lang/String;Ljava/lang/String;Lio/cratis/arc/results/ValidationResultSeverity;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getAllowedValidationSeverity ()Lio/cratis/arc/results/ValidationResultSeverity;
+	public final fun getCorrelationId ()Ljava/util/UUID;
+	public final fun getExposeExceptionDetails ()Z
+	public final fun getPrincipal ()Lio/cratis/arc/authorization/ArcPrincipal;
+	public final fun getServiceResolver ()Lio/cratis/arc/commands/ServiceResolver;
+	public final fun getTenantId ()Ljava/lang/String;
+	public final fun getTenantNamespace ()Ljava/lang/String;
+	public static final fun nested (Lio/cratis/arc/commands/CommandContext;)Lio/cratis/arc/commands/CommandExecutionOptions;
+}
+
+public final class io/cratis/arc/commands/CommandExecutionOptions$Companion {
+	public final fun nested (Lio/cratis/arc/commands/CommandContext;)Lio/cratis/arc/commands/CommandExecutionOptions;
+}
+
+public abstract interface class io/cratis/arc/commands/CommandExecutionScope {
+	public abstract fun begin (Lio/cratis/arc/commands/CommandContext;)V
+	public abstract fun complete (Lio/cratis/arc/commands/CommandContext;Lio/cratis/arc/results/CommandResult;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public abstract interface class io/cratis/arc/commands/CommandExecutionToken {
+	public abstract fun getRootToken ()Lio/cratis/arc/commands/CommandExecutionToken;
+}
+
+public abstract interface class io/cratis/arc/commands/CommandFilter {
+	public abstract fun execute (Lio/cratis/arc/commands/CommandContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public abstract interface class io/cratis/arc/commands/CommandHandler {
+	public fun getAllowsAnonymous ()Z
+	public abstract fun getCommandType ()Ljava/lang/Class;
+	public abstract fun getMetadata ()Lio/cratis/arc/metadata/CommandDescriptor;
+	public abstract fun invoke (Lio/cratis/arc/commands/CommandContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun prepare (Lio/cratis/arc/commands/CommandContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun resolveCommandKey (Ljava/lang/Object;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/commands/CommandHandler$DefaultImpls {
+	public static fun getAllowsAnonymous (Lio/cratis/arc/commands/CommandHandler;)Z
+	public static fun prepare (Lio/cratis/arc/commands/CommandHandler;Lio/cratis/arc/commands/CommandContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static fun resolveCommandKey (Lio/cratis/arc/commands/CommandHandler;Ljava/lang/Object;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/commands/CommandHandlerArgumentResolver {
+	public fun <init> (Lio/cratis/arc/commands/CommandContext;)V
+	public final fun resolve (Ljava/lang/Class;Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun resolveNullable (Ljava/lang/Class;Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun resolveOptional (Ljava/lang/Class;Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public abstract interface class io/cratis/arc/commands/CommandHandlerRegistry {
+	public abstract fun find (Ljava/lang/Class;)Lio/cratis/arc/commands/CommandHandler;
+	public fun getVersion ()J
+	public abstract fun register (Lio/cratis/arc/commands/CommandHandler;)V
+	public abstract fun snapshot ()Ljava/util/List;
+}
+
+public final class io/cratis/arc/commands/CommandHandlerRegistry$DefaultImpls {
+	public static fun getVersion (Lio/cratis/arc/commands/CommandHandlerRegistry;)J
+}
+
+public abstract interface class io/cratis/arc/commands/CommandKeyProvider {
+	public abstract fun commandKey ()Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/commands/CommandKeyProviderKt {
+	public static final synthetic fun getKey (Lio/cratis/arc/commands/CommandKeyProvider;)Ljava/lang/Object;
+}
+
+public abstract interface class io/cratis/arc/commands/CommandPipeline {
+	public abstract fun execute (Ljava/lang/Object;Lio/cratis/arc/commands/CommandExecutionOptions;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun validate (Ljava/lang/Object;Lio/cratis/arc/commands/CommandExecutionOptions;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/commands/CommandPreparation {
+	public static final field Companion Lio/cratis/arc/commands/CommandPreparation$Companion;
+	public fun <init> (Ljava/util/Collection;Lio/cratis/arc/results/CommandResult;)V
+	public static final fun empty (Ljava/util/UUID;)Lio/cratis/arc/commands/CommandPreparation;
+	public static final fun from (Ljava/lang/Object;Lio/cratis/arc/commands/CommandContext;)Lio/cratis/arc/commands/CommandPreparation;
+	public final fun getControlResult ()Lio/cratis/arc/results/CommandResult;
+	public final fun getProvidedValues ()Ljava/util/List;
+}
+
+public final class io/cratis/arc/commands/CommandPreparation$Companion {
+	public final fun empty (Ljava/util/UUID;)Lio/cratis/arc/commands/CommandPreparation;
+	public final fun from (Ljava/lang/Object;Lio/cratis/arc/commands/CommandContext;)Lio/cratis/arc/commands/CommandPreparation;
+}
+
+public final class io/cratis/arc/commands/CommandProvidedValues {
+	public static final field Companion Lio/cratis/arc/commands/CommandProvidedValues$Companion;
+	public fun <init> (Ljava/util/Collection;)V
+	public static final fun builder ()Lio/cratis/arc/commands/CommandProvidedValues$Builder;
+	public final fun getValues ()Ljava/util/List;
+	public static final fun of ([Ljava/lang/Object;)Lio/cratis/arc/commands/CommandProvidedValues;
+}
+
+public final class io/cratis/arc/commands/CommandProvidedValues$Builder {
+	public fun <init> ()V
+	public final fun add (Ljava/lang/Object;)Lio/cratis/arc/commands/CommandProvidedValues$Builder;
+	public final fun build ()Lio/cratis/arc/commands/CommandProvidedValues;
+}
+
+public final class io/cratis/arc/commands/CommandProvidedValues$Companion {
+	public final fun builder ()Lio/cratis/arc/commands/CommandProvidedValues$Builder;
+	public final fun of ([Ljava/lang/Object;)Lio/cratis/arc/commands/CommandProvidedValues;
+}
+
+public abstract interface class io/cratis/arc/commands/CommandResponseValueHandler {
+	public abstract fun canHandle (Lio/cratis/arc/commands/CommandContext;Ljava/lang/Object;)Z
+	public abstract fun handle (Lio/cratis/arc/commands/CommandContext;Ljava/lang/Object;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/commands/CommandResponseValues {
+	public static final field Companion Lio/cratis/arc/commands/CommandResponseValues$Companion;
+	public fun <init> (Ljava/util/Collection;)V
+	public static final fun builder ()Lio/cratis/arc/commands/CommandResponseValues$Builder;
+	public final fun getValues ()Ljava/util/List;
+	public static final fun of ([Ljava/lang/Object;)Lio/cratis/arc/commands/CommandResponseValues;
+}
+
+public final class io/cratis/arc/commands/CommandResponseValues$Builder {
+	public fun <init> ()V
+	public final fun add (Ljava/lang/Object;)Lio/cratis/arc/commands/CommandResponseValues$Builder;
+	public final fun build ()Lio/cratis/arc/commands/CommandResponseValues;
+}
+
+public final class io/cratis/arc/commands/CommandResponseValues$Companion {
+	public final fun builder ()Lio/cratis/arc/commands/CommandResponseValues$Builder;
+	public final fun of ([Ljava/lang/Object;)Lio/cratis/arc/commands/CommandResponseValues;
+}
+
+public abstract interface class io/cratis/arc/commands/CommandValidator {
+	public abstract fun getCommandType ()Ljava/lang/Class;
+	public abstract fun validate (Ljava/lang/Object;Lio/cratis/arc/commands/CommandContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/commands/CommandValueFactoriesKt {
+	public static final synthetic fun commandProvidedValuesOf ([Ljava/lang/Object;)Lio/cratis/arc/commands/CommandProvidedValues;
+	public static final synthetic fun commandResponseValuesOf ([Ljava/lang/Object;)Lio/cratis/arc/commands/CommandResponseValues;
+}
+
+public final class io/cratis/arc/commands/CompletionStages {
+	public static final fun await (Ljava/util/concurrent/CompletionStage;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/commands/ConcurrentCommandHandlerRegistry : io/cratis/arc/commands/CommandHandlerRegistry {
+	public fun <init> ()V
+	public fun find (Ljava/lang/Class;)Lio/cratis/arc/commands/CommandHandler;
+	public fun getVersion ()J
+	public fun register (Lio/cratis/arc/commands/CommandHandler;)V
+	public fun snapshot ()Ljava/util/List;
+}
+
+public final class io/cratis/arc/commands/DefaultCommandPipeline : io/cratis/arc/commands/CommandPipeline {
+	public fun <init> (Lio/cratis/arc/commands/CommandHandlerRegistry;)V
+	public fun <init> (Lio/cratis/arc/commands/CommandHandlerRegistry;Ljava/lang/Iterable;)V
+	public fun <init> (Lio/cratis/arc/commands/CommandHandlerRegistry;Ljava/lang/Iterable;Ljava/lang/Iterable;)V
+	public fun <init> (Lio/cratis/arc/commands/CommandHandlerRegistry;Ljava/lang/Iterable;Ljava/lang/Iterable;Ljava/lang/Iterable;)V
+	public fun <init> (Lio/cratis/arc/commands/CommandHandlerRegistry;Ljava/lang/Iterable;Ljava/lang/Iterable;Ljava/lang/Iterable;Ljava/lang/Iterable;)V
+	public fun <init> (Lio/cratis/arc/commands/CommandHandlerRegistry;Ljava/lang/Iterable;Ljava/lang/Iterable;Ljava/lang/Iterable;Ljava/lang/Iterable;Ljava/time/Duration;)V
+	public synthetic fun <init> (Lio/cratis/arc/commands/CommandHandlerRegistry;Ljava/lang/Iterable;Ljava/lang/Iterable;Ljava/lang/Iterable;Ljava/lang/Iterable;Ljava/time/Duration;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun execute (Ljava/lang/Object;Lio/cratis/arc/commands/CommandExecutionOptions;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun getExecutionScopeCompletionTimeout ()Ljava/time/Duration;
+	public fun validate (Ljava/lang/Object;Lio/cratis/arc/commands/CommandExecutionOptions;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/commands/DefaultCommandValidationFilter : io/cratis/arc/commands/CommandFilter {
+	public fun <init> (Ljava/lang/Iterable;)V
+	public fun <init> (Ljava/lang/Iterable;Ljava/lang/Iterable;)V
+	public synthetic fun <init> (Ljava/lang/Iterable;Ljava/lang/Iterable;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun execute (Lio/cratis/arc/commands/CommandContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/commands/DuplicateCommandHandlerException : java/lang/IllegalStateException {
+	public fun <init> (Ljava/lang/Class;)V
+	public final fun getCommandType ()Ljava/lang/Class;
+}
+
+public abstract interface annotation class io/cratis/arc/commands/HandlesCommandResponseValues : java/lang/annotation/Annotation {
+	public abstract fun value ()[Ljava/lang/Class;
+}
+
+public final class io/cratis/arc/commands/MissingServiceException : java/lang/IllegalStateException {
+	public fun <init> (Ljava/lang/Class;)V
+	public final fun getServiceType ()Ljava/lang/Class;
+}
+
+public final class io/cratis/arc/commands/MultipleUnhandledCommandResponseValuesException : java/lang/IllegalStateException {
+	public fun <init> (Ljava/util/Collection;)V
+	public final fun getValues ()Ljava/util/List;
+}
+
+public abstract interface class io/cratis/arc/commands/ServiceResolver {
+	public abstract fun resolve (Ljava/lang/Class;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/commands/ServiceResolvers {
+	public static final fun require (Lio/cratis/arc/commands/ServiceResolver;Ljava/lang/Class;)Ljava/lang/Object;
+}
+
+public abstract interface class io/cratis/arc/concepts/ArcEnum {
+	public abstract fun value ()I
+}
+
+public final class io/cratis/arc/concepts/ArcEnumKt {
+	public static final synthetic fun getWireValue (Lio/cratis/arc/concepts/ArcEnum;)I
+}
+
+public abstract interface annotation class io/cratis/arc/concepts/ArcEnumValue : java/lang/annotation/Annotation {
+	public abstract fun value ()I
+}
+
+public abstract interface class io/cratis/arc/concepts/ConceptAs {
+	public abstract fun value ()Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/concepts/ConceptAsKt {
+	public static final synthetic fun getValue (Lio/cratis/arc/concepts/ConceptAs;)Ljava/lang/Object;
+}
+
+public abstract interface annotation class io/cratis/arc/concepts/Flags : java/lang/annotation/Annotation {
+}
+
+public final class io/cratis/arc/http/ArcHttpStatus : java/lang/Enum {
+	public static final field ACCEPTED Lio/cratis/arc/http/ArcHttpStatus;
+	public static final field BAD_REQUEST Lio/cratis/arc/http/ArcHttpStatus;
+	public static final field FORBIDDEN Lio/cratis/arc/http/ArcHttpStatus;
+	public static final field INTERNAL_SERVER_ERROR Lio/cratis/arc/http/ArcHttpStatus;
+	public static final field OK Lio/cratis/arc/http/ArcHttpStatus;
+	public final fun getCode ()I
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lio/cratis/arc/http/ArcHttpStatus;
+	public static fun values ()[Lio/cratis/arc/http/ArcHttpStatus;
+}
+
+public final class io/cratis/arc/http/ArcHttpStatusMapper {
+	public static final field INSTANCE Lio/cratis/arc/http/ArcHttpStatusMapper;
+	public static final fun map (Lio/cratis/arc/results/CommandResult;)Lio/cratis/arc/http/ArcHttpStatus;
+	public static final fun map (Lio/cratis/arc/results/QueryResult;)Lio/cratis/arc/http/ArcHttpStatus;
+}
+
+public abstract interface class io/cratis/arc/identity/AsyncIdentityDetailsProvider {
+	public abstract fun getDetailsType ()Ljava/lang/Class;
+	public abstract fun provide (Lio/cratis/arc/identity/IdentityProviderContext;)Ljava/util/concurrent/CompletionStage;
+}
+
+public final class io/cratis/arc/identity/AsyncIdentityDetailsProviderAdapter : io/cratis/arc/identity/IdentityDetailsProvider {
+	public fun <init> (Lio/cratis/arc/identity/AsyncIdentityDetailsProvider;)V
+	public fun getDetailsType ()Ljava/lang/Class;
+	public fun provide (Lio/cratis/arc/identity/IdentityProviderContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public abstract interface class io/cratis/arc/identity/AsyncUsersProvider {
+	public abstract fun provide ()Ljava/util/concurrent/CompletionStage;
+}
+
+public final class io/cratis/arc/identity/AsyncUsersProviderAdapter : io/cratis/arc/identity/UsersProvider {
+	public fun <init> (Lio/cratis/arc/identity/AsyncUsersProvider;)V
+	public fun provide (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/identity/IdentityClaim {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;)Lio/cratis/arc/identity/IdentityClaim;
+	public static synthetic fun copy$default (Lio/cratis/arc/identity/IdentityClaim;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lio/cratis/arc/identity/IdentityClaim;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getType ()Ljava/lang/String;
+	public final fun getValue ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/cratis/arc/identity/IdentityConstants {
+	public static final field IDENTITY_COOKIE_NAME Ljava/lang/String;
+	public static final field INSTANCE Lio/cratis/arc/identity/IdentityConstants;
+}
+
+public final class io/cratis/arc/identity/IdentityDetails {
+	public fun <init> (ZLjava/lang/Object;)V
+	public final fun component1 ()Z
+	public final fun component2 ()Ljava/lang/Object;
+	public final fun copy (ZLjava/lang/Object;)Lio/cratis/arc/identity/IdentityDetails;
+	public static synthetic fun copy$default (Lio/cratis/arc/identity/IdentityDetails;ZLjava/lang/Object;ILjava/lang/Object;)Lio/cratis/arc/identity/IdentityDetails;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDetails ()Ljava/lang/Object;
+	public fun hashCode ()I
+	public final fun isUserAuthorized ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class io/cratis/arc/identity/IdentityDetailsProvider {
+	public abstract fun getDetailsType ()Ljava/lang/Class;
+	public abstract fun provide (Lio/cratis/arc/identity/IdentityProviderContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/identity/IdentityDetailsProviders {
+	public static final fun asIdentityDetailsProvider (Lio/cratis/arc/identity/AsyncIdentityDetailsProvider;)Lio/cratis/arc/identity/IdentityDetailsProvider;
+}
+
+public final class io/cratis/arc/identity/IdentityProviderContext {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;)V
+	public final fun getClaims ()Ljava/util/List;
+	public final fun getId ()Ljava/lang/String;
+	public final fun getName ()Ljava/lang/String;
+}
+
+public final class io/cratis/arc/identity/IdentityProviderResult {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;ZZLjava/util/List;Ljava/lang/Object;)V
+	public final fun getDetails ()Ljava/lang/Object;
+	public final fun getId ()Ljava/lang/String;
+	public final fun getName ()Ljava/lang/String;
+	public final fun getRoles ()Ljava/util/List;
+	public final fun isAuthenticated ()Z
+	public final fun isAuthorized ()Z
+}
+
+public final class io/cratis/arc/identity/User {
+	public fun <init> (Lio/cratis/arc/authorization/ArcPrincipal;)V
+	public fun <init> (Lio/cratis/arc/authorization/ArcPrincipal;Ljava/lang/Object;)V
+	public synthetic fun <init> (Lio/cratis/arc/authorization/ArcPrincipal;Ljava/lang/Object;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Lio/cratis/arc/authorization/ArcPrincipal;
+	public final fun component2 ()Ljava/lang/Object;
+	public final fun copy (Lio/cratis/arc/authorization/ArcPrincipal;Ljava/lang/Object;)Lio/cratis/arc/identity/User;
+	public static synthetic fun copy$default (Lio/cratis/arc/identity/User;Lio/cratis/arc/authorization/ArcPrincipal;Ljava/lang/Object;ILjava/lang/Object;)Lio/cratis/arc/identity/User;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDetails ()Ljava/lang/Object;
+	public final fun getPrincipal ()Lio/cratis/arc/authorization/ArcPrincipal;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class io/cratis/arc/identity/UsersProvider {
+	public abstract fun provide (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/identity/UsersProviderAggregator : io/cratis/arc/identity/UsersProvider {
+	public fun <init> (Ljava/util/List;)V
+	public final fun getProviders ()Ljava/util/List;
+	public fun provide (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun provideAsync (Lkotlinx/coroutines/CoroutineScope;)Ljava/util/concurrent/CompletionStage;
+	public final fun provideBlocking ()Ljava/util/List;
+}
+
+public final class io/cratis/arc/identity/UsersProviders {
+	public static final fun asUsersProvider (Lio/cratis/arc/identity/AsyncUsersProvider;)Lio/cratis/arc/identity/UsersProvider;
+}
+
+public final class io/cratis/arc/introspection/CommandIntrospectionMetadata {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lcom/fasterxml/jackson/databind/JsonNode;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/util/List;)V
+	public final fun getAuthorization ()Lio/cratis/arc/metadata/AuthorizationMetadata;
+	public final fun getDocumentationSummary ()Ljava/lang/String;
+	public final fun getName ()Ljava/lang/String;
+	public final fun getNamespace ()Ljava/lang/String;
+	public final fun getPayloadSchema ()Lcom/fasterxml/jackson/databind/JsonNode;
+	public final fun getProperties ()Ljava/util/List;
+	public final fun getRoute ()Ljava/lang/String;
+	public final fun getType ()Ljava/lang/String;
+}
+
+public final class io/cratis/arc/introspection/DefaultIntrospectionService : io/cratis/arc/introspection/IntrospectionService {
+	public fun <init> (Lio/cratis/arc/commands/CommandHandlerRegistry;Lio/cratis/arc/queries/QueryPerformerRegistry;Lio/cratis/arc/metadata/ApiEndpointOptions;)V
+	public synthetic fun <init> (Lio/cratis/arc/commands/CommandHandlerRegistry;Lio/cratis/arc/queries/QueryPerformerRegistry;Lio/cratis/arc/metadata/ApiEndpointOptions;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun getCommands ()Ljava/util/List;
+	public fun getQueries ()Ljava/util/List;
+}
+
+public abstract interface class io/cratis/arc/introspection/IntrospectionService {
+	public abstract fun getCommands ()Ljava/util/List;
+	public abstract fun getQueries ()Ljava/util/List;
+}
+
+public final class io/cratis/arc/introspection/QueryIntrospectionMetadata {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lcom/fasterxml/jackson/databind/JsonNode;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/util/List;Lio/cratis/arc/queries/QueryTransportType;ZLio/cratis/arc/queries/QueryHttpMethodType;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lcom/fasterxml/jackson/databind/JsonNode;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/util/List;Lio/cratis/arc/queries/QueryTransportType;ZZLio/cratis/arc/queries/QueryHttpMethodType;)V
+	public final fun getArgumentsSchema ()Lcom/fasterxml/jackson/databind/JsonNode;
+	public final fun getAuthorization ()Lio/cratis/arc/metadata/AuthorizationMetadata;
+	public final fun getDocumentationSummary ()Ljava/lang/String;
+	public final fun getFullyQualifiedName ()Ljava/lang/String;
+	public final fun getName ()Ljava/lang/String;
+	public final fun getNamespace ()Ljava/lang/String;
+	public final fun getParameters ()Ljava/util/List;
+	public final fun getQueryHttpMethod ()Lio/cratis/arc/queries/QueryHttpMethodType;
+	public final fun getRoute ()Ljava/lang/String;
+	public final fun getSupportsPaging ()Z
+	public final fun getSupportsSorting ()Z
+	public final fun getTransport ()Lio/cratis/arc/queries/QueryTransportType;
+	public final fun getType ()Ljava/lang/String;
+}
+
+public abstract interface class io/cratis/arc/java/AsyncAuthorizationCommandFilter : io/cratis/arc/java/AsyncCommandFilter {
+}
+
+public final class io/cratis/arc/java/AsyncAuthorizationCommandFilterAdapter : io/cratis/arc/commands/AuthorizationCommandFilter {
+	public fun <init> (Lio/cratis/arc/java/AsyncAuthorizationCommandFilter;)V
+	public fun execute (Lio/cratis/arc/commands/CommandContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public abstract interface class io/cratis/arc/java/AsyncAuthorizationPolicy {
+	public abstract fun evaluate (Lio/cratis/arc/authorization/ArcPrincipal;)Ljava/util/concurrent/CompletionStage;
+}
+
+public final class io/cratis/arc/java/AsyncAuthorizationPolicyAdapter : io/cratis/arc/authorization/AuthorizationPolicy {
+	public fun <init> (Lio/cratis/arc/java/AsyncAuthorizationPolicy;)V
+	public fun evaluate (Lio/cratis/arc/authorization/ArcPrincipal;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public abstract interface class io/cratis/arc/java/AsyncAuthorizationQueryFilter : io/cratis/arc/java/AsyncQueryFilter {
+}
+
+public final class io/cratis/arc/java/AsyncAuthorizationQueryFilterAdapter : io/cratis/arc/queries/AuthorizationQueryFilter {
+	public fun <init> (Lio/cratis/arc/java/AsyncAuthorizationQueryFilter;)V
+	public fun execute (Lio/cratis/arc/queries/QueryContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public abstract interface class io/cratis/arc/java/AsyncCommandExecutionScope {
+	public abstract fun begin (Lio/cratis/arc/commands/CommandContext;)V
+	public abstract fun complete (Lio/cratis/arc/commands/CommandContext;Lio/cratis/arc/results/CommandResult;)Ljava/util/concurrent/CompletionStage;
+}
+
+public final class io/cratis/arc/java/AsyncCommandExecutionScopeAdapter : io/cratis/arc/commands/CommandExecutionScope {
+	public fun <init> (Lio/cratis/arc/java/AsyncCommandExecutionScope;)V
+	public fun begin (Lio/cratis/arc/commands/CommandContext;)V
+	public fun complete (Lio/cratis/arc/commands/CommandContext;Lio/cratis/arc/results/CommandResult;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public abstract interface class io/cratis/arc/java/AsyncCommandFilter {
+	public abstract fun execute (Lio/cratis/arc/commands/CommandContext;)Ljava/util/concurrent/CompletionStage;
+}
+
+public final class io/cratis/arc/java/AsyncCommandFilterAdapter : io/cratis/arc/commands/CommandFilter {
+	public fun <init> (Lio/cratis/arc/java/AsyncCommandFilter;)V
+	public fun execute (Lio/cratis/arc/commands/CommandContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public abstract interface class io/cratis/arc/java/AsyncCommandHandler {
+	public abstract fun getCommandType ()Ljava/lang/Class;
+	public abstract fun getMetadata ()Lio/cratis/arc/metadata/CommandDescriptor;
+	public abstract fun invoke (Lio/cratis/arc/commands/CommandContext;)Ljava/util/concurrent/CompletionStage;
+	public fun prepare (Lio/cratis/arc/commands/CommandContext;)Ljava/util/concurrent/CompletionStage;
+	public fun resolveCommandKey (Ljava/lang/Object;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/java/AsyncCommandHandler$DefaultImpls {
+	public static fun prepare (Lio/cratis/arc/java/AsyncCommandHandler;Lio/cratis/arc/commands/CommandContext;)Ljava/util/concurrent/CompletionStage;
+	public static fun resolveCommandKey (Lio/cratis/arc/java/AsyncCommandHandler;Ljava/lang/Object;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/java/AsyncCommandHandlerAdapter : io/cratis/arc/commands/CommandHandler {
+	public fun <init> (Lio/cratis/arc/java/AsyncCommandHandler;)V
+	public fun getCommandType ()Ljava/lang/Class;
+	public fun getMetadata ()Lio/cratis/arc/metadata/CommandDescriptor;
+	public fun invoke (Lio/cratis/arc/commands/CommandContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun prepare (Lio/cratis/arc/commands/CommandContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun resolveCommandKey (Ljava/lang/Object;)Ljava/lang/Object;
+}
+
+public abstract interface class io/cratis/arc/java/AsyncCommandResponseValueHandler {
+	public abstract fun canHandle (Lio/cratis/arc/commands/CommandContext;Ljava/lang/Object;)Z
+	public abstract fun handle (Lio/cratis/arc/commands/CommandContext;Ljava/lang/Object;)Ljava/util/concurrent/CompletionStage;
+}
+
+public final class io/cratis/arc/java/AsyncCommandResponseValueHandlerAdapter : io/cratis/arc/commands/CommandResponseValueHandler {
+	public fun <init> (Lio/cratis/arc/java/AsyncCommandResponseValueHandler;)V
+	public fun canHandle (Lio/cratis/arc/commands/CommandContext;Ljava/lang/Object;)Z
+	public fun handle (Lio/cratis/arc/commands/CommandContext;Ljava/lang/Object;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public abstract interface class io/cratis/arc/java/AsyncCommandValidator {
+	public abstract fun getCommandType ()Ljava/lang/Class;
+	public abstract fun validate (Ljava/lang/Object;Lio/cratis/arc/commands/CommandContext;)Ljava/util/concurrent/CompletionStage;
+}
+
+public final class io/cratis/arc/java/AsyncCommandValidatorAdapter : io/cratis/arc/commands/CommandValidator {
+	public fun <init> (Lio/cratis/arc/java/AsyncCommandValidator;)V
+	public fun getCommandType ()Ljava/lang/Class;
+	public fun validate (Ljava/lang/Object;Lio/cratis/arc/commands/CommandContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public abstract interface class io/cratis/arc/java/AsyncObservableQueryOpenResult {
+}
+
+public final class io/cratis/arc/java/AsyncObservableQueryOpenResult$Failure : io/cratis/arc/java/AsyncObservableQueryOpenResult {
+	public fun <init> (Lio/cratis/arc/results/QueryResult;)V
+	public final fun getResult ()Lio/cratis/arc/results/QueryResult;
+}
+
+public final class io/cratis/arc/java/AsyncObservableQueryOpenResult$Stream : io/cratis/arc/java/AsyncObservableQueryOpenResult {
+	public fun <init> (Ljava/util/concurrent/Flow$Publisher;)V
+	public final fun getResults ()Ljava/util/concurrent/Flow$Publisher;
+}
+
+public final class io/cratis/arc/java/AsyncObservableQueryPipeline {
+	public final fun open (Lio/cratis/arc/queries/QueryRequest;Lio/cratis/arc/queries/QueryExecutionOptions;)Ljava/util/concurrent/CompletionStage;
+	public final fun open (Lio/cratis/arc/queries/QueryRequest;Lio/cratis/arc/queries/QueryExecutionOptions;Lio/cratis/arc/queries/ObservableQueryTransferMode;)Ljava/util/concurrent/CompletionStage;
+	public final fun open (Lio/cratis/arc/queries/QueryRequest;Lio/cratis/arc/queries/QueryExecutionOptions;Lio/cratis/arc/queries/ObservableQueryTransferMode;Lio/cratis/arc/java/ObservableQueryKeyExtractor;)Ljava/util/concurrent/CompletionStage;
+}
+
+public abstract interface class io/cratis/arc/java/AsyncQueryFilter {
+	public abstract fun execute (Lio/cratis/arc/queries/QueryContext;)Ljava/util/concurrent/CompletionStage;
+}
+
+public final class io/cratis/arc/java/AsyncQueryFilterAdapter : io/cratis/arc/queries/QueryFilter {
+	public fun <init> (Lio/cratis/arc/java/AsyncQueryFilter;)V
+	public fun execute (Lio/cratis/arc/queries/QueryContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public abstract interface class io/cratis/arc/java/AsyncQueryPerformer {
+	public abstract fun getDescriptor ()Lio/cratis/arc/metadata/QueryDescriptor;
+	public abstract fun getFullyQualifiedName ()Lio/cratis/arc/queries/FullyQualifiedQueryName;
+	public abstract fun perform (Lio/cratis/arc/queries/QueryContext;)Ljava/util/concurrent/CompletionStage;
+}
+
+public final class io/cratis/arc/java/AsyncQueryPerformerAdapter : io/cratis/arc/queries/QueryPerformer {
+	public fun <init> (Lio/cratis/arc/java/AsyncQueryPerformer;)V
+	public fun getDescriptor ()Lio/cratis/arc/metadata/QueryDescriptor;
+	public fun getFullyQualifiedName ()Lio/cratis/arc/queries/FullyQualifiedQueryName;
+	public fun perform (Lio/cratis/arc/queries/QueryContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public abstract interface class io/cratis/arc/java/AsyncQueryValidator {
+	public abstract fun getQueryName ()Lio/cratis/arc/queries/FullyQualifiedQueryName;
+	public abstract fun validate (Lio/cratis/arc/queries/QueryRequest;Lio/cratis/arc/queries/QueryContext;)Ljava/util/concurrent/CompletionStage;
+}
+
+public final class io/cratis/arc/java/AsyncQueryValidatorAdapter : io/cratis/arc/queries/QueryValidator {
+	public fun <init> (Lio/cratis/arc/java/AsyncQueryValidator;)V
+	public fun getQueryName ()Lio/cratis/arc/queries/FullyQualifiedQueryName;
+	public fun validate (Lio/cratis/arc/queries/QueryRequest;Lio/cratis/arc/queries/QueryContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public abstract interface class io/cratis/arc/java/BlockingAuthorizationCommandFilter : io/cratis/arc/java/BlockingCommandFilter {
+}
+
+public final class io/cratis/arc/java/BlockingAuthorizationCommandFilterAdapter : io/cratis/arc/commands/AuthorizationCommandFilter {
+	public fun <init> (Lio/cratis/arc/java/BlockingAuthorizationCommandFilter;)V
+	public fun execute (Lio/cratis/arc/commands/CommandContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public abstract interface class io/cratis/arc/java/BlockingAuthorizationPolicy {
+	public abstract fun evaluate (Lio/cratis/arc/authorization/ArcPrincipal;)Lio/cratis/arc/authorization/AuthorizationResult;
+}
+
+public final class io/cratis/arc/java/BlockingAuthorizationPolicyAdapter : io/cratis/arc/authorization/AuthorizationPolicy {
+	public fun <init> (Lio/cratis/arc/java/BlockingAuthorizationPolicy;)V
+	public fun evaluate (Lio/cratis/arc/authorization/ArcPrincipal;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public abstract interface class io/cratis/arc/java/BlockingAuthorizationQueryFilter : io/cratis/arc/java/BlockingQueryFilter {
+}
+
+public final class io/cratis/arc/java/BlockingAuthorizationQueryFilterAdapter : io/cratis/arc/queries/AuthorizationQueryFilter {
+	public fun <init> (Lio/cratis/arc/java/BlockingAuthorizationQueryFilter;)V
+	public fun execute (Lio/cratis/arc/queries/QueryContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public abstract interface class io/cratis/arc/java/BlockingCommandExecutionScope {
+	public abstract fun begin (Lio/cratis/arc/commands/CommandContext;)V
+	public abstract fun complete (Lio/cratis/arc/commands/CommandContext;Lio/cratis/arc/results/CommandResult;)Lio/cratis/arc/results/CommandResult;
+}
+
+public final class io/cratis/arc/java/BlockingCommandExecutionScopeAdapter : io/cratis/arc/commands/CommandExecutionScope {
+	public fun <init> (Lio/cratis/arc/java/BlockingCommandExecutionScope;)V
+	public fun begin (Lio/cratis/arc/commands/CommandContext;)V
+	public fun complete (Lio/cratis/arc/commands/CommandContext;Lio/cratis/arc/results/CommandResult;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public abstract interface class io/cratis/arc/java/BlockingCommandFilter {
+	public abstract fun execute (Lio/cratis/arc/commands/CommandContext;)Lio/cratis/arc/results/CommandResult;
+}
+
+public final class io/cratis/arc/java/BlockingCommandFilterAdapter : io/cratis/arc/commands/CommandFilter {
+	public fun <init> (Lio/cratis/arc/java/BlockingCommandFilter;)V
+	public fun execute (Lio/cratis/arc/commands/CommandContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public abstract interface class io/cratis/arc/java/BlockingCommandHandler {
+	public abstract fun getCommandType ()Ljava/lang/Class;
+	public abstract fun getMetadata ()Lio/cratis/arc/metadata/CommandDescriptor;
+	public abstract fun invoke (Lio/cratis/arc/commands/CommandContext;)Ljava/lang/Object;
+	public fun prepare (Lio/cratis/arc/commands/CommandContext;)Lio/cratis/arc/commands/CommandPreparation;
+	public fun resolveCommandKey (Ljava/lang/Object;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/java/BlockingCommandHandler$DefaultImpls {
+	public static fun prepare (Lio/cratis/arc/java/BlockingCommandHandler;Lio/cratis/arc/commands/CommandContext;)Lio/cratis/arc/commands/CommandPreparation;
+	public static fun resolveCommandKey (Lio/cratis/arc/java/BlockingCommandHandler;Ljava/lang/Object;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/java/BlockingCommandHandlerAdapter : io/cratis/arc/commands/CommandHandler {
+	public fun <init> (Lio/cratis/arc/java/BlockingCommandHandler;)V
+	public fun getCommandType ()Ljava/lang/Class;
+	public fun getMetadata ()Lio/cratis/arc/metadata/CommandDescriptor;
+	public fun invoke (Lio/cratis/arc/commands/CommandContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun prepare (Lio/cratis/arc/commands/CommandContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun resolveCommandKey (Ljava/lang/Object;)Ljava/lang/Object;
+}
+
+public abstract interface class io/cratis/arc/java/BlockingCommandResponseValueHandler {
+	public abstract fun canHandle (Lio/cratis/arc/commands/CommandContext;Ljava/lang/Object;)Z
+	public abstract fun handle (Lio/cratis/arc/commands/CommandContext;Ljava/lang/Object;)Lio/cratis/arc/results/CommandResult;
+}
+
+public final class io/cratis/arc/java/BlockingCommandResponseValueHandlerAdapter : io/cratis/arc/commands/CommandResponseValueHandler {
+	public fun <init> (Lio/cratis/arc/java/BlockingCommandResponseValueHandler;)V
+	public fun canHandle (Lio/cratis/arc/commands/CommandContext;Ljava/lang/Object;)Z
+	public fun handle (Lio/cratis/arc/commands/CommandContext;Ljava/lang/Object;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public abstract interface class io/cratis/arc/java/BlockingCommandValidator {
+	public abstract fun getCommandType ()Ljava/lang/Class;
+	public abstract fun validate (Ljava/lang/Object;Lio/cratis/arc/commands/CommandContext;)Ljava/util/List;
+}
+
+public final class io/cratis/arc/java/BlockingCommandValidatorAdapter : io/cratis/arc/commands/CommandValidator {
+	public fun <init> (Lio/cratis/arc/java/BlockingCommandValidator;)V
+	public fun getCommandType ()Ljava/lang/Class;
+	public fun validate (Ljava/lang/Object;Lio/cratis/arc/commands/CommandContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public abstract interface class io/cratis/arc/java/BlockingQueryFilter {
+	public abstract fun execute (Lio/cratis/arc/queries/QueryContext;)Lio/cratis/arc/results/QueryResult;
+}
+
+public final class io/cratis/arc/java/BlockingQueryFilterAdapter : io/cratis/arc/queries/QueryFilter {
+	public fun <init> (Lio/cratis/arc/java/BlockingQueryFilter;)V
+	public fun execute (Lio/cratis/arc/queries/QueryContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public abstract interface class io/cratis/arc/java/BlockingQueryPerformer {
+	public abstract fun getDescriptor ()Lio/cratis/arc/metadata/QueryDescriptor;
+	public abstract fun getFullyQualifiedName ()Lio/cratis/arc/queries/FullyQualifiedQueryName;
+	public abstract fun perform (Lio/cratis/arc/queries/QueryContext;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/java/BlockingQueryPerformerAdapter : io/cratis/arc/queries/QueryPerformer {
+	public fun <init> (Lio/cratis/arc/java/BlockingQueryPerformer;)V
+	public fun getDescriptor ()Lio/cratis/arc/metadata/QueryDescriptor;
+	public fun getFullyQualifiedName ()Lio/cratis/arc/queries/FullyQualifiedQueryName;
+	public fun perform (Lio/cratis/arc/queries/QueryContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public abstract interface class io/cratis/arc/java/BlockingQueryValidator {
+	public abstract fun getQueryName ()Lio/cratis/arc/queries/FullyQualifiedQueryName;
+	public abstract fun validate (Lio/cratis/arc/queries/QueryRequest;Lio/cratis/arc/queries/QueryContext;)Ljava/util/List;
+}
+
+public final class io/cratis/arc/java/BlockingQueryValidatorAdapter : io/cratis/arc/queries/QueryValidator {
+	public fun <init> (Lio/cratis/arc/java/BlockingQueryValidator;)V
+	public fun getQueryName ()Lio/cratis/arc/queries/FullyQualifiedQueryName;
+	public fun validate (Lio/cratis/arc/queries/QueryRequest;Lio/cratis/arc/queries/QueryContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/java/JavaAsyncScope : java/lang/AutoCloseable {
+	public static final field Companion Lio/cratis/arc/java/JavaAsyncScope$Companion;
+	public synthetic fun <init> (Ljava/util/concurrent/Executor;ZLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun authentication (Lio/cratis/arc/authentication/Authentication;)Lio/cratis/arc/authentication/AsyncAuthentication;
+	public fun close ()V
+	public final fun commands (Lio/cratis/arc/commands/CommandPipeline;)Lio/cratis/arc/commands/AsyncCommandPipeline;
+	public final fun observableQueries (Lio/cratis/arc/queries/ObservableQueryPipeline;)Lio/cratis/arc/java/AsyncObservableQueryPipeline;
+	public static final fun owningExecutorService (Ljava/util/concurrent/ExecutorService;)Lio/cratis/arc/java/JavaAsyncScope;
+	public final fun queries (Lio/cratis/arc/queries/QueryPipeline;)Lio/cratis/arc/queries/AsyncQueryPipeline;
+	public final fun queryHealth (Lio/cratis/arc/queries/QueryHealthTracker;)Ljava/util/concurrent/Flow$Publisher;
+	public static final fun usingExecutor (Ljava/util/concurrent/Executor;)Lio/cratis/arc/java/JavaAsyncScope;
+}
+
+public final class io/cratis/arc/java/JavaAsyncScope$Companion {
+	public final fun owningExecutorService (Ljava/util/concurrent/ExecutorService;)Lio/cratis/arc/java/JavaAsyncScope;
+	public final fun usingExecutor (Ljava/util/concurrent/Executor;)Lio/cratis/arc/java/JavaAsyncScope;
+}
+
+public abstract interface class io/cratis/arc/java/ObservableQueryKeyExtractor {
+	public abstract fun extractKey (Ljava/lang/Object;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/json/ArcCamelCase {
+	public static final field INSTANCE Lio/cratis/arc/json/ArcCamelCase;
+	public static final fun convert (Ljava/lang/String;)Ljava/lang/String;
+}
+
+public final class io/cratis/arc/json/ArcJacksonModule : com/fasterxml/jackson/databind/module/SimpleModule {
+	public fun <init> ()V
+	public fun <init> (Lio/cratis/arc/polymorphism/DerivedTypeRegistry;)V
+	public synthetic fun <init> (Lio/cratis/arc/polymorphism/DerivedTypeRegistry;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun setupModule (Lcom/fasterxml/jackson/databind/Module$SetupContext;)V
+}
+
+public final class io/cratis/arc/json/ArcObjectMapper {
+	public static final field INSTANCE Lio/cratis/arc/json/ArcObjectMapper;
+	public static final fun configure (Lcom/fasterxml/jackson/databind/ObjectMapper;)Lcom/fasterxml/jackson/databind/ObjectMapper;
+	public static final fun configure (Lcom/fasterxml/jackson/databind/ObjectMapper;Lio/cratis/arc/polymorphism/DerivedTypeRegistry;)Lcom/fasterxml/jackson/databind/ObjectMapper;
+	public static final fun create ()Lcom/fasterxml/jackson/databind/ObjectMapper;
+	public static final fun create (Lio/cratis/arc/polymorphism/DerivedTypeRegistry;)Lcom/fasterxml/jackson/databind/ObjectMapper;
+}
+
+public final class io/cratis/arc/json/ArcPropertyNamingStrategy : com/fasterxml/jackson/databind/PropertyNamingStrategies$NamingBase {
+	public fun <init> ()V
+	public fun translate (Ljava/lang/String;)Ljava/lang/String;
+}
+
+public final class io/cratis/arc/metadata/ApiEndpointOptions {
+	public fun <init> ()V
+	public fun <init> (Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;I)V
+	public fun <init> (Ljava/lang/String;IZ)V
+	public fun <init> (Ljava/lang/String;IZZ)V
+	public fun <init> (Ljava/lang/String;IZZZ)V
+	public synthetic fun <init> (Ljava/lang/String;IZZZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()I
+	public final fun component3 ()Z
+	public final fun component4 ()Z
+	public final fun component5 ()Z
+	public final fun copy (Ljava/lang/String;IZZZ)Lio/cratis/arc/metadata/ApiEndpointOptions;
+	public static synthetic fun copy$default (Lio/cratis/arc/metadata/ApiEndpointOptions;Ljava/lang/String;IZZZILjava/lang/Object;)Lio/cratis/arc/metadata/ApiEndpointOptions;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getEnableQueryHttpMethod ()Z
+	public final fun getIncludeCommandNameInRoute ()Z
+	public final fun getIncludeQueryNameInRoute ()Z
+	public final fun getRoutePrefix ()Ljava/lang/String;
+	public final fun getSegmentsToSkipForRoute ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/cratis/arc/metadata/AuthorizationMetadata {
+	public fun <init> ()V
+	public fun <init> (Z)V
+	public fun <init> (ZLjava/lang/String;)V
+	public fun <init> (ZLjava/lang/String;Ljava/util/List;)V
+	public fun <init> (ZLjava/lang/String;Ljava/util/List;Ljava/util/List;)V
+	public synthetic fun <init> (ZLjava/lang/String;Ljava/util/List;Ljava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getAllowAnonymous ()Z
+	public final fun getPolicy ()Ljava/lang/String;
+	public final fun getRoles ()Ljava/util/List;
+	public final fun getSchemes ()Ljava/util/List;
+}
+
+public final class io/cratis/arc/metadata/CommandDescriptor {
+	public static final field Companion Lio/cratis/arc/metadata/CommandDescriptor$Companion;
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/util/List;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;Z)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;ZLjava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;ZLjava/lang/String;Z)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;ZLjava/lang/String;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;ZLjava/lang/String;ZLjava/util/List;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;ZLjava/lang/String;ZLjava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getAuthorization ()Lio/cratis/arc/metadata/AuthorizationMetadata;
+	public final fun getExplicitPath ()Ljava/lang/String;
+	public final fun getLocation ()Ljava/util/List;
+	public final fun getName ()Ljava/lang/String;
+	public final fun getProperties ()Ljava/util/List;
+	public final fun getResponseIsEnumerable ()Z
+	public final fun getResponseTypeName ()Ljava/lang/String;
+	public final fun getResponseValues ()Ljava/util/List;
+	public final fun getRouteOptions ()Lio/cratis/arc/metadata/RouteOptions;
+	public final fun getTreatWarningsAsErrors ()Z
+	public final fun getTypeName ()Ljava/lang/String;
+	public static final fun withResponseValues (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;)Lio/cratis/arc/metadata/CommandDescriptor;
+}
+
+public final class io/cratis/arc/metadata/CommandDescriptor$Companion {
+	public final fun withResponseValues (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;)Lio/cratis/arc/metadata/CommandDescriptor;
+}
+
+public final class io/cratis/arc/metadata/CommandResponseValueDescriptor {
+	public fun <init> (Lio/cratis/arc/metadata/TypeShapeDescriptor;Lio/cratis/arc/metadata/CommandResponseValueDisposition;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/Boolean;Lio/cratis/arc/metadata/CommandResponseValueDisposition;Lio/cratis/arc/metadata/TypeShapeDescriptor;)V
+	public fun <init> (Ljava/lang/String;ZLio/cratis/arc/metadata/CommandResponseValueDisposition;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Z
+	public final fun component3 ()Lio/cratis/arc/metadata/CommandResponseValueDisposition;
+	public final fun copy (Ljava/lang/String;ZLio/cratis/arc/metadata/CommandResponseValueDisposition;)Lio/cratis/arc/metadata/CommandResponseValueDescriptor;
+	public static synthetic fun copy$default (Lio/cratis/arc/metadata/CommandResponseValueDescriptor;Ljava/lang/String;ZLio/cratis/arc/metadata/CommandResponseValueDisposition;ILjava/lang/Object;)Lio/cratis/arc/metadata/CommandResponseValueDescriptor;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDisposition ()Lio/cratis/arc/metadata/CommandResponseValueDisposition;
+	public final fun getShape ()Lio/cratis/arc/metadata/TypeShapeDescriptor;
+	public final fun getTypeName ()Ljava/lang/String;
+	public fun hashCode ()I
+	public final fun isEnumerable ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/cratis/arc/metadata/CommandResponseValueDisposition : java/lang/Enum {
+	public static final field CLIENT Lio/cratis/arc/metadata/CommandResponseValueDisposition;
+	public static final field HANDLED Lio/cratis/arc/metadata/CommandResponseValueDisposition;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lio/cratis/arc/metadata/CommandResponseValueDisposition;
+	public static fun values ()[Lio/cratis/arc/metadata/CommandResponseValueDisposition;
+}
+
+public final class io/cratis/arc/metadata/ConceptDescriptor {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lio/cratis/arc/metadata/ConceptDescriptor;
+	public static synthetic fun copy$default (Lio/cratis/arc/metadata/ConceptDescriptor;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lio/cratis/arc/metadata/ConceptDescriptor;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getFullyQualifiedName ()Ljava/lang/String;
+	public final fun getName ()Ljava/lang/String;
+	public final fun getUnderlyingTypeName ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/cratis/arc/metadata/EndpointRouteHelper {
+	public static final field INSTANCE Lio/cratis/arc/metadata/EndpointRouteHelper;
+	public static final fun buildRouteUrl (Lio/cratis/arc/metadata/ApiEndpointOptions;Ljava/lang/Iterable;ILjava/lang/String;Z)Ljava/lang/String;
+	public static final fun commandRoute (Lio/cratis/arc/metadata/CommandDescriptor;)Ljava/lang/String;
+	public static final fun commandRoute (Lio/cratis/arc/metadata/CommandDescriptor;Lio/cratis/arc/metadata/ApiEndpointOptions;)Ljava/lang/String;
+	public static final fun commandRoute (Lio/cratis/arc/metadata/CommandDescriptor;Lio/cratis/arc/metadata/ApiEndpointOptions;Z)Ljava/lang/String;
+	public static synthetic fun commandRoute$default (Lio/cratis/arc/metadata/CommandDescriptor;Lio/cratis/arc/metadata/ApiEndpointOptions;ZILjava/lang/Object;)Ljava/lang/String;
+	public static final fun conventionalRoute (Lio/cratis/arc/metadata/ApiEndpointOptions;Ljava/util/List;Ljava/lang/String;Z)Ljava/lang/String;
+	public static final fun conventionalRoute (Lio/cratis/arc/metadata/ApiEndpointOptions;Ljava/util/List;Ljava/lang/String;ZZ)Ljava/lang/String;
+	public static final fun conventionalRoute (Lio/cratis/arc/metadata/ApiEndpointOptions;Ljava/util/List;Ljava/lang/String;ZZLjava/lang/String;)Ljava/lang/String;
+	public static final fun conventionalRoute (Lio/cratis/arc/metadata/ApiEndpointOptions;Ljava/util/List;Ljava/lang/String;ZZLjava/lang/String;Z)Ljava/lang/String;
+	public static synthetic fun conventionalRoute$default (Lio/cratis/arc/metadata/ApiEndpointOptions;Ljava/util/List;Ljava/lang/String;ZZLjava/lang/String;ZILjava/lang/Object;)Ljava/lang/String;
+	public static final fun groupByNamespace (Ljava/lang/Iterable;Lkotlin/jvm/functions/Function1;I)Ljava/util/Map;
+	public static final fun queryRoute (Lio/cratis/arc/metadata/QueryDescriptor;)Ljava/lang/String;
+	public static final fun queryRoute (Lio/cratis/arc/metadata/QueryDescriptor;Lio/cratis/arc/metadata/ApiEndpointOptions;)Ljava/lang/String;
+	public static final fun queryRoute (Lio/cratis/arc/metadata/QueryDescriptor;Lio/cratis/arc/metadata/ApiEndpointOptions;Z)Ljava/lang/String;
+	public static synthetic fun queryRoute$default (Lio/cratis/arc/metadata/QueryDescriptor;Lio/cratis/arc/metadata/ApiEndpointOptions;ZILjava/lang/Object;)Ljava/lang/String;
+	public static final fun shouldIncludeNameInRoute (ZLjava/lang/Iterable;Ljava/util/Map;)Z
+	public static final fun toKebabCase (Ljava/lang/String;)Ljava/lang/String;
+}
+
+public final class io/cratis/arc/metadata/EnumDescriptor {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/util/List;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Z)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/util/List;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getAllFlagsExpression ()Ljava/lang/String;
+	public final fun getFullyQualifiedName ()Ljava/lang/String;
+	public final fun getLocation ()Ljava/util/List;
+	public final fun getMembers ()Ljava/util/List;
+	public final fun getName ()Ljava/lang/String;
+	public final fun isFlags ()Z
+}
+
+public final class io/cratis/arc/metadata/EnumMemberDescriptor {
+	public fun <init> (Ljava/lang/String;I)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()I
+	public final fun copy (Ljava/lang/String;I)Lio/cratis/arc/metadata/EnumMemberDescriptor;
+	public static synthetic fun copy$default (Lio/cratis/arc/metadata/EnumMemberDescriptor;Ljava/lang/String;IILjava/lang/Object;)Lio/cratis/arc/metadata/EnumMemberDescriptor;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getName ()Ljava/lang/String;
+	public final fun getValue ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/cratis/arc/metadata/InterfaceDescriptor {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/util/List;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getFullyQualifiedName ()Ljava/lang/String;
+	public final fun getLocation ()Ljava/util/List;
+	public final fun getName ()Ljava/lang/String;
+	public final fun getProperties ()Ljava/util/List;
+}
+
+public final class io/cratis/arc/metadata/MapKeyCodec : java/lang/Enum {
+	public static final field STRING Lio/cratis/arc/metadata/MapKeyCodec;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lio/cratis/arc/metadata/MapKeyCodec;
+	public static fun values ()[Lio/cratis/arc/metadata/MapKeyCodec;
+}
+
+public final class io/cratis/arc/metadata/ParameterDescriptor {
+	public fun <init> (Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;)V
+	public fun <init> (Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;Lio/cratis/arc/metadata/QueryParameterSource;)V
+	public fun <init> (Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;Lio/cratis/arc/metadata/QueryParameterSource;Ljava/util/List;)V
+	public fun <init> (Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;Lio/cratis/arc/metadata/QueryParameterSource;Ljava/util/List;Z)V
+	public synthetic fun <init> (Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;Lio/cratis/arc/metadata/QueryParameterSource;Ljava/util/List;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;Lio/cratis/arc/metadata/QueryParameterSource;Z)V
+	public fun <init> (Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;Lio/cratis/arc/metadata/QueryParameterSource;ZLjava/util/List;)V
+	public fun <init> (Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;Lio/cratis/arc/metadata/QueryParameterSource;ZLjava/util/List;Z)V
+	public synthetic fun <init> (Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;Lio/cratis/arc/metadata/QueryParameterSource;ZLjava/util/List;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;Z)V
+	public fun <init> (Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;ZLjava/util/List;)V
+	public fun <init> (Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;ZLjava/util/List;Z)V
+	public synthetic fun <init> (Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;ZLjava/util/List;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Boolean;Ljava/lang/Boolean;Ljava/lang/Boolean;Ljava/lang/String;Ljava/util/List;Ljava/lang/Boolean;Lio/cratis/arc/metadata/TypeShapeDescriptor;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Boolean;Ljava/lang/Boolean;Ljava/lang/Boolean;Ljava/lang/String;Ljava/util/List;Ljava/lang/Boolean;Lio/cratis/arc/metadata/TypeShapeDescriptor;Lio/cratis/arc/metadata/QueryParameterSource;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Boolean;Ljava/lang/Boolean;Ljava/lang/Boolean;Ljava/lang/String;Ljava/util/List;Ljava/lang/Boolean;Lio/cratis/arc/metadata/TypeShapeDescriptor;Lio/cratis/arc/metadata/QueryParameterSource;Ljava/lang/Boolean;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Z)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;ZZ)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;ZZZ)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;ZZZLjava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;ZZZLjava/lang/String;Ljava/util/List;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;ZZZLjava/lang/String;Ljava/util/List;Z)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ZZZLjava/lang/String;Ljava/util/List;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getElementTypeName ()Ljava/lang/String;
+	public final fun getHasDefault ()Z
+	public final fun getName ()Ljava/lang/String;
+	public final fun getShape ()Lio/cratis/arc/metadata/TypeShapeDescriptor;
+	public final fun getSource ()Lio/cratis/arc/metadata/QueryParameterSource;
+	public final fun getTypeName ()Ljava/lang/String;
+	public final fun getValidateRecursively ()Z
+	public final fun getValidationRules ()Ljava/util/List;
+	public fun hashCode ()I
+	public final fun isEnumerable ()Z
+	public final fun isFromServices ()Z
+	public final fun isNullable ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/cratis/arc/metadata/PropertyDescriptor {
+	public fun <init> (Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;)V
+	public fun <init> (Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;Z)V
+	public fun <init> (Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;ZLjava/util/List;)V
+	public fun <init> (Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;ZLjava/util/List;Z)V
+	public fun <init> (Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;ZLjava/util/List;ZLjava/util/List;)V
+	public synthetic fun <init> (Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;ZLjava/util/List;ZLjava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Boolean;Ljava/lang/Boolean;Ljava/lang/Boolean;Ljava/lang/String;Ljava/util/List;Ljava/lang/Boolean;Ljava/util/List;Lio/cratis/arc/metadata/TypeShapeDescriptor;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Z)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;ZZ)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;ZZZ)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;ZZZLjava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;ZZZLjava/lang/String;Ljava/util/List;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;ZZZLjava/lang/String;Ljava/util/List;Z)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;ZZZLjava/lang/String;Ljava/util/List;ZLjava/util/List;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ZZZLjava/lang/String;Ljava/util/List;ZLjava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDerivatives ()Ljava/util/List;
+	public final fun getElementTypeName ()Ljava/lang/String;
+	public final fun getName ()Ljava/lang/String;
+	public final fun getShape ()Lio/cratis/arc/metadata/TypeShapeDescriptor;
+	public final fun getTypeName ()Ljava/lang/String;
+	public final fun getValidateRecursively ()Z
+	public final fun getValidationRules ()Ljava/util/List;
+	public fun hashCode ()I
+	public final fun isCommandKey ()Z
+	public final fun isEnumerable ()Z
+	public final fun isNullable ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/cratis/arc/metadata/QueryDescriptor {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;Ljava/util/List;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/lang/String;Ljava/util/List;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;Lio/cratis/arc/queries/QueryHttpMethodType;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;Lio/cratis/arc/queries/QueryHttpMethodType;Lio/cratis/arc/queries/QueryTransportType;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;Lio/cratis/arc/queries/QueryHttpMethodType;Lio/cratis/arc/queries/QueryTransportType;Z)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;Lio/cratis/arc/queries/QueryHttpMethodType;Lio/cratis/arc/queries/QueryTransportType;ZZ)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;Lio/cratis/arc/queries/QueryHttpMethodType;Lio/cratis/arc/queries/QueryTransportType;ZZZ)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;Lio/cratis/arc/queries/QueryHttpMethodType;Lio/cratis/arc/queries/QueryTransportType;ZZZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/lang/String;Ljava/util/List;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;Lio/cratis/arc/queries/QueryHttpMethodType;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;Lio/cratis/arc/queries/QueryHttpMethodType;Lio/cratis/arc/queries/QueryTransportType;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;Lio/cratis/arc/queries/QueryHttpMethodType;Lio/cratis/arc/queries/QueryTransportType;Ljava/lang/Boolean;Ljava/lang/Boolean;Ljava/lang/Boolean;Ljava/lang/Boolean;Lio/cratis/arc/metadata/TypeShapeDescriptor;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;Lio/cratis/arc/queries/QueryHttpMethodType;Lio/cratis/arc/queries/QueryTransportType;Z)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;Lio/cratis/arc/queries/QueryHttpMethodType;Lio/cratis/arc/queries/QueryTransportType;ZZ)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;Lio/cratis/arc/queries/QueryHttpMethodType;Lio/cratis/arc/queries/QueryTransportType;ZZZ)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;Lio/cratis/arc/queries/QueryHttpMethodType;Lio/cratis/arc/queries/QueryTransportType;ZZZZ)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;Lio/cratis/arc/queries/QueryHttpMethodType;Lio/cratis/arc/queries/QueryTransportType;ZZZZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getAuthorization ()Lio/cratis/arc/metadata/AuthorizationMetadata;
+	public final fun getDeclaringTypeName ()Ljava/lang/String;
+	public final fun getExplicitPath ()Ljava/lang/String;
+	public final fun getFullyQualifiedName ()Ljava/lang/String;
+	public final fun getLocation ()Ljava/util/List;
+	public final fun getName ()Ljava/lang/String;
+	public final fun getParameters ()Ljava/util/List;
+	public final fun getQueryHttpMethod ()Lio/cratis/arc/queries/QueryHttpMethodType;
+	public final fun getReturnShape ()Lio/cratis/arc/metadata/TypeShapeDescriptor;
+	public final fun getReturnTypeName ()Ljava/lang/String;
+	public final fun getRouteOptions ()Lio/cratis/arc/metadata/RouteOptions;
+	public final fun getSupportsPaging ()Z
+	public final fun getSupportsSorting ()Z
+	public final fun getTransport ()Lio/cratis/arc/queries/QueryTransportType;
+	public final fun getTreatWarningsAsErrors ()Z
+	public final fun isEnumerable ()Z
+}
+
+public final class io/cratis/arc/metadata/QueryParameterSource : java/lang/Enum {
+	public static final field CLIENT Lio/cratis/arc/metadata/QueryParameterSource;
+	public static final field HOST_ADAPTER Lio/cratis/arc/metadata/QueryParameterSource;
+	public static final field QUERY_CONTEXT Lio/cratis/arc/metadata/QueryParameterSource;
+	public static final field QUERY_REQUEST Lio/cratis/arc/metadata/QueryParameterSource;
+	public static final field SERVICE Lio/cratis/arc/metadata/QueryParameterSource;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lio/cratis/arc/metadata/QueryParameterSource;
+	public static fun values ()[Lio/cratis/arc/metadata/QueryParameterSource;
+}
+
+public final class io/cratis/arc/metadata/RouteOptions {
+	public fun <init> ()V
+	public fun <init> (Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Lio/cratis/arc/queries/QueryTransportType;)V
+	public synthetic fun <init> (Ljava/lang/String;Lio/cratis/arc/queries/QueryTransportType;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Lio/cratis/arc/queries/QueryTransportType;
+	public final fun copy (Ljava/lang/String;Lio/cratis/arc/queries/QueryTransportType;)Lio/cratis/arc/metadata/RouteOptions;
+	public static synthetic fun copy$default (Lio/cratis/arc/metadata/RouteOptions;Ljava/lang/String;Lio/cratis/arc/queries/QueryTransportType;ILjava/lang/Object;)Lio/cratis/arc/metadata/RouteOptions;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getPath ()Ljava/lang/String;
+	public final fun getTransport ()Lio/cratis/arc/queries/QueryTransportType;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/cratis/arc/metadata/SequenceKind : java/lang/Enum {
+	public static final field ARRAY Lio/cratis/arc/metadata/SequenceKind;
+	public static final field COLLECTION Lio/cratis/arc/metadata/SequenceKind;
+	public static final field LIST Lio/cratis/arc/metadata/SequenceKind;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lio/cratis/arc/metadata/SequenceKind;
+	public static fun values ()[Lio/cratis/arc/metadata/SequenceKind;
+}
+
+public final class io/cratis/arc/metadata/TypeDescriptor {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/util/List;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getBaseTypeName ()Ljava/lang/String;
+	public final fun getDerivedTypeId ()Ljava/lang/String;
+	public final fun getFullyQualifiedName ()Ljava/lang/String;
+	public final fun getLocation ()Ljava/util/List;
+	public final fun getName ()Ljava/lang/String;
+	public final fun getProperties ()Ljava/util/List;
+}
+
+public final class io/cratis/arc/metadata/TypeShapeDescriptor {
+	public static final field Companion Lio/cratis/arc/metadata/TypeShapeDescriptor$Companion;
+	public fun <init> (Lio/cratis/arc/metadata/TypeShapeKind;ZLjava/lang/String;Lio/cratis/arc/metadata/SequenceKind;Lio/cratis/arc/metadata/TypeShapeDescriptor;Lio/cratis/arc/metadata/TypeShapeDescriptor;Lio/cratis/arc/metadata/TypeShapeDescriptor;Lio/cratis/arc/metadata/MapKeyCodec;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getElementShape ()Lio/cratis/arc/metadata/TypeShapeDescriptor;
+	public final fun getKeyCodec ()Lio/cratis/arc/metadata/MapKeyCodec;
+	public final fun getKeyShape ()Lio/cratis/arc/metadata/TypeShapeDescriptor;
+	public final fun getKind ()Lio/cratis/arc/metadata/TypeShapeKind;
+	public final fun getNullable ()Z
+	public final fun getSequenceKind ()Lio/cratis/arc/metadata/SequenceKind;
+	public final fun getTypeName ()Ljava/lang/String;
+	public final fun getValueShape ()Lio/cratis/arc/metadata/TypeShapeDescriptor;
+	public fun hashCode ()I
+	public static final fun map (Lio/cratis/arc/metadata/TypeShapeDescriptor;Lio/cratis/arc/metadata/TypeShapeDescriptor;)Lio/cratis/arc/metadata/TypeShapeDescriptor;
+	public static final fun map (Lio/cratis/arc/metadata/TypeShapeDescriptor;Lio/cratis/arc/metadata/TypeShapeDescriptor;Lio/cratis/arc/metadata/MapKeyCodec;)Lio/cratis/arc/metadata/TypeShapeDescriptor;
+	public static final fun map (Lio/cratis/arc/metadata/TypeShapeDescriptor;Lio/cratis/arc/metadata/TypeShapeDescriptor;Lio/cratis/arc/metadata/MapKeyCodec;Z)Lio/cratis/arc/metadata/TypeShapeDescriptor;
+	public static final fun sequence (Lio/cratis/arc/metadata/SequenceKind;Lio/cratis/arc/metadata/TypeShapeDescriptor;)Lio/cratis/arc/metadata/TypeShapeDescriptor;
+	public static final fun sequence (Lio/cratis/arc/metadata/SequenceKind;Lio/cratis/arc/metadata/TypeShapeDescriptor;Z)Lio/cratis/arc/metadata/TypeShapeDescriptor;
+	public fun toString ()Ljava/lang/String;
+	public static final fun value (Ljava/lang/String;)Lio/cratis/arc/metadata/TypeShapeDescriptor;
+	public static final fun value (Ljava/lang/String;Z)Lio/cratis/arc/metadata/TypeShapeDescriptor;
+}
+
+public final class io/cratis/arc/metadata/TypeShapeDescriptor$Companion {
+	public final fun map (Lio/cratis/arc/metadata/TypeShapeDescriptor;Lio/cratis/arc/metadata/TypeShapeDescriptor;)Lio/cratis/arc/metadata/TypeShapeDescriptor;
+	public final fun map (Lio/cratis/arc/metadata/TypeShapeDescriptor;Lio/cratis/arc/metadata/TypeShapeDescriptor;Lio/cratis/arc/metadata/MapKeyCodec;)Lio/cratis/arc/metadata/TypeShapeDescriptor;
+	public final fun map (Lio/cratis/arc/metadata/TypeShapeDescriptor;Lio/cratis/arc/metadata/TypeShapeDescriptor;Lio/cratis/arc/metadata/MapKeyCodec;Z)Lio/cratis/arc/metadata/TypeShapeDescriptor;
+	public static synthetic fun map$default (Lio/cratis/arc/metadata/TypeShapeDescriptor$Companion;Lio/cratis/arc/metadata/TypeShapeDescriptor;Lio/cratis/arc/metadata/TypeShapeDescriptor;Lio/cratis/arc/metadata/MapKeyCodec;ZILjava/lang/Object;)Lio/cratis/arc/metadata/TypeShapeDescriptor;
+	public final fun sequence (Lio/cratis/arc/metadata/SequenceKind;Lio/cratis/arc/metadata/TypeShapeDescriptor;)Lio/cratis/arc/metadata/TypeShapeDescriptor;
+	public final fun sequence (Lio/cratis/arc/metadata/SequenceKind;Lio/cratis/arc/metadata/TypeShapeDescriptor;Z)Lio/cratis/arc/metadata/TypeShapeDescriptor;
+	public static synthetic fun sequence$default (Lio/cratis/arc/metadata/TypeShapeDescriptor$Companion;Lio/cratis/arc/metadata/SequenceKind;Lio/cratis/arc/metadata/TypeShapeDescriptor;ZILjava/lang/Object;)Lio/cratis/arc/metadata/TypeShapeDescriptor;
+	public final fun value (Ljava/lang/String;)Lio/cratis/arc/metadata/TypeShapeDescriptor;
+	public final fun value (Ljava/lang/String;Z)Lio/cratis/arc/metadata/TypeShapeDescriptor;
+	public static synthetic fun value$default (Lio/cratis/arc/metadata/TypeShapeDescriptor$Companion;Ljava/lang/String;ZILjava/lang/Object;)Lio/cratis/arc/metadata/TypeShapeDescriptor;
+}
+
+public final class io/cratis/arc/metadata/TypeShapeKind : java/lang/Enum {
+	public static final field MAP Lio/cratis/arc/metadata/TypeShapeKind;
+	public static final field SEQUENCE Lio/cratis/arc/metadata/TypeShapeKind;
+	public static final field VALUE Lio/cratis/arc/metadata/TypeShapeKind;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lio/cratis/arc/metadata/TypeShapeKind;
+	public static fun values ()[Lio/cratis/arc/metadata/TypeShapeKind;
+}
+
+public final class io/cratis/arc/metadata/ValidationRuleDescriptor {
+	public fun <init> (Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Ljava/util/List;)V
+	public fun <init> (Ljava/lang/String;Ljava/util/List;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/util/List;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getArguments ()Ljava/util/List;
+	public final fun getMessage ()Ljava/lang/String;
+	public final fun getRuleName ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/cratis/arc/polymorphism/ConcurrentDerivedTypeRegistry : io/cratis/arc/polymorphism/DerivedTypeRegistry {
+	public fun <init> ()V
+	public fun idFor (Ljava/lang/Class;Ljava/lang/Class;)Ljava/lang/String;
+	public fun register (Ljava/lang/Class;Ljava/lang/Class;)V
+	public fun registeredBaseTypes ()Ljava/util/Set;
+	public fun resolve (Ljava/lang/Class;Ljava/lang/String;)Ljava/lang/Class;
+}
+
+public abstract interface annotation class io/cratis/arc/polymorphism/DerivedType : java/lang/annotation/Annotation {
+	public abstract fun id ()Ljava/lang/String;
+}
+
+public abstract interface class io/cratis/arc/polymorphism/DerivedTypeRegistry {
+	public abstract fun idFor (Ljava/lang/Class;Ljava/lang/Class;)Ljava/lang/String;
+	public abstract fun register (Ljava/lang/Class;Ljava/lang/Class;)V
+	public abstract fun registeredBaseTypes ()Ljava/util/Set;
+	public abstract fun resolve (Ljava/lang/Class;Ljava/lang/String;)Ljava/lang/Class;
+}
+
+public final class io/cratis/arc/polymorphism/DerivedTypeRegistryKt {
+	public static final synthetic fun getBaseTypes (Lio/cratis/arc/polymorphism/DerivedTypeRegistry;)Ljava/util/Set;
+}
+
+public final class io/cratis/arc/queries/AsyncQueryPipeline {
+	public static final field Companion Lio/cratis/arc/queries/AsyncQueryPipeline$Companion;
+	public static final synthetic fun fromCoroutineScope (Lio/cratis/arc/queries/QueryPipeline;Lkotlinx/coroutines/CoroutineScope;)Lio/cratis/arc/queries/AsyncQueryPipeline;
+	public final fun perform (Lio/cratis/arc/queries/QueryRequest;Lio/cratis/arc/queries/QueryExecutionOptions;)Ljava/util/concurrent/CompletionStage;
+}
+
+public final class io/cratis/arc/queries/AsyncQueryPipeline$Companion {
+	public final synthetic fun fromCoroutineScope (Lio/cratis/arc/queries/QueryPipeline;Lkotlinx/coroutines/CoroutineScope;)Lio/cratis/arc/queries/AsyncQueryPipeline;
+}
+
+public abstract interface class io/cratis/arc/queries/AuthorizationQueryFilter : io/cratis/arc/queries/QueryFilter {
+}
+
+public abstract interface class io/cratis/arc/queries/BlockingObservableQueryEmissionGuard : io/cratis/arc/queries/GuardObservableQueryEmission {
+	public fun guard (Lio/cratis/arc/queries/ObservableQueryEmissionContext;)Ljava/util/concurrent/CompletionStage;
+	public abstract fun guardBlocking (Lio/cratis/arc/queries/ObservableQueryEmissionContext;)Lio/cratis/arc/queries/ObservableQueryEmissionVerdict;
+}
+
+public final class io/cratis/arc/queries/BlockingObservableQueryEmissionGuard$DefaultImpls {
+	public static fun guard (Lio/cratis/arc/queries/BlockingObservableQueryEmissionGuard;Lio/cratis/arc/queries/ObservableQueryEmissionContext;)Ljava/util/concurrent/CompletionStage;
+}
+
+public abstract interface class io/cratis/arc/queries/BlockingQueryRendererFor : io/cratis/arc/queries/QueryRendererFor {
+	public fun render (Ljava/lang/Object;Lio/cratis/arc/queries/QueryRendererResult;Lio/cratis/arc/queries/QueryContext;)Ljava/util/concurrent/CompletionStage;
+	public abstract fun renderBlocking (Ljava/lang/Object;Lio/cratis/arc/queries/QueryRendererResult;Lio/cratis/arc/queries/QueryContext;)Lio/cratis/arc/queries/QueryRendererResult;
+}
+
+public final class io/cratis/arc/queries/BlockingQueryRendererFor$DefaultImpls {
+	public static fun order (Lio/cratis/arc/queries/BlockingQueryRendererFor;)I
+	public static fun render (Lio/cratis/arc/queries/BlockingQueryRendererFor;Ljava/lang/Object;Lio/cratis/arc/queries/QueryRendererResult;Lio/cratis/arc/queries/QueryContext;)Ljava/util/concurrent/CompletionStage;
+}
+
+public abstract interface class io/cratis/arc/queries/BlockingReadModelForCommandResolver : io/cratis/arc/queries/CanResolveReadModelForCommand {
+	public fun resolve (Ljava/lang/Class;Lio/cratis/arc/commands/CommandContext;Ljava/lang/Object;)Ljava/util/concurrent/CompletionStage;
+	public abstract fun resolveBlocking (Ljava/lang/Class;Lio/cratis/arc/commands/CommandContext;Ljava/lang/Object;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/queries/BlockingReadModelForCommandResolver$DefaultImpls {
+	public static fun resolve (Lio/cratis/arc/queries/BlockingReadModelForCommandResolver;Ljava/lang/Class;Lio/cratis/arc/commands/CommandContext;Ljava/lang/Object;)Ljava/util/concurrent/CompletionStage;
+}
+
+public abstract interface class io/cratis/arc/queries/BlockingReadModelInterceptor : io/cratis/arc/queries/InterceptReadModel {
+	public fun intercept (Ljava/lang/Object;Lio/cratis/arc/queries/QueryContext;)Ljava/util/concurrent/CompletionStage;
+	public abstract fun interceptBlocking (Ljava/lang/Object;Lio/cratis/arc/queries/QueryContext;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/queries/BlockingReadModelInterceptor$DefaultImpls {
+	public static fun intercept (Lio/cratis/arc/queries/BlockingReadModelInterceptor;Ljava/lang/Object;Lio/cratis/arc/queries/QueryContext;)Ljava/util/concurrent/CompletionStage;
+	public static fun order (Lio/cratis/arc/queries/BlockingReadModelInterceptor;)I
+}
+
+public abstract interface class io/cratis/arc/queries/CanResolveReadModelForCommand {
+	public abstract fun ownership ()Lio/cratis/arc/queries/ReadModelForCommandOwnership;
+	public abstract fun readModelTypes ()Ljava/util/Set;
+	public abstract fun resolve (Ljava/lang/Class;Lio/cratis/arc/commands/CommandContext;Ljava/lang/Object;)Ljava/util/concurrent/CompletionStage;
+}
+
+public final class io/cratis/arc/queries/ChangeSetComputer {
+	public fun <init> ()V
+	public fun <init> (Lcom/fasterxml/jackson/databind/ObjectMapper;)V
+	public fun <init> (Lcom/fasterxml/jackson/databind/ObjectMapper;Ljava/util/Map;)V
+	public synthetic fun <init> (Lcom/fasterxml/jackson/databind/ObjectMapper;Ljava/util/Map;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun compute (Ljava/util/List;Ljava/util/List;)Lio/cratis/arc/results/ChangeSet;
+	public final fun compute (Ljava/util/List;Ljava/util/List;Lkotlin/jvm/functions/Function1;)Lio/cratis/arc/results/ChangeSet;
+	public static synthetic fun compute$default (Lio/cratis/arc/queries/ChangeSetComputer;Ljava/util/List;Ljava/util/List;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lio/cratis/arc/results/ChangeSet;
+}
+
+public final class io/cratis/arc/queries/ConcurrentQueryPerformerRegistry : io/cratis/arc/queries/QueryPerformerRegistry {
+	public fun <init> ()V
+	public fun find (Lio/cratis/arc/queries/FullyQualifiedQueryName;)Lio/cratis/arc/queries/QueryPerformer;
+	public fun getVersion ()J
+	public fun register (Lio/cratis/arc/queries/QueryPerformer;)V
+	public fun snapshot ()Ljava/util/List;
+}
+
+public final class io/cratis/arc/queries/DefaultObservableQueryEmissionGuards : io/cratis/arc/queries/ObservableQueryEmissionGuards {
+	public fun <init> ()V
+	public fun <init> (Ljava/lang/Iterable;)V
+	public synthetic fun <init> (Ljava/lang/Iterable;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun getHasGuards ()Z
+	public fun guard (Lio/cratis/arc/queries/ObservableQueryEmissionContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/queries/DefaultObservableQueryPipeline : io/cratis/arc/queries/ObservableQueryPipeline {
+	public fun <init> (Lio/cratis/arc/queries/QueryPerformerRegistry;)V
+	public fun <init> (Lio/cratis/arc/queries/QueryPerformerRegistry;Ljava/lang/Iterable;)V
+	public fun <init> (Lio/cratis/arc/queries/QueryPerformerRegistry;Ljava/lang/Iterable;Lio/cratis/arc/queries/ChangeSetComputer;)V
+	public fun <init> (Lio/cratis/arc/queries/QueryPerformerRegistry;Ljava/lang/Iterable;Lio/cratis/arc/queries/ChangeSetComputer;Lio/cratis/arc/queries/QueryRenderers;)V
+	public fun <init> (Lio/cratis/arc/queries/QueryPerformerRegistry;Ljava/lang/Iterable;Lio/cratis/arc/queries/ChangeSetComputer;Lio/cratis/arc/queries/QueryRenderers;Lio/cratis/arc/queries/ReadModelInterceptors;)V
+	public fun <init> (Lio/cratis/arc/queries/QueryPerformerRegistry;Ljava/lang/Iterable;Lio/cratis/arc/queries/ChangeSetComputer;Lio/cratis/arc/queries/QueryRenderers;Lio/cratis/arc/queries/ReadModelInterceptors;Lio/cratis/arc/queries/ObservableQueryEmissionGuards;)V
+	public synthetic fun <init> (Lio/cratis/arc/queries/QueryPerformerRegistry;Ljava/lang/Iterable;Lio/cratis/arc/queries/ChangeSetComputer;Lio/cratis/arc/queries/QueryRenderers;Lio/cratis/arc/queries/ReadModelInterceptors;Lio/cratis/arc/queries/ObservableQueryEmissionGuards;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun open (Lio/cratis/arc/queries/QueryRequest;Lio/cratis/arc/queries/QueryExecutionOptions;Lio/cratis/arc/queries/ObservableQueryTransferMode;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/queries/DefaultQueryHealthTracker : io/cratis/arc/queries/QueryHealthTracker {
+	public fun <init> ()V
+	public fun <init> (Lkotlin/jvm/functions/Function0;)V
+	public synthetic fun <init> (Lkotlin/jvm/functions/Function0;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun observe ()Lkotlinx/coroutines/flow/Flow;
+	public fun recordDataServed (Ljava/lang/String;Ljava/lang/String;)V
+	public fun recordPingSent (Ljava/lang/String;Ljava/lang/String;)V
+	public fun recordPongReceived (Ljava/lang/String;Ljava/lang/String;)V
+	public fun registerSubscription (Ljava/lang/String;Ljava/lang/String;Lio/cratis/arc/queries/QuerySubscriptionMetadata;)V
+	public fun removeConnection (Ljava/lang/String;)V
+	public fun snapshot ()Lio/cratis/arc/queries/QueryHealth;
+	public fun unregisterSubscription (Ljava/lang/String;Ljava/lang/String;)V
+}
+
+public final class io/cratis/arc/queries/DefaultQueryPipeline : io/cratis/arc/queries/QueryPipeline {
+	public fun <init> (Lio/cratis/arc/queries/QueryPerformerRegistry;)V
+	public fun <init> (Lio/cratis/arc/queries/QueryPerformerRegistry;Ljava/lang/Iterable;)V
+	public fun <init> (Lio/cratis/arc/queries/QueryPerformerRegistry;Ljava/lang/Iterable;Lio/cratis/arc/queries/QueryRenderers;)V
+	public fun <init> (Lio/cratis/arc/queries/QueryPerformerRegistry;Ljava/lang/Iterable;Lio/cratis/arc/queries/QueryRenderers;Lio/cratis/arc/queries/ReadModelInterceptors;)V
+	public synthetic fun <init> (Lio/cratis/arc/queries/QueryPerformerRegistry;Ljava/lang/Iterable;Lio/cratis/arc/queries/QueryRenderers;Lio/cratis/arc/queries/ReadModelInterceptors;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun perform (Lio/cratis/arc/queries/QueryRequest;Lio/cratis/arc/queries/QueryExecutionOptions;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/queries/DefaultQueryRenderers : io/cratis/arc/queries/QueryRenderers {
+	public fun <init> ()V
+	public fun <init> (Ljava/lang/Iterable;)V
+	public synthetic fun <init> (Ljava/lang/Iterable;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun render (Ljava/lang/Object;Lio/cratis/arc/queries/QueryRendererResult;Lio/cratis/arc/queries/QueryContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/queries/DefaultQueryValidationFilter : io/cratis/arc/queries/QueryFilter {
+	public fun <init> (Ljava/lang/Iterable;)V
+	public fun <init> (Ljava/lang/Iterable;Ljava/lang/Iterable;)V
+	public synthetic fun <init> (Ljava/lang/Iterable;Ljava/lang/Iterable;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun execute (Lio/cratis/arc/queries/QueryContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/queries/DefaultReadModelInterceptors : io/cratis/arc/queries/ReadModelInterceptors {
+	public fun <init> ()V
+	public fun <init> (Ljava/lang/Iterable;)V
+	public synthetic fun <init> (Ljava/lang/Iterable;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun intercept (Ljava/lang/Object;Lio/cratis/arc/queries/QueryContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/queries/DuplicateQueryPerformerException : java/lang/IllegalStateException {
+	public fun <init> (Lio/cratis/arc/queries/FullyQualifiedQueryName;)V
+	public final fun getQueryName ()Lio/cratis/arc/queries/FullyQualifiedQueryName;
+}
+
+public final class io/cratis/arc/queries/FullyQualifiedQueryName : io/cratis/arc/concepts/ConceptAs, java/lang/Comparable {
+	public fun <init> (Ljava/lang/String;)V
+	public fun compareTo (Lio/cratis/arc/queries/FullyQualifiedQueryName;)I
+	public synthetic fun compareTo (Ljava/lang/Object;)I
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getValue ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+	public synthetic fun value ()Ljava/lang/Object;
+	public fun value ()Ljava/lang/String;
+}
+
+public abstract interface class io/cratis/arc/queries/GuardObservableQueryEmission {
+	public abstract fun guard (Lio/cratis/arc/queries/ObservableQueryEmissionContext;)Ljava/util/concurrent/CompletionStage;
+}
+
+public abstract interface class io/cratis/arc/queries/InterceptReadModel {
+	public abstract fun intercept (Ljava/lang/Object;Lio/cratis/arc/queries/QueryContext;)Ljava/util/concurrent/CompletionStage;
+	public fun order ()I
+	public abstract fun readModelType ()Ljava/lang/Class;
+}
+
+public final class io/cratis/arc/queries/InterceptReadModel$DefaultImpls {
+	public static fun order (Lio/cratis/arc/queries/InterceptReadModel;)I
+}
+
+public final class io/cratis/arc/queries/JdkPublisherFlowKt {
+	public static final fun asKotlinFlow (Ljava/util/concurrent/Flow$Publisher;)Lkotlinx/coroutines/flow/Flow;
+}
+
+public final class io/cratis/arc/queries/MultipleReadModelResolversForCommandException : java/lang/IllegalStateException {
+	public fun <init> (Ljava/lang/Class;)V
+	public final fun getReadModelType ()Ljava/lang/Class;
+}
+
+public final class io/cratis/arc/queries/ObservableQueryEmissionContext {
+	public fun <init> (Lio/cratis/arc/queries/FullyQualifiedQueryName;Ljava/util/Map;Lio/cratis/arc/authorization/ArcPrincipal;Ljava/lang/String;Ljava/lang/String;Ljava/util/UUID;Lio/cratis/arc/commands/ServiceResolver;ZLjava/lang/Object;)V
+	public final fun getArguments ()Ljava/util/Map;
+	public final fun getCorrelationId ()Ljava/util/UUID;
+	public final fun getData ()Ljava/lang/Object;
+	public final fun getPrincipal ()Lio/cratis/arc/authorization/ArcPrincipal;
+	public final fun getQueryName ()Lio/cratis/arc/queries/FullyQualifiedQueryName;
+	public final fun getServiceResolver ()Lio/cratis/arc/commands/ServiceResolver;
+	public final fun getTenantId ()Ljava/lang/String;
+	public final fun getTenantNamespace ()Ljava/lang/String;
+	public final fun isFirstEmission ()Z
+}
+
+public abstract interface class io/cratis/arc/queries/ObservableQueryEmissionGuards {
+	public abstract fun getHasGuards ()Z
+	public abstract fun guard (Lio/cratis/arc/queries/ObservableQueryEmissionContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/queries/ObservableQueryEmissionVerdict : java/lang/Enum {
+	public static final field ALLOW Lio/cratis/arc/queries/ObservableQueryEmissionVerdict;
+	public static final field DENY_AND_TERMINATE Lio/cratis/arc/queries/ObservableQueryEmissionVerdict;
+	public static final field SUPPRESS Lio/cratis/arc/queries/ObservableQueryEmissionVerdict;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lio/cratis/arc/queries/ObservableQueryEmissionVerdict;
+	public static fun values ()[Lio/cratis/arc/queries/ObservableQueryEmissionVerdict;
+}
+
+public final class io/cratis/arc/queries/ObservableQueryHubMessage {
+	public fun <init> (Lio/cratis/arc/queries/ObservableQueryHubMessageType;)V
+	public fun <init> (Lio/cratis/arc/queries/ObservableQueryHubMessageType;Ljava/lang/String;)V
+	public fun <init> (Lio/cratis/arc/queries/ObservableQueryHubMessageType;Ljava/lang/String;Ljava/lang/Long;)V
+	public fun <init> (Lio/cratis/arc/queries/ObservableQueryHubMessageType;Ljava/lang/String;Ljava/lang/Long;Ljava/lang/Object;)V
+	public fun <init> (Lio/cratis/arc/queries/ObservableQueryHubMessageType;Ljava/lang/String;Ljava/lang/Long;Ljava/lang/Object;Ljava/lang/Long;)V
+	public fun <init> (Lio/cratis/arc/queries/ObservableQueryHubMessageType;Ljava/lang/String;Ljava/lang/Long;Ljava/lang/Object;Ljava/lang/Long;Ljava/lang/Long;)V
+	public fun <init> (Lio/cratis/arc/queries/ObservableQueryHubMessageType;Ljava/lang/String;Ljava/lang/Long;Ljava/lang/Object;Ljava/lang/Long;Ljava/lang/Long;Z)V
+	public synthetic fun <init> (Lio/cratis/arc/queries/ObservableQueryHubMessageType;Ljava/lang/String;Ljava/lang/Long;Ljava/lang/Object;Ljava/lang/Long;Ljava/lang/Long;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getKeepAliveIntervalMs ()Ljava/lang/Long;
+	public final fun getPayload ()Ljava/lang/Object;
+	public final fun getQueryId ()Ljava/lang/String;
+	public final fun getRevision ()Ljava/lang/Long;
+	public final fun getSupportsSubscriptionRevisions ()Z
+	public final fun getTimestamp ()Ljava/lang/Long;
+	public final fun getType ()Lio/cratis/arc/queries/ObservableQueryHubMessageType;
+}
+
+public final class io/cratis/arc/queries/ObservableQueryHubMessageType : java/lang/Enum {
+	public static final field Connected Lio/cratis/arc/queries/ObservableQueryHubMessageType;
+	public static final field Error Lio/cratis/arc/queries/ObservableQueryHubMessageType;
+	public static final field Ping Lio/cratis/arc/queries/ObservableQueryHubMessageType;
+	public static final field Pong Lio/cratis/arc/queries/ObservableQueryHubMessageType;
+	public static final field QueryResult Lio/cratis/arc/queries/ObservableQueryHubMessageType;
+	public static final field Subscribe Lio/cratis/arc/queries/ObservableQueryHubMessageType;
+	public static final field Unauthorized Lio/cratis/arc/queries/ObservableQueryHubMessageType;
+	public static final field Unsubscribe Lio/cratis/arc/queries/ObservableQueryHubMessageType;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lio/cratis/arc/queries/ObservableQueryHubMessageType;
+	public static fun values ()[Lio/cratis/arc/queries/ObservableQueryHubMessageType;
+}
+
+public abstract interface class io/cratis/arc/queries/ObservableQueryOpenResult {
+}
+
+public final class io/cratis/arc/queries/ObservableQueryOpenResult$Failure : io/cratis/arc/queries/ObservableQueryOpenResult {
+	public fun <init> (Lio/cratis/arc/results/QueryResult;)V
+	public final fun getResult ()Lio/cratis/arc/results/QueryResult;
+}
+
+public final class io/cratis/arc/queries/ObservableQueryOpenResult$Stream : io/cratis/arc/queries/ObservableQueryOpenResult {
+	public fun <init> (Lkotlinx/coroutines/flow/Flow;)V
+	public final fun getResults ()Lkotlinx/coroutines/flow/Flow;
+}
+
+public abstract interface class io/cratis/arc/queries/ObservableQueryPipeline {
+	public abstract fun open (Lio/cratis/arc/queries/QueryRequest;Lio/cratis/arc/queries/QueryExecutionOptions;Lio/cratis/arc/queries/ObservableQueryTransferMode;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun open$default (Lio/cratis/arc/queries/ObservableQueryPipeline;Lio/cratis/arc/queries/QueryRequest;Lio/cratis/arc/queries/QueryExecutionOptions;Lio/cratis/arc/queries/ObservableQueryTransferMode;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/queries/ObservableQueryPipeline$DefaultImpls {
+	public static synthetic fun open$default (Lio/cratis/arc/queries/ObservableQueryPipeline;Lio/cratis/arc/queries/QueryRequest;Lio/cratis/arc/queries/QueryExecutionOptions;Lio/cratis/arc/queries/ObservableQueryTransferMode;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/queries/ObservableQuerySSESubscribeRequest {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Lio/cratis/arc/queries/ObservableQuerySubscriptionRequest;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Lio/cratis/arc/queries/ObservableQuerySubscriptionRequest;Ljava/lang/Long;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Lio/cratis/arc/queries/ObservableQuerySubscriptionRequest;Ljava/lang/Long;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getConnectionId ()Ljava/lang/String;
+	public final fun getQueryId ()Ljava/lang/String;
+	public final fun getRequest ()Lio/cratis/arc/queries/ObservableQuerySubscriptionRequest;
+	public final fun getRevision ()Ljava/lang/Long;
+}
+
+public final class io/cratis/arc/queries/ObservableQuerySSEUnsubscribeRequest {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Long;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Long;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getConnectionId ()Ljava/lang/String;
+	public final fun getQueryId ()Ljava/lang/String;
+	public final fun getRevision ()Ljava/lang/Long;
+}
+
+public final class io/cratis/arc/queries/ObservableQuerySubscriptionIdentity {
+	public fun <init> (Lio/cratis/arc/queries/FullyQualifiedQueryName;Ljava/util/Map;Lio/cratis/arc/authorization/ArcPrincipal;Ljava/lang/String;Ljava/lang/String;Ljava/util/UUID;)V
+	public fun <init> (Lio/cratis/arc/queries/FullyQualifiedQueryName;Ljava/util/Map;Lio/cratis/arc/authorization/ArcPrincipal;Ljava/lang/String;Ljava/lang/String;Ljava/util/UUID;Lcom/fasterxml/jackson/databind/ObjectMapper;)V
+	public synthetic fun <init> (Lio/cratis/arc/queries/FullyQualifiedQueryName;Ljava/util/Map;Lio/cratis/arc/authorization/ArcPrincipal;Ljava/lang/String;Ljava/lang/String;Ljava/util/UUID;Lcom/fasterxml/jackson/databind/ObjectMapper;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun createArguments ()Ljava/util/Map;
+	public final fun getCorrelationId ()Ljava/util/UUID;
+	public final fun getPrincipal ()Lio/cratis/arc/authorization/ArcPrincipal;
+	public final fun getQueryName ()Lio/cratis/arc/queries/FullyQualifiedQueryName;
+	public final fun getSerializedArguments ()[B
+	public final fun getTenantId ()Ljava/lang/String;
+	public final fun getTenantNamespace ()Ljava/lang/String;
+}
+
+public final class io/cratis/arc/queries/ObservableQuerySubscriptionOperation : java/lang/AutoCloseable {
+	public final fun attach (Lkotlinx/coroutines/Job;)Z
+	public fun close ()V
+	public final fun getIdentity ()Lio/cratis/arc/queries/ObservableQuerySubscriptionIdentity;
+	public final fun getRevision ()Ljava/lang/Long;
+	public final fun isCancelled ()Z
+}
+
+public final class io/cratis/arc/queries/ObservableQuerySubscriptionRequest {
+	public fun <init> (Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Ljava/util/Map;)V
+	public fun <init> (Ljava/lang/String;Ljava/util/Map;Ljava/lang/Integer;)V
+	public fun <init> (Ljava/lang/String;Ljava/util/Map;Ljava/lang/Integer;Ljava/lang/Integer;)V
+	public fun <init> (Ljava/lang/String;Ljava/util/Map;Ljava/lang/Integer;Ljava/lang/Integer;Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Ljava/util/Map;Ljava/lang/Integer;Ljava/lang/Integer;Ljava/lang/String;Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Ljava/util/Map;Ljava/lang/Integer;Ljava/lang/Integer;Ljava/lang/String;Ljava/lang/String;Lio/cratis/arc/queries/ObservableQueryTransferMode;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/util/Map;Ljava/lang/Integer;Ljava/lang/Integer;Ljava/lang/String;Ljava/lang/String;Lio/cratis/arc/queries/ObservableQueryTransferMode;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getArguments ()Ljava/util/Map;
+	public final fun getPage ()Ljava/lang/Integer;
+	public final fun getPageSize ()Ljava/lang/Integer;
+	public final fun getQueryName ()Ljava/lang/String;
+	public final fun getSortBy ()Ljava/lang/String;
+	public final fun getSortDirection ()Ljava/lang/String;
+	public final fun getTransferMode ()Lio/cratis/arc/queries/ObservableQueryTransferMode;
+}
+
+public final class io/cratis/arc/queries/ObservableQuerySubscriptionRevision {
+	public static final field INSTANCE Lio/cratis/arc/queries/ObservableQuerySubscriptionRevision;
+	public static final field MAX_VALUE J
+	public static final fun isValid (Ljava/lang/Long;)Z
+}
+
+public final class io/cratis/arc/queries/ObservableQuerySubscriptionState {
+	public fun <init> ()V
+	public final fun close ()V
+	public final fun isActive ()Z
+	public final fun isCurrent (Lio/cratis/arc/queries/ObservableQuerySubscriptionOperation;)Z
+	public final fun isInactiveLegacy ()Z
+	public final fun tombstonedAt ()Ljava/time/Instant;
+	public final fun trySubscribe (Ljava/lang/Long;Lio/cratis/arc/queries/ObservableQuerySubscriptionIdentity;)Lio/cratis/arc/queries/ObservableQuerySubscriptionOperation;
+	public static synthetic fun trySubscribe$default (Lio/cratis/arc/queries/ObservableQuerySubscriptionState;Ljava/lang/Long;Lio/cratis/arc/queries/ObservableQuerySubscriptionIdentity;ILjava/lang/Object;)Lio/cratis/arc/queries/ObservableQuerySubscriptionOperation;
+	public final fun tryTerminate (Lio/cratis/arc/queries/ObservableQuerySubscriptionOperation;Ljava/time/Instant;)Z
+	public final fun tryUnsubscribe (Ljava/lang/Long;Ljava/time/Instant;)Z
+}
+
+public final class io/cratis/arc/queries/ObservableQuerySubscriptionStates : java/lang/AutoCloseable {
+	public static final field Companion Lio/cratis/arc/queries/ObservableQuerySubscriptionStates$Companion;
+	public static final field MAXIMUM_RETAINED_TOMBSTONES I
+	public static final field TOMBSTONE_RETENTION Ljava/time/Duration;
+	public fun <init> ()V
+	public fun <init> (Lkotlin/jvm/functions/Function0;)V
+	public fun <init> (Lkotlin/jvm/functions/Function0;Ljava/time/Duration;)V
+	public fun <init> (Lkotlin/jvm/functions/Function0;Ljava/time/Duration;I)V
+	public synthetic fun <init> (Lkotlin/jvm/functions/Function0;Ljava/time/Duration;IILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun cleanup ()V
+	public fun close ()V
+	public final fun getActiveCount ()I
+	public final fun getCount ()I
+	public final fun isCurrent (Ljava/lang/String;Lio/cratis/arc/queries/ObservableQuerySubscriptionOperation;)Z
+	public final fun terminate (Ljava/lang/String;Lio/cratis/arc/queries/ObservableQuerySubscriptionOperation;)V
+	public final fun trySubscribe (Ljava/lang/String;Ljava/lang/Long;Lio/cratis/arc/queries/ObservableQuerySubscriptionIdentity;)Lio/cratis/arc/queries/ObservableQuerySubscriptionOperation;
+	public static synthetic fun trySubscribe$default (Lio/cratis/arc/queries/ObservableQuerySubscriptionStates;Ljava/lang/String;Ljava/lang/Long;Lio/cratis/arc/queries/ObservableQuerySubscriptionIdentity;ILjava/lang/Object;)Lio/cratis/arc/queries/ObservableQuerySubscriptionOperation;
+	public final fun tryUnsubscribe (Ljava/lang/String;Ljava/lang/Long;)Z
+}
+
+public final class io/cratis/arc/queries/ObservableQuerySubscriptionStates$Companion {
+}
+
+public final class io/cratis/arc/queries/ObservableQueryTransferMode : java/lang/Enum {
+	public static final field DELTA Lio/cratis/arc/queries/ObservableQueryTransferMode;
+	public static final field FULL Lio/cratis/arc/queries/ObservableQueryTransferMode;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public final fun getWireValue ()Ljava/lang/String;
+	public static fun valueOf (Ljava/lang/String;)Lio/cratis/arc/queries/ObservableQueryTransferMode;
+	public static fun values ()[Lio/cratis/arc/queries/ObservableQueryTransferMode;
+}
+
+public abstract interface annotation class io/cratis/arc/queries/Path : java/lang/annotation/Annotation {
+	public abstract fun value ()Ljava/lang/String;
+}
+
+public final class io/cratis/arc/queries/QueryArgumentException : java/lang/IllegalArgumentException {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public final fun getArgumentName ()Ljava/lang/String;
+}
+
+public final class io/cratis/arc/queries/QueryArgumentResolver {
+	public static final field INSTANCE Lio/cratis/arc/queries/QueryArgumentResolver;
+	public static final fun nullable (Ljava/util/Map;Ljava/lang/String;)Ljava/lang/Object;
+	public static final fun required (Ljava/util/Map;Ljava/lang/String;)Ljava/lang/Object;
+	public static final fun wrongType (Ljava/lang/String;Ljava/lang/String;)Ljava/lang/Void;
+}
+
+public final class io/cratis/arc/queries/QueryAuthorizationFilter : io/cratis/arc/queries/AuthorizationQueryFilter {
+	public fun <init> (Lio/cratis/arc/queries/QueryPerformerRegistry;Lio/cratis/arc/authorization/AuthorizationEvaluator;)V
+	public fun execute (Lio/cratis/arc/queries/QueryContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/queries/QueryConnectionHealth {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/time/Instant;Ljava/util/List;)V
+	public final fun getConnectionId ()Ljava/lang/String;
+	public final fun getEstablishedAt ()Ljava/time/Instant;
+	public final fun getProtocol ()Ljava/lang/String;
+	public final fun getSubscriptions ()Ljava/util/List;
+}
+
+public final class io/cratis/arc/queries/QueryContext {
+	public fun <init> (Ljava/util/UUID;Lio/cratis/arc/queries/QueryRequest;Lio/cratis/arc/queries/FullyQualifiedQueryName;Lio/cratis/arc/authorization/ArcPrincipal;Ljava/lang/String;Ljava/lang/String;Lio/cratis/arc/commands/ServiceResolver;Lio/cratis/arc/results/ValidationResultSeverity;Z)V
+	public final fun getAllowedValidationSeverity ()Lio/cratis/arc/results/ValidationResultSeverity;
+	public final fun getCorrelationId ()Ljava/util/UUID;
+	public final fun getExposeExceptionDetails ()Z
+	public final fun getPrincipal ()Lio/cratis/arc/authorization/ArcPrincipal;
+	public final fun getQueryName ()Lio/cratis/arc/queries/FullyQualifiedQueryName;
+	public final fun getRequest ()Lio/cratis/arc/queries/QueryRequest;
+	public final fun getServiceResolver ()Lio/cratis/arc/commands/ServiceResolver;
+	public final fun getTenantId ()Ljava/lang/String;
+	public final fun getTenantNamespace ()Ljava/lang/String;
+}
+
+public final class io/cratis/arc/queries/QueryExecutionOptions {
+	public fun <init> (Ljava/util/UUID;Lio/cratis/arc/authorization/ArcPrincipal;Lio/cratis/arc/commands/ServiceResolver;)V
+	public fun <init> (Ljava/util/UUID;Lio/cratis/arc/authorization/ArcPrincipal;Lio/cratis/arc/commands/ServiceResolver;Ljava/lang/String;)V
+	public fun <init> (Ljava/util/UUID;Lio/cratis/arc/authorization/ArcPrincipal;Lio/cratis/arc/commands/ServiceResolver;Ljava/lang/String;Ljava/lang/String;)V
+	public fun <init> (Ljava/util/UUID;Lio/cratis/arc/authorization/ArcPrincipal;Lio/cratis/arc/commands/ServiceResolver;Ljava/lang/String;Ljava/lang/String;Lio/cratis/arc/results/ValidationResultSeverity;)V
+	public fun <init> (Ljava/util/UUID;Lio/cratis/arc/authorization/ArcPrincipal;Lio/cratis/arc/commands/ServiceResolver;Ljava/lang/String;Ljava/lang/String;Lio/cratis/arc/results/ValidationResultSeverity;Z)V
+	public synthetic fun <init> (Ljava/util/UUID;Lio/cratis/arc/authorization/ArcPrincipal;Lio/cratis/arc/commands/ServiceResolver;Ljava/lang/String;Ljava/lang/String;Lio/cratis/arc/results/ValidationResultSeverity;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getAllowedValidationSeverity ()Lio/cratis/arc/results/ValidationResultSeverity;
+	public final fun getCorrelationId ()Ljava/util/UUID;
+	public final fun getExposeExceptionDetails ()Z
+	public final fun getPrincipal ()Lio/cratis/arc/authorization/ArcPrincipal;
+	public final fun getServiceResolver ()Lio/cratis/arc/commands/ServiceResolver;
+	public final fun getTenantId ()Ljava/lang/String;
+	public final fun getTenantNamespace ()Ljava/lang/String;
+}
+
+public abstract interface class io/cratis/arc/queries/QueryFilter {
+	public abstract fun execute (Lio/cratis/arc/queries/QueryContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/queries/QueryHealth {
+	public fun <init> (Ljava/util/List;)V
+	public final fun getConnections ()Ljava/util/List;
+	public final fun getQuerySubscriptions ()Ljava/util/List;
+	public final fun getTotalConnections ()I
+	public final fun getTotalSubscriptions ()I
+}
+
+public abstract interface class io/cratis/arc/queries/QueryHealthTracker {
+	public abstract fun observe ()Lkotlinx/coroutines/flow/Flow;
+	public abstract fun recordDataServed (Ljava/lang/String;Ljava/lang/String;)V
+	public abstract fun recordPingSent (Ljava/lang/String;Ljava/lang/String;)V
+	public static synthetic fun recordPingSent$default (Lio/cratis/arc/queries/QueryHealthTracker;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)V
+	public abstract fun recordPongReceived (Ljava/lang/String;Ljava/lang/String;)V
+	public static synthetic fun recordPongReceived$default (Lio/cratis/arc/queries/QueryHealthTracker;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)V
+	public abstract fun registerSubscription (Ljava/lang/String;Ljava/lang/String;Lio/cratis/arc/queries/QuerySubscriptionMetadata;)V
+	public abstract fun removeConnection (Ljava/lang/String;)V
+	public abstract fun snapshot ()Lio/cratis/arc/queries/QueryHealth;
+	public abstract fun unregisterSubscription (Ljava/lang/String;Ljava/lang/String;)V
+}
+
+public final class io/cratis/arc/queries/QueryHealthTracker$DefaultImpls {
+	public static synthetic fun recordPingSent$default (Lio/cratis/arc/queries/QueryHealthTracker;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)V
+	public static synthetic fun recordPongReceived$default (Lio/cratis/arc/queries/QueryHealthTracker;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)V
+}
+
+public abstract interface annotation class io/cratis/arc/queries/QueryHttpMethod : java/lang/annotation/Annotation {
+	public abstract fun value ()Lio/cratis/arc/queries/QueryHttpMethodType;
+}
+
+public final class io/cratis/arc/queries/QueryHttpMethodType : java/lang/Enum {
+	public static final field AUTO Lio/cratis/arc/queries/QueryHttpMethodType;
+	public static final field GET Lio/cratis/arc/queries/QueryHttpMethodType;
+	public static final field QUERY Lio/cratis/arc/queries/QueryHttpMethodType;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lio/cratis/arc/queries/QueryHttpMethodType;
+	public static fun values ()[Lio/cratis/arc/queries/QueryHttpMethodType;
+}
+
+public final class io/cratis/arc/queries/QueryPage {
+	public fun <init> (Ljava/util/List;IIJ)V
+	public final fun getItems ()Ljava/util/List;
+	public final fun getPage ()I
+	public final fun getPageSize ()I
+	public final fun getTotalItems ()J
+}
+
+public final class io/cratis/arc/queries/QueryPaging {
+	public static final field Companion Lio/cratis/arc/queries/QueryPaging$Companion;
+	public static final field UNPAGED Lio/cratis/arc/queries/QueryPaging;
+	public fun <init> (II)V
+	public final fun component1 ()I
+	public final fun component2 ()I
+	public final fun copy (II)Lio/cratis/arc/queries/QueryPaging;
+	public static synthetic fun copy$default (Lio/cratis/arc/queries/QueryPaging;IIILjava/lang/Object;)Lio/cratis/arc/queries/QueryPaging;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getPage ()I
+	public final fun getPageSize ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/cratis/arc/queries/QueryPaging$Companion {
+}
+
+public abstract interface class io/cratis/arc/queries/QueryPerformer {
+	public fun getAllowsAnonymous ()Z
+	public abstract fun getDescriptor ()Lio/cratis/arc/metadata/QueryDescriptor;
+	public abstract fun getFullyQualifiedName ()Lio/cratis/arc/queries/FullyQualifiedQueryName;
+	public fun getSupportsPaging ()Z
+	public fun getSupportsSorting ()Z
+	public abstract fun perform (Lio/cratis/arc/queries/QueryContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/queries/QueryPerformer$DefaultImpls {
+	public static fun getAllowsAnonymous (Lio/cratis/arc/queries/QueryPerformer;)Z
+	public static fun getSupportsPaging (Lio/cratis/arc/queries/QueryPerformer;)Z
+	public static fun getSupportsSorting (Lio/cratis/arc/queries/QueryPerformer;)Z
+}
+
+public abstract interface class io/cratis/arc/queries/QueryPerformerRegistry {
+	public abstract fun find (Lio/cratis/arc/queries/FullyQualifiedQueryName;)Lio/cratis/arc/queries/QueryPerformer;
+	public fun getVersion ()J
+	public abstract fun register (Lio/cratis/arc/queries/QueryPerformer;)V
+	public abstract fun snapshot ()Ljava/util/List;
+}
+
+public final class io/cratis/arc/queries/QueryPerformerRegistry$DefaultImpls {
+	public static fun getVersion (Lio/cratis/arc/queries/QueryPerformerRegistry;)J
+}
+
+public abstract interface class io/cratis/arc/queries/QueryPipeline {
+	public abstract fun perform (Lio/cratis/arc/queries/QueryRequest;Lio/cratis/arc/queries/QueryExecutionOptions;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public abstract interface class io/cratis/arc/queries/QueryRendererFor {
+	public fun order ()I
+	public abstract fun queryType ()Ljava/lang/Class;
+	public abstract fun render (Ljava/lang/Object;Lio/cratis/arc/queries/QueryRendererResult;Lio/cratis/arc/queries/QueryContext;)Ljava/util/concurrent/CompletionStage;
+}
+
+public final class io/cratis/arc/queries/QueryRendererFor$DefaultImpls {
+	public static fun order (Lio/cratis/arc/queries/QueryRendererFor;)I
+}
+
+public final class io/cratis/arc/queries/QueryRendererResult {
+	public fun <init> (Ljava/lang/Object;Lio/cratis/arc/results/PagingInfo;)V
+	public synthetic fun <init> (Ljava/lang/Object;Lio/cratis/arc/results/PagingInfo;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getData ()Ljava/lang/Object;
+	public final fun getPaging ()Lio/cratis/arc/results/PagingInfo;
+}
+
+public abstract interface class io/cratis/arc/queries/QueryRenderers {
+	public abstract fun render (Ljava/lang/Object;Lio/cratis/arc/queries/QueryRendererResult;Lio/cratis/arc/queries/QueryContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/queries/QueryRenderersKt {
+	public static final synthetic fun getOrder (Lio/cratis/arc/queries/QueryRendererFor;)I
+	public static final synthetic fun getType (Lio/cratis/arc/queries/QueryRendererFor;)Ljava/lang/Class;
+}
+
+public final class io/cratis/arc/queries/QueryRequest {
+	public fun <init> (Lio/cratis/arc/queries/FullyQualifiedQueryName;)V
+	public fun <init> (Lio/cratis/arc/queries/FullyQualifiedQueryName;Ljava/util/Map;)V
+	public fun <init> (Lio/cratis/arc/queries/FullyQualifiedQueryName;Ljava/util/Map;Lio/cratis/arc/queries/QueryPaging;)V
+	public fun <init> (Lio/cratis/arc/queries/FullyQualifiedQueryName;Ljava/util/Map;Lio/cratis/arc/queries/QueryPaging;Lio/cratis/arc/queries/QuerySorting;)V
+	public synthetic fun <init> (Lio/cratis/arc/queries/FullyQualifiedQueryName;Ljava/util/Map;Lio/cratis/arc/queries/QueryPaging;Lio/cratis/arc/queries/QuerySorting;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getArguments ()Ljava/util/Map;
+	public final fun getPaging ()Lio/cratis/arc/queries/QueryPaging;
+	public final fun getQueryName ()Lio/cratis/arc/queries/FullyQualifiedQueryName;
+	public final fun getSorting ()Lio/cratis/arc/queries/QuerySorting;
+}
+
+public final class io/cratis/arc/queries/QuerySortDirection : java/lang/Enum, io/cratis/arc/concepts/ArcEnum {
+	public static final field ASCENDING Lio/cratis/arc/queries/QuerySortDirection;
+	public static final field DESCENDING Lio/cratis/arc/queries/QuerySortDirection;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public fun value ()I
+	public static fun valueOf (Ljava/lang/String;)Lio/cratis/arc/queries/QuerySortDirection;
+	public static fun values ()[Lio/cratis/arc/queries/QuerySortDirection;
+}
+
+public final class io/cratis/arc/queries/QuerySorting {
+	public static final field Companion Lio/cratis/arc/queries/QuerySorting$Companion;
+	public static final field UNSORTED Lio/cratis/arc/queries/QuerySorting;
+	public fun <init> (Ljava/lang/String;Lio/cratis/arc/queries/QuerySortDirection;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Lio/cratis/arc/queries/QuerySortDirection;
+	public final fun copy (Ljava/lang/String;Lio/cratis/arc/queries/QuerySortDirection;)Lio/cratis/arc/queries/QuerySorting;
+	public static synthetic fun copy$default (Lio/cratis/arc/queries/QuerySorting;Ljava/lang/String;Lio/cratis/arc/queries/QuerySortDirection;ILjava/lang/Object;)Lio/cratis/arc/queries/QuerySorting;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDirection ()Lio/cratis/arc/queries/QuerySortDirection;
+	public final fun getField ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/cratis/arc/queries/QuerySorting$Companion {
+}
+
+public final class io/cratis/arc/queries/QuerySubscriber {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/time/Instant;Ljava/time/Instant;Ljava/time/Instant;Ljava/time/Instant;Lio/cratis/arc/queries/QuerySubscriptionClientInfo;)V
+	public final fun getClientInfo ()Lio/cratis/arc/queries/QuerySubscriptionClientInfo;
+	public final fun getConnectedAt ()Ljava/time/Instant;
+	public final fun getConnectionId ()Ljava/lang/String;
+	public final fun getLastDataServedAt ()Ljava/time/Instant;
+	public final fun getLastPingSentAt ()Ljava/time/Instant;
+	public final fun getLastPongReceivedAt ()Ljava/time/Instant;
+	public final fun getProtocol ()Ljava/lang/String;
+	public final fun getSubscriptionId ()Ljava/lang/String;
+}
+
+public final class io/cratis/arc/queries/QuerySubscriptionAggregate {
+	public fun <init> (Ljava/lang/String;Ljava/util/List;)V
+	public final fun getQueryName ()Ljava/lang/String;
+	public final fun getSubscribers ()Ljava/util/List;
+	public final fun getTotalSubscriptions ()I
+}
+
+public final class io/cratis/arc/queries/QuerySubscriptionClientInfo {
+	public fun <init> (Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getProtocol ()Ljava/lang/String;
+	public final fun getRemoteIpAddress ()Ljava/lang/String;
+	public final fun getUserAgent ()Ljava/lang/String;
+	public final fun getUserId ()Ljava/lang/String;
+}
+
+public final class io/cratis/arc/queries/QuerySubscriptionMetadata {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/time/Instant;Lio/cratis/arc/queries/QuerySubscriptionClientInfo;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/time/Instant;Lio/cratis/arc/queries/QuerySubscriptionClientInfo;Ljava/time/Instant;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/time/Instant;Lio/cratis/arc/queries/QuerySubscriptionClientInfo;Ljava/time/Instant;Ljava/time/Instant;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/time/Instant;Lio/cratis/arc/queries/QuerySubscriptionClientInfo;Ljava/time/Instant;Ljava/time/Instant;Ljava/time/Instant;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/time/Instant;Lio/cratis/arc/queries/QuerySubscriptionClientInfo;Ljava/time/Instant;Ljava/time/Instant;Ljava/time/Instant;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getClientInfo ()Lio/cratis/arc/queries/QuerySubscriptionClientInfo;
+	public final fun getConnectedAt ()Ljava/time/Instant;
+	public final fun getLastDataServedAt ()Ljava/time/Instant;
+	public final fun getLastPingSentAt ()Ljava/time/Instant;
+	public final fun getLastPongReceivedAt ()Ljava/time/Instant;
+	public final fun getQueryIdentifier ()Ljava/lang/String;
+	public final fun getReadModelType ()Ljava/lang/String;
+	public final fun getSubscriptionId ()Ljava/lang/String;
+}
+
+public abstract interface annotation class io/cratis/arc/queries/QueryTransport : java/lang/annotation/Annotation {
+	public abstract fun value ()Lio/cratis/arc/queries/QueryTransportType;
+}
+
+public final class io/cratis/arc/queries/QueryTransportType : java/lang/Enum {
+	public static final field OBSERVABLE Lio/cratis/arc/queries/QueryTransportType;
+	public static final field REQUEST_RESPONSE Lio/cratis/arc/queries/QueryTransportType;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lio/cratis/arc/queries/QueryTransportType;
+	public static fun values ()[Lio/cratis/arc/queries/QueryTransportType;
+}
+
+public abstract interface class io/cratis/arc/queries/QueryValidator {
+	public abstract fun getQueryName ()Lio/cratis/arc/queries/FullyQualifiedQueryName;
+	public abstract fun validate (Lio/cratis/arc/queries/QueryRequest;Lio/cratis/arc/queries/QueryContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/queries/QueryableQueryRenderer : io/cratis/arc/queries/BlockingQueryRendererFor {
+	public fun <init> ()V
+	public fun queryType ()Ljava/lang/Class;
+	public fun renderBlocking (Ljava/lang/Iterable;Lio/cratis/arc/queries/QueryRendererResult;Lio/cratis/arc/queries/QueryContext;)Lio/cratis/arc/queries/QueryRendererResult;
+	public synthetic fun renderBlocking (Ljava/lang/Object;Lio/cratis/arc/queries/QueryRendererResult;Lio/cratis/arc/queries/QueryContext;)Lio/cratis/arc/queries/QueryRendererResult;
+}
+
+public final class io/cratis/arc/queries/ReadModelForCommandOwnership : java/lang/Enum {
+	public static final field DECLARED Lio/cratis/arc/queries/ReadModelForCommandOwnership;
+	public static final field FALLBACK Lio/cratis/arc/queries/ReadModelForCommandOwnership;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lio/cratis/arc/queries/ReadModelForCommandOwnership;
+	public static fun values ()[Lio/cratis/arc/queries/ReadModelForCommandOwnership;
+}
+
+public final class io/cratis/arc/queries/ReadModelForCommandResolverRegistry {
+	public fun <init> ()V
+	public fun <init> (Ljava/lang/Iterable;)V
+	public synthetic fun <init> (Ljava/lang/Iterable;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun contains (Ljava/lang/Class;)Z
+	public final fun readModelTypes ()Ljava/util/Set;
+	public final fun resolve (Ljava/lang/Class;Lio/cratis/arc/commands/CommandContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun resolveAsync (Ljava/lang/Class;Lio/cratis/arc/commands/CommandContext;)Ljava/util/concurrent/CompletionStage;
+	public final fun resolveBlocking (Ljava/lang/Class;Lio/cratis/arc/commands/CommandContext;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/queries/ReadModelForCommandResolversKt {
+	public static final synthetic fun getOwnership (Lio/cratis/arc/queries/CanResolveReadModelForCommand;)Lio/cratis/arc/queries/ReadModelForCommandOwnership;
+	public static final synthetic fun getTypes (Lio/cratis/arc/queries/CanResolveReadModelForCommand;)Ljava/util/Set;
+}
+
+public abstract interface class io/cratis/arc/queries/ReadModelInterceptors {
+	public abstract fun intercept (Ljava/lang/Object;Lio/cratis/arc/queries/QueryContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/queries/ReadModelInterceptorsKt {
+	public static final synthetic fun getOrder (Lio/cratis/arc/queries/InterceptReadModel;)I
+	public static final synthetic fun getType (Lio/cratis/arc/queries/InterceptReadModel;)Ljava/lang/Class;
+}
+
+public final class io/cratis/arc/queries/UnableToResolveReadModelFromCommandContext : java/lang/IllegalStateException {
+	public fun <init> (Ljava/lang/Class;)V
+	public final fun getReadModelType ()Ljava/lang/Class;
+}
+
+public final class io/cratis/arc/results/ChangeSet {
+	public fun <init> ()V
+	public fun <init> (Ljava/util/List;)V
+	public fun <init> (Ljava/util/List;Ljava/util/List;)V
+	public fun <init> (Ljava/util/List;Ljava/util/List;Ljava/util/List;)V
+	public synthetic fun <init> (Ljava/util/List;Ljava/util/List;Ljava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getAdded ()Ljava/util/List;
+	public final fun getRemoved ()Ljava/util/List;
+	public final fun getReplaced ()Ljava/util/List;
+}
+
+public final class io/cratis/arc/results/CommandResult {
+	public static final field Companion Lio/cratis/arc/results/CommandResult$Companion;
+	public fun <init> (Ljava/util/UUID;)V
+	public fun <init> (Ljava/util/UUID;Z)V
+	public fun <init> (Ljava/util/UUID;ZLjava/util/List;)V
+	public fun <init> (Ljava/util/UUID;ZLjava/util/List;Ljava/util/List;)V
+	public fun <init> (Ljava/util/UUID;ZLjava/util/List;Ljava/util/List;Ljava/lang/String;)V
+	public fun <init> (Ljava/util/UUID;ZLjava/util/List;Ljava/util/List;Ljava/lang/String;Ljava/lang/String;)V
+	public fun <init> (Ljava/util/UUID;ZLjava/util/List;Ljava/util/List;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Object;)V
+	public synthetic fun <init> (Ljava/util/UUID;ZLjava/util/List;Ljava/util/List;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Object;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public static final fun error (Ljava/util/UUID;Ljava/lang/String;)Lio/cratis/arc/results/CommandResult;
+	public static final fun exception (Ljava/util/UUID;Ljava/lang/Throwable;)Lio/cratis/arc/results/CommandResult;
+	public final fun getAuthorizationFailureReason ()Ljava/lang/String;
+	public final fun getCorrelationId ()Ljava/util/UUID;
+	public final fun getExceptionMessages ()Ljava/util/List;
+	public final fun getExceptionStackTrace ()Ljava/lang/String;
+	public final fun getHasExceptions ()Z
+	public final fun getResponse ()Ljava/lang/Object;
+	public final fun getValidationResults ()Ljava/util/List;
+	public static final fun invalid (Ljava/util/UUID;Ljava/util/List;)Lio/cratis/arc/results/CommandResult;
+	public final fun isAuthorized ()Z
+	public final fun isSuccess ()Z
+	public final fun isValid ()Z
+	public static final fun malformed (Ljava/util/UUID;)Lio/cratis/arc/results/CommandResult;
+	public static final fun missingHandler (Ljava/util/UUID;Ljava/lang/String;)Lio/cratis/arc/results/CommandResult;
+	public static final fun success ()Lio/cratis/arc/results/CommandResult;
+	public static final fun success (Ljava/util/UUID;)Lio/cratis/arc/results/CommandResult;
+	public static final fun success (Ljava/util/UUID;Ljava/lang/Object;)Lio/cratis/arc/results/CommandResult;
+	public static final fun unauthorized (Ljava/util/UUID;)Lio/cratis/arc/results/CommandResult;
+	public static final fun unauthorized (Ljava/util/UUID;Ljava/lang/String;)Lio/cratis/arc/results/CommandResult;
+}
+
+public final class io/cratis/arc/results/CommandResult$Companion {
+	public final fun error (Ljava/util/UUID;Ljava/lang/String;)Lio/cratis/arc/results/CommandResult;
+	public final fun exception (Ljava/util/UUID;Ljava/lang/Throwable;)Lio/cratis/arc/results/CommandResult;
+	public final fun invalid (Ljava/util/UUID;Ljava/util/List;)Lio/cratis/arc/results/CommandResult;
+	public final fun malformed (Ljava/util/UUID;)Lio/cratis/arc/results/CommandResult;
+	public final fun missingHandler (Ljava/util/UUID;Ljava/lang/String;)Lio/cratis/arc/results/CommandResult;
+	public final fun success ()Lio/cratis/arc/results/CommandResult;
+	public final fun success (Ljava/util/UUID;)Lio/cratis/arc/results/CommandResult;
+	public final fun success (Ljava/util/UUID;Ljava/lang/Object;)Lio/cratis/arc/results/CommandResult;
+	public final fun unauthorized (Ljava/util/UUID;)Lio/cratis/arc/results/CommandResult;
+	public final fun unauthorized (Ljava/util/UUID;Ljava/lang/String;)Lio/cratis/arc/results/CommandResult;
+	public static synthetic fun unauthorized$default (Lio/cratis/arc/results/CommandResult$Companion;Ljava/util/UUID;Ljava/lang/String;ILjava/lang/Object;)Lio/cratis/arc/results/CommandResult;
+}
+
+public final class io/cratis/arc/results/PagingInfo {
+	public fun <init> (III)V
+	public fun <init> (IIJ)V
+	public final fun getPage ()I
+	public final fun getSize ()I
+	public final fun getTotalItems ()J
+	public final fun getTotalPages ()I
+}
+
+public final class io/cratis/arc/results/QueryResult {
+	public static final field Companion Lio/cratis/arc/results/QueryResult$Companion;
+	public fun <init> (Ljava/util/UUID;)V
+	public fun <init> (Ljava/util/UUID;Ljava/lang/Object;)V
+	public fun <init> (Ljava/util/UUID;Ljava/lang/Object;Z)V
+	public fun <init> (Ljava/util/UUID;Ljava/lang/Object;ZZ)V
+	public fun <init> (Ljava/util/UUID;Ljava/lang/Object;ZZLjava/util/List;)V
+	public fun <init> (Ljava/util/UUID;Ljava/lang/Object;ZZLjava/util/List;Ljava/util/List;)V
+	public fun <init> (Ljava/util/UUID;Ljava/lang/Object;ZZLjava/util/List;Ljava/util/List;Ljava/lang/String;)V
+	public fun <init> (Ljava/util/UUID;Ljava/lang/Object;ZZLjava/util/List;Ljava/util/List;Ljava/lang/String;Lio/cratis/arc/results/PagingInfo;)V
+	public fun <init> (Ljava/util/UUID;Ljava/lang/Object;ZZLjava/util/List;Ljava/util/List;Ljava/lang/String;Lio/cratis/arc/results/PagingInfo;Lio/cratis/arc/results/ChangeSet;)V
+	public synthetic fun <init> (Ljava/util/UUID;Ljava/lang/Object;ZZLjava/util/List;Ljava/util/List;Ljava/lang/String;Lio/cratis/arc/results/PagingInfo;Lio/cratis/arc/results/ChangeSet;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public static final fun error (Ljava/util/UUID;Ljava/lang/String;)Lio/cratis/arc/results/QueryResult;
+	public static final fun exception (Ljava/util/UUID;Ljava/lang/Throwable;)Lio/cratis/arc/results/QueryResult;
+	public final fun getChangeSet ()Lio/cratis/arc/results/ChangeSet;
+	public final fun getCorrelationId ()Ljava/util/UUID;
+	public final fun getData ()Ljava/lang/Object;
+	public final fun getExceptionMessages ()Ljava/util/List;
+	public final fun getExceptionStackTrace ()Ljava/lang/String;
+	public final fun getHasExceptions ()Z
+	public final fun getPaging ()Lio/cratis/arc/results/PagingInfo;
+	public final fun getValidationResults ()Ljava/util/List;
+	public static final fun invalid (Ljava/util/UUID;Ljava/util/List;)Lio/cratis/arc/results/QueryResult;
+	public final fun isAuthorized ()Z
+	public final fun isReady ()Z
+	public final fun isSuccess ()Z
+	public final fun isValid ()Z
+	public static final fun missingPerformer (Ljava/util/UUID;Ljava/lang/String;)Lio/cratis/arc/results/QueryResult;
+	public static final fun notReady (Ljava/util/UUID;)Lio/cratis/arc/results/QueryResult;
+	public static final fun success (Ljava/util/UUID;)Lio/cratis/arc/results/QueryResult;
+	public static final fun success (Ljava/util/UUID;Ljava/lang/Object;)Lio/cratis/arc/results/QueryResult;
+	public static final fun success (Ljava/util/UUID;Ljava/lang/Object;Lio/cratis/arc/results/PagingInfo;)Lio/cratis/arc/results/QueryResult;
+	public static final fun success (Ljava/util/UUID;Ljava/lang/Object;Lio/cratis/arc/results/PagingInfo;Lio/cratis/arc/results/ChangeSet;)Lio/cratis/arc/results/QueryResult;
+	public static final fun unauthorized (Ljava/util/UUID;)Lio/cratis/arc/results/QueryResult;
+}
+
+public final class io/cratis/arc/results/QueryResult$Companion {
+	public final fun error (Ljava/util/UUID;Ljava/lang/String;)Lio/cratis/arc/results/QueryResult;
+	public final fun exception (Ljava/util/UUID;Ljava/lang/Throwable;)Lio/cratis/arc/results/QueryResult;
+	public final fun invalid (Ljava/util/UUID;Ljava/util/List;)Lio/cratis/arc/results/QueryResult;
+	public final fun missingPerformer (Ljava/util/UUID;Ljava/lang/String;)Lio/cratis/arc/results/QueryResult;
+	public final fun notReady (Ljava/util/UUID;)Lio/cratis/arc/results/QueryResult;
+	public final fun success (Ljava/util/UUID;)Lio/cratis/arc/results/QueryResult;
+	public final fun success (Ljava/util/UUID;Ljava/lang/Object;)Lio/cratis/arc/results/QueryResult;
+	public final fun success (Ljava/util/UUID;Ljava/lang/Object;Lio/cratis/arc/results/PagingInfo;)Lio/cratis/arc/results/QueryResult;
+	public final fun success (Ljava/util/UUID;Ljava/lang/Object;Lio/cratis/arc/results/PagingInfo;Lio/cratis/arc/results/ChangeSet;)Lio/cratis/arc/results/QueryResult;
+	public static synthetic fun success$default (Lio/cratis/arc/results/QueryResult$Companion;Ljava/util/UUID;Ljava/lang/Object;Lio/cratis/arc/results/PagingInfo;Lio/cratis/arc/results/ChangeSet;ILjava/lang/Object;)Lio/cratis/arc/results/QueryResult;
+	public final fun unauthorized (Ljava/util/UUID;)Lio/cratis/arc/results/QueryResult;
+}
+
+public final class io/cratis/arc/results/ResultExtensionsKt {
+	public static final synthetic fun fold (Lio/cratis/arc/results/CommandResult;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;)Ljava/lang/Object;
+	public static final synthetic fun fold (Lio/cratis/arc/results/QueryResult;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;)Ljava/lang/Object;
+	public static final synthetic fun getOrThrow (Lio/cratis/arc/results/CommandResult;)Ljava/lang/Object;
+	public static final synthetic fun getOrThrow (Lio/cratis/arc/results/QueryResult;)Ljava/lang/Object;
+	public static final synthetic fun onSuccess (Lio/cratis/arc/results/CommandResult;Lkotlin/jvm/functions/Function1;)Lio/cratis/arc/results/CommandResult;
+	public static final synthetic fun onSuccess (Lio/cratis/arc/results/QueryResult;Lkotlin/jvm/functions/Function1;)Lio/cratis/arc/results/QueryResult;
+	public static final synthetic fun validationOrNull (Lio/cratis/arc/results/CommandResult;)Ljava/util/List;
+	public static final synthetic fun validationOrNull (Lio/cratis/arc/results/QueryResult;)Ljava/util/List;
+}
+
+public final class io/cratis/arc/results/ValidationResult {
+	public fun <init> (Lio/cratis/arc/results/ValidationResultSeverity;Ljava/lang/String;)V
+	public fun <init> (Lio/cratis/arc/results/ValidationResultSeverity;Ljava/lang/String;Ljava/util/List;)V
+	public fun <init> (Lio/cratis/arc/results/ValidationResultSeverity;Ljava/lang/String;Ljava/util/List;Ljava/lang/Object;)V
+	public fun <init> (Lio/cratis/arc/results/ValidationResultSeverity;Ljava/lang/String;Ljava/util/List;Ljava/lang/Object;Ljava/lang/String;)V
+	public fun <init> (Lio/cratis/arc/results/ValidationResultSeverity;Ljava/lang/String;Ljava/util/List;Ljava/lang/Object;Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (Lio/cratis/arc/results/ValidationResultSeverity;Ljava/lang/String;Ljava/util/List;Ljava/lang/Object;Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getMembers ()Ljava/util/List;
+	public final fun getMessage ()Ljava/lang/String;
+	public final fun getReason ()Ljava/lang/String;
+	public final fun getReasonDetail ()Ljava/lang/String;
+	public final fun getSeverity ()Lio/cratis/arc/results/ValidationResultSeverity;
+	public final fun getState ()Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/results/ValidationResultReasons {
+	public static final field CONCURRENCY_VIOLATION Ljava/lang/String;
+	public static final field CONSTRAINT_VIOLATION Ljava/lang/String;
+	public static final field DEPENDENCY_UNAVAILABLE Ljava/lang/String;
+	public static final field INSTANCE Lio/cratis/arc/results/ValidationResultReasons;
+	public static final field MALFORMED_REQUEST Ljava/lang/String;
+	public static final field RULE Ljava/lang/String;
+	public static final field VALIDATOR_FAILED Ljava/lang/String;
+}
+
+public final class io/cratis/arc/results/ValidationResultSeverity : java/lang/Enum, io/cratis/arc/concepts/ArcEnum {
+	public static final field Error Lio/cratis/arc/results/ValidationResultSeverity;
+	public static final field Information Lio/cratis/arc/results/ValidationResultSeverity;
+	public static final field Unknown Lio/cratis/arc/results/ValidationResultSeverity;
+	public static final field Warning Lio/cratis/arc/results/ValidationResultSeverity;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public fun value ()I
+	public static fun valueOf (Ljava/lang/String;)Lio/cratis/arc/results/ValidationResultSeverity;
+	public static fun values ()[Lio/cratis/arc/results/ValidationResultSeverity;
+}
+
+public abstract interface class io/cratis/arc/tenancy/AsyncTenantsProvider {
+	public abstract fun provide ()Ljava/util/concurrent/CompletionStage;
+}
+
+public final class io/cratis/arc/tenancy/AsyncTenantsProviderAdapter : io/cratis/arc/tenancy/TenantsProvider {
+	public fun <init> (Lio/cratis/arc/tenancy/AsyncTenantsProvider;)V
+	public fun provide (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/tenancy/ClaimTenantIdResolver : io/cratis/arc/tenancy/TenantIdResolver {
+	public fun <init> ()V
+	public fun <init> (Lio/cratis/arc/tenancy/TenancyOptions;)V
+	public synthetic fun <init> (Lio/cratis/arc/tenancy/TenancyOptions;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun resolve (Lio/cratis/arc/tenancy/TenantResolutionContext;)Lio/cratis/arc/tenancy/TenantId;
+}
+
+public final class io/cratis/arc/tenancy/CompositeTenantIdResolver : io/cratis/arc/tenancy/TenantIdResolver {
+	public fun <init> (Ljava/util/List;)V
+	public final fun getResolvers ()Ljava/util/List;
+	public fun resolve (Lio/cratis/arc/tenancy/TenantResolutionContext;)Lio/cratis/arc/tenancy/TenantId;
+}
+
+public final class io/cratis/arc/tenancy/DevelopmentTenantIdResolver : io/cratis/arc/tenancy/FixedTenantIdResolver {
+	public fun <init> ()V
+	public fun <init> (Lio/cratis/arc/tenancy/TenancyOptions;)V
+	public synthetic fun <init> (Lio/cratis/arc/tenancy/TenancyOptions;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+}
+
+public class io/cratis/arc/tenancy/FixedTenantIdResolver : io/cratis/arc/tenancy/TenantIdResolver {
+	public fun <init> ()V
+	public fun <init> (Lio/cratis/arc/tenancy/TenancyOptions;)V
+	public synthetic fun <init> (Lio/cratis/arc/tenancy/TenancyOptions;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun resolve (Lio/cratis/arc/tenancy/TenantResolutionContext;)Lio/cratis/arc/tenancy/TenantId;
+}
+
+public final class io/cratis/arc/tenancy/HeaderTenantIdResolver : io/cratis/arc/tenancy/TenantIdResolver {
+	public fun <init> ()V
+	public fun <init> (Lio/cratis/arc/tenancy/TenancyOptions;)V
+	public synthetic fun <init> (Lio/cratis/arc/tenancy/TenancyOptions;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun resolve (Lio/cratis/arc/tenancy/TenantResolutionContext;)Lio/cratis/arc/tenancy/TenantId;
+}
+
+public final class io/cratis/arc/tenancy/InvalidTenantBaseDomainException : java/lang/IllegalArgumentException {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun getBaseDomain ()Ljava/lang/String;
+}
+
+public class io/cratis/arc/tenancy/QueryStringTenantIdResolver : io/cratis/arc/tenancy/TenantIdResolver {
+	public fun <init> ()V
+	public fun <init> (Lio/cratis/arc/tenancy/TenancyOptions;)V
+	public synthetic fun <init> (Lio/cratis/arc/tenancy/TenancyOptions;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun resolve (Lio/cratis/arc/tenancy/TenantResolutionContext;)Lio/cratis/arc/tenancy/TenantId;
+}
+
+public final class io/cratis/arc/tenancy/QueryTenantIdResolver : io/cratis/arc/tenancy/QueryStringTenantIdResolver {
+	public fun <init> ()V
+	public fun <init> (Lio/cratis/arc/tenancy/TenancyOptions;)V
+	public synthetic fun <init> (Lio/cratis/arc/tenancy/TenancyOptions;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+}
+
+public final class io/cratis/arc/tenancy/SubdomainTenantIdResolver : io/cratis/arc/tenancy/TenantIdResolver {
+	public fun <init> (Lio/cratis/arc/tenancy/TenancyOptions;)V
+	public fun resolve (Lio/cratis/arc/tenancy/TenantResolutionContext;)Lio/cratis/arc/tenancy/TenantId;
+}
+
+public final class io/cratis/arc/tenancy/TenancyOptions {
+	public static final field Companion Lio/cratis/arc/tenancy/TenancyOptions$Companion;
+	public static final field DEFAULT_CLAIM_TYPE Ljava/lang/String;
+	public static final field DEFAULT_HEADER_NAME Ljava/lang/String;
+	public static final field DEFAULT_QUERY_PARAMETER_NAME Ljava/lang/String;
+	public fun <init> ()V
+	public fun <init> (Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lio/cratis/arc/tenancy/TenantId;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lio/cratis/arc/tenancy/TenantId;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun component5 ()Lio/cratis/arc/tenancy/TenantId;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lio/cratis/arc/tenancy/TenantId;)Lio/cratis/arc/tenancy/TenancyOptions;
+	public static synthetic fun copy$default (Lio/cratis/arc/tenancy/TenancyOptions;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lio/cratis/arc/tenancy/TenantId;ILjava/lang/Object;)Lio/cratis/arc/tenancy/TenancyOptions;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getBaseDomain ()Ljava/lang/String;
+	public final fun getClaimType ()Ljava/lang/String;
+	public final fun getFixedTenantId ()Lio/cratis/arc/tenancy/TenantId;
+	public final fun getHeaderName ()Ljava/lang/String;
+	public final fun getQueryParameterName ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/cratis/arc/tenancy/TenancyOptions$Companion {
+}
+
+public final class io/cratis/arc/tenancy/Tenant {
+	public fun <init> (Lio/cratis/arc/tenancy/TenantId;Lio/cratis/arc/tenancy/TenantName;)V
+	public final fun component1 ()Lio/cratis/arc/tenancy/TenantId;
+	public final fun component2 ()Lio/cratis/arc/tenancy/TenantName;
+	public final fun copy (Lio/cratis/arc/tenancy/TenantId;Lio/cratis/arc/tenancy/TenantName;)Lio/cratis/arc/tenancy/Tenant;
+	public static synthetic fun copy$default (Lio/cratis/arc/tenancy/Tenant;Lio/cratis/arc/tenancy/TenantId;Lio/cratis/arc/tenancy/TenantName;ILjava/lang/Object;)Lio/cratis/arc/tenancy/Tenant;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getId ()Lio/cratis/arc/tenancy/TenantId;
+	public final fun getName ()Lio/cratis/arc/tenancy/TenantName;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/cratis/arc/tenancy/TenantId : io/cratis/arc/concepts/ConceptAs {
+	public static final field Companion Lio/cratis/arc/tenancy/TenantId$Companion;
+	public static final field DEFAULT Lio/cratis/arc/tenancy/TenantId;
+	public static final field DEVELOPMENT Lio/cratis/arc/tenancy/TenantId;
+	public static final field NOT_SET Lio/cratis/arc/tenancy/TenantId;
+	public fun <init> (Ljava/lang/String;)V
+	public final fun copy (Ljava/lang/String;)Lio/cratis/arc/tenancy/TenantId;
+	public static synthetic fun copy$default (Lio/cratis/arc/tenancy/TenantId;Ljava/lang/String;ILjava/lang/Object;)Lio/cratis/arc/tenancy/TenantId;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public final fun isDefault ()Z
+	public static final fun of (Ljava/lang/String;)Lio/cratis/arc/tenancy/TenantId;
+	public fun toString ()Ljava/lang/String;
+	public synthetic fun value ()Ljava/lang/Object;
+	public fun value ()Ljava/lang/String;
+}
+
+public final class io/cratis/arc/tenancy/TenantId$Companion {
+	public final fun of (Ljava/lang/String;)Lio/cratis/arc/tenancy/TenantId;
+}
+
+public abstract interface class io/cratis/arc/tenancy/TenantIdResolver {
+	public abstract fun resolve (Lio/cratis/arc/tenancy/TenantResolutionContext;)Lio/cratis/arc/tenancy/TenantId;
+}
+
+public final class io/cratis/arc/tenancy/TenantName : io/cratis/arc/concepts/ConceptAs {
+	public static final field Companion Lio/cratis/arc/tenancy/TenantName$Companion;
+	public static final field EMPTY Lio/cratis/arc/tenancy/TenantName;
+	public fun <init> (Ljava/lang/String;)V
+	public final fun copy (Ljava/lang/String;)Lio/cratis/arc/tenancy/TenantName;
+	public static synthetic fun copy$default (Lio/cratis/arc/tenancy/TenantName;Ljava/lang/String;ILjava/lang/Object;)Lio/cratis/arc/tenancy/TenantName;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public static final fun of (Ljava/lang/String;)Lio/cratis/arc/tenancy/TenantName;
+	public fun toString ()Ljava/lang/String;
+	public synthetic fun value ()Ljava/lang/Object;
+	public fun value ()Ljava/lang/String;
+}
+
+public final class io/cratis/arc/tenancy/TenantName$Companion {
+	public final fun of (Ljava/lang/String;)Lio/cratis/arc/tenancy/TenantName;
+}
+
+public final class io/cratis/arc/tenancy/TenantResolutionContext {
+	public fun <init> ()V
+	public fun <init> (Ljava/util/Map;)V
+	public fun <init> (Ljava/util/Map;Ljava/util/Map;)V
+	public fun <init> (Ljava/util/Map;Ljava/util/Map;Ljava/lang/String;)V
+	public fun <init> (Ljava/util/Map;Ljava/util/Map;Ljava/lang/String;Ljava/util/List;)V
+	public fun <init> (Ljava/util/Map;Ljava/util/Map;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/authorization/ArcPrincipal;)V
+	public synthetic fun <init> (Ljava/util/Map;Ljava/util/Map;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/authorization/ArcPrincipal;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun claim (Ljava/lang/String;)Ljava/lang/String;
+	public final fun getClaims ()Ljava/util/List;
+	public final fun getHeaders ()Ljava/util/Map;
+	public final fun getHost ()Ljava/lang/String;
+	public final fun getPrincipal ()Lio/cratis/arc/authorization/ArcPrincipal;
+	public final fun getQuery ()Ljava/util/Map;
+	public final fun header (Ljava/lang/String;)Ljava/lang/String;
+	public final fun queryParameter (Ljava/lang/String;)Ljava/lang/String;
+}
+
+public abstract interface class io/cratis/arc/tenancy/TenantsProvider {
+	public abstract fun provide (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/tenancy/TenantsProviderAggregator : io/cratis/arc/tenancy/TenantsProvider {
+	public fun <init> (Ljava/util/List;)V
+	public final fun getProviders ()Ljava/util/List;
+	public fun provide (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun provideAsync (Lkotlinx/coroutines/CoroutineScope;)Ljava/util/concurrent/CompletionStage;
+	public final fun provideBlocking ()Ljava/util/List;
+}
+
+public final class io/cratis/arc/tenancy/TenantsProviders {
+	public static final fun asTenantsProvider (Lio/cratis/arc/tenancy/AsyncTenantsProvider;)Lio/cratis/arc/tenancy/TenantsProvider;
+}
+
+public abstract interface class io/cratis/arc/validation/ConceptValidator {
+	public abstract fun getConceptType ()Ljava/lang/Class;
+	public abstract fun validate (Lio/cratis/arc/concepts/ConceptAs;)Ljava/util/List;
+}
+
+public abstract interface annotation class io/cratis/arc/validation/CreditCard : java/lang/annotation/Annotation {
+	public abstract fun groups ()[Ljava/lang/Class;
+	public abstract fun message ()Ljava/lang/String;
+	public abstract fun payload ()[Ljava/lang/Class;
+}
+
+public final class io/cratis/arc/validation/CreditCardValidator : jakarta/validation/ConstraintValidator {
+	public fun <init> ()V
+	public fun isValid (Ljava/lang/CharSequence;Ljakarta/validation/ConstraintValidatorContext;)Z
+	public synthetic fun isValid (Ljava/lang/Object;Ljakarta/validation/ConstraintValidatorContext;)Z
+}
+
+public abstract interface annotation class io/cratis/arc/validation/Phone : java/lang/annotation/Annotation {
+	public abstract fun groups ()[Ljava/lang/Class;
+	public abstract fun message ()Ljava/lang/String;
+	public abstract fun payload ()[Ljava/lang/Class;
+}
+
+public final class io/cratis/arc/validation/PhoneValidator : jakarta/validation/ConstraintValidator {
+	public fun <init> ()V
+	public fun isValid (Ljava/lang/CharSequence;Ljakarta/validation/ConstraintValidatorContext;)Z
+	public synthetic fun isValid (Ljava/lang/Object;Ljakarta/validation/ConstraintValidatorContext;)Z
+}
+
+public abstract interface annotation class io/cratis/arc/validation/Url : java/lang/annotation/Annotation {
+	public abstract fun groups ()[Ljava/lang/Class;
+	public abstract fun message ()Ljava/lang/String;
+	public abstract fun payload ()[Ljava/lang/Class;
+}
+
+public final class io/cratis/arc/validation/UrlValidator : jakarta/validation/ConstraintValidator {
+	public fun <init> ()V
+	public fun isValid (Ljava/lang/CharSequence;Ljakarta/validation/ConstraintValidatorContext;)Z
+	public synthetic fun isValid (Ljava/lang/Object;Ljakarta/validation/ConstraintValidatorContext;)Z
+}

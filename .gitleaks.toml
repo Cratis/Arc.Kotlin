@@ -1,0 +1,8 @@
+title = "Arc.Kotlin gitleaks configuration"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Generated TypeScript contains deterministic source hashes, never credentials"
+paths = ['''^ContractTests/TypeScript/generated/''']

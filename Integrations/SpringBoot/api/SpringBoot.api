@@ -1,0 +1,195 @@
+public final class io/cratis/arc/springboot/ArcApplicationCoroutineScope : java/lang/AutoCloseable, kotlinx/coroutines/CoroutineScope {
+	public fun <init> (I)V
+	public fun <init> (II)V
+	public synthetic fun <init> (IIILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun close ()V
+	public fun getCoroutineContext ()Lkotlin/coroutines/CoroutineContext;
+}
+
+public final class io/cratis/arc/springboot/ArcArtifactModules {
+	public final fun getModules ()Ljava/util/List;
+}
+
+public final class io/cratis/arc/springboot/ArcAuthenticationAttributes {
+	public static final field INSTANCE Lio/cratis/arc/springboot/ArcAuthenticationAttributes;
+	public static final field PRINCIPAL Ljava/lang/String;
+	public static final field RESULT Ljava/lang/String;
+}
+
+public class io/cratis/arc/springboot/ArcAutoConfiguration {
+	public fun <init> ()V
+	public fun arcApplicationCoroutineScope (Lio/cratis/arc/springboot/ArcProperties;)Lio/cratis/arc/springboot/ArcApplicationCoroutineScope;
+	public fun arcArtifactModules (Lorg/springframework/context/ApplicationContext;Lio/cratis/arc/commands/CommandHandlerRegistry;Lio/cratis/arc/queries/QueryPerformerRegistry;)Lio/cratis/arc/springboot/ArcArtifactModules;
+	public fun arcAsyncAuthentication (Lio/cratis/arc/authentication/Authentication;Lio/cratis/arc/springboot/ArcApplicationCoroutineScope;)Lio/cratis/arc/authentication/AsyncAuthentication;
+	public fun arcAsyncCommandPipeline (Lio/cratis/arc/commands/CommandPipeline;Lio/cratis/arc/springboot/ArcApplicationCoroutineScope;)Lio/cratis/arc/commands/AsyncCommandPipeline;
+	public fun arcAsyncQueryPipeline (Lio/cratis/arc/queries/QueryPipeline;Lio/cratis/arc/springboot/ArcApplicationCoroutineScope;)Lio/cratis/arc/queries/AsyncQueryPipeline;
+	public fun arcAuthentication (Lorg/springframework/beans/factory/ObjectProvider;Lorg/springframework/beans/factory/ObjectProvider;)Lio/cratis/arc/authentication/Authentication;
+	public fun arcAuthorizationEvaluator (Lio/cratis/arc/authorization/AuthorizationPolicyRegistry;)Lio/cratis/arc/authorization/AuthorizationEvaluator;
+	public fun arcAuthorizationPolicyRegistry (Ljava/util/Map;)Lio/cratis/arc/authorization/AuthorizationPolicyRegistry;
+	public fun arcCommandAuthorizationFilter (Lio/cratis/arc/commands/CommandHandlerRegistry;Lio/cratis/arc/authorization/AuthorizationEvaluator;)Lio/cratis/arc/commands/CommandAuthorizationFilter;
+	public fun arcCommandHandlerRegistry ()Lio/cratis/arc/commands/CommandHandlerRegistry;
+	public fun arcCommandPipeline (Lio/cratis/arc/commands/CommandHandlerRegistry;Lorg/springframework/beans/factory/ObjectProvider;Lorg/springframework/beans/factory/ObjectProvider;Lorg/springframework/beans/factory/ObjectProvider;Lorg/springframework/beans/factory/ObjectProvider;Lio/cratis/arc/springboot/ArcProperties;)Lio/cratis/arc/commands/CommandPipeline;
+	public fun arcCommandValidationFilter (Lorg/springframework/beans/factory/ObjectProvider;)Lio/cratis/arc/commands/DefaultCommandValidationFilter;
+	public fun arcIntrospectionService (Lio/cratis/arc/commands/CommandHandlerRegistry;Lio/cratis/arc/queries/QueryPerformerRegistry;Lio/cratis/arc/springboot/ArcProperties;)Lio/cratis/arc/introspection/IntrospectionService;
+	public fun arcJacksonCustomizer ()Lorg/springframework/boot/autoconfigure/jackson/Jackson2ObjectMapperBuilderCustomizer;
+	public fun arcJacksonModule ()Lio/cratis/arc/json/ArcJacksonModule;
+	public fun arcObservableQueryEmissionGuards (Lorg/springframework/beans/factory/ObjectProvider;)Lio/cratis/arc/queries/ObservableQueryEmissionGuards;
+	public fun arcObservableQueryPipeline (Lio/cratis/arc/queries/QueryPerformerRegistry;Lorg/springframework/beans/factory/ObjectProvider;Lio/cratis/arc/queries/QueryRenderers;Lio/cratis/arc/queries/ReadModelInterceptors;Lio/cratis/arc/queries/ObservableQueryEmissionGuards;)Lio/cratis/arc/queries/ObservableQueryPipeline;
+	public fun arcQueryAuthorizationFilter (Lio/cratis/arc/queries/QueryPerformerRegistry;Lio/cratis/arc/authorization/AuthorizationEvaluator;)Lio/cratis/arc/queries/QueryAuthorizationFilter;
+	public fun arcQueryHealthTracker ()Lio/cratis/arc/queries/QueryHealthTracker;
+	public fun arcQueryPerformerRegistry ()Lio/cratis/arc/queries/QueryPerformerRegistry;
+	public fun arcQueryPipeline (Lio/cratis/arc/queries/QueryPerformerRegistry;Lorg/springframework/beans/factory/ObjectProvider;Lio/cratis/arc/queries/QueryRenderers;Lio/cratis/arc/queries/ReadModelInterceptors;)Lio/cratis/arc/queries/QueryPipeline;
+	public fun arcQueryRenderers (Lorg/springframework/beans/factory/ObjectProvider;)Lio/cratis/arc/queries/QueryRenderers;
+	public fun arcQueryValidationFilter (Lorg/springframework/beans/factory/ObjectProvider;)Lio/cratis/arc/queries/DefaultQueryValidationFilter;
+	public fun arcReadModelForCommandResolverRegistry (Lorg/springframework/beans/factory/ObjectProvider;)Lio/cratis/arc/queries/ReadModelForCommandResolverRegistry;
+	public fun arcReadModelInterceptors (Lorg/springframework/beans/factory/ObjectProvider;)Lio/cratis/arc/queries/ReadModelInterceptors;
+	public fun arcServiceResolver (Lorg/springframework/context/ApplicationContext;)Lio/cratis/arc/commands/ServiceResolver;
+	public fun arcTenantAccessEvaluator (Lio/cratis/arc/springboot/ArcProperties;)Lio/cratis/arc/springboot/TenantAccessEvaluator;
+	public fun arcTenantIdResolver (Lio/cratis/arc/springboot/ArcProperties;)Lio/cratis/arc/tenancy/TenantIdResolver;
+}
+
+public final class io/cratis/arc/springboot/ArcObservableQueryTransport : java/lang/AutoCloseable {
+	public fun close ()V
+}
+
+public abstract interface class io/cratis/arc/springboot/ArcPrincipalFactory {
+	public abstract fun create (Ljakarta/servlet/http/HttpServletRequest;Ljava/util/Collection;)Lio/cratis/arc/authorization/ArcPrincipal;
+}
+
+public final class io/cratis/arc/springboot/ArcProperties {
+	public fun <init> ()V
+	public fun getCommandScopeCompletionTimeout ()Ljava/time/Duration;
+	public fun getCoroutineParallelism ()I
+	public fun getCoroutineQueueCapacity ()I
+	public fun getCorrelationHeader ()Ljava/lang/String;
+	public fun getEndpoints ()Lio/cratis/arc/springboot/ArcProperties$EndpointProperties;
+	public fun getExposeExceptionDetails ()Ljava/lang/Boolean;
+	public fun getIdentityCookieSecurePolicy ()Lio/cratis/arc/springboot/IdentityCookieSecurePolicy;
+	public fun getMaximumRequestBodyBytes ()J
+	public fun getObservableQueries ()Lio/cratis/arc/springboot/ArcProperties$ObservableQueryProperties;
+	public fun getOverloadRetryAfterSeconds ()I
+	public fun getRequestTimeout ()Ljava/time/Duration;
+	public fun getTenancy ()Lio/cratis/arc/springboot/ArcTenancyProperties;
+	public fun getTenantHeader ()Ljava/lang/String;
+	public fun setCommandScopeCompletionTimeout (Ljava/time/Duration;)V
+	public fun setCoroutineParallelism (I)V
+	public fun setCoroutineQueueCapacity (I)V
+	public fun setCorrelationHeader (Ljava/lang/String;)V
+	public fun setEndpoints (Lio/cratis/arc/springboot/ArcProperties$EndpointProperties;)V
+	public fun setExposeExceptionDetails (Ljava/lang/Boolean;)V
+	public fun setIdentityCookieSecurePolicy (Lio/cratis/arc/springboot/IdentityCookieSecurePolicy;)V
+	public fun setMaximumRequestBodyBytes (J)V
+	public fun setObservableQueries (Lio/cratis/arc/springboot/ArcProperties$ObservableQueryProperties;)V
+	public fun setOverloadRetryAfterSeconds (I)V
+	public fun setRequestTimeout (Ljava/time/Duration;)V
+	public fun setTenancy (Lio/cratis/arc/springboot/ArcTenancyProperties;)V
+	public fun setTenantHeader (Ljava/lang/String;)V
+}
+
+public final class io/cratis/arc/springboot/ArcProperties$EndpointProperties {
+	public fun <init> ()V
+	public fun getRoutePrefix ()Ljava/lang/String;
+	public fun getSegmentsToSkipForRoute ()I
+	public fun isEnableQueryHttpMethod ()Z
+	public fun isIncludeCommandNameInRoute ()Z
+	public fun isIncludeQueryNameInRoute ()Z
+	public fun setEnableQueryHttpMethod (Z)V
+	public fun setIncludeCommandNameInRoute (Z)V
+	public fun setIncludeQueryNameInRoute (Z)V
+	public fun setRoutePrefix (Ljava/lang/String;)V
+	public fun setSegmentsToSkipForRoute (I)V
+}
+
+public final class io/cratis/arc/springboot/ArcProperties$ObservableQueryProperties {
+	public fun <init> ()V
+	public fun getConnectionTimeout ()Ljava/time/Duration;
+	public fun getKeepAliveInterval ()Ljava/time/Duration;
+	public fun getMaximumConnections ()I
+	public fun getMaximumInboundMessageSize ()I
+	public fun getMaximumSubscriptionsPerConnection ()I
+	public fun getOutboundBufferCapacity ()I
+	public fun getOverloadRetryAfterSeconds ()I
+	public fun getWaitForFirstResultTimeout ()Ljava/time/Duration;
+	public fun isWebSocketEnabled ()Z
+	public fun setConnectionTimeout (Ljava/time/Duration;)V
+	public fun setKeepAliveInterval (Ljava/time/Duration;)V
+	public fun setMaximumConnections (I)V
+	public fun setMaximumInboundMessageSize (I)V
+	public fun setMaximumSubscriptionsPerConnection (I)V
+	public fun setOutboundBufferCapacity (I)V
+	public fun setOverloadRetryAfterSeconds (I)V
+	public fun setWaitForFirstResultTimeout (Ljava/time/Duration;)V
+	public fun setWebSocketEnabled (Z)V
+}
+
+public final class io/cratis/arc/springboot/ArcTenancyProperties {
+	public fun <init> ()V
+	public fun getBaseDomain ()Ljava/lang/String;
+	public fun getClaimType ()Ljava/lang/String;
+	public fun getFixedTenantId ()Ljava/lang/String;
+	public fun getHeaderName ()Ljava/lang/String;
+	public fun getQueryParameterName ()Ljava/lang/String;
+	public fun getResolvers ()Ljava/util/List;
+	public fun isConstrainToAuthenticatedClaims ()Z
+	public fun isRequired ()Z
+	public fun setBaseDomain (Ljava/lang/String;)V
+	public fun setClaimType (Ljava/lang/String;)V
+	public fun setConstrainToAuthenticatedClaims (Z)V
+	public fun setFixedTenantId (Ljava/lang/String;)V
+	public fun setHeaderName (Ljava/lang/String;)V
+	public fun setQueryParameterName (Ljava/lang/String;)V
+	public fun setRequired (Z)V
+	public fun setResolvers (Ljava/util/List;)V
+}
+
+public class io/cratis/arc/springboot/ArcValidationAutoConfiguration {
+	public fun <init> ()V
+	public fun arcJakartaBeanValidationCommandFilter (Ljakarta/validation/Validator;)Lio/cratis/arc/commands/CommandFilter;
+	public fun arcJakartaBeanValidationQueryFilter (Ljakarta/validation/Validator;Lio/cratis/arc/queries/QueryPerformerRegistry;)Lio/cratis/arc/queries/QueryFilter;
+}
+
+public class io/cratis/arc/springboot/ArcWebAutoConfiguration {
+	public static final field GET_METHOD Ljava/lang/String;
+	public static final field POST_METHOD Ljava/lang/String;
+	public static final field QUERY_METHOD Ljava/lang/String;
+	public fun <init> ()V
+	public fun arcCommandHandlerMapping (Lio/cratis/arc/springboot/ArcArtifactModules;Lio/cratis/arc/commands/CommandHandlerRegistry;Lio/cratis/arc/commands/CommandPipeline;Lio/cratis/arc/queries/QueryPerformerRegistry;Lio/cratis/arc/queries/QueryPipeline;Lio/cratis/arc/commands/ServiceResolver;Lcom/fasterxml/jackson/databind/ObjectMapper;Lorg/springframework/beans/factory/ObjectProvider;Lio/cratis/arc/springboot/ArcApplicationCoroutineScope;Lio/cratis/arc/springboot/ArcProperties;Lorg/springframework/core/env/Environment;Lio/cratis/arc/springboot/ArcPrincipalFactory;Lio/cratis/arc/tenancy/TenantIdResolver;Lio/cratis/arc/springboot/TenantAccessEvaluator;Lorg/springframework/beans/factory/ObjectProvider;Lorg/springframework/beans/factory/ObjectProvider;Lorg/springframework/beans/factory/ObjectProvider;Lorg/springframework/beans/factory/ObjectProvider;Lorg/springframework/beans/factory/ObjectProvider;Lorg/springframework/beans/factory/ObjectProvider;Lio/cratis/arc/springboot/ArcObservableQueryTransport;Lio/cratis/arc/queries/QueryHealthTracker;Lio/cratis/arc/introspection/IntrospectionService;)Lorg/springframework/web/servlet/handler/SimpleUrlHandlerMapping;
+}
+
+public class io/cratis/arc/springboot/ArcWebAutoConfiguration$Security {
+	public fun <init> ()V
+	public fun arcPrincipalFactory ()Lio/cratis/arc/springboot/ArcPrincipalFactory;
+}
+
+public class io/cratis/arc/springboot/ArcWebAutoConfiguration$ServletIdentity {
+	public fun <init> ()V
+	public fun arcPrincipalFactory ()Lio/cratis/arc/springboot/ArcPrincipalFactory;
+}
+
+public final class io/cratis/arc/springboot/IdentityCookieSecurePolicy : java/lang/Enum {
+	public static final field ALWAYS Lio/cratis/arc/springboot/IdentityCookieSecurePolicy;
+	public static final field AUTO Lio/cratis/arc/springboot/IdentityCookieSecurePolicy;
+	public static final field NEVER Lio/cratis/arc/springboot/IdentityCookieSecurePolicy;
+	public static fun valueOf (Ljava/lang/String;)Lio/cratis/arc/springboot/IdentityCookieSecurePolicy;
+	public static fun values ()[Lio/cratis/arc/springboot/IdentityCookieSecurePolicy;
+}
+
+public final class io/cratis/arc/springboot/SpringServiceResolver : io/cratis/arc/commands/ServiceResolver {
+	public fun <init> (Lorg/springframework/context/ApplicationContext;)V
+	public fun resolve (Ljava/lang/Class;)Ljava/lang/Object;
+}
+
+public abstract interface class io/cratis/arc/springboot/TenantAccessEvaluator {
+	public abstract fun isAllowed (Lio/cratis/arc/tenancy/TenantId;Lio/cratis/arc/tenancy/TenantResolutionContext;)Z
+}
+
+public final class io/cratis/arc/springboot/TenantResolverStrategy : java/lang/Enum {
+	public static final field CLAIM Lio/cratis/arc/springboot/TenantResolverStrategy;
+	public static final field DEVELOPMENT Lio/cratis/arc/springboot/TenantResolverStrategy;
+	public static final field FIXED Lio/cratis/arc/springboot/TenantResolverStrategy;
+	public static final field HEADER Lio/cratis/arc/springboot/TenantResolverStrategy;
+	public static final field QUERY Lio/cratis/arc/springboot/TenantResolverStrategy;
+	public static final field SUBDOMAIN Lio/cratis/arc/springboot/TenantResolverStrategy;
+	public static fun valueOf (Ljava/lang/String;)Lio/cratis/arc/springboot/TenantResolverStrategy;
+	public static fun values ()[Lio/cratis/arc/springboot/TenantResolverStrategy;
+}

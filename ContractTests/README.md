@@ -1,0 +1,13 @@
+# Arc contract tests
+
+This unpublished module owns reusable JVM contract fixtures and the Kotlin and Java consumer checks for Arc's public interoperability surface. Its generated-artifact tests exercise reflection-free Kotlin and Java command/query invocation, format-5 manifests, concepts, validation metadata, and stable diagnostics. A Java-authored temporal execution contract registers the generated Java command handler and query performer, then executes both through the public `JavaAsyncScope` `CompletionStage` facades and real command/query pipelines using `UUID`, `LocalDate`, and `LocalTime`. `:ContractTests:typeScriptBuild` installs the locked real `@cratis` packages, verifies deterministic proxy regeneration, and compiles the generated one-shot and observable clients in strict mode with `verbatimModuleSyntax`; generated interface-only dependencies use type-only imports where appropriate.
+
+`:ContractTests:typeScriptRuntimeTest` runs the Kotlin sample's real proxies against its executable Spring Boot host. Its harness has five wired unit tests plus 25 behavioral runtime tests: 15 general tests in a UTC Node process, five calendar tests in a separate UTC process, and the same five in a separate `America/Los_Angeles` process. It parses TAP counts and requires exact test/pass totals with zero fail, cancelled, skipped, or todo results; Spring process-spawn errors fail cleanly. The calendar contract verifies scalar command and GET serialization for `DateOnly`, `TimeOnly`, and `Guid`, hydration into generated model and fundamentals class instances, timezone stability, and raw `08:09:10.1235567` becoming hydrated `08:09:10.123`, which proves truncation rather than rounding. The general contract also verifies recursive string-key map command/query behavior and local rejection of reserved keys and unsafe prototypes. `:ContractTests:check` includes that runtime gate.
+
+The Docker-backed Chronicle compatibility gate is deliberately separate from normal `check`:
+
+```shell
+./gradlew :ContractTests:chronicleRealKernelTest --no-configuration-cache
+```
+
+It launches the Kotlin and ordinary-Java Chronicle sample boot jars against one digest-pinned Chronicle 16.44.1 development kernel. The gate exercises real generated HTTP endpoints, tenant namespace isolation, returned event append, projected read-model lookup, command-side read-model injection, exact stale concurrency rejection, rejected-event absence, GET/RFC QUERY reads, and response-less generated commands. Docker or image failures fail the explicit task rather than skipping it. A custom `-PchronicleKernelImage` value must also include an immutable `@sha256:` digest.

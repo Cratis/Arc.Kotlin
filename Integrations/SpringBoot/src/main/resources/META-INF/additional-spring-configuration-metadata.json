@@ -1,0 +1,181 @@
+{
+  "groups": [
+    {
+      "name": "cratis.arc",
+      "type": "io.cratis.arc.springboot.ArcProperties",
+      "description": "Configuration for the Arc Spring Boot host."
+    },
+    {
+      "name": "cratis.arc.endpoints",
+      "type": "io.cratis.arc.springboot.ArcProperties$EndpointProperties",
+      "description": "HTTP command and query endpoint route settings. Arc identity endpoints use their fixed /.cratis routes."
+    },
+    {
+      "name": "cratis.arc.observable-queries",
+      "type": "io.cratis.arc.springboot.ArcProperties$ObservableQueryProperties",
+      "description": "Observable-query snapshot, direct streaming, and multiplexed hub limits."
+    },
+    {
+      "name": "cratis.arc.tenancy",
+      "type": "io.cratis.arc.springboot.ArcTenancyProperties",
+      "description": "Tenant resolver strategy, precedence, required resolution, and claim-membership access settings."
+    }
+  ],
+  "properties": [
+    {
+      "name": "cratis.arc.correlation-header",
+      "type": "java.lang.String",
+      "defaultValue": "X-Correlation-ID",
+      "description": "Request and response header carrying command and query correlation identifiers."
+    },
+    {
+      "name": "cratis.arc.coroutine-parallelism",
+      "type": "java.lang.Integer",
+      "defaultValue": 4,
+      "description": "Maximum number of Arc request coroutines that may execute concurrently."
+    },
+    {
+      "name": "cratis.arc.observable-queries.connection-timeout",
+      "type": "java.time.Duration",
+      "defaultValue": "30m",
+      "description": "Maximum SSE connection lifetime. Zero disables the transport timeout."
+    },
+    {
+      "name": "cratis.arc.observable-queries.keep-alive-interval",
+      "type": "java.time.Duration",
+      "defaultValue": "30s",
+      "description": "Interval between idle Ping messages. Zero disables heartbeats."
+    },
+    {
+      "name": "cratis.arc.observable-queries.maximum-connections",
+      "type": "java.lang.Integer",
+      "defaultValue": 1000,
+      "description": "Maximum concurrent direct and multiplexed streaming connections."
+    },
+    {
+      "name": "cratis.arc.observable-queries.maximum-inbound-message-size",
+      "type": "java.lang.Integer",
+      "defaultValue": 65536,
+      "description": "Maximum accepted WebSocket text message size in bytes."
+    },
+    {
+      "name": "cratis.arc.observable-queries.maximum-subscriptions-per-connection",
+      "type": "java.lang.Integer",
+      "defaultValue": 100,
+      "description": "Maximum active subscriptions on one multiplexed connection."
+    },
+    {
+      "name": "cratis.arc.observable-queries.outbound-buffer-capacity",
+      "type": "java.lang.Integer",
+      "defaultValue": 64,
+      "description": "Bounded pending outbound frames per streaming connection."
+    },
+    {
+      "name": "cratis.arc.observable-queries.overload-retry-after-seconds",
+      "type": "java.lang.Integer",
+      "defaultValue": 5,
+      "description": "Retry-After value used by 503 and 429 overload responses."
+    },
+    {
+      "name": "cratis.arc.observable-queries.wait-for-first-result-timeout",
+      "type": "java.time.Duration",
+      "defaultValue": "30s",
+      "description": "Maximum default wait for an observable HTTP snapshot's first result."
+    },
+    {
+      "name": "cratis.arc.observable-queries.web-socket-enabled",
+      "type": "java.lang.Boolean",
+      "defaultValue": true,
+      "description": "Whether WebSocket routes are registered when Spring WebSocket is present."
+    },
+    {
+      "name": "cratis.arc.endpoints.enable-query-http-method",
+      "type": "java.lang.Boolean",
+      "defaultValue": true,
+      "description": "Whether one-shot and observable snapshot query endpoints also accept the RFC QUERY HTTP method. GET is always available."
+    },
+    {
+      "name": "cratis.arc.endpoints.include-command-name-in-route",
+      "type": "java.lang.Boolean",
+      "defaultValue": true
+    },
+    {
+      "name": "cratis.arc.endpoints.include-query-name-in-route",
+      "type": "java.lang.Boolean",
+      "defaultValue": true
+    },
+    {
+      "name": "cratis.arc.endpoints.route-prefix",
+      "type": "java.lang.String",
+      "defaultValue": "api"
+    },
+    {
+      "name": "cratis.arc.endpoints.segments-to-skip-for-route",
+      "type": "java.lang.Integer",
+      "defaultValue": 0
+    },
+    {
+      "name": "cratis.arc.expose-exception-details",
+      "type": "java.lang.Boolean",
+      "description": "Whether full exception details may be returned. Defaults to true only for explicitly active dev, development, or local profiles."
+    },
+    {
+      "name": "cratis.arc.request-timeout",
+      "type": "java.time.Duration",
+      "defaultValue": "30s"
+    },
+    {
+      "name": "cratis.arc.tenant-header",
+      "type": "java.lang.String",
+      "defaultValue": "x-cratis-tenant-id",
+      "description": "Backward-compatible alias and default for cratis.arc.tenancy.header-name."
+    },
+    {
+      "name": "cratis.arc.tenancy.resolvers",
+      "type": "java.util.List<io.cratis.arc.springboot.TenantResolverStrategy>",
+      "defaultValue": "header",
+      "description": "Resolver strategies in complete precedence order: fixed, header, query, claim, subdomain, development."
+    },
+    {
+      "name": "cratis.arc.tenancy.required",
+      "type": "java.lang.Boolean",
+      "defaultValue": false,
+      "description": "Whether command, query, observable, and identity requests without a resolved tenant fail closed."
+    },
+    {
+      "name": "cratis.arc.tenancy.header-name",
+      "type": "java.lang.String",
+      "description": "Case-insensitive tenant header. When unset, cratis.arc.tenant-header is used."
+    },
+    {
+      "name": "cratis.arc.tenancy.query-parameter-name",
+      "type": "java.lang.String",
+      "defaultValue": "tenantId",
+      "description": "Exact case-sensitive tenant query parameter name."
+    },
+    {
+      "name": "cratis.arc.tenancy.claim-type",
+      "type": "java.lang.String",
+      "defaultValue": "tenant_id",
+      "description": "Claim used for tenant resolution and authenticated tenant membership."
+    },
+    {
+      "name": "cratis.arc.tenancy.base-domain",
+      "type": "java.lang.String",
+      "defaultValue": "",
+      "description": "Multi-label DNS base domain required by subdomain resolution."
+    },
+    {
+      "name": "cratis.arc.tenancy.fixed-tenant-id",
+      "type": "java.lang.String",
+      "defaultValue": "development",
+      "description": "Tenant returned by fixed and development resolution."
+    },
+    {
+      "name": "cratis.arc.tenancy.constrain-to-authenticated-claims",
+      "type": "java.lang.Boolean",
+      "defaultValue": true,
+      "description": "Whether authenticated tenant claims constrain header, query, and subdomain selections."
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+public class io/cratis/arc/openapi/springboot/ArcOpenApiAutoConfiguration {
+	public fun <init> ()V
+	public fun arcOpenApiHandlerMapping (Lio/cratis/arc/openapi/springboot/ArcOpenApiDocument;)Lorg/springframework/web/servlet/handler/SimpleUrlHandlerMapping;
+}
+
+public class io/cratis/arc/openapi/springboot/ArcOpenApiAutoConfiguration$GeneratedDocument {
+	public fun <init> ()V
+	public fun arcOpenApi (Lio/cratis/arc/openapi/springboot/ArcOpenApiDocument;)Lio/swagger/v3/oas/models/OpenAPI;
+	public fun arcOpenApiDocument (Lio/cratis/arc/springboot/ArcArtifactModules;Lio/cratis/arc/springboot/ArcProperties;Lcom/fasterxml/jackson/databind/ObjectMapper;Lorg/springframework/beans/factory/ObjectProvider;Lorg/springframework/beans/factory/ObjectProvider;)Lio/cratis/arc/openapi/springboot/ArcOpenApiDocument;
+}
+
+public final class io/cratis/arc/openapi/springboot/ArcOpenApiDocument {
+	public fun <init> (Lio/swagger/v3/oas/models/OpenAPI;[B)V
+	public final fun getOpenApi ()Lio/swagger/v3/oas/models/OpenAPI;
+	public final fun json ()[B
+}
+
+public final class io/cratis/arc/openapi/springboot/ArcOpenApiGenerator {
+	public static final field APPLICATION_JSON Ljava/lang/String;
+	public static final field BEARER_SCHEME Ljava/lang/String;
+	public static final field CHANGE_SET Ljava/lang/String;
+	public static final field COMMAND_RESULT Ljava/lang/String;
+	public static final field IDENTITY Ljava/lang/String;
+	public static final field IDENTITY_ROUTE Ljava/lang/String;
+	public static final field IDENTITY_SCHEMA_ROUTE Ljava/lang/String;
+	public static final field PAGING_INFO Ljava/lang/String;
+	public static final field QUERY_RESULT Ljava/lang/String;
+	public static final field VALIDATION_RESULT Ljava/lang/String;
+	public fun <init> ()V
+	public fun <init> (Lcom/fasterxml/jackson/databind/ObjectMapper;)V
+	public synthetic fun <init> (Lcom/fasterxml/jackson/databind/ObjectMapper;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun generate (Ljava/lang/Iterable;)Lio/cratis/arc/openapi/springboot/ArcOpenApiDocument;
+	public final fun generate (Ljava/lang/Iterable;Lio/cratis/arc/metadata/ApiEndpointOptions;)Lio/cratis/arc/openapi/springboot/ArcOpenApiDocument;
+	public final fun generate (Ljava/lang/Iterable;Lio/cratis/arc/metadata/ApiEndpointOptions;Z)Lio/cratis/arc/openapi/springboot/ArcOpenApiDocument;
+	public static synthetic fun generate$default (Lio/cratis/arc/openapi/springboot/ArcOpenApiGenerator;Ljava/lang/Iterable;Lio/cratis/arc/metadata/ApiEndpointOptions;ZILjava/lang/Object;)Lio/cratis/arc/openapi/springboot/ArcOpenApiDocument;
+}

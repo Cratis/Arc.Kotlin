@@ -1,0 +1,19 @@
+- name: Guides
+  href: index.md
+  items:
+    - name: Commands
+      href: commands.md
+    - name: Queries
+      href: queries.md
+    - name: Spring Data read models
+      href: spring-data.md
+    - name: TypeScript proxies
+      href: typescript-proxies.md
+    - name: OpenAPI
+      href: openapi.md
+    - name: Observability
+      href: observability.md
+    - name: Chronicle integration
+      href: chronicle.md
+    - name: Testing
+      href: testing.md

@@ -1,0 +1,169 @@
+public final class io/cratis/arc/springdata/jpa/DatabaseChange {
+	public fun <init> (Ljava/lang/Class;Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/Class;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/Class;Ljava/lang/String;)Lio/cratis/arc/springdata/jpa/DatabaseChange;
+	public static synthetic fun copy$default (Lio/cratis/arc/springdata/jpa/DatabaseChange;Ljava/lang/Class;Ljava/lang/String;ILjava/lang/Object;)Lio/cratis/arc/springdata/jpa/DatabaseChange;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getEntityType ()Ljava/lang/Class;
+	public final fun getTenantId ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class io/cratis/arc/springdata/jpa/DatabaseChangeNotifier {
+	public abstract fun changes (Ljava/lang/Class;Ljava/lang/String;)Lkotlinx/coroutines/flow/Flow;
+}
+
+public abstract interface class io/cratis/arc/springdata/jpa/DatabaseChangePublisher {
+	public abstract fun publish (Ljava/lang/Class;Ljava/lang/String;)V
+}
+
+public final class io/cratis/arc/springdata/jpa/DefaultJpaCommandReadModelResolver : io/cratis/arc/springdata/jpa/JpaCommandReadModelResolver {
+	public fun <init> (Ljakarta/persistence/EntityManagerFactory;Lio/cratis/arc/commands/CommandHandlerRegistry;)V
+	public fun resolve (Ljava/lang/Class;Ljava/lang/Object;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/springdata/jpa/JpaCommandExecutionScope : io/cratis/arc/commands/CommandExecutionScope {
+	public fun <init> (Lorg/springframework/transaction/PlatformTransactionManager;)V
+	public fun begin (Lio/cratis/arc/commands/CommandContext;)V
+	public fun complete (Lio/cratis/arc/commands/CommandContext;Lio/cratis/arc/results/CommandResult;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public abstract interface class io/cratis/arc/springdata/jpa/JpaCommandReadModelResolver {
+	public abstract fun resolve (Ljava/lang/Class;Ljava/lang/Object;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/springdata/jpa/JpaObservableQuery : java/lang/AutoCloseable {
+	public fun <init> (Ljakarta/persistence/EntityManagerFactory;Lio/cratis/arc/springdata/jpa/DatabaseChangeNotifier;)V
+	public fun <init> (Ljakarta/persistence/EntityManagerFactory;Lio/cratis/arc/springdata/jpa/DatabaseChangeNotifier;Lio/cratis/arc/springdata/jpa/JpaObservationOptions;)V
+	public fun <init> (Ljakarta/persistence/EntityManagerFactory;Lio/cratis/arc/springdata/jpa/DatabaseChangeNotifier;Lio/cratis/arc/springdata/jpa/JpaObservationOptions;Lkotlinx/coroutines/CoroutineScope;)V
+	public synthetic fun <init> (Ljakarta/persistence/EntityManagerFactory;Lio/cratis/arc/springdata/jpa/DatabaseChangeNotifier;Lio/cratis/arc/springdata/jpa/JpaObservationOptions;Lkotlinx/coroutines/CoroutineScope;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun close ()V
+	public final fun observe (Ljava/lang/Class;)Lkotlinx/coroutines/flow/Flow;
+	public final fun observe (Ljava/lang/Class;Lio/cratis/arc/springdata/jpa/JpaSnapshotQuery;)Lkotlinx/coroutines/flow/Flow;
+	public final fun observe (Ljava/lang/Class;Lio/cratis/arc/springdata/jpa/JpaSnapshotQuery;Ljava/lang/String;)Lkotlinx/coroutines/flow/Flow;
+	public final fun observe (Ljava/lang/Class;Lio/cratis/arc/springdata/jpa/JpaSnapshotQuery;Ljava/lang/String;Ljava/util/function/Consumer;)Ljava/lang/AutoCloseable;
+	public final fun observe (Ljava/lang/Class;Lio/cratis/arc/springdata/jpa/JpaSnapshotQuery;Ljava/util/function/Consumer;)Ljava/lang/AutoCloseable;
+	public static synthetic fun observe$default (Lio/cratis/arc/springdata/jpa/JpaObservableQuery;Ljava/lang/Class;Lio/cratis/arc/springdata/jpa/JpaSnapshotQuery;Ljava/lang/String;ILjava/lang/Object;)Lkotlinx/coroutines/flow/Flow;
+	public static synthetic fun observe$default (Lio/cratis/arc/springdata/jpa/JpaObservableQuery;Ljava/lang/Class;Lio/cratis/arc/springdata/jpa/JpaSnapshotQuery;Ljava/lang/String;Ljava/util/function/Consumer;ILjava/lang/Object;)Ljava/lang/AutoCloseable;
+	public final fun observeById (Ljava/lang/Class;Ljava/lang/Object;)Lkotlinx/coroutines/flow/Flow;
+	public final fun observeById (Ljava/lang/Class;Ljava/lang/Object;Ljava/lang/String;)Lkotlinx/coroutines/flow/Flow;
+	public static synthetic fun observeById$default (Lio/cratis/arc/springdata/jpa/JpaObservableQuery;Ljava/lang/Class;Ljava/lang/Object;Ljava/lang/String;ILjava/lang/Object;)Lkotlinx/coroutines/flow/Flow;
+	public final fun observeList (Ljava/lang/Class;)Lkotlinx/coroutines/flow/Flow;
+	public final fun observeList (Ljava/lang/Class;Lio/cratis/arc/springdata/jpa/JpaSnapshotQuery;)Lkotlinx/coroutines/flow/Flow;
+	public final fun observeList (Ljava/lang/Class;Lio/cratis/arc/springdata/jpa/JpaSnapshotQuery;Ljava/lang/String;)Lkotlinx/coroutines/flow/Flow;
+	public static synthetic fun observeList$default (Lio/cratis/arc/springdata/jpa/JpaObservableQuery;Ljava/lang/Class;Lio/cratis/arc/springdata/jpa/JpaSnapshotQuery;Ljava/lang/String;ILjava/lang/Object;)Lkotlinx/coroutines/flow/Flow;
+	public final fun observePublisher (Ljava/lang/Class;Lio/cratis/arc/springdata/jpa/JpaSnapshotQuery;)Ljava/util/concurrent/Flow$Publisher;
+	public final fun observePublisher (Ljava/lang/Class;Lio/cratis/arc/springdata/jpa/JpaSnapshotQuery;Ljava/lang/String;)Ljava/util/concurrent/Flow$Publisher;
+	public static synthetic fun observePublisher$default (Lio/cratis/arc/springdata/jpa/JpaObservableQuery;Ljava/lang/Class;Lio/cratis/arc/springdata/jpa/JpaSnapshotQuery;Ljava/lang/String;ILjava/lang/Object;)Ljava/util/concurrent/Flow$Publisher;
+	public final fun observeShared (Lkotlinx/coroutines/CoroutineScope;Ljava/lang/Class;Lio/cratis/arc/springdata/jpa/JpaSnapshotQuery;)Lkotlinx/coroutines/flow/SharedFlow;
+	public final fun observeShared (Lkotlinx/coroutines/CoroutineScope;Ljava/lang/Class;Lio/cratis/arc/springdata/jpa/JpaSnapshotQuery;Ljava/lang/String;)Lkotlinx/coroutines/flow/SharedFlow;
+	public static synthetic fun observeShared$default (Lio/cratis/arc/springdata/jpa/JpaObservableQuery;Lkotlinx/coroutines/CoroutineScope;Ljava/lang/Class;Lio/cratis/arc/springdata/jpa/JpaSnapshotQuery;Ljava/lang/String;ILjava/lang/Object;)Lkotlinx/coroutines/flow/SharedFlow;
+	public final fun observeSingle (Ljava/lang/Class;)Lkotlinx/coroutines/flow/Flow;
+	public final fun observeSingle (Ljava/lang/Class;Lio/cratis/arc/springdata/jpa/JpaSnapshotQuery;)Lkotlinx/coroutines/flow/Flow;
+	public final fun observeSingle (Ljava/lang/Class;Lio/cratis/arc/springdata/jpa/JpaSnapshotQuery;Ljava/lang/String;)Lkotlinx/coroutines/flow/Flow;
+	public static synthetic fun observeSingle$default (Lio/cratis/arc/springdata/jpa/JpaObservableQuery;Ljava/lang/Class;Lio/cratis/arc/springdata/jpa/JpaSnapshotQuery;Ljava/lang/String;ILjava/lang/Object;)Lkotlinx/coroutines/flow/Flow;
+}
+
+public final class io/cratis/arc/springdata/jpa/JpaObservationOptions {
+	public fun <init> ()V
+	public fun <init> (Ljava/time/Duration;)V
+	public fun <init> (Ljava/time/Duration;I)V
+	public synthetic fun <init> (Ljava/time/Duration;IILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/time/Duration;
+	public final fun component2 ()I
+	public final fun copy (Ljava/time/Duration;I)Lio/cratis/arc/springdata/jpa/JpaObservationOptions;
+	public static synthetic fun copy$default (Lio/cratis/arc/springdata/jpa/JpaObservationOptions;Ljava/time/Duration;IILjava/lang/Object;)Lio/cratis/arc/springdata/jpa/JpaObservationOptions;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getBufferCapacity ()I
+	public final fun getCoalesceWindow ()Ljava/time/Duration;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/cratis/arc/springdata/jpa/JpaPersistenceUnit {
+	public static final field Companion Lio/cratis/arc/springdata/jpa/JpaPersistenceUnit$Companion;
+	public fun <init> (Ljakarta/persistence/EntityManagerFactory;)V
+	public fun <init> (Ljakarta/persistence/EntityManagerFactory;Lorg/springframework/orm/jpa/JpaTransactionManager;)V
+	public fun <init> (Ljakarta/persistence/EntityManagerFactory;Lorg/springframework/orm/jpa/JpaTransactionManager;Ljava/lang/String;)V
+	public fun <init> (Ljakarta/persistence/EntityManagerFactory;Lorg/springframework/orm/jpa/JpaTransactionManager;Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljakarta/persistence/EntityManagerFactory;Lorg/springframework/orm/jpa/JpaTransactionManager;Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public static final fun builder (Ljakarta/persistence/EntityManagerFactory;)Lio/cratis/arc/springdata/jpa/JpaPersistenceUnit$Builder;
+	public static final fun fixed (Ljakarta/persistence/EntityManagerFactory;)Lio/cratis/arc/springdata/jpa/JpaPersistenceUnit;
+	public static final fun fixed (Ljakarta/persistence/EntityManagerFactory;Lorg/springframework/orm/jpa/JpaTransactionManager;)Lio/cratis/arc/springdata/jpa/JpaPersistenceUnit;
+	public final fun getEntityManagerFactory ()Ljakarta/persistence/EntityManagerFactory;
+	public final fun getReadModelTypes ()Ljava/util/Set;
+	public final fun getTenantId ()Ljava/lang/String;
+	public final fun getTenantNamespace ()Ljava/lang/String;
+	public final fun getTransactionManager ()Lorg/springframework/orm/jpa/JpaTransactionManager;
+	public final fun readModelTypes ()Ljava/util/Set;
+}
+
+public final class io/cratis/arc/springdata/jpa/JpaPersistenceUnit$Builder {
+	public fun <init> (Ljakarta/persistence/EntityManagerFactory;)V
+	public final fun build ()Lio/cratis/arc/springdata/jpa/JpaPersistenceUnit;
+	public final fun getEntityManagerFactory ()Ljakarta/persistence/EntityManagerFactory;
+	public final fun tenant (Ljava/lang/String;)Lio/cratis/arc/springdata/jpa/JpaPersistenceUnit$Builder;
+	public final fun tenant (Ljava/lang/String;Ljava/lang/String;)Lio/cratis/arc/springdata/jpa/JpaPersistenceUnit$Builder;
+	public static synthetic fun tenant$default (Lio/cratis/arc/springdata/jpa/JpaPersistenceUnit$Builder;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lio/cratis/arc/springdata/jpa/JpaPersistenceUnit$Builder;
+	public final fun transactionManager (Lorg/springframework/orm/jpa/JpaTransactionManager;)Lio/cratis/arc/springdata/jpa/JpaPersistenceUnit$Builder;
+}
+
+public final class io/cratis/arc/springdata/jpa/JpaPersistenceUnit$Companion {
+	public final fun builder (Ljakarta/persistence/EntityManagerFactory;)Lio/cratis/arc/springdata/jpa/JpaPersistenceUnit$Builder;
+	public final fun fixed (Ljakarta/persistence/EntityManagerFactory;)Lio/cratis/arc/springdata/jpa/JpaPersistenceUnit;
+	public final fun fixed (Ljakarta/persistence/EntityManagerFactory;Lorg/springframework/orm/jpa/JpaTransactionManager;)Lio/cratis/arc/springdata/jpa/JpaPersistenceUnit;
+}
+
+public abstract interface class io/cratis/arc/springdata/jpa/JpaPersistenceUnitResolver {
+	public abstract fun readModelTypes ()Ljava/util/Set;
+	public abstract fun resolve (Ljava/lang/String;Ljava/lang/String;)Lio/cratis/arc/springdata/jpa/JpaPersistenceUnit;
+}
+
+public final class io/cratis/arc/springdata/jpa/JpaQueryPageAdapter {
+	public static final field INSTANCE Lio/cratis/arc/springdata/jpa/JpaQueryPageAdapter;
+	public static final fun toQueryPage (Lorg/springframework/data/domain/Page;)Lio/cratis/arc/queries/QueryPage;
+}
+
+public final class io/cratis/arc/springdata/jpa/JpaQueryRequestAdapter {
+	public static final field INSTANCE Lio/cratis/arc/springdata/jpa/JpaQueryRequestAdapter;
+	public static final fun toPageable (Lio/cratis/arc/queries/QueryRequest;)Lorg/springframework/data/domain/Pageable;
+	public static final fun toSort (Lio/cratis/arc/queries/QueryRequest;)Lorg/springframework/data/domain/Sort;
+}
+
+public final class io/cratis/arc/springdata/jpa/JpaReadModelForCommandResolver : io/cratis/arc/queries/BlockingReadModelForCommandResolver {
+	public fun <init> (Lio/cratis/arc/springdata/jpa/JpaPersistenceUnitResolver;)V
+	public fun <init> (Lio/cratis/arc/springdata/jpa/JpaPersistenceUnitResolver;Z)V
+	public synthetic fun <init> (Lio/cratis/arc/springdata/jpa/JpaPersistenceUnitResolver;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun ownership ()Lio/cratis/arc/queries/ReadModelForCommandOwnership;
+	public fun readModelTypes ()Ljava/util/Set;
+	public fun resolveBlocking (Ljava/lang/Class;Lio/cratis/arc/commands/CommandContext;Ljava/lang/Object;)Ljava/lang/Object;
+}
+
+public abstract interface class io/cratis/arc/springdata/jpa/JpaSnapshotQuery {
+	public abstract fun execute (Ljakarta/persistence/EntityManager;)Ljava/util/List;
+}
+
+public final class io/cratis/arc/springdata/jpa/TransactionAwareDatabaseChangeNotifier : io/cratis/arc/springdata/jpa/DatabaseChangeNotifier, io/cratis/arc/springdata/jpa/DatabaseChangePublisher {
+	public fun <init> ()V
+	public fun <init> (Lio/cratis/arc/springdata/jpa/JpaObservationOptions;)V
+	public synthetic fun <init> (Lio/cratis/arc/springdata/jpa/JpaObservationOptions;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun changes (Ljava/lang/Class;Ljava/lang/String;)Lkotlinx/coroutines/flow/Flow;
+	public final fun changesPublisher (Ljava/lang/Class;)Ljava/util/concurrent/Flow$Publisher;
+	public final fun changesPublisher (Ljava/lang/Class;Ljava/lang/String;)Ljava/util/concurrent/Flow$Publisher;
+	public static synthetic fun changesPublisher$default (Lio/cratis/arc/springdata/jpa/TransactionAwareDatabaseChangeNotifier;Ljava/lang/Class;Ljava/lang/String;ILjava/lang/Object;)Ljava/util/concurrent/Flow$Publisher;
+	public fun publish (Ljava/lang/Class;Ljava/lang/String;)V
+}
+
+public class io/cratis/arc/springdata/jpa/springboot/ArcSpringDataJpaAutoConfiguration {
+	public fun <init> ()V
+	public fun arcDatabaseChangeNotifier (Lio/cratis/arc/springdata/jpa/JpaObservationOptions;)Lio/cratis/arc/springdata/jpa/TransactionAwareDatabaseChangeNotifier;
+	public fun arcJpaCommandExecutionScope (Lorg/springframework/transaction/PlatformTransactionManager;)Lio/cratis/arc/springdata/jpa/JpaCommandExecutionScope;
+	public fun arcJpaCommandReadModelResolver (Ljakarta/persistence/EntityManagerFactory;Lio/cratis/arc/commands/CommandHandlerRegistry;)Lio/cratis/arc/springdata/jpa/JpaCommandReadModelResolver;
+	public fun arcJpaObservableQuery (Ljakarta/persistence/EntityManagerFactory;Lio/cratis/arc/springdata/jpa/DatabaseChangeNotifier;Lio/cratis/arc/springdata/jpa/JpaObservationOptions;)Lio/cratis/arc/springdata/jpa/JpaObservableQuery;
+	public fun arcJpaObservationOptions ()Lio/cratis/arc/springdata/jpa/JpaObservationOptions;
+	public fun arcJpaPersistenceUnitResolver (Ljakarta/persistence/EntityManagerFactory;Lorg/springframework/beans/factory/ObjectProvider;)Lio/cratis/arc/springdata/jpa/JpaPersistenceUnitResolver;
+	public fun arcJpaReadModelForCommandResolver (Lio/cratis/arc/springdata/jpa/JpaPersistenceUnitResolver;Lio/cratis/arc/springboot/ArcProperties;)Lio/cratis/arc/springdata/jpa/JpaReadModelForCommandResolver;
+	public fun arcJpaRequiredTenancyPersistenceUnitGuard (Lorg/springframework/beans/factory/ObjectProvider;Lorg/springframework/beans/factory/ObjectProvider;Lorg/springframework/beans/factory/ObjectProvider;)Lorg/springframework/beans/factory/SmartInitializingSingleton;
+}

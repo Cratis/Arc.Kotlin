@@ -1,0 +1,161 @@
+public final class io/cratis/arc/chronicle/ChronicleCommandExecutionScope : io/cratis/arc/commands/CommandExecutionScope {
+	public fun <init> (Lio/cratis/arc/chronicle/ChronicleCommandTransaction;)V
+	public fun begin (Lio/cratis/arc/commands/CommandContext;)V
+	public fun complete (Lio/cratis/arc/commands/CommandContext;Lio/cratis/arc/results/CommandResult;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/chronicle/ChronicleCommandResponseValueHandler : io/cratis/arc/commands/CommandResponseValueHandler {
+	public fun <init> (Lio/cratis/arc/chronicle/TenantEventStoreResolver;Lio/cratis/arc/commands/CommandHandlerRegistry;)V
+	public fun <init> (Lio/cratis/arc/chronicle/TenantEventStoreResolver;Lio/cratis/arc/commands/CommandHandlerRegistry;Lio/cratis/arc/chronicle/ChronicleCommandTransaction;)V
+	public fun <init> (Lio/cratis/chronicle/IEventStore;Lio/cratis/arc/commands/CommandHandlerRegistry;)V
+	public fun <init> (Lio/cratis/chronicle/IEventStore;Lio/cratis/arc/commands/CommandHandlerRegistry;Lio/cratis/arc/chronicle/ChronicleCommandTransaction;)V
+	public fun canHandle (Lio/cratis/arc/commands/CommandContext;Ljava/lang/Object;)Z
+	public fun handle (Lio/cratis/arc/commands/CommandContext;Ljava/lang/Object;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/chronicle/ChronicleCommandResponses {
+	public static final fun eventsWithConcurrencyScopes (Lkotlin/jvm/functions/Function1;)Lio/cratis/arc/chronicle/EventsWithConcurrencyScopes;
+}
+
+public final class io/cratis/arc/chronicle/ChronicleCommandScenario {
+	public final fun getAppendedEvents ()Ljava/util/List;
+	public final fun given ()Lio/cratis/arc/chronicle/ChronicleCommandScenarioGivenBuilder;
+	public final fun shouldHaveAppendedEvent (Ljava/lang/Class;)Ljava/lang/Object;
+	public final fun shouldHaveAppendedEvent (Ljava/lang/String;Ljava/lang/Class;)Ljava/lang/Object;
+	public final fun shouldHaveAppendedEvents (I)Lio/cratis/arc/chronicle/ChronicleCommandScenario;
+	public final fun shouldHaveNoAppendedEvents ()Lio/cratis/arc/chronicle/ChronicleCommandScenario;
+}
+
+public final class io/cratis/arc/chronicle/ChronicleCommandScenarioExtender : io/cratis/arc/testing/CommandScenarioExtender {
+	public fun <init> ()V
+	public fun extend (Lio/cratis/arc/testing/CommandScenarioExtensionContext;)V
+	public final fun getChronicle ()Lio/cratis/arc/chronicle/ChronicleCommandScenario;
+}
+
+public final class io/cratis/arc/chronicle/ChronicleCommandScenarioGivenBuilder {
+	public final fun concurrencyViolation (Ljava/lang/String;JJ)Lio/cratis/arc/chronicle/ChronicleCommandScenarioGivenBuilder;
+	public final fun constraintViolation (Ljava/lang/String;Ljava/lang/String;)Lio/cratis/arc/chronicle/ChronicleCommandScenarioGivenBuilder;
+	public final fun constraintViolation (Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;)Lio/cratis/arc/chronicle/ChronicleCommandScenarioGivenBuilder;
+	public static synthetic fun constraintViolation$default (Lio/cratis/arc/chronicle/ChronicleCommandScenarioGivenBuilder;Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;ILjava/lang/Object;)Lio/cratis/arc/chronicle/ChronicleCommandScenarioGivenBuilder;
+	public final fun events (Ljava/lang/String;[Ljava/lang/Object;)Lio/cratis/arc/chronicle/ChronicleCommandScenarioGivenBuilder;
+	public final fun forEventSource (Ljava/lang/String;)Lio/cratis/arc/chronicle/ChronicleCommandScenarioSourceGivenBuilder;
+}
+
+public final class io/cratis/arc/chronicle/ChronicleCommandScenarioSourceGivenBuilder {
+	public final fun and ()Lio/cratis/arc/chronicle/ChronicleCommandScenarioGivenBuilder;
+	public final fun events ([Ljava/lang/Object;)Lio/cratis/arc/chronicle/ChronicleCommandScenarioSourceGivenBuilder;
+}
+
+public final class io/cratis/arc/chronicle/ChronicleCommandScenarios {
+	public static final fun chronicle (Lio/cratis/arc/testing/CommandScenario;)Lio/cratis/arc/chronicle/ChronicleCommandScenario;
+	public static final fun givenChronicle (Lio/cratis/arc/testing/CommandScenario;)Lio/cratis/arc/chronicle/ChronicleCommandScenarioGivenBuilder;
+	public static final fun shouldHaveConcurrencyViolation (Lio/cratis/arc/testing/CommandScenarioResult;)Lio/cratis/arc/results/ValidationResult;
+	public static final fun shouldHaveConcurrencyViolation (Lio/cratis/arc/testing/CommandScenarioResult;Ljava/lang/String;)Lio/cratis/arc/results/ValidationResult;
+	public static synthetic fun shouldHaveConcurrencyViolation$default (Lio/cratis/arc/testing/CommandScenarioResult;Ljava/lang/String;ILjava/lang/Object;)Lio/cratis/arc/results/ValidationResult;
+	public static final fun shouldHaveConstraintViolation (Lio/cratis/arc/testing/CommandScenarioResult;Ljava/lang/String;)Lio/cratis/arc/results/ValidationResult;
+}
+
+public final class io/cratis/arc/chronicle/ChronicleCommandSideEffectHandler {
+	public fun <init> (Lio/cratis/arc/commands/CommandPipeline;Lio/cratis/arc/commands/CommandHandlerRegistry;Lio/cratis/arc/commands/ServiceResolver;Lkotlinx/coroutines/CoroutineScope;)V
+	public final fun canHandle (Ljava/lang/Object;)Z
+	public final fun execute (Ljava/lang/Object;Ljava/lang/Class;Lio/cratis/chronicle/events/EventContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun executeAsync (Ljava/lang/Object;Ljava/lang/Class;Lio/cratis/chronicle/events/EventContext;)Ljava/util/concurrent/CompletionStage;
+}
+
+public final class io/cratis/arc/chronicle/ChronicleCommandTransaction {
+	public fun <init> ()V
+	public final fun begin (Lio/cratis/arc/commands/CommandContext;)V
+	public final fun complete (Lio/cratis/arc/commands/CommandContext;Lio/cratis/arc/results/CommandResult;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun enroll (Lio/cratis/arc/commands/CommandContext;Lio/cratis/chronicle/IEventStore;Ljava/util/List;Ljava/util/Map;)Z
+	public static synthetic fun enroll$default (Lio/cratis/arc/chronicle/ChronicleCommandTransaction;Lio/cratis/arc/commands/CommandContext;Lio/cratis/chronicle/IEventStore;Ljava/util/List;Ljava/util/Map;ILjava/lang/Object;)Z
+}
+
+public final class io/cratis/arc/chronicle/ChronicleReadModelForCommandResolver : io/cratis/arc/queries/CanResolveReadModelForCommand {
+	public fun <init> (Ljava/lang/Iterable;Lio/cratis/arc/chronicle/TenantEventStoreResolver;Lkotlinx/coroutines/CoroutineScope;)V
+	public fun <init> (Ljava/lang/Iterable;Lio/cratis/arc/chronicle/TenantEventStoreResolver;Lkotlinx/coroutines/CoroutineScope;Lio/cratis/arc/queries/ReadModelForCommandOwnership;)V
+	public synthetic fun <init> (Ljava/lang/Iterable;Lio/cratis/arc/chronicle/TenantEventStoreResolver;Lkotlinx/coroutines/CoroutineScope;Lio/cratis/arc/queries/ReadModelForCommandOwnership;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/lang/Iterable;Lio/cratis/chronicle/IEventStore;Lkotlinx/coroutines/CoroutineScope;)V
+	public fun <init> (Ljava/lang/Iterable;Lio/cratis/chronicle/IEventStore;Lkotlinx/coroutines/CoroutineScope;Lio/cratis/arc/queries/ReadModelForCommandOwnership;)V
+	public synthetic fun <init> (Ljava/lang/Iterable;Lio/cratis/chronicle/IEventStore;Lkotlinx/coroutines/CoroutineScope;Lio/cratis/arc/queries/ReadModelForCommandOwnership;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun ownership ()Lio/cratis/arc/queries/ReadModelForCommandOwnership;
+	public fun readModelTypes ()Ljava/util/Set;
+	public fun resolve (Ljava/lang/Class;Lio/cratis/arc/commands/CommandContext;Ljava/lang/Object;)Ljava/util/concurrent/CompletionStage;
+}
+
+public final class io/cratis/arc/chronicle/ChronicleReadModelInterceptor : io/cratis/arc/queries/InterceptReadModel {
+	public fun <init> (Ljava/lang/Iterable;Lio/cratis/arc/chronicle/TenantEventStoreResolver;Lkotlinx/coroutines/CoroutineScope;)V
+	public fun <init> (Ljava/lang/Iterable;Lio/cratis/chronicle/IEventStore;Lkotlinx/coroutines/CoroutineScope;)V
+	public fun intercept (Ljava/lang/Object;Lio/cratis/arc/queries/QueryContext;)Ljava/util/concurrent/CompletionStage;
+	public fun readModelType ()Ljava/lang/Class;
+}
+
+public final class io/cratis/arc/chronicle/ChronicleScenarioEvent {
+	public fun <init> (Ljava/lang/String;Ljava/lang/Object;J)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/Object;
+	public final fun component3 ()J
+	public final fun copy (Ljava/lang/String;Ljava/lang/Object;J)Lio/cratis/arc/chronicle/ChronicleScenarioEvent;
+	public static synthetic fun copy$default (Lio/cratis/arc/chronicle/ChronicleScenarioEvent;Ljava/lang/String;Ljava/lang/Object;JILjava/lang/Object;)Lio/cratis/arc/chronicle/ChronicleScenarioEvent;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getEvent ()Ljava/lang/Object;
+	public final fun getEventSourceId ()Ljava/lang/String;
+	public final fun getSequenceNumber ()J
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/cratis/arc/chronicle/EventsWithConcurrencyScopes {
+	public static final field Companion Lio/cratis/arc/chronicle/EventsWithConcurrencyScopes$Companion;
+	public static final fun builder ()Lio/cratis/arc/chronicle/EventsWithConcurrencyScopesBuilder;
+	public final fun expectedSequenceNumber (Ljava/lang/String;)Ljava/lang/Long;
+	public final fun getConcurrencyScopes ()Ljava/util/Map;
+	public final fun getEvents ()Ljava/util/List;
+}
+
+public final class io/cratis/arc/chronicle/EventsWithConcurrencyScopes$Companion {
+	public final fun builder ()Lio/cratis/arc/chronicle/EventsWithConcurrencyScopesBuilder;
+}
+
+public final class io/cratis/arc/chronicle/EventsWithConcurrencyScopesBuilder {
+	public fun <init> ()V
+	public final fun build ()Lio/cratis/arc/chronicle/EventsWithConcurrencyScopes;
+	public final fun concurrencyScope (Ljava/lang/String;Lio/cratis/chronicle/eventSequences/concurrency/ConcurrencyScope;)Lio/cratis/arc/chronicle/EventsWithConcurrencyScopesBuilder;
+	public final fun concurrencyScope (Ljava/lang/String;Ljava/util/function/Consumer;)Lio/cratis/arc/chronicle/EventsWithConcurrencyScopesBuilder;
+	public final fun concurrencyScope (Ljava/lang/String;Lkotlin/jvm/functions/Function1;)Lio/cratis/arc/chronicle/EventsWithConcurrencyScopesBuilder;
+	public final fun event (Lio/cratis/chronicle/eventSequences/EventForEventSourceId;)Lio/cratis/arc/chronicle/EventsWithConcurrencyScopesBuilder;
+	public final fun event (Ljava/lang/String;Ljava/lang/Object;)Lio/cratis/arc/chronicle/EventsWithConcurrencyScopesBuilder;
+	public final fun expectedSequenceNumber (Ljava/lang/String;J)Lio/cratis/arc/chronicle/EventsWithConcurrencyScopesBuilder;
+}
+
+public final class io/cratis/arc/chronicle/EventsWithConcurrencyScopesCommandResponseValueHandler : io/cratis/arc/commands/CommandResponseValueHandler {
+	public fun <init> (Lio/cratis/arc/chronicle/TenantEventStoreResolver;Lio/cratis/arc/chronicle/ChronicleCommandTransaction;)V
+	public synthetic fun <init> (Lio/cratis/arc/chronicle/TenantEventStoreResolver;Lio/cratis/arc/chronicle/ChronicleCommandTransaction;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Lio/cratis/chronicle/IEventStore;)V
+	public fun <init> (Lio/cratis/chronicle/IEventStore;Lio/cratis/arc/chronicle/ChronicleCommandTransaction;)V
+	public fun canHandle (Lio/cratis/arc/commands/CommandContext;Ljava/lang/Object;)Z
+	public fun handle (Lio/cratis/arc/commands/CommandContext;Ljava/lang/Object;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public abstract interface annotation class io/cratis/arc/chronicle/ExecuteCommandsAsSystem : java/lang/annotation/Annotation {
+	public abstract fun roles ()[Ljava/lang/String;
+}
+
+public abstract interface class io/cratis/arc/chronicle/TenantEventStoreProvider {
+	public abstract fun provide (Ljava/lang/String;)Lio/cratis/chronicle/IEventStore;
+}
+
+public abstract interface class io/cratis/arc/chronicle/TenantEventStoreResolver {
+	public abstract fun resolve (Ljava/lang/String;)Lio/cratis/chronicle/IEventStore;
+}
+
+public class io/cratis/arc/chronicle/springboot/ChronicleArcAutoConfiguration {
+	public fun <init> ()V
+	public fun chronicleCommandExecutionScope (Lio/cratis/arc/chronicle/ChronicleCommandTransaction;)Lio/cratis/arc/chronicle/ChronicleCommandExecutionScope;
+	public fun chronicleCommandResponseValueHandler (Lio/cratis/arc/chronicle/TenantEventStoreResolver;Lio/cratis/arc/commands/CommandHandlerRegistry;Lio/cratis/arc/chronicle/ChronicleCommandTransaction;)Lio/cratis/arc/chronicle/ChronicleCommandResponseValueHandler;
+	public fun chronicleCommandSideEffectHandler (Lio/cratis/arc/commands/CommandPipeline;Lio/cratis/arc/commands/CommandHandlerRegistry;Lio/cratis/arc/commands/ServiceResolver;Lio/cratis/arc/springboot/ArcApplicationCoroutineScope;)Lio/cratis/arc/chronicle/ChronicleCommandSideEffectHandler;
+	public fun chronicleCommandTransaction ()Lio/cratis/arc/chronicle/ChronicleCommandTransaction;
+	public fun chronicleReadModelForCommandResolver (Lio/cratis/chronicle/ChronicleOptions;Lio/cratis/arc/chronicle/TenantEventStoreResolver;Lio/cratis/arc/springboot/ArcApplicationCoroutineScope;)Lio/cratis/arc/chronicle/ChronicleReadModelForCommandResolver;
+	public fun chronicleReadModelInterceptor (Lio/cratis/chronicle/ChronicleOptions;Lio/cratis/arc/chronicle/TenantEventStoreResolver;Lio/cratis/arc/springboot/ArcApplicationCoroutineScope;)Lio/cratis/arc/chronicle/ChronicleReadModelInterceptor;
+	public fun eventsWithConcurrencyScopesCommandResponseValueHandler (Lio/cratis/arc/chronicle/TenantEventStoreResolver;Lio/cratis/arc/chronicle/ChronicleCommandTransaction;)Lio/cratis/arc/chronicle/EventsWithConcurrencyScopesCommandResponseValueHandler;
+	public fun tenantEventStoreResolver (Lio/cratis/chronicle/IEventStore;Lorg/springframework/beans/factory/ObjectProvider;)Lio/cratis/arc/chronicle/TenantEventStoreResolver;
+}

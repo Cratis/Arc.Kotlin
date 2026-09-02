@@ -1,0 +1,14 @@
+/*---------------------------------------------------------------------------------------------
+ *  **DO NOT EDIT** - This file is an automatically generated file.
+ *--------------------------------------------------------------------------------------------*/
+
+/* eslint-disable sort-imports */
+// eslint-disable-next-line header/header
+import { field, derivedType } from '@cratis/fundamentals';
+import { ShapeBase } from './ShapeBase';
+
+@derivedType('circle')
+export class Circle extends ShapeBase {
+    @field(Number)
+    radius!: number;
+}

@@ -1,0 +1,16 @@
+# Copyright (c) Cratis. All rights reserved.
+# Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+* text=auto eol=lf
+
+*.jar binary
+*.jpg binary
+*.png binary
+*.gif binary
+*.ico binary
+*.pdf binary
+
+*.bat text eol=crlf
+
+gradlew text eol=lf
+*.sh text eol=lf

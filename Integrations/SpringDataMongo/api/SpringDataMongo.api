@@ -1,0 +1,174 @@
+public final class io/cratis/arc/springdata/mongodb/DefaultMongoCommandReadModelResolver : io/cratis/arc/springdata/mongodb/MongoCommandReadModelResolver {
+	public fun <init> (Lorg/springframework/data/mongodb/core/MongoOperations;Lorg/springframework/data/mongodb/core/mapping/MongoMappingContext;Lio/cratis/arc/commands/CommandHandlerRegistry;)V
+	public fun resolve (Ljava/lang/Class;Ljava/lang/Object;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/springdata/mongodb/MongoChange {
+	public fun <init> (Lio/cratis/arc/springdata/mongodb/MongoChangeOperation;Ljava/lang/String;Ljava/lang/String;Lorg/bson/BsonDocument;Lorg/bson/BsonDocument;)V
+	public final fun component1 ()Lio/cratis/arc/springdata/mongodb/MongoChangeOperation;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Lorg/bson/BsonDocument;
+	public final fun component5 ()Lorg/bson/BsonDocument;
+	public final fun copy (Lio/cratis/arc/springdata/mongodb/MongoChangeOperation;Ljava/lang/String;Ljava/lang/String;Lorg/bson/BsonDocument;Lorg/bson/BsonDocument;)Lio/cratis/arc/springdata/mongodb/MongoChange;
+	public static synthetic fun copy$default (Lio/cratis/arc/springdata/mongodb/MongoChange;Lio/cratis/arc/springdata/mongodb/MongoChangeOperation;Ljava/lang/String;Ljava/lang/String;Lorg/bson/BsonDocument;Lorg/bson/BsonDocument;ILjava/lang/Object;)Lio/cratis/arc/springdata/mongodb/MongoChange;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCollectionName ()Ljava/lang/String;
+	public final fun getDocumentKey ()Lorg/bson/BsonDocument;
+	public final fun getOperation ()Lio/cratis/arc/springdata/mongodb/MongoChangeOperation;
+	public final fun getResumeToken ()Lorg/bson/BsonDocument;
+	public final fun getTenantId ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/cratis/arc/springdata/mongodb/MongoChangeOperation : java/lang/Enum {
+	public static final field DELETE Lio/cratis/arc/springdata/mongodb/MongoChangeOperation;
+	public static final field INSERT Lio/cratis/arc/springdata/mongodb/MongoChangeOperation;
+	public static final field INVALIDATE Lio/cratis/arc/springdata/mongodb/MongoChangeOperation;
+	public static final field REPLACE Lio/cratis/arc/springdata/mongodb/MongoChangeOperation;
+	public static final field UPDATE Lio/cratis/arc/springdata/mongodb/MongoChangeOperation;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lio/cratis/arc/springdata/mongodb/MongoChangeOperation;
+	public static fun values ()[Lio/cratis/arc/springdata/mongodb/MongoChangeOperation;
+}
+
+public abstract interface class io/cratis/arc/springdata/mongodb/MongoChangeStreamCursor : java/lang/AutoCloseable {
+	public abstract fun next ()Lio/cratis/arc/springdata/mongodb/MongoChange;
+}
+
+public abstract interface class io/cratis/arc/springdata/mongodb/MongoChangeStreamSource {
+	public abstract fun open (Ljava/lang/Class;Ljava/lang/String;Lorg/bson/BsonDocument;)Lio/cratis/arc/springdata/mongodb/MongoChangeStreamCursor;
+}
+
+public abstract interface class io/cratis/arc/springdata/mongodb/MongoChangeStreamWatcher {
+	public abstract fun watch (Ljava/lang/Class;Ljava/lang/String;Ljava/lang/Object;)Lkotlinx/coroutines/flow/Flow;
+}
+
+public final class io/cratis/arc/springdata/mongodb/MongoCommandExecutionScope : io/cratis/arc/commands/CommandExecutionScope {
+	public fun <init> (Lorg/springframework/data/mongodb/MongoTransactionManager;)V
+	public fun begin (Lio/cratis/arc/commands/CommandContext;)V
+	public fun complete (Lio/cratis/arc/commands/CommandContext;Lio/cratis/arc/results/CommandResult;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public abstract interface class io/cratis/arc/springdata/mongodb/MongoCommandReadModelResolver {
+	public abstract fun resolve (Ljava/lang/Class;Ljava/lang/Object;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/springdata/mongodb/MongoObservableQuery : java/lang/AutoCloseable {
+	public fun <init> (Lio/cratis/arc/springdata/mongodb/MongoOperationsResolver;Lio/cratis/arc/springdata/mongodb/MongoChangeStreamWatcher;)V
+	public fun <init> (Lio/cratis/arc/springdata/mongodb/MongoOperationsResolver;Lio/cratis/arc/springdata/mongodb/MongoChangeStreamWatcher;Lkotlinx/coroutines/CoroutineScope;)V
+	public synthetic fun <init> (Lio/cratis/arc/springdata/mongodb/MongoOperationsResolver;Lio/cratis/arc/springdata/mongodb/MongoChangeStreamWatcher;Lkotlinx/coroutines/CoroutineScope;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun close ()V
+	public final fun observe (Ljava/lang/Class;)Lkotlinx/coroutines/flow/Flow;
+	public final fun observe (Ljava/lang/Class;Ljava/util/function/Consumer;)Ljava/lang/AutoCloseable;
+	public final fun observe (Ljava/lang/Class;Lorg/springframework/data/mongodb/core/query/Query;)Lkotlinx/coroutines/flow/Flow;
+	public final fun observe (Ljava/lang/Class;Lorg/springframework/data/mongodb/core/query/Query;Ljava/lang/String;)Lkotlinx/coroutines/flow/Flow;
+	public final fun observe (Ljava/lang/Class;Lorg/springframework/data/mongodb/core/query/Query;Ljava/lang/String;Ljava/util/function/Consumer;)Ljava/lang/AutoCloseable;
+	public final fun observe (Ljava/lang/Class;Lorg/springframework/data/mongodb/core/query/Query;Ljava/util/function/Consumer;)Ljava/lang/AutoCloseable;
+	public static synthetic fun observe$default (Lio/cratis/arc/springdata/mongodb/MongoObservableQuery;Ljava/lang/Class;Lorg/springframework/data/mongodb/core/query/Query;Ljava/lang/String;ILjava/lang/Object;)Lkotlinx/coroutines/flow/Flow;
+	public static synthetic fun observe$default (Lio/cratis/arc/springdata/mongodb/MongoObservableQuery;Ljava/lang/Class;Lorg/springframework/data/mongodb/core/query/Query;Ljava/lang/String;Ljava/util/function/Consumer;ILjava/lang/Object;)Ljava/lang/AutoCloseable;
+	public final fun observeById (Ljava/lang/Class;Ljava/lang/Object;)Lkotlinx/coroutines/flow/Flow;
+	public final fun observeById (Ljava/lang/Class;Ljava/lang/Object;Ljava/lang/String;)Lkotlinx/coroutines/flow/Flow;
+	public static synthetic fun observeById$default (Lio/cratis/arc/springdata/mongodb/MongoObservableQuery;Ljava/lang/Class;Ljava/lang/Object;Ljava/lang/String;ILjava/lang/Object;)Lkotlinx/coroutines/flow/Flow;
+	public final fun observeList (Ljava/lang/Class;)Lkotlinx/coroutines/flow/Flow;
+	public final fun observeList (Ljava/lang/Class;Lorg/springframework/data/mongodb/core/query/Query;)Lkotlinx/coroutines/flow/Flow;
+	public final fun observeList (Ljava/lang/Class;Lorg/springframework/data/mongodb/core/query/Query;Ljava/lang/String;)Lkotlinx/coroutines/flow/Flow;
+	public static synthetic fun observeList$default (Lio/cratis/arc/springdata/mongodb/MongoObservableQuery;Ljava/lang/Class;Lorg/springframework/data/mongodb/core/query/Query;Ljava/lang/String;ILjava/lang/Object;)Lkotlinx/coroutines/flow/Flow;
+	public final fun observePublisher (Ljava/lang/Class;)Ljava/util/concurrent/Flow$Publisher;
+	public final fun observePublisher (Ljava/lang/Class;Lorg/springframework/data/mongodb/core/query/Query;)Ljava/util/concurrent/Flow$Publisher;
+	public final fun observePublisher (Ljava/lang/Class;Lorg/springframework/data/mongodb/core/query/Query;Ljava/lang/String;)Ljava/util/concurrent/Flow$Publisher;
+	public static synthetic fun observePublisher$default (Lio/cratis/arc/springdata/mongodb/MongoObservableQuery;Ljava/lang/Class;Lorg/springframework/data/mongodb/core/query/Query;Ljava/lang/String;ILjava/lang/Object;)Ljava/util/concurrent/Flow$Publisher;
+	public final fun observeShared (Lkotlinx/coroutines/CoroutineScope;Ljava/lang/Class;)Lkotlinx/coroutines/flow/SharedFlow;
+	public final fun observeShared (Lkotlinx/coroutines/CoroutineScope;Ljava/lang/Class;Lorg/springframework/data/mongodb/core/query/Query;)Lkotlinx/coroutines/flow/SharedFlow;
+	public final fun observeShared (Lkotlinx/coroutines/CoroutineScope;Ljava/lang/Class;Lorg/springframework/data/mongodb/core/query/Query;Ljava/lang/String;)Lkotlinx/coroutines/flow/SharedFlow;
+	public static synthetic fun observeShared$default (Lio/cratis/arc/springdata/mongodb/MongoObservableQuery;Lkotlinx/coroutines/CoroutineScope;Ljava/lang/Class;Lorg/springframework/data/mongodb/core/query/Query;Ljava/lang/String;ILjava/lang/Object;)Lkotlinx/coroutines/flow/SharedFlow;
+	public final fun observeSingle (Ljava/lang/Class;)Lkotlinx/coroutines/flow/Flow;
+	public final fun observeSingle (Ljava/lang/Class;Lorg/springframework/data/mongodb/core/query/Query;)Lkotlinx/coroutines/flow/Flow;
+	public final fun observeSingle (Ljava/lang/Class;Lorg/springframework/data/mongodb/core/query/Query;Ljava/lang/String;)Lkotlinx/coroutines/flow/Flow;
+	public static synthetic fun observeSingle$default (Lio/cratis/arc/springdata/mongodb/MongoObservableQuery;Ljava/lang/Class;Lorg/springframework/data/mongodb/core/query/Query;Ljava/lang/String;ILjava/lang/Object;)Lkotlinx/coroutines/flow/Flow;
+}
+
+public final class io/cratis/arc/springdata/mongodb/MongoObservationOptions {
+	public fun <init> ()V
+	public fun <init> (Ljava/time/Duration;)V
+	public fun <init> (Ljava/time/Duration;Ljava/time/Duration;)V
+	public fun <init> (Ljava/time/Duration;Ljava/time/Duration;Ljava/time/Duration;)V
+	public fun <init> (Ljava/time/Duration;Ljava/time/Duration;Ljava/time/Duration;I)V
+	public synthetic fun <init> (Ljava/time/Duration;Ljava/time/Duration;Ljava/time/Duration;IILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/time/Duration;
+	public final fun component2 ()Ljava/time/Duration;
+	public final fun component3 ()Ljava/time/Duration;
+	public final fun component4 ()I
+	public final fun copy (Ljava/time/Duration;Ljava/time/Duration;Ljava/time/Duration;I)Lio/cratis/arc/springdata/mongodb/MongoObservationOptions;
+	public static synthetic fun copy$default (Lio/cratis/arc/springdata/mongodb/MongoObservationOptions;Ljava/time/Duration;Ljava/time/Duration;Ljava/time/Duration;IILjava/lang/Object;)Lio/cratis/arc/springdata/mongodb/MongoObservationOptions;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getBufferCapacity ()I
+	public final fun getCursorAwaitTime ()Ljava/time/Duration;
+	public final fun getInitialReconnectDelay ()Ljava/time/Duration;
+	public final fun getMaximumReconnectDelay ()Ljava/time/Duration;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class io/cratis/arc/springdata/mongodb/MongoOperationsResolver {
+	public abstract fun resolve (Ljava/lang/String;)Lorg/springframework/data/mongodb/core/MongoOperations;
+}
+
+public final class io/cratis/arc/springdata/mongodb/MongoQueryPageAdapter {
+	public static final field INSTANCE Lio/cratis/arc/springdata/mongodb/MongoQueryPageAdapter;
+	public static final fun toQueryPage (Lorg/springframework/data/domain/Page;)Lio/cratis/arc/queries/QueryPage;
+}
+
+public final class io/cratis/arc/springdata/mongodb/MongoQueryRequestAdapter {
+	public static final field INSTANCE Lio/cratis/arc/springdata/mongodb/MongoQueryRequestAdapter;
+	public static final fun toPageable (Lio/cratis/arc/queries/QueryRequest;)Lorg/springframework/data/domain/Pageable;
+	public static final fun toSort (Lio/cratis/arc/queries/QueryRequest;)Lorg/springframework/data/domain/Sort;
+}
+
+public final class io/cratis/arc/springdata/mongodb/MongoReadModelForCommandResolver : io/cratis/arc/queries/BlockingReadModelForCommandResolver {
+	public fun <init> (Lorg/springframework/data/mongodb/core/mapping/MongoMappingContext;Lio/cratis/arc/springdata/mongodb/MongoOperationsResolver;)V
+	public fun <init> (Lorg/springframework/data/mongodb/core/mapping/MongoMappingContext;Lio/cratis/arc/springdata/mongodb/MongoOperationsResolver;Z)V
+	public synthetic fun <init> (Lorg/springframework/data/mongodb/core/mapping/MongoMappingContext;Lio/cratis/arc/springdata/mongodb/MongoOperationsResolver;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Lorg/springframework/data/mongodb/core/mapping/MongoMappingContext;Lio/cratis/arc/springdata/mongodb/TenantAwareMongoOperationsResolver;)V
+	public fun <init> (Lorg/springframework/data/mongodb/core/mapping/MongoMappingContext;Lio/cratis/arc/springdata/mongodb/TenantAwareMongoOperationsResolver;Z)V
+	public synthetic fun <init> (Lorg/springframework/data/mongodb/core/mapping/MongoMappingContext;Lio/cratis/arc/springdata/mongodb/TenantAwareMongoOperationsResolver;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun ownership ()Lio/cratis/arc/queries/ReadModelForCommandOwnership;
+	public fun readModelTypes ()Ljava/util/Set;
+	public fun resolveBlocking (Ljava/lang/Class;Lio/cratis/arc/commands/CommandContext;Ljava/lang/Object;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/springdata/mongodb/ReconnectingMongoChangeStreamWatcher : io/cratis/arc/springdata/mongodb/MongoChangeStreamWatcher {
+	public fun <init> (Lio/cratis/arc/springdata/mongodb/MongoChangeStreamSource;)V
+	public fun <init> (Lio/cratis/arc/springdata/mongodb/MongoChangeStreamSource;Lio/cratis/arc/springdata/mongodb/MongoObservationOptions;)V
+	public synthetic fun <init> (Lio/cratis/arc/springdata/mongodb/MongoChangeStreamSource;Lio/cratis/arc/springdata/mongodb/MongoObservationOptions;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun watch (Ljava/lang/Class;Ljava/lang/String;Ljava/lang/Object;)Lkotlinx/coroutines/flow/Flow;
+}
+
+public final class io/cratis/arc/springdata/mongodb/SpringDataMongoChangeStreamSource : io/cratis/arc/springdata/mongodb/MongoChangeStreamSource {
+	public fun <init> (Lio/cratis/arc/springdata/mongodb/MongoOperationsResolver;Lio/cratis/arc/springdata/mongodb/MongoObservationOptions;)V
+	public synthetic fun <init> (Lio/cratis/arc/springdata/mongodb/MongoOperationsResolver;Lio/cratis/arc/springdata/mongodb/MongoObservationOptions;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun open (Ljava/lang/Class;Ljava/lang/String;Lorg/bson/BsonDocument;)Lio/cratis/arc/springdata/mongodb/MongoChangeStreamCursor;
+}
+
+public abstract interface class io/cratis/arc/springdata/mongodb/TenantAwareMongoOperationsResolver {
+	public abstract fun resolve (Ljava/lang/String;)Lio/cratis/arc/springdata/mongodb/TenantMongoOperations;
+}
+
+public final class io/cratis/arc/springdata/mongodb/TenantMongoOperations {
+	public fun <init> (Ljava/lang/String;Lorg/springframework/data/mongodb/core/MongoOperations;)V
+	public final fun getOperations ()Lorg/springframework/data/mongodb/core/MongoOperations;
+	public final fun getTenantId ()Ljava/lang/String;
+}
+
+public class io/cratis/arc/springdata/mongodb/springboot/ArcSpringDataMongoAutoConfiguration {
+	public fun <init> ()V
+	public fun arcMongoChangeStreamSource (Lio/cratis/arc/springdata/mongodb/MongoOperationsResolver;Lio/cratis/arc/springdata/mongodb/MongoObservationOptions;)Lio/cratis/arc/springdata/mongodb/MongoChangeStreamSource;
+	public fun arcMongoChangeStreamWatcher (Lio/cratis/arc/springdata/mongodb/MongoChangeStreamSource;Lio/cratis/arc/springdata/mongodb/MongoObservationOptions;)Lio/cratis/arc/springdata/mongodb/MongoChangeStreamWatcher;
+	public fun arcMongoCommandExecutionScope (Lorg/springframework/data/mongodb/MongoTransactionManager;)Lio/cratis/arc/springdata/mongodb/MongoCommandExecutionScope;
+	public fun arcMongoCommandReadModelResolver (Lorg/springframework/data/mongodb/core/MongoOperations;Lorg/springframework/data/mongodb/core/mapping/MongoMappingContext;Lio/cratis/arc/commands/CommandHandlerRegistry;)Lio/cratis/arc/springdata/mongodb/MongoCommandReadModelResolver;
+	public fun arcMongoObservableQuery (Lio/cratis/arc/springdata/mongodb/MongoOperationsResolver;Lio/cratis/arc/springdata/mongodb/MongoChangeStreamWatcher;)Lio/cratis/arc/springdata/mongodb/MongoObservableQuery;
+	public fun arcMongoObservationOptions ()Lio/cratis/arc/springdata/mongodb/MongoObservationOptions;
+	public fun arcMongoOperationsResolver (Lorg/springframework/data/mongodb/core/MongoOperations;)Lio/cratis/arc/springdata/mongodb/MongoOperationsResolver;
+	public fun arcMongoReadModelForCommandResolver (Lorg/springframework/data/mongodb/core/mapping/MongoMappingContext;Lorg/springframework/beans/factory/ObjectProvider;Lorg/springframework/beans/factory/ObjectProvider;Z)Lio/cratis/arc/springdata/mongodb/MongoReadModelForCommandResolver;
+}

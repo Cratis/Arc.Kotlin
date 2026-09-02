@@ -1,0 +1,29 @@
+{
+  "groups": [
+    {
+      "name": "cratis.arc.observability",
+      "type": "io.cratis.arc.observability.springboot.ArcObservabilityProperties",
+      "description": "Micrometer observations and correlation propagation for Arc execution pipelines."
+    }
+  ],
+  "properties": [
+    {
+      "name": "cratis.arc.observability.enabled",
+      "type": "java.lang.Boolean",
+      "defaultValue": true,
+      "description": "Whether Arc command, query, observable-query, authentication, and identity-detail observations are enabled."
+    },
+    {
+      "name": "cratis.arc.observability.correlation-baggage-enabled",
+      "type": "java.lang.Boolean",
+      "defaultValue": true,
+      "description": "Whether correlation identifiers are placed in OpenTelemetry baggage when the OpenTelemetry API is available."
+    },
+    {
+      "name": "cratis.arc.observability.correlation-logging-enabled",
+      "type": "java.lang.Boolean",
+      "defaultValue": true,
+      "description": "Whether correlation identifiers are placed in the SLF4J MDC when the SLF4J API is available."
+    }
+  ]
+}

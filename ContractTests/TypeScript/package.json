@@ -1,0 +1,24 @@
+{
+  "name": "@cratis/arc-kotlin-typescript-contracts",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "npm@10.9.2",
+  "scripts": {
+    "build": "tsc --noEmit",
+    "test:runtime-harness": "node --test contracts/run-runtime-gate.test.mjs",
+    "test:runtime": "node contracts/run-runtime-gate.mjs"
+  },
+  "dependencies": {
+    "@cratis/arc": "22.7.0",
+    "@cratis/arc.react": "22.7.0",
+    "@cratis/fundamentals": "7.18.2",
+    "react": "18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.15.3",
+    "@types/react": "18.3.18",
+    "eventsource": "4.0.0",
+    "tsx": "4.20.6",
+    "typescript": "5.9.3"
+  }
+}

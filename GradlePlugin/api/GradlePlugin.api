@@ -1,0 +1,54 @@
+public abstract class io/cratis/arc/gradle/ArcEndpointOptions {
+	public fun <init> (Lorg/gradle/api/model/ObjectFactory;)V
+	public final fun getEnableQueryHttpMethod ()Lorg/gradle/api/provider/Property;
+	public final fun getIncludeCommandNames ()Lorg/gradle/api/provider/Property;
+	public final fun getIncludeQueryNames ()Lorg/gradle/api/provider/Property;
+	public final fun getRoutePrefix ()Lorg/gradle/api/provider/Property;
+	public final fun getSegmentsToSkip ()Lorg/gradle/api/provider/Property;
+}
+
+public abstract class io/cratis/arc/gradle/ArcExtension {
+	public fun <init> (Lorg/gradle/api/model/ObjectFactory;)V
+	public final fun endpoints (Lorg/gradle/api/Action;)V
+	public final fun getDependencyVersion ()Lorg/gradle/api/provider/Property;
+	public final fun getEndpoints ()Lio/cratis/arc/gradle/ArcEndpointOptions;
+	public final fun getManageDependencies ()Lorg/gradle/api/provider/Property;
+	public final fun getModuleName ()Lorg/gradle/api/provider/Property;
+	public final fun getProxies ()Lio/cratis/arc/gradle/ArcProxyOptions;
+	public final fun proxies (Lorg/gradle/api/Action;)V
+}
+
+public final class io/cratis/arc/gradle/ArcGradlePlugin : org/gradle/api/Plugin {
+	public fun <init> ()V
+	public synthetic fun apply (Ljava/lang/Object;)V
+	public fun apply (Lorg/gradle/api/Project;)V
+}
+
+public abstract class io/cratis/arc/gradle/ArcProxyOptions {
+	public fun <init> (Lorg/gradle/api/model/ObjectFactory;)V
+	public final fun getEnabled ()Lorg/gradle/api/provider/Property;
+	public final fun getOutputDirectory ()Lorg/gradle/api/file/DirectoryProperty;
+	public final fun getRemoveStaleGeneratedFiles ()Lorg/gradle/api/provider/Property;
+	public final fun getSegmentsToSkip ()Lorg/gradle/api/provider/Property;
+}
+
+public abstract class io/cratis/arc/gradle/GenerateArcProxies : org/gradle/api/DefaultTask {
+	public fun <init> ()V
+	public final fun generate ()V
+	public abstract fun getEnableQueryHttpMethod ()Lorg/gradle/api/provider/Property;
+	public abstract fun getGenerationEnabled ()Lorg/gradle/api/provider/Property;
+	public abstract fun getIncludeCommandNames ()Lorg/gradle/api/provider/Property;
+	public abstract fun getIncludeQueryNames ()Lorg/gradle/api/provider/Property;
+	public abstract fun getManifestClasspath ()Lorg/gradle/api/file/ConfigurableFileCollection;
+	public abstract fun getModuleName ()Lorg/gradle/api/provider/Property;
+	public abstract fun getOutputDirectory ()Lorg/gradle/api/file/DirectoryProperty;
+	public abstract fun getProxySegmentsToSkip ()Lorg/gradle/api/provider/Property;
+	public abstract fun getRemoveStaleGeneratedFiles ()Lorg/gradle/api/provider/Property;
+	public abstract fun getRoutePrefix ()Lorg/gradle/api/provider/Property;
+	public abstract fun getRouteSegmentsToSkip ()Lorg/gradle/api/provider/Property;
+}
+
+public final class io/cratis/arc/gradle/GenerateArcProxiesCli {
+	public static final field INSTANCE Lio/cratis/arc/gradle/GenerateArcProxiesCli;
+	public static final fun main ([Ljava/lang/String;)V
+}

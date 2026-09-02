@@ -1,0 +1,13 @@
+# Copyright (c) Cratis. All rights reserved.
+# Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+name: Verify No Work Records
+
+on:
+  pull_request:
+  push:
+    branches: ["main"]
+
+jobs:
+  verify:
+    uses: Cratis/Workflows/.github/workflows/verify-no-work-records.yml@6a5e4f4b293e4b0854d348549d9a9f01255e42d2 # main

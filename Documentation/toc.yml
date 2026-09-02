@@ -1,0 +1,9 @@
+- name: Arc for Kotlin and Java
+  href: index.md
+  items:
+    - name: Get started
+      href: get-started/toc.yml
+    - name: Guides
+      href: guides/toc.yml
+    - name: Reference
+      href: reference/toc.yml

@@ -1,0 +1,11 @@
+- name: Reference
+  href: index.md
+  items:
+    - name: Annotations
+      href: annotations.md
+    - name: Configuration
+      href: configuration.md
+    - name: HTTP contract
+      href: http-contract.md
+    - name: Feature parity
+      href: parity.md
