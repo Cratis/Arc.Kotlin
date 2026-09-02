@@ -261,3 +261,5 @@ public final class io/cratis/arc/testing/java/BlockingQueryScenario : java/lang/
 public abstract interface class io/cratis/arc/testing/java/ObservableQueryScenarioHandle {
 	public abstract fun cancel ()V
 }
+
+
