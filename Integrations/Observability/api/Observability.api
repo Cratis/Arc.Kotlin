@@ -28,3 +28,4 @@ public final class io/cratis/arc/observability/springboot/ArcObservationTags {
 	public static final field OUTCOME Ljava/lang/String;
 	public static final field QUERY Ljava/lang/String;
 }
+

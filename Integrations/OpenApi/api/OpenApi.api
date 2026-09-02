@@ -34,3 +34,4 @@ public final class io/cratis/arc/openapi/springboot/ArcOpenApiGenerator {
 	public final fun generate (Ljava/lang/Iterable;Lio/cratis/arc/metadata/ApiEndpointOptions;Z)Lio/cratis/arc/openapi/springboot/ArcOpenApiDocument;
 	public static synthetic fun generate$default (Lio/cratis/arc/openapi/springboot/ArcOpenApiGenerator;Ljava/lang/Iterable;Lio/cratis/arc/metadata/ApiEndpointOptions;ZILjava/lang/Object;)Lio/cratis/arc/openapi/springboot/ArcOpenApiDocument;
 }
+
