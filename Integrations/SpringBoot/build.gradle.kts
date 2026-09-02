@@ -9,11 +9,13 @@ plugins {
 }
 
 val springBootVersion = "3.5.3"
+val jacksonVersion = "2.18.2"
 
 dependencies {
     api(project(":Source"))
     api("org.springframework.boot:spring-boot:$springBootVersion")
     api("org.springframework.boot:spring-boot-autoconfigure:$springBootVersion")
+    api("com.fasterxml.jackson.core:jackson-databind:$jacksonVersion")
 
     compileOnly("org.springframework.boot:spring-boot-starter-web:$springBootVersion")
     compileOnly("org.springframework.boot:spring-boot-starter-websocket:$springBootVersion")
