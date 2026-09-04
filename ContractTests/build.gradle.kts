@@ -38,7 +38,7 @@ dependencies {
     testImplementation(project(":CodeGeneration:KSP"))
     testImplementation(project(":Integrations:SpringBoot"))
     testImplementation(project(":Integrations:Chronicle"))
-    testImplementation("io.mockk:mockk:1.13.14")
+    testImplementation("io.mockk:mockk:1.14.11")
 
     add(chronicleRealKernelTest.implementationConfigurationName, project(":Integrations:Chronicle"))
     add(chronicleRealKernelTest.implementationConfigurationName, "org.junit.jupiter:junit-jupiter:5.11.4")
