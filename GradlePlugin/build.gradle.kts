@@ -4,6 +4,7 @@
 import java.security.MessageDigest
 import org.gradle.api.tasks.JavaExec
 import org.gradle.jvm.tasks.Jar
+import com.vanniktech.maven.publish.SonatypeHost
 
 plugins {
     kotlin("jvm")
@@ -34,7 +35,7 @@ gradlePlugin {
 }
 
 mavenPublishing {
-    publishToMavenCentral(com.vanniktech.maven.publish.SonatypeHost.CENTRAL_PORTAL)
+    publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL)
     signAllPublications()
     coordinates("io.cratis", "arc-gradle-plugin", version.toString())
 
