@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+import com.vanniktech.maven.publish.SonatypeHost
 import java.security.MessageDigest
 import org.gradle.api.tasks.JavaExec
 import org.gradle.jvm.tasks.Jar
