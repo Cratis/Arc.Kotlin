@@ -9,7 +9,7 @@ plugins {
 }
 
 val springBootVersion = "3.5.3"
-val h2Version = "2.3.232"
+val h2Version = "2.4.240"
 
 dependencies {
     api(project(":Source"))

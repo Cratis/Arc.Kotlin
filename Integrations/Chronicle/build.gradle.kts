@@ -10,7 +10,7 @@ plugins {
 
 val chronicleVersion = providers.gradleProperty("chronicleVersion").getOrElse("4.0.0")
 val springBootVersion = "3.5.3"
-val mockkVersion = "1.13.14"
+val mockkVersion = "1.14.11"
 
 dependencies {
     api(project(":Source"))
