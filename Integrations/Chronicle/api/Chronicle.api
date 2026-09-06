@@ -159,3 +159,4 @@ public class io/cratis/arc/chronicle/springboot/ChronicleArcAutoConfiguration {
 	public fun eventsWithConcurrencyScopesCommandResponseValueHandler (Lio/cratis/arc/chronicle/TenantEventStoreResolver;Lio/cratis/arc/chronicle/ChronicleCommandTransaction;)Lio/cratis/arc/chronicle/EventsWithConcurrencyScopesCommandResponseValueHandler;
 	public fun tenantEventStoreResolver (Lio/cratis/chronicle/IEventStore;Lorg/springframework/beans/factory/ObjectProvider;)Lio/cratis/arc/chronicle/TenantEventStoreResolver;
 }
+

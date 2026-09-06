@@ -167,3 +167,4 @@ public class io/cratis/arc/springdata/jpa/springboot/ArcSpringDataJpaAutoConfigu
 	public fun arcJpaReadModelForCommandResolver (Lio/cratis/arc/springdata/jpa/JpaPersistenceUnitResolver;Lio/cratis/arc/springboot/ArcProperties;)Lio/cratis/arc/springdata/jpa/JpaReadModelForCommandResolver;
 	public fun arcJpaRequiredTenancyPersistenceUnitGuard (Lorg/springframework/beans/factory/ObjectProvider;Lorg/springframework/beans/factory/ObjectProvider;Lorg/springframework/beans/factory/ObjectProvider;)Lorg/springframework/beans/factory/SmartInitializingSingleton;
 }
+
