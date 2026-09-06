@@ -15,7 +15,7 @@ dependencies {
     implementation("com.google.devtools.ksp:symbol-processing-api:$kspVersion")
     testImplementation("dev.zacsweers.kctfork:ksp:0.7.0")
     testImplementation("jakarta.validation:jakarta.validation-api:3.1.1")
-    testImplementation("org.hibernate.validator:hibernate-validator:8.0.2.Final")
+    testImplementation("org.hibernate.validator:hibernate-validator:9.1.3.Final")
     testImplementation("org.springframework.data:spring-data-commons:$springDataVersion")
 }
 
