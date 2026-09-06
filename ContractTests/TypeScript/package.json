@@ -15,7 +15,7 @@
     "react": "18.3.1"
   },
   "devDependencies": {
-    "@types/node": "22.15.3",
+    "@types/node": "26.4.1",
     "@types/react": "18.3.18",
     "eventsource": "5.1.1",
     "tsx": "4.23.13",
