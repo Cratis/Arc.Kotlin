@@ -2579,3 +2579,4 @@ public final class io/cratis/arc/validation/UrlValidator : jakarta/validation/Co
 	public fun isValid (Ljava/lang/CharSequence;Ljakarta/validation/ConstraintValidatorContext;)Z
 	public synthetic fun isValid (Ljava/lang/Object;Ljakarta/validation/ConstraintValidatorContext;)Z
 }
+

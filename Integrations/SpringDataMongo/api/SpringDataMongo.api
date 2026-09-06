@@ -172,3 +172,4 @@ public class io/cratis/arc/springdata/mongodb/springboot/ArcSpringDataMongoAutoC
 	public fun arcMongoOperationsResolver (Lorg/springframework/data/mongodb/core/MongoOperations;)Lio/cratis/arc/springdata/mongodb/MongoOperationsResolver;
 	public fun arcMongoReadModelForCommandResolver (Lorg/springframework/data/mongodb/core/mapping/MongoMappingContext;Lorg/springframework/beans/factory/ObjectProvider;Lorg/springframework/beans/factory/ObjectProvider;Z)Lio/cratis/arc/springdata/mongodb/MongoReadModelForCommandResolver;
 }
+

@@ -193,3 +193,4 @@ public final class io/cratis/arc/springboot/TenantResolverStrategy : java/lang/E
 	public static fun valueOf (Ljava/lang/String;)Lio/cratis/arc/springboot/TenantResolverStrategy;
 	public static fun values ()[Lio/cratis/arc/springboot/TenantResolverStrategy;
 }
+
