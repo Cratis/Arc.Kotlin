@@ -30,7 +30,7 @@ tasks.named("apiCheck") {
 }
 
 mavenPublishing {
-    publishToMavenCentral(com.vanniktech.maven.publish.SonatypeHost.CENTRAL_PORTAL)
+    publishToMavenCentral()
     signAllPublications()
     coordinates("io.cratis", "arc-chronicle-spring-boot-starter", version.toString())
 
