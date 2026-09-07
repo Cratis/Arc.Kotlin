@@ -87,7 +87,8 @@ internal class ArcQueryHttpRequestHandler(
                 malformed(correlationId),
                 statusOverride = HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE
             )
-        } catch (_: MalformedQueryRequestException) {
+        } catch (exception: MalformedQueryRequestException) {
+            logger.debug("Arc query request could not be bound. correlationId={}", correlationId, exception)
             CapturedQueryRequest.Completed(correlationId, malformed(correlationId))
         } catch (exception: Throwable) {
             CapturedQueryRequest.Completed(
@@ -426,7 +427,7 @@ internal class ArcQueryRequestBinder(
             objectMapper.readTree(input)
         } catch (exception: Exception) {
             if (exception.isArcRequestBodyTooLarge()) throw ArcRequestBodyTooLargeException()
-            throw MalformedQueryRequestException()
+            throw MalformedQueryRequestException(exception)
         } ?: throw MalformedQueryRequestException()
         if (!root.isObject || root.fieldNames().asSequence().any { it !in BODY_FIELDS }) {
             throw MalformedQueryRequestException()
@@ -608,8 +609,8 @@ private class ArcQueryArgumentConverter(
             return objectMapper.convertValue(value, targetClass) ?: throw MalformedQueryRequestException()
         } catch (exception: MalformedQueryRequestException) {
             throw exception
-        } catch (_: Exception) {
-            throw MalformedQueryRequestException()
+        } catch (exception: Exception) {
+            throw MalformedQueryRequestException(exception)
         }
     }
 
@@ -708,4 +709,10 @@ private class ArcQueryArgumentConverter(
     }
 }
 
-internal class MalformedQueryRequestException : IllegalArgumentException()
+/**
+ * Signals that an Arc query request could not be bound.
+ *
+ * The [cause] is kept for server-side debug logging only. The message stays null so no parser detail can reach a
+ * client through an exception envelope; callers answer with the generic malformed request result.
+ */
+internal class MalformedQueryRequestException(cause: Throwable? = null) : IllegalArgumentException(null as String?, cause)
