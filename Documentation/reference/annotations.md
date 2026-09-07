@@ -46,8 +46,36 @@ An operation — a command `handle` function or a read-model query function — 
 
 `@AllowAnonymous` cannot be combined with `@Authorize` or `@Roles`, on the same target or across a class and its operation. KSP reports `ARCKSP0108` and stops generation rather than resolving the combination. This is stricter than Arc .NET, which lets a method-level attribute override the class in that case; declare the artifact so that one level owns the decision.
 
-## Serialization annotation
+## Serialization annotations
 
 | Annotation | Target | Contract |
 | --- | --- | --- |
 | `@DerivedType(id)` | Class | Adds `_derivedTypeId` and registers a stable identifier for polymorphic Arc JSON. The identifier must be nonblank and unique for its base type. |
+| `@Flags` | Class | Marks an enum as a bit field. Generated TypeScript gains an `all<Name>` constant combining every nonzero member. Nothing about JVM serialization changes. |
+| `@ArcEnumValue(value)` | Field | Declares an enum member's integer wire value where KSP cannot prove it from a single integer-literal constructor argument. |
+
+Arc writes an enum as an integer: the result of `value()` when the enum implements `ArcEnum`, and the ordinal otherwise. Reading accepts that integer or the member name matched case-insensitively, and rejects anything else.
+
+### Flags combinations
+
+`@Flags` does not give an enum the ability to carry a combination. A JVM enum constant is one named value, so `Read or Write` has a constant to deserialize into only when the enum declares one. A generated client can compose such a value — the emitted `all<Name>` constant exists to be combined with `|` — and the server answers with the ordinary safe `malformedRequest` envelope on both a command body and a query argument, without disclosing the enum type. Arc .NET draws the same boundary, because its enum converter gates reads on whether the integer is a defined member.
+
+Two shapes carry a combination:
+
+- Declare the combination as its own member, which gives it a value to write and a constant to read into.
+- Declare a set of the enum, which writes an array of member wire values and accepts any combination:
+
+  ```kotlin
+  @Flags
+  enum class Permission(private val wireValue: Int) : ArcEnum {
+      None(0),
+      Read(1),
+      Write(2);
+
+      override fun value(): Int = wireValue
+  }
+
+  data class Grant(val permissions: Set<Permission>)
+  ```
+
+  A `Grant` holding `Read` and `Write` writes `{"permissions":[1,2]}` and reads back into the same set.

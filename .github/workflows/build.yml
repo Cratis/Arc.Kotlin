@@ -50,6 +50,24 @@ jobs:
       - name: Lint workflow files
         run: actionlint -color
 
+  # The AI instruction corpus is not covered by Documentation/verify-markdown.sh, which is scoped to
+  # Documentation/**. Without this job a broken adapter symlink or a dangling rule link ships silently.
+  lint-corpus:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+
+      - name: Verify the AI instruction corpus
+        run: ./.ai/verify-corpus.sh
+
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 45

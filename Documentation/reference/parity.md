@@ -78,3 +78,18 @@ The completed ownership slices do not create a distributed transaction. Imperati
 Raw `08:09:10.1235567` hydrates through the pinned `TimeOnly` as `08:09:10.123`; because rounding would yield `.124`, the runtime contract proves truncation rather than rounding. Arc accepts and emits `LocalTime` values with up to seven fractional digits for 100 ns compatibility. Deserialization rejects eight or nine fractional digits, and serialization rejects values finer than 100 ns rather than rounding or truncating them. This server binding is distinct from the shared `@cratis/arc` generated-client limitation: explicit RFC QUERY bodies pass `DateOnly` or `TimeOnly` component objects to native `JSON.stringify` because those classes have no `toJSON()`. Prefer GET until upstream serialization uses the typed serializer or `toJSON()`. `Guid` is unaffected because it has `toJSON()`, and the JVM server continues to require scalar date/time strings.
 
 JavaScript `Date` also cannot preserve every remaining JVM temporal distinction: mapping `LocalDateTime` invents a zone, while mapping `OffsetDateTime` or `ZonedDateTime` loses original offset or zone identity.
+
+## Server-side temporal precision
+
+`LocalTime` is the only temporal type Arc guards at the 100 ns boundary .NET counts in. Every other type goes through `JavaTimeModule` as ISO-8601 text and keeps whatever the JVM holds, which for the date-time types and `Duration` is a full nanosecond — finer than a .NET tick can carry. The table states what the Kotlin mapper does; each row is demonstrated by a test.
+
+| JVM type | Arc wire value | Precision the JVM server keeps | Precision the .NET counterpart supports |
+| --- | --- | --- | --- |
+| `LocalTime` | `HH:mm:ss` with up to seven fractional digits | Exactly 100 ns. A finer value is refused on write, and eight or nine fractional digits are refused on read. | `TimeOnly` writes the round-trip format, which is seven fractional digits, or 100 ns ticks. |
+| `LocalDate` | `yyyy-MM-dd` | No sub-day component exists to lose. | `DateOnly` writes the same round-trip date. |
+| `Instant`, `ZonedDateTime`, `LocalDateTime` | ISO-8601 text | Full nanoseconds, so nine fractional digits survive a round trip. | `DateTime` and `DateTimeOffset` have no Arc converter and use the `System.Text.Json` default, which round-trips at most seven. |
+| `OffsetDateTime` | ISO-8601 text with an offset | Full nanoseconds are written and read, but a read normalizes the value to UTC, so the original offset does not survive even though the instant does. | Same seven-digit ceiling. |
+| `Duration` | ISO-8601 text | Full nanoseconds. | `TimeSpan` has no Arc converter and uses the `System.Text.Json` default, which is 100 ns ticks. |
+| `UUID` | Lowercase dashed text | Exact. A read accepts upper case and normalizes it. | `Guid` has no Arc converter and uses the `System.Text.Json` default dashed form. |
+
+A JVM value with more than seven fractional digits is therefore representable on the Arc wire for every type except `LocalTime`, and a .NET peer reading it cannot hold the extra precision. Arc does not detect or reject that today outside `LocalTime`. Applications that must interoperate at exact precision should keep date-time values at or coarser than 100 ns themselves, or model the value as a `LocalTime` where the guard already exists.
