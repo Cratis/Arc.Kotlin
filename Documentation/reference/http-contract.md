@@ -30,9 +30,35 @@ Unsupported methods return 405 with an `Allow` header. Conventional routes use t
 
 | Header | Behavior |
 | --- | --- |
-| `X-Correlation-ID` | Default correlation header, configurable with `cratis.arc.correlation-header`. A valid UUID is reused; a missing or invalid value is replaced. Command and one-shot/observable query responses echo the effective UUID under the configured name. |
+| `X-Correlation-ID` | Default correlation header, configurable with `cratis.arc.correlation-header`. A valid UUID is reused; a missing or invalid value is replaced. Every route in the host echoes the effective UUID under the configured name. See [Correlation](#correlation). |
 | `X-Allowed-Severity` | Maximum nonblocking severity as a case-insensitive name or numeric wire value. Invalid input produces `malformedRequest`. |
 | `x-cratis-tenant-id` | Default tenant header; `cratis.arc.tenant-header` remains an alias/default for `cratis.arc.tenancy.header-name`. |
+
+## Correlation
+
+The Spring Boot starter registers a servlet filter on `/*` that establishes exactly one correlation
+identifier for every request reaching the host, whether Arc owns the route or not. The filter is
+ordered ahead of Spring Security's filter chain and ahead of the Arc authentication filter, so both
+observe the identifier the request will carry.
+
+- An inbound header value is reused only when it is a UUID, ignoring surrounding whitespace. Any
+  other text is replaced by a generated identifier. The effective value is always re-emitted in
+  canonical UUID form, so client-supplied text never reaches a response header or a log line. A
+  correlation identifier is diagnostic only and never carries authority.
+- The effective value is presented to everything downstream as the configured request header, so an
+  Arc endpoint and an ordinary `@RestController` on the same host observe the same value even when
+  the client sent no header.
+- The response always carries the configured header.
+- Servlet-thread code reads the identifier with `ArcCorrelation.of(request)`. The underlying servlet
+  request attribute name is `ArcCorrelation.ATTRIBUTE`, and the attribute survives an asynchronous
+  dispatch.
+- While the filter chain runs, the identifier is published to SLF4J MDC under
+  `ArcCorrelation.LOGGING_KEY`, which is `arc.correlation_id`, and any value the host had there is
+  restored afterwards. That binding belongs to the servlet thread: a suspending Arc handler resumes
+  on another thread and takes its correlation identifier from `CommandContext` or `QueryContext`
+  instead.
+- Set `cratis.arc.correlation-enabled=false` to leave correlation entirely to the application, or
+  define a bean named `arcCorrelationFilterRegistration` to replace the registration.
 
 ## QUERY body
 

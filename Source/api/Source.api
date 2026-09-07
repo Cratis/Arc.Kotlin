@@ -583,6 +583,12 @@ public final class io/cratis/arc/concepts/ConceptAsKt {
 public abstract interface annotation class io/cratis/arc/concepts/Flags : java/lang/annotation/Annotation {
 }
 
+public final class io/cratis/arc/correlation/CorrelationIdResolver {
+	public static final field INSTANCE Lio/cratis/arc/correlation/CorrelationIdResolver;
+	public static final fun parse (Ljava/lang/String;)Ljava/util/UUID;
+	public static final fun resolveOrCreate (Ljava/lang/String;)Ljava/util/UUID;
+}
+
 public final class io/cratis/arc/http/ArcHttpStatus : java/lang/Enum {
 	public static final field ACCEPTED Lio/cratis/arc/http/ArcHttpStatus;
 	public static final field BAD_REQUEST Lio/cratis/arc/http/ArcHttpStatus;
