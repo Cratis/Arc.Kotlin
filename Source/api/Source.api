@@ -36,9 +36,11 @@ public abstract class io/cratis/arc/artifacts/ArcArtifactModule {
 	protected fun <init> (Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/util/List;)V
 	protected fun <init> (Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/util/List;)V
 	protected fun <init> (Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/util/List;)V
-	public synthetic fun <init> (Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	protected fun <init> (Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/util/List;)V
+	public synthetic fun <init> (Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun getCommandHandlers ()Ljava/util/List;
 	public final fun getConcepts ()Ljava/util/List;
+	public final fun getDerivedTypes ()Ljava/util/List;
 	public final fun getEnums ()Ljava/util/List;
 	public final fun getInterfaces ()Ljava/util/List;
 	public final fun getQueryPerformers ()Ljava/util/List;
@@ -48,6 +50,7 @@ public abstract class io/cratis/arc/artifacts/ArcArtifactModule {
 public final class io/cratis/arc/artifacts/ArcArtifactModuleRegistry {
 	public static final field INSTANCE Lio/cratis/arc/artifacts/ArcArtifactModuleRegistry;
 	public static final fun register (Lio/cratis/arc/artifacts/ArcArtifactModule;Lio/cratis/arc/commands/CommandHandlerRegistry;Lio/cratis/arc/queries/QueryPerformerRegistry;)V
+	public static final fun registerDerivedTypes (Lio/cratis/arc/artifacts/ArcArtifactModule;Lio/cratis/arc/polymorphism/DerivedTypeRegistry;)V
 }
 
 public abstract interface annotation class io/cratis/arc/artifacts/Command : java/lang/annotation/Annotation {
@@ -1477,6 +1480,19 @@ public final class io/cratis/arc/polymorphism/ConcurrentDerivedTypeRegistry : io
 
 public abstract interface annotation class io/cratis/arc/polymorphism/DerivedType : java/lang/annotation/Annotation {
 	public abstract fun id ()Ljava/lang/String;
+}
+
+public abstract interface class io/cratis/arc/polymorphism/DerivedTypeRegistrar {
+	public abstract fun registerDerivedTypes (Lio/cratis/arc/polymorphism/DerivedTypeRegistry;)V
+}
+
+public final class io/cratis/arc/polymorphism/DerivedTypeRegistration {
+	public fun <init> (Ljava/lang/Class;Ljava/lang/Class;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getBaseType ()Ljava/lang/Class;
+	public final fun getDerivedType ()Ljava/lang/Class;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
 }
 
 public abstract interface class io/cratis/arc/polymorphism/DerivedTypeRegistry {

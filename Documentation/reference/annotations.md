@@ -44,7 +44,7 @@ All three are Jakarta constraints, work from Kotlin and Java, and remain in gene
 
 | Annotation | Target | Contract |
 | --- | --- | --- |
-| `@DerivedType(id)` | Class | Adds `_derivedTypeId` and registers a stable identifier for polymorphic Arc JSON. The identifier must be nonblank and unique for its base type. |
+| `@DerivedType(id)` | Class | Adds `_derivedTypeId` and registers a stable identifier for polymorphic Arc JSON. The identifier must be nonblank and unique for its base type. Code generation records the base-to-derivative mappings, and a host registers them so the identifier resolves when reading. See [Polymorphic reads](#polymorphic-reads). |
 | `@Flags` | Class | Marks an enum as a bit field. Generated TypeScript gains an `all<Name>` constant combining every nonzero member. Nothing about JVM serialization changes. |
 | `@ArcEnumValue(value)` | Field | Declares an enum member's integer wire value where KSP cannot prove it from a single integer-literal constructor argument. |
 
@@ -73,3 +73,28 @@ Two shapes carry a combination:
   ```
 
   A `Grant` holding `Read` and `Write` writes `{"permissions":[1,2]}` and reads back into the same set.
+
+### Polymorphic reads
+
+`@DerivedType` on its own only affects writing. Resolving `_derivedTypeId` back to a class is the job of `DerivedTypeRegistry`, and Arc never scans the classpath to fill it. Code generation records every base-to-derivative mapping it saw on the generated `ArcArtifactModule` as real class references — the interface a value is declared as, and each base class above it — and the Spring Boot starter registers all of them into its `DerivedTypeRegistry` bean before Jackson reads anything.
+
+Outside Spring, the same metadata populates a registry directly:
+
+```kotlin
+val registry = ConcurrentDerivedTypeRegistry()
+ArcArtifactModuleRegistry.registerDerivedTypes(module, registry)
+val mapper = ArcObjectMapper.create(registry)
+```
+
+A hierarchy that arrives from a dependency binary Arc's code generation never processed has no generated mapping. Register one with a `DerivedTypeRegistrar` bean; registrars run after the generated registrations, in Spring `@Order`:
+
+```kotlin
+@Bean
+fun externalShapes() = DerivedTypeRegistrar { registry ->
+    registry.register(Shape::class.java, ExternalCircle::class.java)
+}
+```
+
+An application that declares its own `DerivedTypeRegistry` bean replaces Arc's entirely, generated registrations included.
+
+Reading fails closed. An identifier the registry cannot resolve, and a value whose base type has registrations but that carries no `_derivedTypeId`, are both refused with a mapping error that names the base type; over HTTP that becomes the ordinary safe `malformedRequest` envelope. Arc .NET refuses an unresolvable identifier the same way, but returns `null` when the discriminator is absent — an intentional divergence, because a silently absent property is harder to diagnose than a rejected request.

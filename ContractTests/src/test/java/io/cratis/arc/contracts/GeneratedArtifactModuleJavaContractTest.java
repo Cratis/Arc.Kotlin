@@ -4,9 +4,12 @@
 package io.cratis.arc.contracts;
 
 import io.cratis.arc.artifacts.ArcArtifactModule;
+import io.cratis.arc.artifacts.ArcArtifactModuleRegistry;
 import io.cratis.arc.contracts.fixtures.JavaCustomerCode;
 import io.cratis.arc.contracts.fixtures.JavaDeliveryDate;
 import io.cratis.arc.contracts.fixtures.JavaDeliveryTime;
+import io.cratis.arc.contracts.fixtures.JavaFixtureContract;
+import io.cratis.arc.contracts.fixtures.JavaFixtureImplementation;
 import io.cratis.arc.contracts.fixtures.JavaFixtureState;
 import io.cratis.arc.contracts.fixtures.JavaOrderId;
 import io.cratis.arc.contracts.fixtures.JavaQuantity;
@@ -17,6 +20,8 @@ import io.cratis.arc.metadata.CommandResponseValueDisposition;
 import io.cratis.arc.metadata.ConceptDescriptor;
 import io.cratis.arc.metadata.PropertyDescriptor;
 import io.cratis.arc.metadata.ValidationRuleDescriptor;
+import io.cratis.arc.polymorphism.ConcurrentDerivedTypeRegistry;
+import io.cratis.arc.polymorphism.DerivedTypeRegistry;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.ServiceLoader;
@@ -36,6 +41,24 @@ final class GeneratedArtifactModuleJavaContractTest {
         assertEquals(25, explicit.getCommandHandlers().size());
         assertEquals(23, explicit.getQueryPerformers().size());
         assertEquals(1L, discovered);
+    }
+
+    @Test
+    void generatedDerivedTypesPopulateARegistryFromJava() {
+        ArcArtifactModule module = new ContractTestsArcArtifactModule();
+        DerivedTypeRegistry registry = new ConcurrentDerivedTypeRegistry();
+
+        ArcArtifactModuleRegistry.registerDerivedTypes(module, registry);
+
+        assertEquals(
+            JavaFixtureImplementation.class,
+            registry.resolve(JavaFixtureContract.class, "java-contract")
+        );
+        assertEquals("java-contract", registry.idFor(JavaFixtureContract.class, JavaFixtureImplementation.class));
+        assertThrows(
+            UnsupportedOperationException.class,
+            () -> module.getDerivedTypes().add(module.getDerivedTypes().get(0))
+        );
     }
 
     @Test
