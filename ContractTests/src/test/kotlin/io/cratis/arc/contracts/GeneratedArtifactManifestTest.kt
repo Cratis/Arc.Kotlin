@@ -588,6 +588,111 @@ internal class GeneratedArtifactManifestTest {
         )
     }
 
+    @Test
+    fun `Kotlin and Java source documentation reaches the manifest and the generated runtime module`() {
+        val manifest = loadManifest()
+        val module = ContractTestsArcArtifactModule()
+        val json = requireNotNull(
+            javaClass.classLoader.getResourceAsStream("META-INF/cratis/arc/ContractTests.json")
+        ).use { stream -> stream.readAllBytes() }.toString(Charsets.UTF_8)
+
+        val kotlinModel = manifest.types.single { type -> type.name == "KotlinTemporalReadModel" }
+        assertEquals(
+            "Kotlin read model fixture covering direct JVM temporal and identifier values.",
+            kotlinModel.summary
+        )
+        assertEquals(
+            listOf(
+                "identifier" to "Stable Kotlin model identifier.",
+                "date" to "Kotlin model delivery date documented by a property tag.",
+                "time" to "Kotlin model time /* nested */ terminator and @tag safety."
+            ),
+            kotlinModel.properties.map { property -> property.name to property.summary }
+        )
+        assertFalse(
+            json.contains("The second paragraph must never reach generated documentation."),
+            "Only the first documentation paragraph is a summary."
+        )
+
+        val javaModel = manifest.types.single { type -> type.name == "JavaTemporalReadModel" }
+        assertEquals(
+            "Java read model fixture covering direct JVM temporal and identifier values.",
+            javaModel.summary
+        )
+        assertEquals(
+            listOf(
+                "identifier" to "Java model identifier documented by a param tag.",
+                "date" to "Java model date documented by a param tag.",
+                "time" to "Java model time documented by a param tag."
+            ),
+            javaModel.properties.map { property -> property.name to property.summary }
+        )
+
+        val kotlinQuery = manifest.queries.single { query -> query.name == "findKotlinTemporal" }
+        assertEquals(
+            "Returns a typed model from direct JVM temporal and identifier query parameters.",
+            kotlinQuery.summary
+        )
+        assertEquals(
+            listOf("identifier" to null, "date" to null, "time" to "Kotlin query time argument."),
+            kotlinQuery.parameters.map { parameter -> parameter.name to parameter.summary }
+        )
+        val javaQuery = manifest.queries.single { query -> query.name == "findJavaTemporal" }
+        assertEquals(
+            listOf(
+                "identifier" to "Java query identifier argument.",
+                "date" to "Java query date argument.",
+                "time" to "Java query time argument."
+            ),
+            javaQuery.parameters.map { parameter -> parameter.name to parameter.summary }
+        )
+
+        assertTrue(
+            manifest.enums.all { enum -> enum.summary != null },
+            "Every documented contract enum carries a summary."
+        )
+        assertTrue(
+            manifest.enums.flatMap { enum -> enum.members }.isNotEmpty(),
+            "Enum member metadata is still generated."
+        )
+        assertEquals(
+            "Java interface fixture preserved as interface metadata.",
+            manifest.interfaces.single { contract -> contract.name == "JavaFixtureContract" }.summary
+        )
+        assertEquals(
+            "Gets the contract label.",
+            manifest.interfaces.single { contract -> contract.name == "JavaFixtureContract" }
+                .properties.single().summary
+        )
+
+        val persistedTypes = manifest.types.associateBy { type -> type.fullyQualifiedName }
+        module.types.forEach { runtime ->
+            assertEquals(
+                persistedTypes.getValue(runtime.fullyQualifiedName).summary,
+                runtime.summary,
+                "Runtime and manifest summaries must agree for ${runtime.fullyQualifiedName}"
+            )
+        }
+        val persistedQueries = manifest.queries.associateBy { query -> query.fullyQualifiedName }
+        module.queryPerformers.forEach { performer ->
+            val persisted = persistedQueries.getValue(performer.descriptor.fullyQualifiedName)
+            assertEquals(persisted.summary, performer.descriptor.summary)
+            assertEquals(
+                persisted.parameters.map { parameter -> parameter.summary },
+                performer.descriptor.parameters.map { parameter -> parameter.summary }
+            )
+        }
+        val persistedCommands = manifest.commands.associateBy { command -> command.typeName }
+        module.commandHandlers.forEach { handler ->
+            val persisted = persistedCommands.getValue(handler.metadata.typeName)
+            assertEquals(persisted.summary, handler.metadata.summary)
+            assertEquals(
+                persisted.properties.map { property -> property.summary },
+                handler.metadata.properties.map { property -> property.summary }
+            )
+        }
+    }
+
     private fun responseValues(
         descriptor: io.cratis.arc.metadata.CommandDescriptor
     ): List<Triple<String, Boolean, CommandResponseValueDisposition>> = descriptor.responseValues.map { value ->

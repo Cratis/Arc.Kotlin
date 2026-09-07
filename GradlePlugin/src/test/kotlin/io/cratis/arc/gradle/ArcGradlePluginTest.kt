@@ -17,6 +17,7 @@ import io.cratis.arc.metadata.ParameterDescriptor
 import io.cratis.arc.metadata.PropertyDescriptor
 import io.cratis.arc.metadata.QueryDescriptor
 import io.cratis.arc.metadata.QueryParameterSource
+import io.cratis.arc.metadata.RouteOptions
 import io.cratis.arc.metadata.SequenceKind
 import io.cratis.arc.metadata.TypeDescriptor
 import io.cratis.arc.metadata.TypeShapeDescriptor
@@ -1833,6 +1834,314 @@ class ArcGradlePluginTest {
         assertTrue(project.pluginManager.hasPlugin("com.google.devtools.ksp"))
         assertNotNull(project.tasks.findByName("generateArcProxies"))
         assertTrue(project.tasks.getByName("build").taskDependencies.getDependencies(null).any { it.name == "generateArcProxies" })
+    }
+
+    @Test
+    fun `source documentation renders as JSDoc at every documented proxy site and nowhere else`() {
+        val output = temporaryDirectory.resolve("documented")
+
+        generate(output, documentedArtifacts())
+
+        val command = Files.readString(output.resolve("Fixture/CreateDocumented.ts"))
+        assertEquals(
+            2,
+            occurrences(command, "/** Creates a documented fixture. */"),
+            "The command summary belongs on the interface and the class:\n$command"
+        )
+        assertContains(command, "/** Creates a documented fixture. */\nexport interface ICreateDocumented {")
+        assertContains(
+            command,
+            "/** Creates a documented fixture. */\nexport class CreateDocumented extends Command<"
+        )
+        assertContains(command, "    /** Documented command key. */\n    id?: string;")
+        assertContains(command, "    /** Documented command key. */\n    get id(): string {")
+        assertEquals(
+            2,
+            occurrences(command, "/** Documented command key. */"),
+            "The property summary belongs on the interface property and the public getter only:\n$command"
+        )
+        assertFalse(command.contains("/** Documented command key. */\n    private _id"))
+        assertFalse(command.contains("/** Documented command key. */\n    set id"))
+        assertFalse(command.contains("/** Documented command label."))
+
+        val model = Files.readString(output.resolve("Fixture/DocumentedModel.ts"))
+        assertContains(model, "/** Documented model. */\nexport class DocumentedModel {")
+        assertContains(model, "    /** Documented model value. */\n    @field(String)\n    value!: string;")
+        assertEquals(1, occurrences(model, "/** Documented model value. */"))
+
+        val contract = Files.readString(output.resolve("Fixture/DocumentedContract.ts"))
+        assertContains(contract, "/** Documented contract. */\nexport interface DocumentedContract {")
+        assertContains(contract, "    /** Documented contract name. */\n    name: string;")
+
+        val enum = Files.readString(output.resolve("Fixture/DocumentedState.ts"))
+        assertContains(enum, "/** Documented state. */\nexport enum DocumentedState {")
+        assertContains(enum, "export enum DocumentedState {\n    first = 0,\n    second = 1,\n}")
+
+        val query = Files.readString(output.resolve("Fixture/Find.ts"))
+        assertContains(query, "/** Finds a documented model. */\nexport interface FindParameters {")
+        assertContains(query, "/** Finds a documented model. */\nexport class Find extends QueryFor<")
+        assertContains(query, "    /** Documented client filter. */\n    filter: string;")
+        assertEquals(
+            1,
+            occurrences(query, "/** Documented client filter. */"),
+            "A client parameter is documented in the parameter interface only:\n$query"
+        )
+        assertFalse(query.contains("/** Documented service dependency."))
+
+        val observable = Files.readString(output.resolve("Fixture/Observe.ts"))
+        assertContains(observable, "/** Observes a documented model. */\nexport interface ObserveParameters {")
+        assertContains(observable, "/** Observes a documented model. */\nexport class Observe extends ObservableQueryFor<")
+        assertContains(observable, "    /** Documented observable label. */\n    label: string;")
+        assertEquals(1, occurrences(observable, "/** Documented observable label. */"))
+
+        val index = Files.readString(output.resolve("Fixture/index.ts"))
+        assertFalse(index.contains("/**"), "Barrel files never carry source documentation:\n$index")
+    }
+
+    @Test
+    fun `generated JSDoc neutralizes a comment terminator and an at sign in tag position`() {
+        val output = temporaryDirectory.resolve("documentation-escaping")
+        val hostile = "*/ ends the comment @Deprecated starts a tag and me@example.com does not"
+
+        generate(
+            output,
+            MergedArcArtifacts(
+                emptyList(),
+                emptyList(),
+                listOf(
+                    TypeDescriptor(
+                        "HostileModel",
+                        "documented.fixture.HostileModel",
+                        listOf("Documented", "Fixture"),
+                        emptyList(),
+                        null,
+                        null,
+                        hostile
+                    )
+                ),
+                emptyList()
+            )
+        )
+
+        val body = Files.readString(output.resolve("Fixture/HostileModel.ts"))
+        val comment = body.lineSequence().single { line -> line.startsWith("/** ") }
+
+        assertEquals(
+            "/** * / ends the comment \\@Deprecated starts a tag and me@example.com does not */",
+            comment
+        )
+        assertEquals(
+            comment.length - 2,
+            comment.indexOf("*/"),
+            "The documentation comment may only terminate at its end:\n$comment"
+        )
+    }
+
+    @Test
+    fun `documented proxies are byte identical across independent regenerations`() {
+        val first = temporaryDirectory.resolve("documented-bytes-first")
+        val second = temporaryDirectory.resolve("documented-bytes-second")
+
+        generate(first, documentedArtifacts())
+        generate(second, documentedArtifacts())
+        val firstBytes = rawProxyTree(first)
+        generate(first, documentedArtifacts())
+
+        assertEquals(firstBytes.keys, rawProxyTree(second).keys)
+        assertEquals(firstBytes.keys, rawProxyTree(first).keys)
+        firstBytes.forEach { (relativePath, bytes) ->
+            assertTrue(
+                bytes.contentEquals(rawProxyTree(second).getValue(relativePath)),
+                "Raw bytes differ between independent generations for $relativePath"
+            )
+            assertTrue(
+                bytes.contentEquals(rawProxyTree(first).getValue(relativePath)),
+                "Raw bytes differ between consecutive generations for $relativePath"
+            )
+        }
+    }
+
+    @Test
+    fun `undocumented artifacts emit no source documentation at all`() {
+        val output = temporaryDirectory.resolve("undocumented")
+
+        generate(output, undocumentedArtifacts())
+
+        rawProxyTree(output).forEach { (relativePath, bytes) ->
+            val body = String(bytes, Charsets.UTF_8)
+            assertFalse(
+                body.lineSequence().any { line -> line.trimStart().startsWith("/** ") },
+                "$relativePath must carry no JSDoc comment:\n$body"
+            )
+        }
+    }
+
+    private fun occurrences(body: String, fragment: String): Int = body.split(fragment).size - 1
+
+    private fun assertContains(body: String, fragment: String) {
+        assertTrue(body.contains(fragment), "Missing generated fragment '$fragment' in:\n$body")
+    }
+
+    private fun rawProxyTree(root: Path): Map<String, ByteArray> = Files.walk(root).use { paths ->
+        paths.filter(Files::isRegularFile)
+            .sorted()
+            .iterator()
+            .asSequence()
+            .associate { path -> root.relativize(path).toString().replace('\\', '/') to Files.readAllBytes(path) }
+    }
+
+    private fun documentedArtifacts(): MergedArcArtifacts = documentationArtifacts(documented = true)
+
+    private fun undocumentedArtifacts(): MergedArcArtifacts = documentationArtifacts(documented = false)
+
+    private fun documentationArtifacts(documented: Boolean): MergedArcArtifacts {
+        fun summary(value: String): String? = value.takeIf { documented }
+        val location = listOf("Documented", "Fixture")
+        val text = TypeShapeDescriptor.value("kotlin.String")
+        val modelName = "documented.fixture.DocumentedModel"
+        val stateName = "documented.fixture.DocumentedState"
+        val contractName = "documented.fixture.DocumentedContract"
+        val model = TypeDescriptor(
+            "DocumentedModel",
+            modelName,
+            location,
+            listOf(
+                PropertyDescriptor(
+                    "value",
+                    text,
+                    false,
+                    emptyList(),
+                    false,
+                    emptyList(),
+                    summary("Documented model value.")
+                ),
+                PropertyDescriptor("state", TypeShapeDescriptor.value(stateName))
+            ),
+            null,
+            null,
+            summary("Documented model.")
+        )
+        val contract = InterfaceDescriptor(
+            "DocumentedContract",
+            contractName,
+            location,
+            listOf(
+                PropertyDescriptor(
+                    "name",
+                    text,
+                    false,
+                    emptyList(),
+                    false,
+                    emptyList(),
+                    summary("Documented contract name.")
+                )
+            ),
+            summary("Documented contract.")
+        )
+        val state = EnumDescriptor(
+            "DocumentedState",
+            stateName,
+            location,
+            listOf(EnumMemberDescriptor("First", 0), EnumMemberDescriptor("Second", 1)),
+            false,
+            summary("Documented state.")
+        )
+        val command = CommandDescriptor(
+            "CreateDocumented",
+            "documented.fixture.CreateDocumented",
+            listOf(
+                PropertyDescriptor(
+                    "id",
+                    text,
+                    true,
+                    emptyList(),
+                    false,
+                    emptyList(),
+                    summary("Documented command key.")
+                ),
+                PropertyDescriptor("label", text)
+            ),
+            RouteOptions(),
+            location,
+            AuthorizationMetadata(),
+            null,
+            false,
+            modelName,
+            false,
+            emptyList(),
+            summary("Creates a documented fixture.")
+        )
+        val find = QueryDescriptor(
+            "find",
+            modelName,
+            TypeShapeDescriptor.value(modelName),
+            listOf(
+                ParameterDescriptor(
+                    "filter",
+                    text,
+                    QueryParameterSource.CLIENT,
+                    false,
+                    emptyList(),
+                    false,
+                    summary("Documented client filter.")
+                ),
+                ParameterDescriptor("other", text, QueryParameterSource.CLIENT, false),
+                ParameterDescriptor(
+                    "dependency",
+                    text,
+                    QueryParameterSource.SERVICE,
+                    false,
+                    emptyList(),
+                    false,
+                    summary("Documented service dependency.")
+                )
+            ),
+            RouteOptions(),
+            "$modelName.find",
+            location,
+            AuthorizationMetadata(),
+            null,
+            QueryHttpMethodType.AUTO,
+            QueryTransportType.REQUEST_RESPONSE,
+            false,
+            false,
+            false,
+            summary("Finds a documented model.")
+        )
+        val observe = QueryDescriptor(
+            "observe",
+            modelName,
+            TypeShapeDescriptor.value(modelName),
+            listOf(
+                ParameterDescriptor(
+                    "label",
+                    text,
+                    QueryParameterSource.CLIENT,
+                    false,
+                    emptyList(),
+                    false,
+                    summary("Documented observable label.")
+                )
+            ),
+            RouteOptions(null, QueryTransportType.OBSERVABLE),
+            "$modelName.observe",
+            location,
+            AuthorizationMetadata(),
+            null,
+            QueryHttpMethodType.AUTO,
+            QueryTransportType.OBSERVABLE,
+            false,
+            false,
+            false,
+            summary("Observes a documented model.")
+        )
+        return MergedArcArtifacts(
+            listOf(command),
+            listOf(find, observe),
+            listOf(model),
+            listOf(state),
+            listOf(contract)
+        )
     }
 
     private fun crossRuntimeFixtureArtifacts(): MergedArcArtifacts {
