@@ -121,7 +121,11 @@ private class ArcDeserializers(private val registry: DerivedTypeRegistry) : Dese
         type: Class<*>,
         config: DeserializationConfig,
         beanDesc: BeanDescription
-    ): JsonDeserializer<*>? = if (isNamedProtocolEnum(type)) null else ArcEnumDeserializer(type)
+    ): JsonDeserializer<*>? = when {
+        type == ObservableQueryTransferMode::class.java -> ArcObservableQueryTransferModeDeserializer
+        isNamedProtocolEnum(type) -> null
+        else -> ArcEnumDeserializer(type)
+    }
 }
 
 private fun isNamedProtocolEnum(type: Class<*>): Boolean =
@@ -142,6 +146,28 @@ private object ArcEnumSerializer : JsonSerializer<Enum<*>>() {
     override fun serialize(value: Enum<*>, generator: JsonGenerator, serializers: SerializerProvider) {
         generator.writeNumber(if (value is ArcEnum) value.value() else value.ordinal)
     }
+}
+
+/**
+ * Reads the observable-query transfer mode as the optional preference it is.
+ *
+ * A subscriber uses the mode to say how much of each snapshot it wants on the wire, not what the subscription
+ * means. A value this version does not know therefore expresses no preference and reads as absent, which is the
+ * same state an omitted field produces, and matching is case-insensitive. A value that is not textual at all is
+ * a malformed payload rather than an unknown preference, and still fails.
+ */
+private object ArcObservableQueryTransferModeDeserializer : JsonDeserializer<ObservableQueryTransferMode>() {
+    private val modes = ObservableQueryTransferMode.entries
+
+    override fun deserialize(parser: JsonParser, context: DeserializationContext): ObservableQueryTransferMode? =
+        when (parser.currentToken) {
+            JsonToken.VALUE_STRING -> modes.firstOrNull { it.wireValue.equals(parser.text, ignoreCase = true) }
+            JsonToken.VALUE_NULL -> null
+            else -> throw JsonMappingException.from(
+                parser,
+                "Expected a string transfer mode for ${ObservableQueryTransferMode::class.java.name}"
+            )
+        }
 }
 
 private class ArcEnumDeserializer(enumType: Class<*>) : JsonDeserializer<Any>() {

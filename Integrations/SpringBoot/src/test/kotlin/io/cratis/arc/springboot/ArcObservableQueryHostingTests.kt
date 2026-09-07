@@ -362,6 +362,52 @@ internal class ArcObservableQueryHostingTests {
         assertEquals(200, removed.statusCode())
     }
 
+    @Test
+    fun `a transfer mode the server does not know serves the subscription instead of refusing it`() {
+        val socket = openSocket(OBSERVABLE_QUERY_WS_ROUTE)
+        socket.awaitType("Connected")
+
+        socket.send(subscribe("q-unknown-mode", 1, OBSERVABLE_NAME, "compact"))
+        val served = socket.awaitQueryWithin("q-unknown-mode").path("payload")
+        assertEquals("one", served.path("data").path(0).path("value").textValue())
+
+        socket.send(subscribe("q-cased-mode", 2, OBSERVABLE_NAME, "FULL"))
+        val cased = socket.awaitQueryWithin("q-cased-mode").path("payload")
+        assertEquals("one", cased.path("data").path(0).path("value").textValue())
+        assertTrue(cased.path("changeSet").isMissingNode || cased.path("changeSet").isNull, cased.toString())
+    }
+
+    @Test
+    fun `an SSE subscription naming a transfer mode the server does not know is accepted`() {
+        val sse = openSse(OBSERVABLE_QUERY_SSE_ROUTE)
+        val reader = BufferedReader(sse.body().reader())
+        val connectionId = readSseMessage(reader).path("payload").textValue()
+
+        val accepted = postJson(
+            OBSERVABLE_QUERY_SSE_SUBSCRIBE_ROUTE,
+            """{"connectionId":"$connectionId","queryId":"q-sse-unknown-mode","revision":1,""" +
+                """"request":{"queryName":"$OBSERVABLE_NAME","transferMode":"compact"}}"""
+        )
+        assertEquals(200, accepted.statusCode(), accepted.body())
+        val result = generateSequence { readSseMessage(reader) }
+            .take(HEARTBEAT_BOUNDED_MESSAGES)
+            .first { it.path("type").textValue() == "QueryResult" }
+        assertEquals("q-sse-unknown-mode", result.path("queryId").textValue())
+        assertEquals("one", result.path("payload").path("data").path(0).path("value").textValue())
+    }
+
+    /**
+     * Awaits a result for one subscription without waiting forever.
+     *
+     * The connection heartbeats every 200ms in this fixture, so a subscription that is never served keeps the
+     * stream alive with `Ping` frames instead of timing out. Bounding the frames read turns a refused
+     * subscription into a failure rather than a hang.
+     */
+    private fun TestSocket.awaitQueryWithin(queryId: String): JsonNode =
+        generateSequence(::awaitJson).take(HEARTBEAT_BOUNDED_MESSAGES).first {
+            it.path("type").textValue() == "QueryResult" && it.path("queryId").textValue() == queryId
+        }
+
     private fun openSocket(
         path: String,
         authorization: String? = null,
@@ -435,6 +481,7 @@ internal class ArcObservableQueryHostingTests {
     }
 
     private companion object {
+        const val HEARTBEAT_BOUNDED_MESSAGES = 40
         const val DEFAULTED_NAME = "io.cratis.arc.springboot.ObservableFixture.defaulted"
         const val DEFAULTED_ROUTE = "/api/fixtures/observable-defaulted"
         const val OBSERVABLE_ROUTE = "/api/fixtures/observable-items"
