@@ -40,6 +40,12 @@ All three are Jakarta constraints, work from Kotlin and Java, and remain in gene
 | `@Roles(vararg value)` | Class, function | Repeatable declaration requiring at least one named role. |
 | `@RolesContainer(value)` | Class, function | JVM container generated for repeated `@Roles`; application code normally does not use it directly. |
 
+### Class and operation precedence
+
+An operation — a command `handle` function or a read-model query function — that declares any `@Authorize` or `@Roles` replaces its class's declaration completely. Its policy, roles, and schemes are the only ones evaluated, and the class's are discarded. The class declaration applies only to operations that declare none. An operation can therefore only narrow access, never widen it: on a class requiring `admin`, a `@Roles("auditor")` operation admits auditors and rejects admins. Repeating `@Roles` on the same target still combines those roles, and a caller satisfies a role list by holding any one of its roles.
+
+`@AllowAnonymous` cannot be combined with `@Authorize` or `@Roles`, on the same target or across a class and its operation. KSP reports `ARCKSP0108` and stops generation rather than resolving the combination. This is stricter than Arc .NET, which lets a method-level attribute override the class in that case; declare the artifact so that one level owns the decision.
+
 ## Serialization annotation
 
 | Annotation | Target | Contract |

@@ -88,7 +88,7 @@ internal class ArcDiagnosticReporter(private val logger: KSPLogger) {
             ArcDiagnostic.COMMAND_PARAMETER
         message.contains("@CommandKey") -> ArcDiagnostic.COMMAND_KEY
         message.contains("produced by") && message.contains("not consumed") -> ArcDiagnostic.UNUSED_PROVIDED_VALUE
-        message.contains("@AllowAnonymous") || message.contains("authorization policies") -> ArcDiagnostic.AUTHORIZATION
+        message.contains("@AllowAnonymous") -> ArcDiagnostic.AUTHORIZATION
         message.startsWith("Read model '") && !message.contains("overloaded query") -> ArcDiagnostic.READ_MODEL_SHAPE
         message.startsWith("Java query") || message.startsWith("Query '") &&
             (message.contains("must be public") || message.contains("must not be abstract") ||

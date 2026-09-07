@@ -846,24 +846,21 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
             return null
         }
 
-        val authorize = classAuthorize + operationAuthorize
-        val policies = authorize.mapNotNull { annotation -> annotation.stringArgument("policy")?.takeIf(String::isNotBlank) }
-            .distinct()
-        if (policies.size > 1) {
-            logger.error(
-                "$artifactKind '$identity' declares conflicting authorization policies across class and operation.",
-                operation
-            )
-            return null
-        }
+        // Operation-level authorization replaces class-level authorization rather than merging with it, so a narrower
+        // operation declaration can never be widened by the class it lives on. The class applies only when the
+        // operation declares no @Authorize and no @Roles.
+        val operationDeclaresAuthorization = operationAuthorize.isNotEmpty() || operationRoles.isNotEmpty()
+        val authorize = if (operationDeclaresAuthorization) operationAuthorize else classAuthorize
+        val declaredRoles = if (operationDeclaresAuthorization) operationRoles else classRoles
         val roles = (
-            authorize.flatMap { annotation -> annotation.stringListArgument("roles") } +
-                classRoles + operationRoles
+            authorize.flatMap { annotation -> annotation.stringListArgument("roles") } + declaredRoles
             ).distinct()
         val schemes = authorize.flatMap { annotation -> annotation.stringListArgument("schemes") }.distinct()
         return AuthorizationModel(
             allowAnonymous = classAllowAnonymous || operationAllowAnonymous,
-            policy = policies.singleOrNull(),
+            policy = authorize.firstNotNullOfOrNull { annotation ->
+                annotation.stringArgument("policy")?.takeIf(String::isNotBlank)
+            },
             roles = roles,
             schemes = schemes
         )
