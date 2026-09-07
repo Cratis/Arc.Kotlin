@@ -45,3 +45,7 @@ All three are Jakarta constraints, work from Kotlin and Java, and remain in gene
 | Annotation | Target | Contract |
 | --- | --- | --- |
 | `@DerivedType(id)` | Class | Adds `_derivedTypeId` and registers a stable identifier for polymorphic Arc JSON. The identifier must be nonblank and unique for its base type. |
+
+The annotation alone does not make a value readable again. Resolving an identifier back to a class is the job of `DerivedTypeRegistry`, and Arc does not scan the classpath to fill it, so an application registers each concrete type against the base type it is declared as before that base type is first deserialized. `ArcObjectMapper.create()` and the Spring Boot starter's `ArcJacksonModule` bean both start from an empty registry.
+
+Serialization refuses a value whose base type is registered while the value's own type is not, and names both types. Such a value would otherwise be written with an identifier nothing can resolve and could never be read back. A type whose base type has no registrations at all is still written with its identifier, so a model that only travels to a client keeps working without a registry.
