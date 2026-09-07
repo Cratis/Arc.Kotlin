@@ -40,12 +40,40 @@ All three are Jakarta constraints, work from Kotlin and Java, and remain in gene
 | `@Roles(vararg value)` | Class, function | Repeatable declaration requiring at least one named role. |
 | `@RolesContainer(value)` | Class, function | JVM container generated for repeated `@Roles`; application code normally does not use it directly. |
 
-## Serialization annotation
+## Serialization annotations
 
 | Annotation | Target | Contract |
 | --- | --- | --- |
 | `@DerivedType(id)` | Class | Adds `_derivedTypeId` and registers a stable identifier for polymorphic Arc JSON. The identifier must be nonblank and unique for its base type. |
+| `@Flags` | Class | Marks an enum as a bit field. Generated TypeScript gains an `all<Name>` constant combining every nonzero member. Nothing about JVM serialization changes. |
+| `@ArcEnumValue(value)` | Field | Declares an enum member's integer wire value where KSP cannot prove it from a single integer-literal constructor argument. |
 
 The annotation alone does not make a value readable again. Resolving an identifier back to a class is the job of `DerivedTypeRegistry`, and Arc does not scan the classpath to fill it, so an application registers each concrete type against the base type it is declared as before that base type is first deserialized. `ArcObjectMapper.create()` and the Spring Boot starter's `ArcJacksonModule` bean both start from an empty registry.
 
 Serialization refuses a value whose base type is registered while the value's own type is not, and names both types. Such a value would otherwise be written with an identifier nothing can resolve and could never be read back. A type whose base type has no registrations at all is still written with its identifier, so a model that only travels to a client keeps working without a registry.
+
+Arc writes an enum as an integer: the result of `value()` when the enum implements `ArcEnum`, and the ordinal otherwise. Reading accepts that integer or the member name matched case-insensitively, and rejects anything else.
+
+### Flags combinations
+
+`@Flags` does not give an enum the ability to carry a combination. A JVM enum constant is one named value, so `Read or Write` has a constant to deserialize into only when the enum declares one. A generated client can compose such a value — the emitted `all<Name>` constant exists to be combined with `|` — and the server answers with the ordinary safe `malformedRequest` envelope on both a command body and a query argument, without disclosing the enum type. Arc .NET draws the same boundary, because its enum converter gates reads on whether the integer is a defined member.
+
+Two shapes carry a combination:
+
+- Declare the combination as its own member, which gives it a value to write and a constant to read into.
+- Declare a set of the enum, which writes an array of member wire values and accepts any combination:
+
+  ```kotlin
+  @Flags
+  enum class Permission(private val wireValue: Int) : ArcEnum {
+      None(0),
+      Read(1),
+      Write(2);
+
+      override fun value(): Int = wireValue
+  }
+
+  data class Grant(val permissions: Set<Permission>)
+  ```
+
+  A `Grant` holding `Read` and `Write` writes `{"permissions":[1,2]}` and reads back into the same set.

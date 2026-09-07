@@ -50,6 +50,23 @@ The body may contain only these fields:
 
 Generated GET clients serialize their `Guid`, `DateOnly`, and `TimeOnly` values to those scalar strings. This server binding is distinct from the pinned shared TypeScript client's explicit QUERY-body problem: the generated client passes `DateOnly` and `TimeOnly` component objects to native `JSON.stringify` because those classes lack `toJSON()`, rather than invoking their typed scalar serializer. Prefer GET until upstream serialization uses the typed serializer or `toJSON()`. `Guid` has `toJSON()` and is unaffected.
 
+## Unknown fields
+
+Arc never configures Jackson's `FAIL_ON_UNKNOWN_PROPERTIES`, so what happens to a field the target does not declare depends on which reader sees it. This is recorded behavior, not a chosen policy; the table below states what tests demonstrate today.
+
+| Surface | Reader | An undeclared field |
+| --- | --- | --- |
+| QUERY body envelope | Arc's own field-set check | 400 with `malformedRequest` |
+| GET and QUERY client arguments | Arc's own argument matching | 400 with `malformedRequest` |
+| Command body, including `/validate` | The application `ObjectMapper` bean | Accepted and dropped |
+| Anything read through `ArcObjectMapper.create()` | A bare Jackson mapper | Rejected |
+
+The QUERY envelope accepts only `arguments`, `paging`, and `sorting`, and its sections accept only `page`/`pageSize` and `field`/`direction`. Arc validates those field sets itself, so that rejection holds no matter how the mapper is configured.
+
+A command body is handed straight to the injected `ObjectMapper`. The Spring Boot starter contributes `ArcJacksonModule` and an `arcJacksonCustomizer` that sets the naming strategy, null inclusion, named floating-point values, and date/duration text — and neither touches unknown-property handling. A hosted application therefore inherits Spring Boot's relaxed default, and `{"value":"hello","unexpected":"extra"}` executes the command with `unexpected` discarded. This matches Arc .NET, which does not set `UnmappedMemberHandling` either and so lets `System.Text.Json` skip unmapped members.
+
+`ArcObjectMapper.create()` builds a bare mapper and keeps Jackson's own strict default, so an undeclared field raises `UnrecognizedPropertyException`. Arc uses that mapper only for values it produced itself — the generated artifact manifest, change-set comparison, and the `CommandScenario` and `QueryScenario` harnesses — never to read a client request, so the two policies do not meet on any request path. An application that wants one policy on both sides should set the feature explicitly on the mapper it uses.
+
 ## Observable query transport
 
 Without `waitForFirstResult=true`, an observable query HTTP snapshot returns a not-ready `QueryResult` with 202. With it, the host waits up to the smaller of `waitForFirstResultTimeout=<seconds>`, the configured observable wait limit, and the request timeout. When enabled, RFC QUERY is registered on the same observable route, consumes the standard body, and returns `Cache-Control: no-store`; when disabled it returns 405 with `Allow: GET`. SSE and WebSocket upgrades remain GET-only.
