@@ -48,8 +48,10 @@ The manifest schema is `ArcArtifactManifest` in
 `Source/src/main/kotlin/io/cratis/arc/artifacts/ArcArtifactManifest.kt`. The code declares:
 
 ```kotlin
-public const val CURRENT_FORMAT_VERSION: Int = 5
+public const val CURRENT_FORMAT_VERSION: Int = <n>
 ```
+
+Read the current value from the source; it moves whenever the manifest contract does.
 
 The reader is `GradlePlugin/src/main/kotlin/io/cratis/arc/gradle/ArcManifestDiscovery.kt`. Its
 `validateCanonicalManifest` is deliberately unforgiving: a missing or non-integral
