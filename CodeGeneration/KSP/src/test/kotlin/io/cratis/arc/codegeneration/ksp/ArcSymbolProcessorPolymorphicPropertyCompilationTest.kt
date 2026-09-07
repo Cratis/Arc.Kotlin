@@ -17,6 +17,7 @@ import com.tschuchort.compiletesting.kspWithCompilation
 import com.tschuchort.compiletesting.symbolProcessorProviders
 import com.tschuchort.compiletesting.useKsp2
 import io.cratis.arc.artifacts.ArcArtifactModule
+import io.cratis.arc.metadata.SequenceKind
 import io.cratis.arc.metadata.TypeShapeKind
 import java.io.File
 import org.jetbrains.kotlin.compiler.plugin.ExperimentalCompilerApi
@@ -64,6 +65,139 @@ internal class ArcSymbolProcessorPolymorphicPropertyCompilationTest {
         val javaView = module.interfaces.single { it.fullyQualifiedName == "polymorphic.safe.JView" }
         assertEquals(listOf("abstractValue", "shape"), javaView.properties.map { it.name })
         assertEquals(listOf("polymorphic.safe.JLeaf"), javaView.properties.single { it.name == "shape" }.derivatives)
+        assertTrue(workingDirectory.resolve("ksp/sources/resources/META-INF/cratis/arc/PolymorphicProperties.json").isFile)
+    }
+
+    @Test
+    fun `Kotlin sealed base properties preserve direct and nullable sequence and array metadata`() {
+        val result = compile(listOf(SourceFile.kotlin("SealedProperties.kt", """
+            package polymorphic.sealed
+            import io.cratis.arc.artifacts.Command
+            import io.cratis.arc.polymorphism.DerivedType
+            public sealed class SealedBase
+            @DerivedType("sealed-leaf")
+            public class SealedLeaf : SealedBase()
+            @Command
+            public data class ProbeCommand(
+                public val base: SealedBase,
+                public val sequence: Collection<SealedBase?>?,
+                public val array: Array<SealedBase?>?
+            ) { public fun handle() { } }
+        """.trimIndent())))
+
+        assertSealedPropertyMetadata(result, "polymorphic.sealed.SealedBase")
+        val module = generatedModule(result)
+        val leaf = module.types.single { it.fullyQualifiedName == "polymorphic.sealed.SealedLeaf" }
+        assertEquals("polymorphic.sealed.SealedBase", leaf.baseTypeName)
+        assertEquals("sealed-leaf", leaf.derivedTypeId)
+    }
+
+    @Test
+    fun `Kotlin sealed base properties remain legal when descendant is generated in a later round`() {
+        val lateProvider = LateDescendantProvider()
+        val result = compile(
+            listOf(SourceFile.kotlin("EarlySealedCommand.kt", """
+                package polymorphic.late
+                import io.cratis.arc.artifacts.Command
+                public sealed class LateBase
+                @Command
+                public data class ProbeCommand(
+                    public val base: LateBase,
+                    public val sequence: Collection<LateBase?>?,
+                    public val array: Array<LateBase?>?
+                ) { public fun handle() { } }
+            """.trimIndent())),
+            additionalProviders = listOf(lateProvider)
+        )
+
+        assertTrue(lateProvider.sawBaseWithoutDescendant)
+        assertTrue(lateProvider.sawGeneratedDescendant)
+        assertTrue(lateProvider.rounds >= 2)
+        assertSealedPropertyMetadata(result, "polymorphic.late.LateBase")
+        assertEquals("polymorphic.late.LateBase", result.classLoader.loadClass("polymorphic.late.LateLeaf").superclass.name)
+    }
+
+    @Test
+    fun `annotated Kotlin sealed descendants do not make a concrete property base polymorphic`() {
+        val result = compile(listOf(SourceFile.kotlin("SealedDescendant.kt", """
+            package polymorphic.sealed
+            import io.cratis.arc.artifacts.Command
+            import io.cratis.arc.polymorphism.DerivedType
+            public open class ConcreteBase
+            @DerivedType("sealed-descendant")
+            public sealed class SealedDescendant : ConcreteBase()
+            public class UnannotatedLeaf : SealedDescendant()
+            @Command
+            public data class ProbeCommand(public val base: ConcreteBase) { public fun handle() { } }
+        """.trimIndent())))
+
+        assertEquals(KotlinCompilation.ExitCode.OK, result.exitCode, result.messages)
+        assertFalse("[ARCKSP0305]" in result.messages, result.messages)
+        val module = generatedModule(result)
+        assertEquals("polymorphic.sealed.ConcreteBase", module.commandHandlers.single().metadata.properties.single().typeName)
+        // General derivative metadata is intentionally unchanged by the property-use validation correction.
+        val descendant = module.types.single { it.fullyQualifiedName == "polymorphic.sealed.SealedDescendant" }
+        assertEquals("sealed-descendant", descendant.derivedTypeId)
+    }
+
+    @Test
+    fun `dependency Kotlin sealed base properties remain legal with a source descendant`() {
+        val dependency = KotlinCompilation().apply {
+            sources = listOf(SourceFile.kotlin("SealedDependency.kt", """
+                package polymorphic.dependency
+                public sealed class SealedBase
+                public open class Intermediate : SealedBase()
+            """.trimIndent()))
+            inheritClassPath = true
+            messageOutputStream = System.out
+        }.compile()
+        assertEquals(KotlinCompilation.ExitCode.OK, dependency.exitCode, dependency.messages)
+        val result = compile(
+            listOf(SourceFile.kotlin("SealedConsumer.kt", """
+                package polymorphic.consumer
+                import io.cratis.arc.artifacts.Command
+                import io.cratis.arc.polymorphism.DerivedType
+                import polymorphic.dependency.Intermediate
+                import polymorphic.dependency.SealedBase
+                @DerivedType("dependency-sealed-leaf")
+                public class SealedLeaf : Intermediate()
+                @Command
+                public data class ProbeCommand(
+                    public val base: SealedBase,
+                    public val sequence: Collection<SealedBase?>?,
+                    public val array: Array<SealedBase?>?
+                ) { public fun handle() { } }
+            """.trimIndent())),
+            additionalClasspaths = listOf(dependency.outputDirectory)
+        )
+
+        assertSealedPropertyMetadata(result, "polymorphic.dependency.SealedBase")
+        assertEquals("dependency-sealed-leaf", generatedModule(result).types
+            .single { it.fullyQualifiedName == "polymorphic.consumer.SealedLeaf" }.derivedTypeId)
+    }
+
+    private fun generatedModule(result: JvmCompilationResult): ArcArtifactModule =
+        result.classLoader.loadClass("io.cratis.arc.generated.PolymorphicPropertiesArcArtifactModule")
+            .getDeclaredConstructor().newInstance() as ArcArtifactModule
+
+    private fun assertSealedPropertyMetadata(result: JvmCompilationResult, baseName: String) {
+        assertEquals(KotlinCompilation.ExitCode.OK, result.exitCode, result.messages)
+        assertFalse("[ARCKSP0305]" in result.messages, result.messages)
+        val module = generatedModule(result)
+        val command = module.commandHandlers.single().metadata
+        assertEquals("ProbeCommand", command.name)
+        val properties = command.properties.associateBy { it.name }
+        assertEquals(baseName, properties.getValue("base").typeName)
+        assertFalse(properties.getValue("base").shape.nullable)
+        for ((name, kind) in listOf("sequence" to SequenceKind.COLLECTION, "array" to SequenceKind.ARRAY)) {
+            val shape = properties.getValue(name).shape
+            assertEquals(TypeShapeKind.SEQUENCE, shape.kind)
+            assertEquals(kind, shape.sequenceKind)
+            assertTrue(shape.nullable)
+            assertEquals(baseName, shape.elementShape?.typeName)
+            assertEquals(true, shape.elementShape?.nullable)
+        }
+        assertTrue(module.types.any { it.fullyQualifiedName == baseName })
         assertTrue(workingDirectory.resolve("ksp/sources/resources/META-INF/cratis/arc/PolymorphicProperties.json").isFile)
     }
 

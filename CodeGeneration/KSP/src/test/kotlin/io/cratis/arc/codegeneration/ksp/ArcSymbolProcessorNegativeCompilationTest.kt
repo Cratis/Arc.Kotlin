@@ -184,6 +184,33 @@ internal class ArcSymbolProcessorNegativeCompilationTest {
     }
 
     @Test
+    fun `concrete Java sealed base property reports exact property-use diagnostic`() {
+        val fixtureRoot = Path.of(System.getProperty("arc.contractNegativeFixtures"))
+            .resolve("java/io/cratis/arc/contracts/negative")
+        val sources = listOf("ConcreteJavaSealedBase", "ConcreteJavaSealedLeaf", "ConcreteJavaSealedCommand")
+            .map { name -> SourceFile.java("$name.java", Files.readString(fixtureRoot.resolve("$name.java"))) }
+        // Prove the fixture is valid Java 17 and its sealed base is instantiable without Arc processing.
+        val javaResult = KotlinCompilation().apply {
+            this.sources = sources
+            inheritClassPath = true
+            jvmTarget = "17"
+            messageOutputStream = System.out
+        }.compile()
+        assertEquals(KotlinCompilation.ExitCode.OK, javaResult.exitCode, javaResult.messages)
+        val base = javaResult.classLoader.loadClass("io.cratis.arc.contracts.negative.ConcreteJavaSealedBase")
+        assertTrue(base.isSealed)
+        assertEquals(base, base.getDeclaredConstructor().newInstance().javaClass)
+
+        val result = compile(sources)
+        val expected = "[ARCKSP0305] Artifact/property 'io.cratis.arc.contracts.negative.ConcreteJavaSealedCommand.value' " +
+            "declares concrete polymorphic base 'io.cratis.arc.contracts.negative.ConcreteJavaSealedBase' " +
+            "with visible @DerivedType descendants; declare an interface or abstract base instead."
+        assertEquals(KotlinCompilation.ExitCode.COMPILATION_ERROR, result.exitCode, result.messages)
+        assertTrue(expected in result.messages, result.messages)
+        assertEquals(1, Regex("\\[ARCKSP0305]").findAll(result.messages).count(), result.messages)
+    }
+
+    @Test
     fun `Java object arrays retain the existing unsupported variant element diagnostic`() {
         val fixtureRoot = Path.of(System.getProperty("arc.contractNegativeFixtures"))
             .resolve("java/io/cratis/arc/contracts/negative")
@@ -221,7 +248,8 @@ internal class ArcSymbolProcessorNegativeCompilationTest {
             "ConcreteJavaPropertyCommand.transitive" to "TransitivePropertyBase",
             "ConcreteJavaPropertyView.value" to "ConcreteJavaPropertyBase",
             "ConcreteJavaPropertyView.values" to "ConcreteJavaPropertyBase",
-            "ConcreteJavaPropertyReadModel.value" to "ConcreteJavaPropertyBase"
+            "ConcreteJavaPropertyReadModel.value" to "ConcreteJavaPropertyBase",
+            "ConcreteJavaSealedCommand.value" to "ConcreteJavaSealedBase"
         )
         return uses.map { (property, base) ->
             "Artifact/property '$packageName.$property' declares concrete polymorphic base '$packageName.$base' " +
@@ -377,6 +405,8 @@ internal class ArcSymbolProcessorNegativeCompilationTest {
         useKsp2()
         this.sources = sources
         inheritClassPath = true
+        // Java sealed fixtures require Java 17 in this embedded compilation, independently of the test task's target.
+        jvmTarget = "17"
         symbolProcessorProviders = mutableListOf(ArcSymbolProcessorProvider())
         kspProcessorOptions = mutableMapOf("arc.moduleName" to "NegativeContracts")
         kspWithCompilation = true

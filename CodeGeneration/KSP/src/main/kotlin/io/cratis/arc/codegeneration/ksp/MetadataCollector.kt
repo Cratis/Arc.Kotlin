@@ -497,12 +497,16 @@ internal class MetadataCollector(private val logger: ArcDiagnosticReporter) {
 
     private data class ConcretePropertyUse(val ownerName: String, val propertyName: String, val baseName: String)
 
+    // KSP2 omits ABSTRACT for implicitly abstract Kotlin sealed classes; Java sealed classes can be concrete.
+    private fun KSClassDeclaration.isConcreteClassForPropertyUse(): Boolean =
+        classKind == ClassKind.CLASS && Modifier.ABSTRACT !in modifiers &&
+            !(Modifier.SEALED in modifiers && (origin == Origin.KOTLIN || origin == Origin.KOTLIN_LIB))
+
     private fun validatePropertyUse(ownerName: String, property: PropertyModel, node: KSNode): Boolean {
         if (property.shape.kind == TypeShapeKind.MAP) return true
         val baseName = property.elementTypeName ?: property.typeName
         val base = resolveNamedDeclaration(baseName) ?: return true
-        if (base.classKind != ClassKind.CLASS || Modifier.ABSTRACT in base.modifiers ||
-            isTerminal(baseName) || base.isAssignableTo(CONCEPT_AS_TYPE)
+        if (!base.isConcreteClassForPropertyUse() || isTerminal(baseName) || base.isAssignableTo(CONCEPT_AS_TYPE)
         ) return true
         val use = ConcretePropertyUse(ownerName, property.name, baseName)
         concretePropertyUses += use
@@ -510,11 +514,11 @@ internal class MetadataCollector(private val logger: ArcDiagnosticReporter) {
     }
 
     private fun validateConcretePropertyUse(use: ConcretePropertyUse, base: KSClassDeclaration, node: KSNode): Boolean {
-        if (base.classKind != ClassKind.CLASS || Modifier.ABSTRACT in base.modifiers) return true
+        if (!base.isConcreteClassForPropertyUse()) return true
         val hasDescendant = propertyDerivedTypeNames.any { name ->
             if (name == use.baseName) return@any false
             val candidate = resolveNamedDeclaration(name) ?: return@any false
-            candidate.classKind == ClassKind.CLASS && Modifier.ABSTRACT !in candidate.modifiers &&
+            candidate.isConcreteClassForPropertyUse() &&
                 !candidate.derivedTypeId().isNullOrBlank() && candidate.isAssignableTo(use.baseName)
         }
         if (!hasDescendant) return true
