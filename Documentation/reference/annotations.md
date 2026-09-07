@@ -50,6 +50,14 @@ All three are Jakarta constraints, work from Kotlin and Java, and remain in gene
 
 Arc writes an enum as an integer: the result of `value()` when the enum implements `ArcEnum`, and the ordinal otherwise. Reading accepts that integer or the member name matched case-insensitively, and rejects anything else.
 
+### Polymorphic property declarations
+
+Declare polymorphic properties as an interface or abstract base, not an ordinary concrete base class. KSP reports `ARCKSP0305` when a collected command, read-model, interface, or reachable DTO property declares a concrete class with a distinct, nonabstract `@DerivedType` descendant visible in the current compilation. The check also applies to nullable properties and the element type of supported collections and arrays. Annotating the concrete base itself with `@DerivedType` does not exempt it when it has descendants.
+
+A concrete leaf remains legal, as does ordinary inheritance without annotated descendants. Visiting a superclass to collect inheritance metadata is not itself a prohibited property use. Existing map restrictions are unchanged.
+
+This authoring restriction prevents a concrete base instance from writing JSON without `_derivedTypeId` that a registered polymorphic base requires on read. It is a property-use check, not a guarantee for every runtime registry configuration: changing a declaration to an interface or abstract base does not validate arbitrary multilevel registrations. Root read-model types are not rejected solely for being concrete polymorphic bases. KSP checks source descendants, including those generated in later processing rounds and source descendants of dependency bases; binary-only descendants or manually registered types not visible to KSP are outside this check. Verify those runtime configurations separately.
+
 ### Flags combinations
 
 `@Flags` does not give an enum the ability to carry a combination. A JVM enum constant is one named value, so `Read or Write` has a constant to deserialize into only when the enum declares one. A generated client can compose such a value — the emitted `all<Name>` constant exists to be combined with `|` — and the server answers with the ordinary safe `malformedRequest` envelope on both a command body and a query argument, without disclosing the enum type. Arc .NET draws the same boundary, because its enum converter gates reads on whether the integer is a defined member.
