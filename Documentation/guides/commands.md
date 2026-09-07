@@ -132,12 +132,14 @@ class CreateTaskValidator : CommandValidator<CreateTask> {
 
     override suspend fun validate(command: CreateTask, context: CommandContext): List<ValidationResult> =
         if (command.title.isBlank()) {
-            listOf(ValidationResult(ValidationResultSeverity.Error, "A task title is required.", listOf("title")))
+            listOf(ValidationResult.error("A task title is required.", listOf("title")))
         } else {
             emptyList()
         }
 }
 ```
+
+`ValidationResult.information`, `ValidationResult.warning`, and `ValidationResult.error` are static factories that name the severity and default members, state, reason, and reason detail. They read the same from Java, and the `ValidationResult` constructor with an explicit `ValidationResultSeverity` remains available.
 
 Without an explicit threshold, only errors block execution. Use `@TreatWarningsAsErrors` to set `Information` as the maximum nonblocking severity, so warnings and errors block. Callers can set `X-Allowed-Severity` to a severity name or wire number; feedback numerically above that threshold blocks, and invalid header values produce `malformedRequest`.
 

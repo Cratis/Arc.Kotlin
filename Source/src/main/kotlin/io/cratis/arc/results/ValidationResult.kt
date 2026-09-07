@@ -19,4 +19,42 @@ public class ValidationResult @JvmOverloads constructor(
 ) {
     /** Member names to which this result applies. */
     public val members: List<String> = java.util.List.copyOf(members)
+
+    public companion object {
+        /** Creates informational feedback that does not reject an operation. */
+        @JvmStatic
+        @JvmOverloads
+        public fun information(
+            message: String,
+            members: List<String> = emptyList(),
+            state: Any? = null,
+            reason: String = ValidationResultReasons.RULE,
+            reasonDetail: String? = null
+        ): ValidationResult =
+            ValidationResult(ValidationResultSeverity.Information, message, members, state, reason, reasonDetail)
+
+        /** Creates a warning that does not reject an operation unless the allowed severity says it does. */
+        @JvmStatic
+        @JvmOverloads
+        public fun warning(
+            message: String,
+            members: List<String> = emptyList(),
+            state: Any? = null,
+            reason: String = ValidationResultReasons.RULE,
+            reasonDetail: String? = null
+        ): ValidationResult =
+            ValidationResult(ValidationResultSeverity.Warning, message, members, state, reason, reasonDetail)
+
+        /** Creates an error that rejects an operation. */
+        @JvmStatic
+        @JvmOverloads
+        public fun error(
+            message: String,
+            members: List<String> = emptyList(),
+            state: Any? = null,
+            reason: String = ValidationResultReasons.RULE,
+            reasonDetail: String? = null
+        ): ValidationResult =
+            ValidationResult(ValidationResultSeverity.Error, message, members, state, reason, reasonDetail)
+    }
 }

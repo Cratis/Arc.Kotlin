@@ -159,6 +159,22 @@ class QueryScenarioTests {
         assertTrue(failure.message!!.contains("Expected the query to succeed"))
         assertTrue(failure.message!!.contains("query exploded"))
         assertTrue(failure.message!!.contains("QueryResult("))
+
+        success.shouldBeAuthorized().shouldBeValid()
+        val unauthorized = QueryScenarioResult(QueryResult.unauthorized<TestModel>(correlationId))
+        unauthorized.shouldBeValid()
+        val invalid = QueryScenarioResult(
+            QueryResult.invalid<TestModel>(correlationId, listOf(ValidationResult.error("rejected")))
+        )
+        invalid.shouldBeAuthorized()
+        assertTrue(
+            assertThrows(AssertionError::class.java) { unauthorized.shouldBeAuthorized() }
+                .message!!.contains("Expected the query to be authorized")
+        )
+        assertTrue(
+            assertThrows(AssertionError::class.java) { invalid.shouldBeValid() }
+                .message!!.contains("Expected the query to be valid")
+        )
     }
 
     @Test

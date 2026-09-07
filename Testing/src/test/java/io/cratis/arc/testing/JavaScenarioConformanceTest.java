@@ -3,13 +3,18 @@
 
 package io.cratis.arc.testing;
 
+import io.cratis.arc.results.CommandResult;
+import io.cratis.arc.results.QueryResult;
+import io.cratis.arc.results.ValidationResult;
 import io.cratis.arc.testing.java.AsyncCommandScenario;
 import io.cratis.arc.testing.java.AsyncQueryScenario;
 import io.cratis.arc.testing.java.BlockingCommandScenario;
 import io.cratis.arc.testing.java.BlockingQueryScenario;
 import io.cratis.arc.tenancy.HeaderTenantIdResolver;
 import io.cratis.arc.tenancy.TenantResolutionContext;
+import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import kotlinx.coroutines.CoroutineScope;
 import kotlinx.coroutines.CoroutineScopeKt;
@@ -57,6 +62,28 @@ final class JavaScenarioConformanceTest {
             commands.execute(new TestCommand("tenant")).shouldSucceed();
         }
         assertEquals("java-tenant", tenantHandler.getLastContext().getTenantId());
+    }
+
+    @Test
+    void positiveAuthorizationValidityAndErrorAssertionsAreJavaFriendly() {
+        UUID correlationId = UUID.randomUUID();
+        CommandScenarioResult<Void> rejectedByValidation = new CommandScenarioResult<>(
+            CommandResult.invalid(correlationId, List.of(ValidationResult.error("rejected", List.of("value")))));
+        CommandScenarioResult<Void> failedWithException = new CommandScenarioResult<>(
+            CommandResult.error(correlationId, "handler exploded"));
+        QueryScenarioResult<TestModel> readyQuery = new QueryScenarioResult<>(
+            QueryResult.success(correlationId, new TestModel("data")));
+
+        rejectedByValidation.shouldBeAuthorized().shouldBeInvalid().shouldHaveNoErrors();
+        failedWithException.shouldBeAuthorized().shouldBeValid().shouldHaveErrors();
+        readyQuery.shouldBeAuthorized().shouldBeValid();
+
+        assertTrue(
+            assertThrows(AssertionError.class, rejectedByValidation::shouldBeValid)
+                .getMessage().contains("Expected the command to be valid"));
+        assertTrue(
+            assertThrows(AssertionError.class, failedWithException::shouldHaveNoErrors)
+                .getMessage().contains("Expected the command to have no errors"));
     }
 
     @Test

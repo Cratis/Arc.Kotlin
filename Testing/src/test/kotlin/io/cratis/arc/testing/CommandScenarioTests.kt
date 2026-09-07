@@ -200,6 +200,37 @@ class CommandScenarioTests {
     }
 
     @Test
+    fun `positive authorization validity and error assertions separate rejection kinds`() {
+        val correlationId = UUID.randomUUID()
+        val rejectedByValidation = CommandScenarioResult(
+            CommandResult.invalid(correlationId, listOf(ValidationResult.error("rejected", listOf("value"))))
+        )
+        val rejectedByAuthorization = CommandScenarioResult(CommandResult.unauthorized(correlationId, "denied"))
+        val failedWithException = CommandScenarioResult(CommandResult.error(correlationId, "handler exploded"))
+
+        rejectedByValidation.shouldBeAuthorized().shouldBeInvalid().shouldHaveNoErrors()
+        rejectedByAuthorization.shouldBeUnauthorized().shouldBeValid().shouldHaveNoErrors()
+        failedWithException.shouldBeAuthorized().shouldBeValid().shouldHaveErrors()
+
+        assertTrue(
+            assertThrows(AssertionError::class.java) { rejectedByAuthorization.shouldBeAuthorized() }
+                .message!!.contains("Expected the command to be authorized")
+        )
+        assertTrue(
+            assertThrows(AssertionError::class.java) { rejectedByValidation.shouldBeValid() }
+                .message!!.contains("Expected the command to be valid")
+        )
+        assertTrue(
+            assertThrows(AssertionError::class.java) { rejectedByValidation.shouldHaveErrors() }
+                .message!!.contains("Expected the command to have errors")
+        )
+        assertTrue(
+            assertThrows(AssertionError::class.java) { failedWithException.shouldHaveNoErrors() }
+                .message!!.contains("Expected the command to have no errors")
+        )
+    }
+
+    @Test
     fun `service resolver and artifact helper reject duplicates and missing selections`() {
         val resolver = ScenarioServiceResolver.builder()
             .put(TestDependency::class.java, TestDependency("one"))

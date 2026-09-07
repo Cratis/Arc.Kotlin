@@ -43,10 +43,14 @@ public final class io/cratis/arc/testing/CommandScenarioExtensionContext {
 public final class io/cratis/arc/testing/CommandScenarioResult {
 	public fun <init> (Lio/cratis/arc/results/CommandResult;)V
 	public final fun getResult ()Lio/cratis/arc/results/CommandResult;
+	public final fun shouldBeAuthorized ()Lio/cratis/arc/testing/CommandScenarioResult;
 	public final fun shouldBeInvalid ()Lio/cratis/arc/testing/CommandScenarioResult;
 	public final fun shouldBeUnauthorized ()Lio/cratis/arc/testing/CommandScenarioResult;
+	public final fun shouldBeValid ()Lio/cratis/arc/testing/CommandScenarioResult;
 	public final fun shouldFail ()Lio/cratis/arc/testing/CommandScenarioResult;
+	public final fun shouldHaveErrors ()Lio/cratis/arc/testing/CommandScenarioResult;
 	public final fun shouldHaveExceptionMessage (Ljava/lang/String;)Lio/cratis/arc/testing/CommandScenarioResult;
+	public final fun shouldHaveNoErrors ()Lio/cratis/arc/testing/CommandScenarioResult;
 	public final fun shouldHaveNoResponse ()Lio/cratis/arc/testing/CommandScenarioResult;
 	public final fun shouldHaveResponse (Ljava/lang/Class;)Ljava/lang/Object;
 	public final fun shouldHaveValidation ()Lio/cratis/arc/results/ValidationResult;
@@ -134,9 +138,11 @@ public final class io/cratis/arc/testing/QueryScenario {
 public final class io/cratis/arc/testing/QueryScenarioResult {
 	public fun <init> (Lio/cratis/arc/results/QueryResult;)V
 	public final fun getResult ()Lio/cratis/arc/results/QueryResult;
+	public final fun shouldBeAuthorized ()Lio/cratis/arc/testing/QueryScenarioResult;
 	public final fun shouldBeInvalid ()Lio/cratis/arc/testing/QueryScenarioResult;
 	public final fun shouldBeReady ()Lio/cratis/arc/testing/QueryScenarioResult;
 	public final fun shouldBeUnauthorized ()Lio/cratis/arc/testing/QueryScenarioResult;
+	public final fun shouldBeValid ()Lio/cratis/arc/testing/QueryScenarioResult;
 	public final fun shouldHaveChangeSet ()Lio/cratis/arc/results/ChangeSet;
 	public final fun shouldHaveData (Ljava/lang/Class;)Ljava/lang/Object;
 	public final fun shouldHaveData (Ljava/lang/Object;)Lio/cratis/arc/testing/QueryScenarioResult;
