@@ -37,9 +37,18 @@ on:
       - "gradle/**"
       - ".github/workflows/chronicle-real-kernel.yml"
 
+# A called workflow sees its *caller's* name in ${{ github.workflow }}, so a group built from that
+# expression alone is the caller's own group, and cancelling within it cancels the caller. That is
+# what made Publish fail with a green verify job and skipped release jobs. See
+# https://docs.github.com/en/actions/reference/workflows-and-actions/reusing-workflow-configurations
+# The literal prefix puts every run of this workflow in a namespace no caller can ever compute, and
+# cancellation is restricted to standalone runs, which are the only ones where github.workflow is
+# this workflow's own name. A run called from Publish therefore cancels nothing at all.
+# Keep the name below in sync with `name:` above: if it drifts, standalone runs stop cancelling
+# their predecessors, which wastes runner time but can never cancel a release in flight.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: chronicle-real-kernel-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.workflow == 'Chronicle Real Kernel' }}
 
 permissions:
   contents: read

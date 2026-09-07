@@ -20,6 +20,36 @@ permissions:
   contents: read
 
 jobs:
+  # Workflow files are only ever executed by GitHub, so a defect in one surfaces at release time
+  # rather than at review time. Linting them here makes that a pull request failure instead.
+  lint-workflows:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      # Pinned to an exact release and checksum-verified, so this trusts no third-party action and
+      # lints with the same binary contributors run locally.
+      - name: Install actionlint
+        env:
+          ACTIONLINT_VERSION: "1.7.12"
+          ACTIONLINT_SHA256: "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8"
+        run: |
+          set -euo pipefail
+          archive="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl --fail --silent --show-error --location --output "${RUNNER_TEMP}/${archive}" \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${archive}"
+          echo "${ACTIONLINT_SHA256}  ${RUNNER_TEMP}/${archive}" | sha256sum --check --strict -
+          tar --extract --gzip --file "${RUNNER_TEMP}/${archive}" --directory "${RUNNER_TEMP}" actionlint
+          rm -f "${RUNNER_TEMP}/${archive}"
+          echo "${RUNNER_TEMP}" >> "$GITHUB_PATH"
+
+      # shellcheck is preinstalled on the runner image; actionlint hands every `run:` script to it.
+      - name: Lint workflow files
+        run: actionlint -color
+
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 45
