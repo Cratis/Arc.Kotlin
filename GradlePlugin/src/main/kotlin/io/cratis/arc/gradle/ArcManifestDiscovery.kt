@@ -10,6 +10,7 @@ import io.cratis.arc.artifacts.ArcArtifactManifest
 import io.cratis.arc.json.ArcObjectMapper
 import io.cratis.arc.metadata.CommandDescriptor
 import io.cratis.arc.metadata.ConceptDescriptor
+import io.cratis.arc.metadata.DocumentationSummaries
 import io.cratis.arc.metadata.EnumDescriptor
 import io.cratis.arc.metadata.InterfaceDescriptor
 import io.cratis.arc.metadata.QueryDescriptor
@@ -124,6 +125,7 @@ internal object ArcManifestDiscovery {
         }
 
         root.path("commands").forEachIndexed { commandIndex, command ->
+            validateSummary(command, "commands[$commandIndex]", source)
             rejectLegacyFields(
                 command,
                 setOf("responseTypeName", "responseIsEnumerable"),
@@ -146,6 +148,7 @@ internal object ArcManifestDiscovery {
             )
         }
         root.path("queries").forEachIndexed { queryIndex, query ->
+            validateSummary(query, "queries[$queryIndex]", source)
             validateCanonicalNode(
                 query,
                 "returnShape",
@@ -173,14 +176,41 @@ internal object ArcManifestDiscovery {
             }
         }
         root.path("types").forEachIndexed { typeIndex, type ->
+            validateSummary(type, "types[$typeIndex]", source)
             validateShapeNodes(type.path("properties"), "types[$typeIndex].properties", source, allowMaps = true)
         }
         root.path("interfaces").forEachIndexed { interfaceIndex, interfaceNode ->
+            validateSummary(interfaceNode, "interfaces[$interfaceIndex]", source)
             validateShapeNodes(
                 interfaceNode.path("properties"),
                 "interfaces[$interfaceIndex].properties",
                 source,
                 allowMaps = true
+            )
+        }
+        root.path("enums").forEachIndexed { enumIndex, enumNode ->
+            validateSummary(enumNode, "enums[$enumIndex]", source)
+        }
+    }
+
+    /**
+     * Rejects a source documentation summary that a generated proxy could not render on one JSDoc line.
+     *
+     * The manifest is read from third-party jars, so the reader enforces the same invariant the writer applies rather
+     * than trusting it.
+     */
+    private fun validateSummary(node: JsonNode, path: String, source: String) {
+        val summary = node.get("summary") ?: return
+        if (summary.isNull) return
+        if (!summary.isTextual) {
+            throw GradleException("Arc artifact manifest in $source must declare a textual summary at $path.")
+        }
+        try {
+            DocumentationSummaries.validate(summary.textValue(), path)
+        } catch (exception: IllegalArgumentException) {
+            throw GradleException(
+                "Arc artifact manifest in $source has an unusable summary at $path: ${exception.message}",
+                exception
             )
         }
     }
@@ -194,6 +224,7 @@ internal object ArcManifestDiscovery {
     ) {
         nodes.forEachIndexed { index, node ->
             val nodePath = "$path[$index]"
+            validateSummary(node, nodePath, source)
             validateCanonicalNode(node, "shape", legacyFields, nodePath, source)
             validateSupportedShape(node.path("shape"), "$nodePath.shape", source, allowMaps)
         }

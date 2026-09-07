@@ -368,8 +368,10 @@ internal class TypeScriptProxyGenerator(
             if (requiresStringMapGuard) {
                 appendStringMapGuard()
             }
+            appendDocumentation(command.summary)
             append("export interface $interfaceName {\n")
             command.properties.forEach { property ->
+                appendDocumentation(property.summary, "    ")
                 append("    ${lowerCamel(property.name)}?: ${propertyTypeName(property, target)};\n")
             }
             append("}\n\n")
@@ -377,6 +379,7 @@ internal class TypeScriptProxyGenerator(
             val responseGeneric = response?.let {
                 ", ${it.name}${if (command.responseIsEnumerable) "[]" else ""}"
             }.orEmpty()
+            appendDocumentation(command.summary)
             append("export class ${command.name} extends Command<$interfaceName$responseGeneric> implements $interfaceName {\n")
             append("    readonly route: string = '${escape(route)}';\n")
             if (validationTargets.isNotEmpty()) {
@@ -404,6 +407,7 @@ internal class TypeScriptProxyGenerator(
                 val name = lowerCamel(property.name)
                 val type = propertyTypeName(property, target)
                 val optional = if (property.isNullable) " | undefined" else ""
+                appendDocumentation(property.summary, "    ")
                 append("    get $name(): $type$optional {\n        return this._$name;\n    }\n\n")
                 append("    set $name(value: $type$optional) {\n")
                 if (property.shape.containsMap()) {
@@ -480,6 +484,7 @@ internal class TypeScriptProxyGenerator(
             appendPackageImports(referencedTypes, fundamentals)
             appendCustomImports(imports, target)
             append("\n")
+            appendDocumentation(type.summary)
             type.derivedTypeId?.let { append("@derivedType('${escape(it)}')\n") }
             append("export class ${type.name}${baseType?.let { " extends ${it.name}" }.orEmpty()} {\n")
             type.properties.forEach { property ->
@@ -490,6 +495,7 @@ internal class TypeScriptProxyGenerator(
                     if (property.isEnumerable || derivatives.isNotEmpty()) add(property.isEnumerable.toString())
                     if (derivatives.isNotEmpty()) add("[${derivatives.joinToString(", ") { it.constructor }}]")
                 }
+                appendDocumentation(property.summary, "    ")
                 append("    @field(${fieldArguments.joinToString(", ")})\n")
                 val marker = if (property.isNullable) "?" else "!"
                 append("    ${lowerCamel(property.name)}$marker: ${propertyTypeName(property, target)};\n")
@@ -507,9 +513,12 @@ internal class TypeScriptProxyGenerator(
             append("// eslint-disable-next-line header/header\n")
             appendPackageImports(referencedTypes)
             appendCustomImports(imports, target)
-            append("\nexport interface ${interfaceDescriptor.name} {\n")
+            append("\n")
+            appendDocumentation(interfaceDescriptor.summary)
+            append("export interface ${interfaceDescriptor.name} {\n")
             interfaceDescriptor.properties.forEach { property ->
                 val optional = if (property.isNullable) "?" else ""
+                appendDocumentation(property.summary, "    ")
                 append("    ${lowerCamel(property.name)}$optional: ${propertyTypeName(property, target)};\n")
             }
             append("}\n")
@@ -519,6 +528,7 @@ internal class TypeScriptProxyGenerator(
     private fun renderEnum(enum: EnumDescriptor): String = buildString {
         appendGeneratedHeader()
         append("// eslint-disable-next-line header/header\n")
+        appendDocumentation(enum.summary)
         append("export enum ${enum.name} {\n")
         enum.members.forEach { append("    ${lowerCamel(it.name)} = ${it.value},\n") }
         append("}\n")
@@ -582,10 +592,13 @@ internal class TypeScriptProxyGenerator(
             if (supportsSorting) appendSortHelpers(className, model.name, sortableProperties)
             if (parameters.isNotEmpty()) {
                 val parameterSpacing = if (query.isEnumerable) "\n" else "\n\n"
-                append("${parameterSpacing}export interface ${className}Parameters {\n")
+                append(parameterSpacing)
+                appendDocumentation(query.summary)
+                append("export interface ${className}Parameters {\n")
                 parameters.forEach { parameter ->
                     val optional = if (parameter.isNullable || parameter.hasDefault) "?" else ""
                     val array = if (parameter.isEnumerable) "[]" else ""
+                    appendDocumentation(parameter.summary, "    ")
                     append("    ${lowerCamel(parameter.name)}$optional: ${resolveParameterType(parameter, target).name}$array;\n")
                 }
                 append("}\n")
@@ -597,7 +610,9 @@ internal class TypeScriptProxyGenerator(
                 !query.isEnumerable && parameters.isEmpty() && validationTargets.isEmpty() -> "\n\n\n"
                 else -> "\n\n"
             }
-            append("${classSpacing}export class $className extends QueryFor<$modelType$parameterType> {\n")
+            append(classSpacing)
+            appendDocumentation(query.summary)
+            append("export class $className extends QueryFor<$modelType$parameterType> {\n")
             append("    readonly route: string = '${escape(route)}';\n")
             append("    readonly queryName: string = '${escape(query.fullyQualifiedName)}';\n")
             if (validationTargets.isNotEmpty()) {
@@ -698,11 +713,14 @@ internal class TypeScriptProxyGenerator(
             if (supportsSorting) appendObservableSortHelpers(className, model.name, sortableProperties)
             if (parameters.isNotEmpty()) {
                 val parameterSpacing = if (query.isEnumerable) "\n" else "\n\n"
-                append("${parameterSpacing}export interface ${className}Parameters {\n")
+                append(parameterSpacing)
+                appendDocumentation(query.summary)
+                append("export interface ${className}Parameters {\n")
                 parameters.forEach { parameter ->
                     append("    \n")
                     val optional = if (parameter.isNullable || parameter.hasDefault) "?" else ""
                     val array = if (parameter.isEnumerable) "[]" else ""
+                    appendDocumentation(parameter.summary, "    ")
                     append("    ${lowerCamel(parameter.name)}$optional: ${resolveParameterType(parameter, target).name}$array;\n")
                 }
                 append("}\n")
@@ -714,7 +732,9 @@ internal class TypeScriptProxyGenerator(
                 !query.isEnumerable && parameters.isEmpty() && validationTargets.isEmpty() -> "\n\n\n"
                 else -> "\n\n"
             }
-            append("${classSpacing}export class $className extends ObservableQueryFor<$modelType$parameterType> {\n")
+            append(classSpacing)
+            appendDocumentation(query.summary)
+            append("export class $className extends ObservableQueryFor<$modelType$parameterType> {\n")
             append("    readonly route: string = '${escape(route)}';\n")
             append("    readonly queryName: string = '${escape(query.fullyQualifiedName)}';\n")
             if (validationTargets.isNotEmpty()) {
@@ -1240,6 +1260,32 @@ internal class TypeScriptProxyGenerator(
 
     private fun isMapType(typeName: String): Boolean =
         typeName == "kotlin.collections.Map" || typeName == "java.util.Map" || typeName.endsWith("Map")
+
+    /**
+     * Emits one source documentation summary as a single-line JSDoc comment.
+     *
+     * The summary is guaranteed by [io.cratis.arc.metadata.DocumentationSummaries] to be one line, so the comment
+     * cannot span lines; [escapeDocumentation] neutralizes the two sequences a JSDoc reader would otherwise act on.
+     */
+    private fun StringBuilder.appendDocumentation(summary: String?, indent: String = "") {
+        if (summary == null) return
+        append(indent)
+        append("/** ")
+        append(escapeDocumentation(summary))
+        append(" */\n")
+    }
+
+    private fun escapeDocumentation(summary: String): String = buildString(summary.length + 8) {
+        summary.forEachIndexed { index, character ->
+            when {
+                // A comment terminator inside the text would end the comment and spill code into the file.
+                character == '/' && index > 0 && summary[index - 1] == '*' -> append(" /")
+                // An at sign in tag position would be read as a JSDoc block tag rather than as prose.
+                character == '@' && (index == 0 || summary[index - 1].isWhitespace()) -> append("\\@")
+                else -> append(character)
+            }
+        }
+    }
 
     private fun StringBuilder.appendGeneratedHeader() {
         append("/*---------------------------------------------------------------------------------------------\n")

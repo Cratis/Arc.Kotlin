@@ -4,6 +4,7 @@
 package io.cratis.arc.metadata
 
 import com.fasterxml.jackson.annotation.JsonCreator
+import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
 
 /** Immutable metadata describing a command artifact. */
@@ -26,12 +27,46 @@ public class CommandDescriptor @JvmOverloads constructor(
     /** Fully qualified source name of the client-visible response type, when present. */
     responseTypeName: String? = null,
     /** Whether the client-visible response is a supported list, collection, or array. */
-    responseIsEnumerable: Boolean = false
+    responseIsEnumerable: Boolean = false,
+    /** Single-line source documentation summary, or `null` when the command carries none. */
+    @get:JsonInclude(JsonInclude.Include.NON_NULL) public val summary: String? = null
 ) {
     private val legacyResponseTypeName: String? = responseTypeName
     private val legacyResponseIsEnumerable: Boolean = responseIsEnumerable
     // Constructor-scoped mutation is required so the legacy primary constructor keeps its exact JVM descriptor.
     private var responseValuesBacking: List<CommandResponseValueDescriptor> = normalizeResponseValues(emptyList())
+
+    init {
+        DocumentationSummaries.validate(summary, typeName)
+    }
+
+    /** Preserves the Jackson creator descriptor used before source documentation metadata was added. */
+    public constructor(
+        name: String,
+        typeName: String,
+        properties: List<PropertyDescriptor>,
+        routeOptions: RouteOptions,
+        location: List<String>,
+        authorization: AuthorizationMetadata,
+        explicitPath: String?,
+        treatWarningsAsErrors: Boolean,
+        responseTypeName: String?,
+        responseIsEnumerable: Boolean,
+        responseValues: List<CommandResponseValueDescriptor>
+    ) : this(
+        name,
+        typeName,
+        properties,
+        routeOptions,
+        location,
+        authorization,
+        explicitPath,
+        treatWarningsAsErrors,
+        responseTypeName,
+        responseIsEnumerable,
+        responseValues,
+        null
+    )
 
     /**
      * Creates command metadata with explicitly classified response values.
@@ -50,7 +85,8 @@ public class CommandDescriptor @JvmOverloads constructor(
         treatWarningsAsErrors: Boolean = false,
         responseTypeName: String? = null,
         responseIsEnumerable: Boolean = false,
-        responseValues: List<CommandResponseValueDescriptor> = emptyList()
+        responseValues: List<CommandResponseValueDescriptor> = emptyList(),
+        summary: String? = null
     ) : this(
         name,
         typeName,
@@ -61,7 +97,8 @@ public class CommandDescriptor @JvmOverloads constructor(
         explicitPath,
         treatWarningsAsErrors,
         responseTypeName,
-        responseIsEnumerable
+        responseIsEnumerable,
+        summary
     ) {
         responseValuesBacking = normalizeResponseValues(responseValues)
     }

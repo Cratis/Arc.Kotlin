@@ -4,6 +4,7 @@
 package io.cratis.arc.metadata
 
 import com.fasterxml.jackson.annotation.JsonCreator
+import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.annotation.JsonPropertyOrder
 import io.cratis.arc.queries.QueryHttpMethodType
@@ -24,7 +25,8 @@ import io.cratis.arc.queries.QueryTransportType
     "transport",
     "supportsPaging",
     "supportsSorting",
-    "treatWarningsAsErrors"
+    "treatWarningsAsErrors",
+    "summary"
 )
 public class QueryDescriptor @JvmOverloads constructor(
     /** Stable query name used by Arc metadata consumers. */
@@ -55,9 +57,15 @@ public class QueryDescriptor @JvmOverloads constructor(
     /** Whether warning validation results are blocking for this query. */
     public val treatWarningsAsErrors: Boolean = false,
     /** Whether database-owned sorting is supported. */
-    public val supportsSorting: Boolean = false
+    public val supportsSorting: Boolean = false,
+    /** Single-line source documentation summary, or `null` when the query carries none. */
+    @get:JsonInclude(JsonInclude.Include.NON_NULL) public val summary: String? = null
 ) {
     private var returnShapeBacking: TypeShapeDescriptor = legacyLeafShape(returnTypeName, false, isEnumerable)
+
+    init {
+        DocumentationSummaries.validate(summary, "$declaringTypeName.$name")
+    }
 
     /** Creates query metadata from its canonical recursive return type shape. */
     @JvmOverloads
@@ -75,7 +83,8 @@ public class QueryDescriptor @JvmOverloads constructor(
         transport: QueryTransportType = routeOptions.transport,
         supportsPaging: Boolean = false,
         treatWarningsAsErrors: Boolean = false,
-        supportsSorting: Boolean = false
+        supportsSorting: Boolean = false,
+        summary: String? = null
     ) : this(
         name,
         declaringTypeName,
@@ -91,10 +100,49 @@ public class QueryDescriptor @JvmOverloads constructor(
         returnShape.kind == TypeShapeKind.SEQUENCE,
         supportsPaging,
         treatWarningsAsErrors,
-        supportsSorting
+        supportsSorting,
+        summary
     ) {
         returnShapeBacking = returnShape
     }
+
+    /** Preserves the Jackson creator descriptor used before source documentation metadata was added. */
+    public constructor(
+        name: String,
+        declaringTypeName: String,
+        returnTypeName: String?,
+        parameters: List<ParameterDescriptor>?,
+        routeOptions: RouteOptions?,
+        fullyQualifiedName: String?,
+        location: List<String>?,
+        authorization: AuthorizationMetadata?,
+        explicitPath: String?,
+        queryHttpMethod: QueryHttpMethodType?,
+        transport: QueryTransportType?,
+        isEnumerable: Boolean?,
+        supportsPaging: Boolean?,
+        supportsSorting: Boolean?,
+        treatWarningsAsErrors: Boolean?,
+        returnShape: TypeShapeDescriptor?
+    ) : this(
+        name,
+        declaringTypeName,
+        returnTypeName,
+        parameters,
+        routeOptions,
+        fullyQualifiedName,
+        location,
+        authorization,
+        explicitPath,
+        queryHttpMethod,
+        transport,
+        isEnumerable,
+        supportsPaging,
+        supportsSorting,
+        treatWarningsAsErrors,
+        returnShape,
+        null
+    )
 
     /** Jackson compatibility creator accepting either legacy flat return metadata or the canonical return shape. */
     @JsonCreator
@@ -114,7 +162,8 @@ public class QueryDescriptor @JvmOverloads constructor(
         @JsonProperty("supportsPaging") supportsPaging: Boolean?,
         @JsonProperty("supportsSorting") supportsSorting: Boolean?,
         @JsonProperty("treatWarningsAsErrors") treatWarningsAsErrors: Boolean?,
-        @JsonProperty("returnShape") returnShape: TypeShapeDescriptor?
+        @JsonProperty("returnShape") returnShape: TypeShapeDescriptor?,
+        @JsonProperty("summary") summary: String?
     ) : this(
         name,
         declaringTypeName,
@@ -129,7 +178,8 @@ public class QueryDescriptor @JvmOverloads constructor(
         transport ?: routeOptions?.transport ?: QueryTransportType.REQUEST_RESPONSE,
         supportsPaging ?: false,
         treatWarningsAsErrors ?: false,
-        supportsSorting ?: false
+        supportsSorting ?: false,
+        summary
     )
 
     /** Canonical recursive query return metadata. */

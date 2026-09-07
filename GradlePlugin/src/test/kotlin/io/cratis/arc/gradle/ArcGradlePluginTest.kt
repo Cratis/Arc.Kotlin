@@ -109,18 +109,18 @@ class ArcGradlePluginTest {
         }
 
         assertTrue(exception.message.orEmpty().contains(manifest.toString()))
-        assertTrue(exception.message.orEmpty().contains("explicit numeric formatVersion=5"))
+        assertTrue(exception.message.orEmpty().contains("explicit numeric formatVersion=6"))
     }
 
     @Test
-    fun `rejects format 5 manifests containing only legacy flat shape metadata`() {
+    fun `rejects format 6 manifests containing only legacy flat shape metadata`() {
         val root = temporaryDirectory.resolve("legacy-only")
         val manifest = root.resolve("META-INF/cratis/arc/legacy.json")
         writeRawManifest(
             manifest,
             """
             {
-              "formatVersion": 5,
+              "formatVersion": 6,
               "moduleName": "LegacyOnly",
               "commands": [{
                 "name": "Run",
@@ -141,14 +141,14 @@ class ArcGradlePluginTest {
     }
 
     @Test
-    fun `rejects format 5 jar manifests mixing canonical and legacy shape metadata`() {
+    fun `rejects format 6 jar manifests mixing canonical and legacy shape metadata`() {
         val jar = temporaryDirectory.resolve("mixed.jar")
         writeJarManifest(
             jar,
             "META-INF/cratis/arc/mixed.json",
             """
             {
-              "formatVersion": 5,
+              "formatVersion": 6,
               "moduleName": "Mixed",
               "commands": [{
                 "name": "Run",
@@ -173,7 +173,7 @@ class ArcGradlePluginTest {
     }
 
     @Test
-    fun `discovers format 5 manifests containing canonical shapes on all typed nodes`() {
+    fun `discovers format 6 manifests containing canonical shapes on all typed nodes`() {
         val root = temporaryDirectory.resolve("canonical")
         val manifest = root.resolve("META-INF/cratis/arc/canonical.json")
         val valueShape = """{"kind":"VALUE","nullable":false,"typeName":"kotlin.String"}"""
@@ -181,7 +181,7 @@ class ArcGradlePluginTest {
             manifest,
             """
             {
-              "formatVersion": 5,
+              "formatVersion": 6,
               "moduleName": "Canonical",
               "commands": [{
                 "name": "Run",
@@ -223,7 +223,7 @@ class ArcGradlePluginTest {
             manifest,
             """
             {
-              "formatVersion": 5,
+              "formatVersion": 6,
               "moduleName": "MissingSource",
               "queries": [{
                 "name": "find",
@@ -281,7 +281,7 @@ class ArcGradlePluginTest {
                 manifest,
                 """
                 {
-                  "formatVersion":5,
+                  "formatVersion":6,
                   "moduleName":"QueryDefaults$index",
                   "queries":[{
                     "name":"find", "declaringTypeName":"sample.Queries",
@@ -307,7 +307,7 @@ class ArcGradlePluginTest {
             unsafeLeafManifest,
             """
             {
-              "formatVersion": 5,
+              "formatVersion": 6,
               "moduleName": "UnsafeLeaf",
               "commands": [{
                 "name": "Run",
@@ -340,7 +340,7 @@ class ArcGradlePluginTest {
             queryManifest,
             """
             {
-              "formatVersion":5,
+              "formatVersion":6,
               "moduleName":"UnsafeQuery",
               "queries":[{
                 "name":"find", "declaringTypeName":"sample.Queries",

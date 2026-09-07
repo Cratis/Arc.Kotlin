@@ -35,7 +35,14 @@ public class ArcArtifactManifest @JvmOverloads constructor(
     public val concepts: List<ConceptDescriptor> = java.util.List.copyOf(concepts)
 
     public companion object {
-        /** Current language-neutral manifest contract version. */
-        public const val CURRENT_FORMAT_VERSION: Int = 5
+        /**
+         * Current language-neutral manifest contract version.
+         *
+         * Version 6 added the optional single-line `summary` field carrying source documentation for commands,
+         * queries, properties, client query parameters, model types, interfaces, and enums. Readers accept exactly
+         * this version: a classpath that mixes manifest versions would otherwise render documented and undocumented
+         * proxies from the same generation run with no diagnostic.
+         */
+        public const val CURRENT_FORMAT_VERSION: Int = 6
     }
 }

@@ -3,6 +3,8 @@
 
 package io.cratis.arc.metadata
 
+import com.fasterxml.jackson.annotation.JsonInclude
+
 /** Immutable language-neutral metadata describing a serializable model type. */
 public class TypeDescriptor @JvmOverloads constructor(
     /** Source name of the type. */
@@ -16,8 +18,14 @@ public class TypeDescriptor @JvmOverloads constructor(
     /** Fully qualified source name of the supported base type, when present. */
     public val baseTypeName: String? = null,
     /** Stable derived-type identifier, when explicitly declared. */
-    public val derivedTypeId: String? = null
+    public val derivedTypeId: String? = null,
+    /** Single-line source documentation summary, or `null` when the type carries none. */
+    @get:JsonInclude(JsonInclude.Include.NON_NULL) public val summary: String? = null
 ) {
     public val location: List<String> = java.util.List.copyOf(location)
     public val properties: List<PropertyDescriptor> = java.util.List.copyOf(properties)
+
+    init {
+        DocumentationSummaries.validate(summary, fullyQualifiedName)
+    }
 }

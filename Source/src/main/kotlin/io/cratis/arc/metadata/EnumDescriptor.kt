@@ -3,6 +3,7 @@
 
 package io.cratis.arc.metadata
 
+import com.fasterxml.jackson.annotation.JsonInclude
 import io.cratis.arc.json.ArcCamelCase
 
 /** Immutable language-neutral metadata describing an enum. */
@@ -16,10 +17,16 @@ public class EnumDescriptor @JvmOverloads constructor(
     /** Members in source declaration order with explicit numeric wire values. */
     members: List<EnumMemberDescriptor> = emptyList(),
     /** Whether the enum carries the JVM [io.cratis.arc.concepts.Flags] annotation. */
-    public val isFlags: Boolean = false
+    public val isFlags: Boolean = false,
+    /** Single-line source documentation summary, or `null` when the enum carries none. */
+    @get:JsonInclude(JsonInclude.Include.NON_NULL) public val summary: String? = null
 ) {
     public val location: List<String> = java.util.List.copyOf(location)
     public val members: List<EnumMemberDescriptor> = java.util.List.copyOf(members)
+
+    init {
+        DocumentationSummaries.validate(summary, fullyQualifiedName)
+    }
 
     /** Expression used by the .NET FlagsEnum template to initialize `all<Name>`. */
     public val allFlagsExpression: String = if (isFlags) {
