@@ -4,6 +4,10 @@
 name: Publish
 
 # Never cancel a release in flight: a later merge must not interrupt signing or publication.
+# Nothing this workflow calls may compute this same group. Inside a called workflow
+# ${{ github.workflow }} resolves to *this* workflow's name, so a reusable workflow that derives
+# its group the same way and cancels in progress cancels this run. chronicle-real-kernel.yml
+# namespaces its group behind a literal prefix for exactly that reason; see the note there.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
