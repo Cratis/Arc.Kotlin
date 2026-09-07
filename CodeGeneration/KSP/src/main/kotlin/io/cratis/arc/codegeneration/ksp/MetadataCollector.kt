@@ -394,12 +394,20 @@ internal class MetadataCollector(private val logger: ArcDiagnosticReporter) {
             ?.qualifiedName?.asString()
         val derivedTypeId = declaration.derivedTypeId()
         if (declaration.hasAnnotation(DERIVED_TYPE_ANNOTATION) && derivedTypeId.isNullOrBlank()) {
-            logger.error("Derived type '$qualifiedName' must declare a nonblank @DerivedType id.", declaration)
+            logger.error(
+                ArcDiagnostic.DERIVED_TYPE_ID,
+                "Derived type '$qualifiedName' must declare a nonblank @DerivedType id.",
+                declaration
+            )
             visiting.remove(qualifiedName)
             return false
         }
         if (declaration.classKind == ClassKind.INTERFACE && derivedTypeId != null) {
-            logger.error("Interface '$qualifiedName' cannot carry @DerivedType; annotate concrete implementations.", declaration)
+            logger.error(
+                ArcDiagnostic.DERIVED_TYPE_TARGET,
+                "Interface '$qualifiedName' cannot carry @DerivedType; annotate concrete implementations.",
+                declaration
+            )
             visiting.remove(qualifiedName)
             return false
         }

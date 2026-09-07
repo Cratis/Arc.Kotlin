@@ -29,5 +29,7 @@ Arc KSP prefixes every compile-time diagnostic with a stable code. Errors stop c
 | `ARCKSP0300` | Error | Unsupported generated proxy model shape |
 | `ARCKSP0301` | Error | Invalid or unrepresentable Jakarta validation metadata |
 | `ARCKSP0302` | Error | Ambiguous or unprovable Arc enum wire value |
+| `ARCKSP0303` | Error | Missing or blank @DerivedType identifier |
+| `ARCKSP0304` | Error | Unsupported @DerivedType declaration target |
 | `ARCKSP0400` | Warning | Java/Kotlin interoperability hazard |
 | `ARCKSP9999` | Error | Unclassified Arc KSP diagnostic |

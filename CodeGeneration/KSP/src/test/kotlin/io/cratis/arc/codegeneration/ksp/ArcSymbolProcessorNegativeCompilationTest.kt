@@ -62,6 +62,8 @@ internal class ArcSymbolProcessorNegativeCompilationTest {
             "ARCKSP0210",
             "ARCKSP0300",
             "ARCKSP0301",
+            "ARCKSP0303",
+            "ARCKSP0304",
             "ARCKSP0400"
         ).forEach { code -> assertTrue("[$code]" in result.messages, "Missing $code in:\n${result.messages}") }
         assertTrue("annotate it with @FromServices" in result.messages, result.messages)
@@ -73,6 +75,12 @@ internal class ArcSymbolProcessorNegativeCompilationTest {
         }
         springDataDiagnostics().forEach { message ->
             assertTrue("[ARCKSP0210] $message" in result.messages, "Missing ARCKSP0210 message '$message' in:\n${result.messages}")
+        }
+        derivedTypeIdDiagnostics().forEach { message ->
+            assertTrue("[ARCKSP0303] $message" in result.messages, "Missing ARCKSP0303 message '$message' in:\n${result.messages}")
+        }
+        derivedTypeTargetDiagnostics().forEach { message ->
+            assertTrue("[ARCKSP0304] $message" in result.messages, "Missing ARCKSP0304 message '$message' in:\n${result.messages}")
         }
         assertTrue("OverloadedJavaQueries' has overloaded query name 'find'" in result.messages, result.messages)
         assertTrue("star projections are unsupported" in result.messages, result.messages)
@@ -254,6 +262,18 @@ internal class ArcSymbolProcessorNegativeCompilationTest {
             "reserved paging or sorting control 'sortBy'; use another parameter name.",
         "Query client parameter 'io.cratis.arc.contracts.negative.ReservedSortDirectionReadModel.invalid.sortDirection' " +
             "conflicts with reserved paging or sorting control 'sortDirection'; use another parameter name."
+    )
+
+    private fun derivedTypeIdDiagnostics(): List<String> = listOf(
+        "Derived type 'io.cratis.arc.contracts.negative.BlankDerivedTypeIdShape' must declare a nonblank @DerivedType id.",
+        "Derived type 'io.cratis.arc.contracts.negative.BlankDerivedTypeIdJavaShape' must declare a nonblank @DerivedType id."
+    )
+
+    private fun derivedTypeTargetDiagnostics(): List<String> = listOf(
+        "Interface 'io.cratis.arc.contracts.negative.AnnotatedDerivedTypeInterface' cannot carry @DerivedType; " +
+            "annotate concrete implementations.",
+        "Interface 'io.cratis.arc.contracts.negative.AnnotatedDerivedTypeJavaInterface' cannot carry @DerivedType; " +
+            "annotate concrete implementations."
     )
 
     private fun queryDefaultDiagnostics(): List<String> = listOf(

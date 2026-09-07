@@ -36,6 +36,8 @@ internal enum class ArcDiagnostic(
     PROXY_SHAPE("ARCKSP0300", "Error", "Unsupported generated proxy model shape"),
     VALIDATION("ARCKSP0301", "Error", "Invalid or unrepresentable Jakarta validation metadata"),
     ENUM_VALUE("ARCKSP0302", "Error", "Ambiguous or unprovable Arc enum wire value"),
+    DERIVED_TYPE_ID("ARCKSP0303", "Error", "Missing or blank @DerivedType identifier"),
+    DERIVED_TYPE_TARGET("ARCKSP0304", "Error", "Unsupported @DerivedType declaration target"),
     INTEROP("ARCKSP0400", "Warning", "Java/Kotlin interoperability hazard"),
     INTERNAL("ARCKSP9999", "Error", "Unclassified Arc KSP diagnostic");
 
