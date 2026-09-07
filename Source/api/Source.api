@@ -1107,14 +1107,13 @@ public final class io/cratis/arc/metadata/CommandDescriptor {
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/util/List;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;Ljava/lang/Boolean;Ljava/lang/String;Ljava/lang/Boolean;Ljava/util/List;Ljava/lang/String;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;Z)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;ZLjava/lang/String;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;ZLjava/lang/String;Z)V
-	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;ZLjava/lang/String;ZLjava/lang/String;)V
-	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;ZLjava/lang/String;ZLjava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;ZLjava/lang/String;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;ZLjava/lang/String;ZLjava/util/List;)V
-	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;ZLjava/lang/String;ZLjava/util/List;Ljava/lang/String;)V
-	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;ZLjava/lang/String;ZLjava/util/List;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;ZLjava/lang/String;ZLjava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun getAuthorization ()Lio/cratis/arc/metadata/AuthorizationMetadata;
 	public final fun getExplicitPath ()Ljava/lang/String;
 	public final fun getLocation ()Ljava/util/List;
@@ -1206,9 +1205,9 @@ public final class io/cratis/arc/metadata/EnumDescriptor {
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/util/List;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/lang/Boolean;Ljava/lang/String;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Z)V
-	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/util/List;ZLjava/lang/String;)V
-	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/util/List;ZLjava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/util/List;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun getAllFlagsExpression ()Ljava/lang/String;
 	public final fun getFullyQualifiedName ()Ljava/lang/String;
 	public final fun getLocation ()Ljava/util/List;
@@ -1235,8 +1234,8 @@ public final class io/cratis/arc/metadata/InterfaceDescriptor {
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/util/List;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/lang/String;)V
-	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun getFullyQualifiedName ()Ljava/lang/String;
 	public final fun getLocation ()Ljava/util/List;
 	public final fun getName ()Ljava/lang/String;
@@ -1260,8 +1259,8 @@ public final class io/cratis/arc/metadata/ParameterDescriptor {
 	public fun <init> (Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;Lio/cratis/arc/metadata/QueryParameterSource;Z)V
 	public fun <init> (Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;Lio/cratis/arc/metadata/QueryParameterSource;ZLjava/util/List;)V
 	public fun <init> (Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;Lio/cratis/arc/metadata/QueryParameterSource;ZLjava/util/List;Z)V
+	public synthetic fun <init> (Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;Lio/cratis/arc/metadata/QueryParameterSource;ZLjava/util/List;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun <init> (Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;Lio/cratis/arc/metadata/QueryParameterSource;ZLjava/util/List;ZLjava/lang/String;)V
-	public synthetic fun <init> (Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;Lio/cratis/arc/metadata/QueryParameterSource;ZLjava/util/List;ZLjava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun <init> (Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;Z)V
 	public fun <init> (Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;ZLjava/util/List;)V
 	public fun <init> (Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;ZLjava/util/List;Z)V
@@ -1301,8 +1300,8 @@ public final class io/cratis/arc/metadata/PropertyDescriptor {
 	public fun <init> (Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;ZLjava/util/List;)V
 	public fun <init> (Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;ZLjava/util/List;Z)V
 	public fun <init> (Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;ZLjava/util/List;ZLjava/util/List;)V
+	public synthetic fun <init> (Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;ZLjava/util/List;ZLjava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun <init> (Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;ZLjava/util/List;ZLjava/util/List;Ljava/lang/String;)V
-	public synthetic fun <init> (Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;ZLjava/util/List;ZLjava/util/List;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Boolean;Ljava/lang/Boolean;Ljava/lang/Boolean;Ljava/lang/String;Ljava/util/List;Ljava/lang/Boolean;Ljava/util/List;Lio/cratis/arc/metadata/TypeShapeDescriptor;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Boolean;Ljava/lang/Boolean;Ljava/lang/Boolean;Ljava/lang/String;Ljava/util/List;Ljava/lang/Boolean;Ljava/util/List;Lio/cratis/arc/metadata/TypeShapeDescriptor;Ljava/lang/String;)V
@@ -1343,8 +1342,8 @@ public final class io/cratis/arc/metadata/QueryDescriptor {
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;Lio/cratis/arc/queries/QueryHttpMethodType;Lio/cratis/arc/queries/QueryTransportType;Z)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;Lio/cratis/arc/queries/QueryHttpMethodType;Lio/cratis/arc/queries/QueryTransportType;ZZ)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;Lio/cratis/arc/queries/QueryHttpMethodType;Lio/cratis/arc/queries/QueryTransportType;ZZZ)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;Lio/cratis/arc/queries/QueryHttpMethodType;Lio/cratis/arc/queries/QueryTransportType;ZZZILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;Lio/cratis/arc/queries/QueryHttpMethodType;Lio/cratis/arc/queries/QueryTransportType;ZZZLjava/lang/String;)V
-	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;Lio/cratis/arc/queries/QueryHttpMethodType;Lio/cratis/arc/queries/QueryTransportType;ZZZLjava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;)V
@@ -1360,8 +1359,8 @@ public final class io/cratis/arc/metadata/QueryDescriptor {
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;Lio/cratis/arc/queries/QueryHttpMethodType;Lio/cratis/arc/queries/QueryTransportType;ZZ)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;Lio/cratis/arc/queries/QueryHttpMethodType;Lio/cratis/arc/queries/QueryTransportType;ZZZ)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;Lio/cratis/arc/queries/QueryHttpMethodType;Lio/cratis/arc/queries/QueryTransportType;ZZZZ)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;Lio/cratis/arc/queries/QueryHttpMethodType;Lio/cratis/arc/queries/QueryTransportType;ZZZZILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;Lio/cratis/arc/queries/QueryHttpMethodType;Lio/cratis/arc/queries/QueryTransportType;ZZZZLjava/lang/String;)V
-	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;Lio/cratis/arc/queries/QueryHttpMethodType;Lio/cratis/arc/queries/QueryTransportType;ZZZZLjava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun getAuthorization ()Lio/cratis/arc/metadata/AuthorizationMetadata;
 	public final fun getDeclaringTypeName ()Ljava/lang/String;
 	public final fun getExplicitPath ()Ljava/lang/String;
@@ -1423,8 +1422,8 @@ public final class io/cratis/arc/metadata/TypeDescriptor {
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/util/List;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/lang/String;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
-	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun getBaseTypeName ()Ljava/lang/String;
 	public final fun getDerivedTypeId ()Ljava/lang/String;
 	public final fun getFullyQualifiedName ()Ljava/lang/String;

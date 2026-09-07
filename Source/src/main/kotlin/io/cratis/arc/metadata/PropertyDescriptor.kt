@@ -55,8 +55,7 @@ public class PropertyDescriptor @JvmOverloads constructor(
         isCommandKey: Boolean = false,
         validationRules: List<ValidationRuleDescriptor> = emptyList(),
         validateRecursively: Boolean = false,
-        derivatives: List<String> = emptyList(),
-        summary: String? = null
+        derivatives: List<String> = emptyList()
     ) : this(
         name,
         shape.compatibilityTypeName(),
@@ -69,6 +68,18 @@ public class PropertyDescriptor @JvmOverloads constructor(
         derivatives
     ) {
         shapeBacking = shape
+    }
+
+    /** Creates property metadata carrying a single-line source documentation summary. */
+    public constructor(
+        name: String,
+        shape: TypeShapeDescriptor,
+        isCommandKey: Boolean,
+        validationRules: List<ValidationRuleDescriptor>,
+        validateRecursively: Boolean,
+        derivatives: List<String>,
+        summary: String?
+    ) : this(name, shape, isCommandKey, validationRules, validateRecursively, derivatives) {
         summaryBacking = DocumentationSummaries.validate(summary, name)
     }
 

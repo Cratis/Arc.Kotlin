@@ -27,53 +27,19 @@ public class CommandDescriptor @JvmOverloads constructor(
     /** Fully qualified source name of the client-visible response type, when present. */
     responseTypeName: String? = null,
     /** Whether the client-visible response is a supported list, collection, or array. */
-    responseIsEnumerable: Boolean = false,
-    /** Single-line source documentation summary, or `null` when the command carries none. */
-    @get:JsonInclude(JsonInclude.Include.NON_NULL) public val summary: String? = null
+    responseIsEnumerable: Boolean = false
 ) {
     private val legacyResponseTypeName: String? = responseTypeName
     private val legacyResponseIsEnumerable: Boolean = responseIsEnumerable
     // Constructor-scoped mutation is required so the legacy primary constructor keeps its exact JVM descriptor.
     private var responseValuesBacking: List<CommandResponseValueDescriptor> = normalizeResponseValues(emptyList())
-
-    init {
-        DocumentationSummaries.validate(summary, typeName)
-    }
-
-    /** Preserves the Jackson creator descriptor used before source documentation metadata was added. */
-    public constructor(
-        name: String,
-        typeName: String,
-        properties: List<PropertyDescriptor>,
-        routeOptions: RouteOptions,
-        location: List<String>,
-        authorization: AuthorizationMetadata,
-        explicitPath: String?,
-        treatWarningsAsErrors: Boolean,
-        responseTypeName: String?,
-        responseIsEnumerable: Boolean,
-        responseValues: List<CommandResponseValueDescriptor>
-    ) : this(
-        name,
-        typeName,
-        properties,
-        routeOptions,
-        location,
-        authorization,
-        explicitPath,
-        treatWarningsAsErrors,
-        responseTypeName,
-        responseIsEnumerable,
-        responseValues,
-        null
-    )
+    private var summaryBacking: String? = null
 
     /**
      * Creates command metadata with explicitly classified response values.
      *
      * The empty default lets Jackson map legacy format-3 metadata, where the property is absent.
      */
-    @JsonCreator
     public constructor(
         name: String,
         typeName: String,
@@ -85,8 +51,7 @@ public class CommandDescriptor @JvmOverloads constructor(
         treatWarningsAsErrors: Boolean = false,
         responseTypeName: String? = null,
         responseIsEnumerable: Boolean = false,
-        responseValues: List<CommandResponseValueDescriptor> = emptyList(),
-        summary: String? = null
+        responseValues: List<CommandResponseValueDescriptor> = emptyList()
     ) : this(
         name,
         typeName,
@@ -97,11 +62,46 @@ public class CommandDescriptor @JvmOverloads constructor(
         explicitPath,
         treatWarningsAsErrors,
         responseTypeName,
-        responseIsEnumerable,
-        summary
+        responseIsEnumerable
     ) {
         responseValuesBacking = normalizeResponseValues(responseValues)
     }
+
+    /** Creates command metadata carrying a single-line source documentation summary. */
+    @JsonCreator
+    public constructor(
+        @JsonProperty("name") name: String,
+        @JsonProperty("typeName") typeName: String,
+        @JsonProperty("properties") properties: List<PropertyDescriptor>?,
+        @JsonProperty("routeOptions") routeOptions: RouteOptions?,
+        @JsonProperty("location") location: List<String>?,
+        @JsonProperty("authorization") authorization: AuthorizationMetadata?,
+        @JsonProperty("explicitPath") explicitPath: String?,
+        @JsonProperty("treatWarningsAsErrors") treatWarningsAsErrors: Boolean?,
+        @JsonProperty("responseTypeName") responseTypeName: String?,
+        @JsonProperty("responseIsEnumerable") responseIsEnumerable: Boolean?,
+        @JsonProperty("responseValues") responseValues: List<CommandResponseValueDescriptor>?,
+        @JsonProperty("summary") summary: String?
+    ) : this(
+        name,
+        typeName,
+        properties.orEmpty(),
+        routeOptions ?: RouteOptions(),
+        location ?: typeName.substringBeforeLast('.', "").split('.').filter(String::isNotBlank),
+        authorization ?: AuthorizationMetadata(),
+        explicitPath ?: routeOptions?.path,
+        treatWarningsAsErrors ?: false,
+        responseTypeName,
+        responseIsEnumerable ?: false,
+        responseValues.orEmpty()
+    ) {
+        summaryBacking = DocumentationSummaries.validate(summary, typeName)
+    }
+
+    /** Single-line source documentation summary, or `null` when the command carries none. */
+    @get:JsonInclude(JsonInclude.Include.NON_NULL)
+    public val summary: String?
+        get() = summaryBacking
 
     public companion object {
         /** Creates command metadata with explicitly classified response values. */

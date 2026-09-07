@@ -57,15 +57,11 @@ public class QueryDescriptor @JvmOverloads constructor(
     /** Whether warning validation results are blocking for this query. */
     public val treatWarningsAsErrors: Boolean = false,
     /** Whether database-owned sorting is supported. */
-    public val supportsSorting: Boolean = false,
-    /** Single-line source documentation summary, or `null` when the query carries none. */
-    @get:JsonInclude(JsonInclude.Include.NON_NULL) public val summary: String? = null
+    public val supportsSorting: Boolean = false
 ) {
     private var returnShapeBacking: TypeShapeDescriptor = legacyLeafShape(returnTypeName, false, isEnumerable)
-
-    init {
-        DocumentationSummaries.validate(summary, "$declaringTypeName.$name")
-    }
+    // Constructor-scoped mutation is required so the legacy primary constructor keeps its exact JVM descriptor.
+    private var summaryBacking: String? = null
 
     /** Creates query metadata from its canonical recursive return type shape. */
     @JvmOverloads
@@ -83,8 +79,7 @@ public class QueryDescriptor @JvmOverloads constructor(
         transport: QueryTransportType = routeOptions.transport,
         supportsPaging: Boolean = false,
         treatWarningsAsErrors: Boolean = false,
-        supportsSorting: Boolean = false,
-        summary: String? = null
+        supportsSorting: Boolean = false
     ) : this(
         name,
         declaringTypeName,
@@ -100,10 +95,83 @@ public class QueryDescriptor @JvmOverloads constructor(
         returnShape.kind == TypeShapeKind.SEQUENCE,
         supportsPaging,
         treatWarningsAsErrors,
-        supportsSorting,
-        summary
+        supportsSorting
     ) {
         returnShapeBacking = returnShape
+    }
+
+    /** Creates query metadata from its canonical return shape and a single-line source documentation summary. */
+    public constructor(
+        name: String,
+        declaringTypeName: String,
+        returnShape: TypeShapeDescriptor,
+        parameters: List<ParameterDescriptor>,
+        routeOptions: RouteOptions,
+        fullyQualifiedName: String,
+        location: List<String>,
+        authorization: AuthorizationMetadata,
+        explicitPath: String?,
+        queryHttpMethod: QueryHttpMethodType,
+        transport: QueryTransportType,
+        supportsPaging: Boolean,
+        treatWarningsAsErrors: Boolean,
+        supportsSorting: Boolean,
+        summary: String?
+    ) : this(
+        name,
+        declaringTypeName,
+        returnShape,
+        parameters,
+        routeOptions,
+        fullyQualifiedName,
+        location,
+        authorization,
+        explicitPath,
+        queryHttpMethod,
+        transport,
+        supportsPaging,
+        treatWarningsAsErrors,
+        supportsSorting
+    ) {
+        summaryBacking = DocumentationSummaries.validate(summary, fullyQualifiedName)
+    }
+
+    /** Creates query metadata from legacy flat return metadata and a single-line source documentation summary. */
+    public constructor(
+        name: String,
+        declaringTypeName: String,
+        returnTypeName: String,
+        parameters: List<ParameterDescriptor>,
+        routeOptions: RouteOptions,
+        fullyQualifiedName: String,
+        location: List<String>,
+        authorization: AuthorizationMetadata,
+        explicitPath: String?,
+        queryHttpMethod: QueryHttpMethodType,
+        transport: QueryTransportType,
+        isEnumerable: Boolean,
+        supportsPaging: Boolean,
+        treatWarningsAsErrors: Boolean,
+        supportsSorting: Boolean,
+        summary: String?
+    ) : this(
+        name,
+        declaringTypeName,
+        returnTypeName,
+        parameters,
+        routeOptions,
+        fullyQualifiedName,
+        location,
+        authorization,
+        explicitPath,
+        queryHttpMethod,
+        transport,
+        isEnumerable,
+        supportsPaging,
+        treatWarningsAsErrors,
+        supportsSorting
+    ) {
+        summaryBacking = DocumentationSummaries.validate(summary, fullyQualifiedName)
     }
 
     /** Preserves the Jackson creator descriptor used before source documentation metadata was added. */
@@ -181,6 +249,11 @@ public class QueryDescriptor @JvmOverloads constructor(
         supportsSorting ?: false,
         summary
     )
+
+    /** Single-line source documentation summary, or `null` when the query carries none. */
+    @get:JsonInclude(JsonInclude.Include.NON_NULL)
+    public val summary: String?
+        get() = summaryBacking
 
     /** Canonical recursive query return metadata. */
     @get:JsonProperty("returnShape")

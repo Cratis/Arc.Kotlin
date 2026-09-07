@@ -95,10 +95,21 @@ public class ParameterDescriptor @JvmOverloads constructor(
         source: QueryParameterSource,
         hasDefault: Boolean,
         validationRules: List<ValidationRuleDescriptor> = emptyList(),
-        validateRecursively: Boolean = false,
-        summary: String? = null
+        validateRecursively: Boolean = false
     ) : this(name, shape, source, validationRules, validateRecursively) {
         hasDefaultBacking = requireValidParameterDefault(source, hasDefault)
+    }
+
+    /** Creates parameter metadata carrying a single-line source documentation summary. */
+    public constructor(
+        name: String,
+        shape: TypeShapeDescriptor,
+        source: QueryParameterSource,
+        hasDefault: Boolean,
+        validationRules: List<ValidationRuleDescriptor>,
+        validateRecursively: Boolean,
+        summary: String?
+    ) : this(name, shape, source, hasDefault, validationRules, validateRecursively) {
         summaryBacking = DocumentationSummaries.validate(summary, name)
     }
 

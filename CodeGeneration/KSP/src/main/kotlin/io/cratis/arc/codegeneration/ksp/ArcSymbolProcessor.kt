@@ -1686,12 +1686,13 @@ $resolver        $body
             "emptyList()"
         } else {
             command.properties.joinToString(",\n", "listOf(\n", "\n        )") { property ->
+                val derivatives = property.derivatives.joinToString(", ") { derivative -> quote(derivative) }
                 "            io.cratis.arc.metadata.PropertyDescriptor(" +
                     "name = ${quote(property.name)}, shape = ${renderTypeShape(property.shape)}, " +
                     "isCommandKey = ${property.isCommandKey}, " +
                     "validationRules = ${renderValidationRules(property.validationRules)}, " +
                     "validateRecursively = ${property.validateRecursively}, " +
-                    "summary = ${quoteOrNull(property.summary)})"
+                    "derivatives = listOf($derivatives), summary = ${quoteOrNull(property.summary)})"
             }
         }
         val location = command.qualifiedName.substringBeforeLast('.', "")
@@ -1727,6 +1728,7 @@ public class ${command.handlerClassName} : io.cratis.arc.commands.CommandHandler
         name = ${quote(command.simpleName)},
         typeName = ${quote(command.qualifiedName)},
         properties = $properties,
+        routeOptions = io.cratis.arc.metadata.RouteOptions(),
         location = listOf($location),
         authorization = io.cratis.arc.metadata.AuthorizationMetadata(
             allowAnonymous = ${command.authorization.allowAnonymous},
@@ -1734,6 +1736,7 @@ public class ${command.handlerClassName} : io.cratis.arc.commands.CommandHandler
             roles = listOf($roles),
             schemes = listOf($schemes)
         ),
+        explicitPath = null,
         treatWarningsAsErrors = ${command.treatWarningsAsErrors},
         responseTypeName = $responseTypeName,
         responseIsEnumerable = ${command.responseIsEnumerable},
@@ -2157,8 +2160,10 @@ public class $className : io.cratis.arc.artifacts.ArcArtifactModule(
         name = command.simpleName,
         typeName = command.qualifiedName,
         properties = command.properties.map(::toPropertyDescriptor),
+        routeOptions = RouteOptions(),
         location = command.qualifiedName.substringBeforeLast('.', "").split('.').filter(String::isNotBlank),
         authorization = command.authorization.toDescriptor(),
+        explicitPath = null,
         treatWarningsAsErrors = command.treatWarningsAsErrors,
         responseTypeName = command.responseTypeName,
         responseIsEnumerable = command.responseIsEnumerable,
