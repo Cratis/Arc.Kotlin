@@ -32,8 +32,18 @@ public sealed interface AsyncObservableQueryOpenResult {
     /** Opening was rejected before a stream was created. */
     public class Failure(public val result: QueryResult<*>) : AsyncObservableQueryOpenResult
 
-    /** Successfully opened demand-aware result stream. */
-    public class Stream(public val results: JdkFlow.Publisher<QueryResult<*>>) : AsyncObservableQueryOpenResult
+    /**
+     * Successfully opened demand-aware result stream.
+     *
+     * @property results The demand-aware publisher of every result the subscription produces.
+     * @property snapshot A publisher of the single value the source already holds, or `null` when the source
+     * has no current value and a caller must wait for the first one. It never waits for a new value, and
+     * completes without a result when an emission guard withholds the current one.
+     */
+    public class Stream @JvmOverloads constructor(
+        public val results: JdkFlow.Publisher<QueryResult<*>>,
+        public val snapshot: JdkFlow.Publisher<QueryResult<*>>? = null
+    ) : AsyncObservableQueryOpenResult
 }
 
 /** CompletionStage and JDK Flow bridge for Arc's observable query pipeline. */
@@ -69,7 +79,8 @@ public class AsyncObservableQueryPipeline internal constructor(
         when (val opened = pipeline.open(request, options, transferMode, extractor)) {
             is ObservableQueryOpenResult.Failure -> AsyncObservableQueryOpenResult.Failure(opened.result)
             is ObservableQueryOpenResult.Stream -> AsyncObservableQueryOpenResult.Stream(
-                CoroutineFlowPublisher(opened.results, coroutineScope)
+                CoroutineFlowPublisher(opened.results, coroutineScope),
+                opened.snapshot?.let { snapshot -> CoroutineFlowPublisher(snapshot, coroutineScope) }
             )
         }
     }

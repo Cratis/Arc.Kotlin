@@ -39,10 +39,14 @@ import java.util.concurrent.Flow;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import kotlinx.coroutines.flow.MutableStateFlow;
+import kotlinx.coroutines.flow.StateFlowKt;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 final class JavaObservableAdaptersTest {
@@ -67,6 +71,7 @@ final class JavaObservableAdaptersTest {
                 new QueryRequest(QUERY_NAME), options(), ObservableQueryTransferMode.FULL, value -> value)
                 .toCompletableFuture().join();
             AsyncObservableQueryOpenResult.Stream stream = (AsyncObservableQueryOpenResult.Stream) opened;
+            assertNull(stream.getSnapshot());
             RecordingSubscriber<QueryResult<?>> subscriber = new RecordingSubscriber<>();
             stream.getResults().subscribe(subscriber);
 
@@ -85,6 +90,33 @@ final class JavaObservableAdaptersTest {
             assertTrue(upstream.cancelledLatch.await(2, TimeUnit.SECONDS));
         }
         assertTrue(executor.isShutdown());
+    }
+
+    @Test
+    void stateFlowSourcesExposeAnImmediateSnapshotPublisher() throws Exception {
+        MutableStateFlow<List<String>> source = StateFlowKt.MutableStateFlow(List.of("one"));
+        ConcurrentQueryPerformerRegistry performers = new ConcurrentQueryPerformerRegistry();
+        performers.register(new BlockingQueryPerformerAdapter(new BlockingQueryPerformer() {
+            @Override public QueryDescriptor getDescriptor() { return observableDescriptor(); }
+            @Override public FullyQualifiedQueryName getFullyQualifiedName() { return QUERY_NAME; }
+            @Override public Object perform(io.cratis.arc.queries.QueryContext context) { return source; }
+        }));
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try (JavaAsyncScope scope = JavaAsyncScope.owningExecutorService(executor)) {
+            AsyncObservableQueryOpenResult opened = scope.observableQueries(new DefaultObservableQueryPipeline(performers))
+                .open(new QueryRequest(QUERY_NAME), options())
+                .toCompletableFuture().join();
+            AsyncObservableQueryOpenResult.Stream stream = (AsyncObservableQueryOpenResult.Stream) opened;
+            assertNotNull(stream.getSnapshot());
+
+            RecordingSubscriber<QueryResult<?>> subscriber = new RecordingSubscriber<>();
+            stream.getSnapshot().subscribe(subscriber);
+            subscriber.subscription.request(1);
+            assertTrue(subscriber.firstValue.await(2, TimeUnit.SECONDS));
+            assertTrue(subscriber.completed.await(2, TimeUnit.SECONDS));
+            assertEquals(1, subscriber.values.size());
+            assertEquals(List.of("one"), subscriber.values.get(0).getData());
+        }
     }
 
     @Test
@@ -153,12 +185,13 @@ final class JavaObservableAdaptersTest {
     private static final class RecordingSubscriber<T> implements Flow.Subscriber<T> {
         private final List<T> values = Collections.synchronizedList(new ArrayList<>());
         private final CountDownLatch firstValue = new CountDownLatch(1);
+        private final CountDownLatch completed = new CountDownLatch(1);
         private Flow.Subscription subscription;
 
         @Override public void onSubscribe(Flow.Subscription value) { subscription = value; }
         @Override public void onNext(T value) { values.add(value); firstValue.countDown(); }
         @Override public void onError(Throwable throwable) { throw new AssertionError(throwable); }
-        @Override public void onComplete() { }
+        @Override public void onComplete() { completed.countDown(); }
     }
 
     private static final class RecordingPublisher<T> implements Flow.Publisher<T> {
