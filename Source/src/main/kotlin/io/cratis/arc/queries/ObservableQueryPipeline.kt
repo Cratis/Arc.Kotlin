@@ -23,11 +23,18 @@ public sealed interface ObservableQueryOpenResult {
 
 /** Host-neutral observable-query execution pipeline. */
 public interface ObservableQueryPipeline {
-    /** Opens an observable query using only explicit request context. */
+    /**
+     * Opens an observable query using only explicit request context.
+     *
+     * Pass `null` as the transfer mode when a subscriber did not ask for one. That selects the legacy
+     * behavior: every emission carries the complete snapshot and a change set describing what moved since
+     * the previous delivered one. Transports that do not let a subscriber express a mode keep the
+     * [ObservableQueryTransferMode.FULL] default.
+     */
     public suspend fun open(
         request: QueryRequest,
         options: QueryExecutionOptions,
-        transferMode: ObservableQueryTransferMode = ObservableQueryTransferMode.FULL,
+        transferMode: ObservableQueryTransferMode? = ObservableQueryTransferMode.FULL,
         keyExtractor: ((Any) -> Any?)? = null
     ): ObservableQueryOpenResult
 }
@@ -46,7 +53,7 @@ public class DefaultObservableQueryPipeline @JvmOverloads constructor(
     override suspend fun open(
         request: QueryRequest,
         options: QueryExecutionOptions,
-        transferMode: ObservableQueryTransferMode,
+        transferMode: ObservableQueryTransferMode?,
         keyExtractor: ((Any) -> Any?)?
     ): ObservableQueryOpenResult {
         val performer = performers.find(request.queryName)
@@ -120,11 +127,21 @@ public class DefaultObservableQueryPipeline @JvmOverloads constructor(
                         ObservableQueryEmissionVerdict.ALLOW -> Unit
                     }
                     val current = wrapped.data as? List<*>
-                    if (transferMode == ObservableQueryTransferMode.DELTA && previous != null && current != null) {
-                        val changeSet = changeSets.compute(previous, current, keyExtractor)
-                        if (changeSet != null) emit(wrapped.copyPayload(null, resultChangeSet = changeSet)) else emit(wrapped)
-                    } else {
-                        emit(wrapped)
+                    val changeSet = when {
+                        current == null -> null
+                        // Delta withholds the change set on the first emission, which carries the full snapshot.
+                        transferMode == ObservableQueryTransferMode.DELTA -> previous?.let {
+                            changeSets.compute(it, current, keyExtractor)
+                        }
+                        // An omitted mode is the legacy contract: snapshot and change set on every emission.
+                        transferMode == null -> changeSets.compute(previous, current, keyExtractor)
+                        else -> null
+                    }
+                    when {
+                        changeSet == null -> emit(wrapped)
+                        transferMode == ObservableQueryTransferMode.DELTA ->
+                            emit(wrapped.copyPayload(null, resultChangeSet = changeSet))
+                        else -> emit(wrapped.copyPayload(wrapped.data, resultChangeSet = changeSet))
                     }
                     if (current != null) previous = java.util.Collections.unmodifiableList(ArrayList(current))
                 }

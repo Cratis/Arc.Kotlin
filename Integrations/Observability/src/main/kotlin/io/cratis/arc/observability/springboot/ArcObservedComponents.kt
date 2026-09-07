@@ -95,7 +95,7 @@ internal class ObservedObservableQueryPipeline(
     override suspend fun open(
         request: QueryRequest,
         options: QueryExecutionOptions,
-        transferMode: ObservableQueryTransferMode,
+        transferMode: ObservableQueryTransferMode?,
         keyExtractor: ((Any) -> Any?)?
     ): ObservableQueryOpenResult {
         val query = request.queryName.value

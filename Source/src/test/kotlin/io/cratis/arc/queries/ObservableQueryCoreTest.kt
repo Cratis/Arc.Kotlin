@@ -51,6 +51,38 @@ internal class ObservableQueryCoreTest {
     }
 
     @Test
+    fun `an omitted transfer mode keeps the legacy snapshot and change set`() = runBlocking {
+        val registry = ConcurrentQueryPerformerRegistry()
+        registry.register(performer(flowOf(listOf(Item(1, "one")), listOf(Item(1, "two"), Item(2, "two")))))
+        val opened = DefaultObservableQueryPipeline(registry).open(request(), options(), null)
+        val emissions = (opened as ObservableQueryOpenResult.Stream).results.toList()
+
+        assertEquals(listOf(Item(1, "one")), emissions[0].data)
+        assertEquals(listOf(Item(1, "one")), emissions[0].changeSet!!.added)
+        assertEquals(emptyList<Item>(), emissions[0].changeSet!!.replaced)
+        assertEquals(emptyList<Item>(), emissions[0].changeSet!!.removed)
+
+        assertEquals(listOf(Item(1, "two"), Item(2, "two")), emissions[1].data)
+        assertEquals(listOf(Item(2, "two")), emissions[1].changeSet!!.added)
+        assertEquals(listOf(Item(1, "two")), emissions[1].changeSet!!.replaced)
+        assertEquals(emptyList<Item>(), emissions[1].changeSet!!.removed)
+    }
+
+    @Test
+    fun `an explicit full transfer mode never sends a change set`() = runBlocking {
+        val registry = ConcurrentQueryPerformerRegistry()
+        registry.register(performer(flowOf(listOf(Item(1, "one")), listOf(Item(1, "two"), Item(2, "two")))))
+        val opened = DefaultObservableQueryPipeline(registry)
+            .open(request(), options(), ObservableQueryTransferMode.FULL)
+        val emissions = (opened as ObservableQueryOpenResult.Stream).results.toList()
+
+        assertEquals(listOf(Item(1, "one")), emissions[0].data)
+        assertNull(emissions[0].changeSet)
+        assertEquals(listOf(Item(1, "two"), Item(2, "two")), emissions[1].data)
+        assertNull(emissions[1].changeSet)
+    }
+
+    @Test
     fun `missing stable identity falls back to full snapshot`() = runBlocking {
         val registry = ConcurrentQueryPerformerRegistry()
         registry.register(performer(flowOf(listOf(NoId("one")), listOf(NoId("two")))))
