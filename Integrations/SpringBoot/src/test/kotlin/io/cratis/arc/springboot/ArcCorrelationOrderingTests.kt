@@ -98,10 +98,15 @@ internal class ArcCorrelationOrderingTests {
             AuthenticationResult.ANONYMOUS
         }
 
-        /** Records the correlation the earliest filter inside Spring Security's chain observes. */
+        /**
+         * Records the correlation the earliest filter inside Spring Security's chain observes.
+         *
+         * CSRF protection stays on; the Arc command route is exempted the way an application hosting
+         * a token-authenticated API would exempt it, so the ordering test can POST without a token.
+         */
         @Bean
         fun securityFilterChain(http: HttpSecurity): SecurityFilterChain = http
-            .csrf { csrf -> csrf.disable() }
+            .csrf { csrf -> csrf.ignoringRequestMatchers(ARC_ROUTE) }
             .authorizeHttpRequests { requests -> requests.anyRequest().permitAll() }
             .addFilterBefore(ObservingFilter(), SecurityContextHolderFilter::class.java)
             .build()
@@ -121,8 +126,6 @@ internal class ArcCorrelationOrderingTests {
             var authenticationCorrelation: String? = null
         }
     }
-
-    private companion object {
-        const val ARC_ROUTE = "/api/fixtures/java-fixture-command"
-    }
 }
+
+private const val ARC_ROUTE = "/api/fixtures/java-fixture-command"
