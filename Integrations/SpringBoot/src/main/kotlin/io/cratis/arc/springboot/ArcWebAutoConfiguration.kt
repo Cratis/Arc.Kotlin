@@ -12,6 +12,7 @@ import io.cratis.arc.commands.CommandHandler
 import io.cratis.arc.commands.CommandHandlerRegistry
 import io.cratis.arc.commands.CommandPipeline
 import io.cratis.arc.commands.ServiceResolver
+import io.cratis.arc.correlation.CorrelationIdResolver
 import io.cratis.arc.http.ArcHttpStatusMapper
 import io.cratis.arc.identity.AsyncIdentityDetailsProvider
 import io.cratis.arc.identity.AsyncUsersProvider
@@ -429,10 +430,7 @@ private class ArcQueryHealthHttpRequestHandler(
     private val properties: ArcProperties
 ) : HttpRequestHandler {
     override fun handleRequest(request: HttpServletRequest, response: HttpServletResponse) {
-        val correlationId = request.getHeader(properties.correlationHeader)
-            ?.trim()
-            ?.let { runCatching { UUID.fromString(it) }.getOrNull() }
-            ?: UUID.randomUUID()
+        val correlationId = CorrelationIdResolver.resolveOrCreate(request.getHeader(properties.correlationHeader))
         response.setHeader(properties.correlationHeader, correlationId.toString())
         if (request.method.equals("QUERY", ignoreCase = true)) response.setHeader("Cache-Control", "no-store")
         response.contentType = MediaType.APPLICATION_JSON_VALUE
@@ -477,7 +475,7 @@ private class ArcCommandHttpRequestHandler(
             return
         }
 
-        val correlationId = parseCorrelationId(request.getHeader(properties.correlationHeader))
+        val correlationId = CorrelationIdResolver.resolveOrCreate(request.getHeader(properties.correlationHeader))
         prepareResponse(response, correlationId)
         if (!request.isAsyncSupported) {
             writeResult(
@@ -629,7 +627,7 @@ private class ArcCommandHttpRequestHandler(
         val concurrentResult = asyncManager.concurrentResult
         val correlationId = (concurrentResult as? HostedCommandResult)?.result?.correlationId
             ?: asyncManager.concurrentResultContext?.firstOrNull() as? UUID
-            ?: parseCorrelationId(request.getHeader(properties.correlationHeader))
+            ?: CorrelationIdResolver.resolveOrCreate(request.getHeader(properties.correlationHeader))
         asyncManager.clearConcurrentResult()
         val hostedResult = when (concurrentResult) {
             is HostedCommandResult -> concurrentResult
@@ -705,11 +703,6 @@ private class ArcCommandHttpRequestHandler(
     private companion object {
         const val ALLOWED_SEVERITY_HEADER = "X-Allowed-Severity"
         val logger = LoggerFactory.getLogger(ArcCommandHttpRequestHandler::class.java)
-
-        fun parseCorrelationId(value: String?): UUID = value
-            ?.trim()
-            ?.let { runCatching { UUID.fromString(it) }.getOrNull() }
-            ?: UUID.randomUUID()
 
         fun overloaded(correlationId: UUID): CommandResult<*> = CommandResult.invalid(
             correlationId,
