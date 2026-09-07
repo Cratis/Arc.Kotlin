@@ -4,6 +4,18 @@
 
 Arc.Kotlin is a framework/library repository for Kotlin and Java applications on Spring Boot. It is not an event-sourced application repository: do not apply C# conventions, application vertical-slice layouts, or Chronicle event-modeling rules to this codebase.
 
+## Detailed instructions
+
+This file is the short authoritative contract. The depth behind it lives in `.ai/`:
+
+- `.ai/rules/general.md` — the hub: philosophy, authority levels, quality gates, definition of done.
+- `.ai/rules/` — invariants for Kotlin, Java, interoperability, Gradle, testing, KSP, generated
+  proxies, Spring Boot, Arc .NET parity, documentation, and git.
+- `.ai/skills/` — step-by-step workflows.
+- `.ai/README.md` — what the corpus is, who owns it, and how assistants discover it.
+
+If a rule file ever disagrees with this file, this file wins and the rule file is the stale artifact.
+
 ## Platform and compatibility
 
 - Target JDK 17 and Gradle 8.13.
