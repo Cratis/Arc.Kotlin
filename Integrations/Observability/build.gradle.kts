@@ -9,9 +9,9 @@ plugins {
 }
 
 val springBootVersion = "3.5.3"
-val micrometerVersion = "1.15.1"
-val openTelemetryVersion = "1.49.0"
-val slf4jVersion = "2.0.17"
+val micrometerVersion = "1.17.1"
+val openTelemetryVersion = "1.65.0"
+val slf4jVersion = "2.0.18"
 
 dependencies {
     api(project(":Source"))

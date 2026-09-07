@@ -7,10 +7,10 @@ plugins {
     id("com.vanniktech.maven.publish")
 }
 
-val jacksonVersion = "2.18.2"
-val coroutinesVersion = "1.9.0"
+val jacksonVersion = "2.22.2"
+val coroutinesVersion = "1.11.0"
 val jakartaValidationVersion = "3.1.1"
-val slf4jVersion = "2.0.16"
+val slf4jVersion = "2.0.18"
 
 kotlin {
     compilerOptions {
@@ -19,7 +19,7 @@ kotlin {
 }
 
 dependencies {
-    api("org.jetbrains.kotlin:kotlin-reflect:2.1.0")
+    api("org.jetbrains.kotlin:kotlin-reflect:2.4.10")
     api("jakarta.validation:jakarta.validation-api:$jakartaValidationVersion")
     api("com.fasterxml.jackson.core:jackson-databind:$jacksonVersion")
     api("com.fasterxml.jackson.module:jackson-module-kotlin:$jacksonVersion")
