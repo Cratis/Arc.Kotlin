@@ -163,6 +163,37 @@ internal class ArcAuthenticationHostingTests {
     }
 
     @Test
+    fun `query health requires authentication and denies anonymous access`() {
+        val anonymous = send("GET", QUERY_HEALTH_ROUTE)
+        assertEquals(401, anonymous.statusCode())
+        assertEquals("Unauthorized", anonymous.body())
+
+        val anonymousRfcQuery = send(
+            "QUERY",
+            QUERY_HEALTH_ROUTE,
+            body = """{"arguments":{},"paging":{},"sorting":{}}"""
+        )
+        assertEquals(401, anonymousRfcQuery.statusCode())
+        assertEquals("Unauthorized", anonymousRfcQuery.body())
+
+        val rejectedCredentials = send("GET", QUERY_HEALTH_ROUTE, "Bearer invalid")
+        assertEquals(401, rejectedCredentials.statusCode())
+        assertEquals("Unauthorized", rejectedCredentials.body())
+
+        val authenticated = send("GET", QUERY_HEALTH_ROUTE, "Bearer good")
+        assertEquals(200, authenticated.statusCode())
+        assertEquals(0, objectMapper.readTree(authenticated.body()).path("data").path("totalConnections").intValue())
+
+        val authenticatedRfcQuery = send(
+            "QUERY",
+            QUERY_HEALTH_ROUTE,
+            authorization = "Bearer good",
+            body = """{"arguments":{},"paging":{},"sorting":{}}"""
+        )
+        assertEquals(200, authenticatedRfcQuery.statusCode())
+    }
+
+    @Test
     fun `identity cache cookie is never supplied as an authentication credential`() {
         val initial = mockMvc.perform(
             post(SECURED_ROUTE)
@@ -241,6 +272,7 @@ internal class ArcAuthenticationHostingTests {
         const val ANONYMOUS_ROUTE = "/api/fixtures/java-fixture-command"
         const val PROTECTED_COMMAND_ROUTE = "/api/mixed/protected-mixed-command"
         const val ANONYMOUS_COMMAND_ROUTE = "/api/mixed/anonymous-mixed-command"
+        const val QUERY_HEALTH_ROUTE = "/.cratis/queries/health"
     }
 }
 
