@@ -77,7 +77,7 @@ Register `InterceptReadModel<T>` beans for ordered, per-model interception after
 
 Java Core extensions do not require coroutine types at implementation boundaries. `BlockingQueryFilter`/`AsyncQueryFilter`, authorization-filter, validator, and manual performer adapters bridge synchronous or `CompletionStage` code; manual performers returning JDK `Flow.Publisher` are adapted to Kotlin `Flow`. `JavaAsyncScope.observableQueries(...)` exposes a cancellable `CompletionStage` open operation and a demand-aware JDK publisher, while `queryHealth(...)` exposes health snapshots the same way.
 
-Register `GuardObservableQueryEmission` beans when authorization or another condition must be rechecked for every emission. A denied emission produces an unauthorized terminal result and cancels the subscription. The guard context includes the performer, principal, tenant ID, tenant namespace, arguments, and current data.
+Register `GuardObservableQueryEmission` beans when authorization or another condition must be rechecked for every emission. A denied emission produces an unauthorized terminal result and cancels the subscription. A suppressed emission is withheld from the subscriber and leaves the subscription open. The guard context includes the performer, principal, tenant ID, tenant namespace, arguments, current data, and whether this would be the first emission delivered to the subscriber. Suppressed emissions are not deliveries, so `isFirstEmission` stays true until one is delivered, and `delta` transfer sends that first delivered emission as a full snapshot.
 
 ## Inspect observable health
 

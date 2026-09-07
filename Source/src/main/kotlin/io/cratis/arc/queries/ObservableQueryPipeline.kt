@@ -90,11 +90,14 @@ public class DefaultObservableQueryPipeline @JvmOverloads constructor(
         val paging = PagingInfo(request.paging.page, request.paging.pageSize, 0)
         val results = flow<QueryResult<*>> {
             var previous: List<*>? = null
-            var isFirstEmission = true
+            var hasDeliveredEmission = false
             try {
                 upstream.collect { value ->
                     val wrapped = wrapEmission(filterResult, value, context, paging)
                         .filterValidation(options.allowedValidationSeverity)
+                    // First-delivery status belongs to the emission the subscriber actually receives. A guard that
+                    // withholds an emission must therefore leave it intact, so the next delivered emission is still
+                    // announced as the first one and the delta baseline below still starts from what was delivered.
                     val verdict = if (emissionGuards.hasGuards) {
                         emissionGuards.guard(ObservableQueryEmissionContext(
                             request.queryName,
@@ -104,13 +107,12 @@ public class DefaultObservableQueryPipeline @JvmOverloads constructor(
                             options.tenantNamespace,
                             options.correlationId,
                             options.serviceResolver,
-                            isFirstEmission,
+                            !hasDeliveredEmission,
                             wrapped.data
                         ))
                     } else {
                         ObservableQueryEmissionVerdict.ALLOW
                     }
-                    isFirstEmission = false
                     when (verdict) {
                         ObservableQueryEmissionVerdict.SUPPRESS -> return@collect
                         ObservableQueryEmissionVerdict.DENY_AND_TERMINATE -> {
@@ -127,6 +129,7 @@ public class DefaultObservableQueryPipeline @JvmOverloads constructor(
                         emit(wrapped)
                     }
                     if (current != null) previous = java.util.Collections.unmodifiableList(ArrayList(current))
+                    hasDeliveredEmission = true
                 }
             } catch (_: ObservableQueryTerminatedException) {
                 // Guard denial is a normal terminal outcome already represented by the unauthorized result.

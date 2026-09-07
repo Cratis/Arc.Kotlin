@@ -14,10 +14,16 @@ import io.cratis.arc.java.BlockingQueryPerformerAdapter;
 import io.cratis.arc.java.JavaAsyncScope;
 import io.cratis.arc.metadata.QueryDescriptor;
 import io.cratis.arc.metadata.RouteOptions;
+import io.cratis.arc.queries.BlockingObservableQueryEmissionGuard;
+import io.cratis.arc.queries.ChangeSetComputer;
 import io.cratis.arc.queries.ConcurrentQueryPerformerRegistry;
+import io.cratis.arc.queries.DefaultObservableQueryEmissionGuards;
 import io.cratis.arc.queries.DefaultObservableQueryPipeline;
 import io.cratis.arc.queries.DefaultQueryHealthTracker;
+import io.cratis.arc.queries.DefaultQueryRenderers;
+import io.cratis.arc.queries.DefaultReadModelInterceptors;
 import io.cratis.arc.queries.FullyQualifiedQueryName;
+import io.cratis.arc.queries.ObservableQueryEmissionVerdict;
 import io.cratis.arc.queries.ObservableQueryTransferMode;
 import io.cratis.arc.queries.QueryExecutionOptions;
 import io.cratis.arc.queries.QueryRequest;
@@ -85,6 +91,52 @@ final class JavaObservableAdaptersTest {
             assertTrue(upstream.cancelledLatch.await(2, TimeUnit.SECONDS));
         }
         assertTrue(executor.isShutdown());
+    }
+
+    @Test
+    void suppressedEmissionsLeaveFirstDeliveryToTheNextDeliveredEmission() throws Exception {
+        List<Boolean> observed = Collections.synchronizedList(new ArrayList<>());
+        RecordingPublisher<List<String>> upstream = new RecordingPublisher<>();
+        ConcurrentQueryPerformerRegistry performers = new ConcurrentQueryPerformerRegistry();
+        performers.register(new BlockingQueryPerformerAdapter(new BlockingQueryPerformer() {
+            @Override public QueryDescriptor getDescriptor() { return observableDescriptor(); }
+            @Override public FullyQualifiedQueryName getFullyQualifiedName() { return QUERY_NAME; }
+            @Override public Object perform(io.cratis.arc.queries.QueryContext context) { return upstream; }
+        }));
+        BlockingObservableQueryEmissionGuard guard = context -> {
+            observed.add(context.isFirstEmission());
+            return List.of("delivered").equals(context.getData())
+                ? ObservableQueryEmissionVerdict.ALLOW
+                : ObservableQueryEmissionVerdict.SUPPRESS;
+        };
+        DefaultObservableQueryPipeline pipeline = new DefaultObservableQueryPipeline(
+            performers,
+            List.of(),
+            new ChangeSetComputer(),
+            new DefaultQueryRenderers(),
+            new DefaultReadModelInterceptors(),
+            new DefaultObservableQueryEmissionGuards(List.of(guard)));
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try (JavaAsyncScope scope = JavaAsyncScope.owningExecutorService(executor)) {
+            AsyncObservableQueryOpenResult opened = scope.observableQueries(pipeline)
+                .open(new QueryRequest(QUERY_NAME), options(), ObservableQueryTransferMode.DELTA, value -> value)
+                .toCompletableFuture().join();
+            RecordingSubscriber<QueryResult<?>> subscriber = new RecordingSubscriber<>();
+            ((AsyncObservableQueryOpenResult.Stream) opened).getResults().subscribe(subscriber);
+
+            subscriber.subscription.request(1);
+            assertTrue(upstream.subscribedLatch.await(2, TimeUnit.SECONDS));
+            upstream.emit(List.of("suppressed-one"));
+            upstream.emit(List.of("suppressed-two"));
+            upstream.emit(List.of("delivered"));
+            assertTrue(subscriber.firstValue.await(2, TimeUnit.SECONDS));
+
+            assertEquals(List.of(true, true, true), observed);
+            assertEquals(1, subscriber.values.size());
+            assertEquals(List.of("delivered"), subscriber.values.get(0).getData());
+
+            subscriber.subscription.cancel();
+        }
     }
 
     @Test
