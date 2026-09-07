@@ -6,8 +6,6 @@ package io.cratis.arc.samples.kotlin.chronicle
 import io.cratis.arc.artifacts.ArcArtifactModule
 import io.cratis.arc.chronicle.chronicle
 import io.cratis.arc.generated.KotlinChronicleSpringBootSampleArcArtifactModule
-import io.cratis.arc.queries.BlockingReadModelForCommandResolver
-import io.cratis.arc.queries.ReadModelForCommandOwnership
 import io.cratis.arc.results.ValidationResultReasons
 import io.cratis.arc.testing.CommandScenario
 import io.cratis.arc.testing.QueryScenario
@@ -39,7 +37,7 @@ public class KotlinChronicleContractsTests {
     public fun `rename injects current model and constructs an exact scope`() = runBlocking {
         val current = TaskView("task-1", "Tenant-local title", 7)
         val scenario = CommandScenario(module, RenameTask::class.java)
-            .addReadModelResolver(FixedTaskViewResolver(current))
+            .withReadModelForKey(TaskView::class.java, "task-1", current)
             .withTenant("tenant-a")
 
         scenario.execute(RenameTask("task-1", "Renamed title", 7))
@@ -55,7 +53,7 @@ public class KotlinChronicleContractsTests {
     @Test
     public fun `missing current model is dependency unavailable and appends nothing`() = runBlocking {
         val scenario = CommandScenario(module, RenameTask::class.java)
-            .addReadModelResolver(FixedTaskViewResolver(null))
+            .withReadModel(TaskView::class.java, null)
             .withTenant("tenant-a")
 
         val result = scenario.execute(RenameTask("missing", "Renamed title", 0))
@@ -89,16 +87,6 @@ public class KotlinChronicleContractsTests {
             .shouldHaveData(listOf(expected))
 
         assertEquals(listOf("tenant-a:task-1", "tenant-a:*"), reader.calls)
-    }
-
-    private class FixedTaskViewResolver(private val value: TaskView?) : BlockingReadModelForCommandResolver {
-        override fun readModelTypes(): Set<Class<*>> = setOf(TaskView::class.java)
-        override fun ownership(): ReadModelForCommandOwnership = ReadModelForCommandOwnership.DECLARED
-        override fun resolveBlocking(
-            readModelType: Class<*>,
-            commandContext: io.cratis.arc.commands.CommandContext,
-            key: Any
-        ): Any? = value
     }
 
     private class CapturingTaskViewReader(private val value: TaskView) : TaskViewReader {
