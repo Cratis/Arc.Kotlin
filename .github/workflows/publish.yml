@@ -8,8 +8,10 @@ name: Publish
 # ${{ github.workflow }} resolves to *this* workflow's name, so a reusable workflow that derives
 # its group the same way and cancels in progress cancels this run. chronicle-real-kernel.yml
 # namespaces its group behind a literal prefix for exactly that reason; see the note there.
+# The literal prefix here is the other half of that pair: it puts this group in a namespace no
+# called workflow can compute, so neither side alone can bring #50 back.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: publish-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
 on:

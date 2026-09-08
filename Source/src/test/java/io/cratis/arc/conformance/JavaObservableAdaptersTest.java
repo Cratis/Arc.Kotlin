@@ -93,8 +93,9 @@ final class JavaObservableAdaptersTest {
         CountDownLatch performerCancelled = new CountDownLatch(1);
         CompletableFuture<Object> performerResult = new CompletableFuture<>() {
             @Override public boolean cancel(boolean mayInterruptIfRunning) {
+                boolean cancelled = super.cancel(mayInterruptIfRunning);
                 performerCancelled.countDown();
-                return super.cancel(mayInterruptIfRunning);
+                return cancelled;
             }
         };
         ConcurrentQueryPerformerRegistry performers = new ConcurrentQueryPerformerRegistry();

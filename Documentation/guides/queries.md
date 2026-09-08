@@ -67,6 +67,8 @@ Multiple subscriptions can share one physical connection through `/.cratis/queri
 
 Set `transferMode` to `full` for snapshots or `delta` for change sets after the first snapshot. Authorization, caller arguments, principal, and tenant are captured independently for every accepted subscription. An unauthorized result is terminal.
 
+Even with explicit `transferMode=delta`, a subsequent list result can be a full snapshot. For lists of non-null items, a missing identity accessor, a null extracted key, or duplicate keys in either the previous or current list cause full-snapshot fallback. Arc does not automatically invent identity keys from serialized content. Use stable, unique item identities for incremental updates. Change sets describe additions, replacements, and removals by identity; they do not encode position changes, so do not rely on delta updates to reproduce list reordering.
+
 ## Extend result processing
 
 Register `QueryRendererFor<T>` beans to transform supported result values and paging before they leave the query pipeline. Renderers run in ascending `order()` and retain registration order for ties. Kotlin code can read the renderer's `type` and `order` property views, while Java implementations retain `queryType()` and `order()`. Arc includes `QueryableQueryRenderer`, which applies in-memory paging and sorting to `Iterable` results; large or provider-backed queries should return `QueryPage` or use a store-specific renderer so filtering remains in the database.
