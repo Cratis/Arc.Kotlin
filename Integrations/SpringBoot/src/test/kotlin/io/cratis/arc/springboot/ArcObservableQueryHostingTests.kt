@@ -41,6 +41,7 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -547,8 +548,106 @@ private class ObservablePerformer(
     }
 }
 
-private class TestSocket(private val objectMapper: ObjectMapper) : WebSocket.Listener {
-    val messages = LinkedBlockingQueue<JsonNode>()
+internal class ArcObservableQuerySocketWaitTests {
+    private val objectMapper = ObjectMapper()
+
+    @Test
+    fun `type wait expires despite sustained pings`() {
+        assertSustainedTrafficTimesOut("type 'Connected'") { it.awaitType("Connected") }
+    }
+
+    @Test
+    fun `query wait expires despite sustained results for another query`() {
+        assertSustainedTrafficTimesOut("queryId 'wanted'", "QueryResult") { it.awaitQuery("wanted") }
+    }
+
+    @Test
+    fun `empty queue timeout names the expected type and query`() {
+        val socket = TestSocket(objectMapper, timeout = Duration.ofMillis(25))
+        val typeFailure = assertThrows(AssertionError::class.java) { socket.awaitType("Connected") }
+        assertTrue(requireNotNull(typeFailure.message).contains("type 'Connected'"))
+        assertTrue(requireNotNull(typeFailure.message).contains("Observed 0 messages"))
+        val queryFailure = assertThrows(AssertionError::class.java) { socket.awaitQuery("missing") }
+        assertTrue(requireNotNull(queryFailure.message).contains("queryId 'missing'"))
+        assertTrue(requireNotNull(queryFailure.message).contains("Observed 0 messages"))
+    }
+
+    @Test
+    fun `type wait skips irrelevant messages and returns the matching frame unchanged`() {
+        val queue = TimedMessageQueue()
+        queue.add(objectMapper.readTree("""{"type":"Ping"}"""))
+        val expected = objectMapper.readTree("""{"type":"Connected","payload":"connection"}""")
+        queue.add(expected)
+        assertEquals(expected, socket(queue).awaitType("Connected"))
+        assertEquals(listOf(100L, 90L), queue.budgets)
+    }
+
+    @Test
+    fun `query wait requires both the result type and query id`() {
+        val queue = TimedMessageQueue()
+        queue.add(objectMapper.readTree("""{"type":"Ping","queryId":"wanted"}"""))
+        queue.add(objectMapper.readTree("""{"type":"QueryResult","queryId":"other"}"""))
+        val expected = objectMapper.readTree("""{"type":"QueryResult","queryId":"wanted","payload":{"data":42}}""")
+        queue.add(expected)
+        assertEquals(expected, socket(queue).awaitQuery("wanted"))
+        assertEquals(listOf(100L, 90L, 80L), queue.budgets)
+    }
+
+    @Test
+    fun `empty queue after irrelevant traffic polls only the remaining budget`() {
+        val queue = TimedMessageQueue()
+        queue.add(objectMapper.readTree("""{"type":"Ping"}"""))
+        val failure = assertThrows(AssertionError::class.java) { socket(queue).awaitType("Connected") }
+        assertTrue(requireNotNull(failure.message).contains("Observed 1 messages"))
+        assertEquals(listOf(100L, 90L), queue.budgets)
+        assertEquals(100L, queue.now)
+    }
+
+    private fun assertSustainedTrafficTimesOut(
+        expected: String,
+        type: String = "Ping",
+        await: (TestSocket) -> JsonNode
+    ) {
+        val irrelevant = objectMapper.createObjectNode().put("type", type).put("queryId", "other-" + "x".repeat(2_000))
+        val queue = TimedMessageQueue(irrelevant)
+        val failure = assertThrows(AssertionError::class.java) { await(socket(queue)) }
+        val diagnostic = requireNotNull(failure.message)
+        assertTrue(diagnostic.contains(expected), diagnostic)
+        assertTrue(diagnostic.contains(type), diagnostic)
+        assertTrue(diagnostic.contains("Observed 10 messages"), diagnostic)
+        assertTrue(diagnostic.length < 1_500, "Observed-message diagnostics must remain bounded")
+        assertEquals((100L downTo 10L step 10).toList(), queue.budgets)
+        assertEquals(100L, queue.now)
+    }
+
+    private fun socket(queue: TimedMessageQueue) = TestSocket(
+        objectMapper, queue, Duration.ofNanos(100), nanoTime = { queue.now }
+    )
+
+    // A finite poll guard makes even the old unbounded matching loop fail rather than hang.
+    // Advancing a monotonic clock on every poll simulates continuous traffic without threads or sleeps.
+    private class TimedMessageQueue(private val repeatedMessage: JsonNode? = null) : LinkedBlockingQueue<JsonNode>() {
+        var now = 0L
+        val budgets = mutableListOf<Long>()
+
+        override fun poll(timeout: Long, unit: TimeUnit): JsonNode? {
+            check(budgets.size < 20) { "Matching wait exceeded the regression fixture's finite poll limit" }
+            val budget = unit.toNanos(timeout)
+            check(budget > 0) { "Matching wait polled after its deadline" }
+            budgets.add(budget)
+            val message = super.poll() ?: repeatedMessage
+            now += if (message == null) budget else minOf(10L, budget)
+            return message
+        }
+    }
+}
+
+private class TestSocket(
+    private val objectMapper: ObjectMapper,
+    val messages: LinkedBlockingQueue<JsonNode> = LinkedBlockingQueue(),
+    private val timeout: Duration = Duration.ofSeconds(5),
+    private val nanoTime: () -> Long = System::nanoTime
+) : WebSocket.Listener {
     lateinit var socket: WebSocket
     private val text = StringBuilder()
 
@@ -570,12 +669,34 @@ private class TestSocket(private val objectMapper: ObjectMapper) : WebSocket.Lis
         socket.sendText(value, true).get(2, TimeUnit.SECONDS)
     }
 
-    fun awaitJson(): JsonNode = messages.poll(5, TimeUnit.SECONDS)
+    fun awaitJson(): JsonNode = messages.poll(timeout.toNanos(), TimeUnit.NANOSECONDS)
         ?: throw AssertionError("Timed out waiting for WebSocket message.")
 
-    fun awaitType(type: String): JsonNode = generateSequence(::awaitJson).first { it.path("type").textValue() == type }
+    fun awaitType(type: String): JsonNode = awaitMatching("type '$type'") { it.path("type").textValue() == type }
 
-    fun awaitQuery(queryId: String): JsonNode = generateSequence(::awaitJson).first {
+    fun awaitQuery(queryId: String): JsonNode = awaitMatching("QueryResult for queryId '$queryId'") {
         it.path("type").textValue() == "QueryResult" && it.path("queryId").textValue() == queryId
+    }
+
+    private fun awaitMatching(expected: String, matches: (JsonNode) -> Boolean): JsonNode {
+        val deadline = nanoTime() + timeout.toNanos()
+        var observed = 0L
+        val recent = mutableListOf<String>()
+        while (true) {
+            val remaining = deadline - nanoTime()
+            if (remaining <= 0) break
+            val message = messages.poll(remaining, TimeUnit.NANOSECONDS) ?: break
+            if (matches(message)) return message
+            observed++
+            if (recent.size == 5) recent.removeAt(0)
+            recent.add(
+                "type=${message.path("type").asText().take(80)}, " +
+                    "queryId=${message.path("queryId").asText().take(80)}"
+            )
+        }
+        throw AssertionError(
+            "Timed out waiting for WebSocket $expected after $timeout. " +
+                "Observed $observed messages; last ${recent.size}: $recent"
+        )
     }
 }

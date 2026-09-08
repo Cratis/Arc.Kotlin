@@ -34,6 +34,10 @@ internal class MetadataCollector(private val logger: ArcDiagnosticReporter) {
     private var resolver: Resolver? = null
     private var derivedDeclarations: List<KSClassDeclaration> = emptyList()
     private val reportedDuplicateDerivedIds = mutableSetOf<String>()
+    // Validation spans rounds even when command/model metadata has already been collected. Retain names, not symbols.
+    private val propertyDerivedTypeNames = mutableSetOf<String>()
+    private val concretePropertyUses = mutableSetOf<ConcretePropertyUse>()
+    private val reportedConcretePropertyUses = mutableSetOf<ConcretePropertyUse>()
 
     val types: List<TypeModel> get() = collectedTypes.values.sortedBy(TypeModel::fullyQualifiedName)
     val interfaces: List<InterfaceModel> get() = collectedInterfaces.values.sortedBy(InterfaceModel::fullyQualifiedName)
@@ -47,6 +51,12 @@ internal class MetadataCollector(private val logger: ArcDiagnosticReporter) {
             .filter { declaration -> declaration.qualifiedName != null }
             .sortedBy { declaration -> declaration.qualifiedName!!.asString() }
             .toList()
+        propertyDerivedTypeNames += derivedDeclarations.mapNotNull { declaration -> declaration.qualifiedName?.asString() }
+        for (use in concretePropertyUses) {
+            val owner = resolveNamedDeclaration(use.ownerName) ?: continue
+            val base = resolveNamedDeclaration(use.baseName) ?: continue
+            validateConcretePropertyUse(use, base, propertyUseNode(owner, use.propertyName))
+        }
     }
 
     fun describeProperties(declaration: KSClassDeclaration, identity: String): List<PropertyModel>? {
@@ -466,6 +476,7 @@ internal class MetadataCollector(private val logger: ArcDiagnosticReporter) {
                 ?: accessors["is${property.name.replaceFirstChar(Char::uppercase)}"]
             val propertyType = propertyDeclaration?.type?.resolve() ?: accessor?.returnType?.resolve()
             val propertyNode = propertyDeclaration ?: accessor
+            if (!validatePropertyUse(qualifiedName, property, propertyNode ?: declaration)) valid = false
             if (property.shape.kind == TypeShapeKind.MAP) {
                 // Runtime-safe map leaves never contribute model declarations to the closed graph.
             } else if (propertyType == null || propertyNode == null) {
@@ -490,6 +501,58 @@ internal class MetadataCollector(private val logger: ArcDiagnosticReporter) {
             collectedInterfaces.remove(qualifiedName)
         }
         return valid
+    }
+
+    private data class ConcretePropertyUse(val ownerName: String, val propertyName: String, val baseName: String)
+
+    // KSP2 omits ABSTRACT for implicitly abstract Kotlin sealed classes; Java sealed classes can be concrete.
+    private fun KSClassDeclaration.isConcreteClassForPropertyUse(): Boolean =
+        classKind == ClassKind.CLASS && Modifier.ABSTRACT !in modifiers &&
+            !(Modifier.SEALED in modifiers && (origin == Origin.KOTLIN || origin == Origin.KOTLIN_LIB))
+
+    private fun validatePropertyUse(ownerName: String, property: PropertyModel, node: KSNode): Boolean {
+        if (property.shape.kind == TypeShapeKind.MAP) return true
+        val baseName = property.elementTypeName ?: property.typeName
+        val base = resolveNamedDeclaration(baseName) ?: return true
+        if (!base.isConcreteClassForPropertyUse() || isTerminal(baseName) || base.isAssignableTo(CONCEPT_AS_TYPE)
+        ) return true
+        val use = ConcretePropertyUse(ownerName, property.name, baseName)
+        concretePropertyUses += use
+        return validateConcretePropertyUse(use, base, node)
+    }
+
+    private fun validateConcretePropertyUse(use: ConcretePropertyUse, base: KSClassDeclaration, node: KSNode): Boolean {
+        if (!base.isConcreteClassForPropertyUse()) return true
+        val hasDescendant = propertyDerivedTypeNames.any { name ->
+            if (name == use.baseName) return@any false
+            val candidate = resolveNamedDeclaration(name) ?: return@any false
+            candidate.isConcreteClassForPropertyUse() &&
+                !candidate.derivedTypeId().isNullOrBlank() && candidate.isAssignableTo(use.baseName)
+        }
+        if (!hasDescendant) return true
+        if (reportedConcretePropertyUses.add(use)) {
+            logger.error(
+                ArcDiagnostic.CONCRETE_POLYMORPHIC_PROPERTY,
+                "Artifact/property '${use.ownerName}.${use.propertyName}' declares concrete polymorphic base " +
+                    "'${use.baseName}' with visible @DerivedType descendants; declare an interface or abstract base instead.",
+                node
+            )
+        }
+        return false
+    }
+
+    private fun propertyUseNode(owner: KSClassDeclaration, propertyName: String): KSNode {
+        owner.getDeclaredProperties().firstOrNull { property -> property.simpleName.asString() == propertyName }
+            ?.let { return it }
+        if (owner.origin == Origin.JAVA) {
+            val capitalized = propertyName.replaceFirstChar(Char::uppercase)
+            val names = setOf(propertyName, "get$capitalized", "is$capitalized")
+            owner.getDeclaredFunctions().firstOrNull { function ->
+                function.parameters.isEmpty() && function.simpleName.asString() in names
+            }?.let { return it }
+        }
+        // Some Java record components have source metadata but no KSP property or accessor node.
+        return owner
     }
 
     fun extractValidation(
