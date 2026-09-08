@@ -327,8 +327,12 @@ private class FixedDerivedTypeBindingCompatibility {
         if (!requested.rawClass.isAssignableFrom(actual.rawClass)) {
             return "$path requires ${requested.rawClass.name}, but the fixed binding is ${actual.rawClass.name}"
         }
-        // Arrays have component types rather than a findSuperType hierarchy for covariant array classes.
-        val projected = if (requested.rawClass == actual.rawClass || requested.isArrayType) actual
+        // ArrayType bindings can belong to the enclosing declaration, not the array itself.
+        // Compare only components, recursively, including any generic bindings inside them.
+        if (requested.isArrayType) {
+            return conflict(requested.contentType, actual.contentType, "$path.content")
+        }
+        val projected = if (requested.rawClass == actual.rawClass) actual
             else actual.findSuperType(requested.rawClass) ?: return null
         conflict(requested.keyType, projected.keyType, "$path.key")?.let { return it }
         conflict(requested.contentType, projected.contentType, "$path.content")?.let { return it }

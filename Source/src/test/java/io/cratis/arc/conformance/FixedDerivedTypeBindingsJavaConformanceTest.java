@@ -21,6 +21,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 final class FixedDerivedTypeBindingsJavaConformanceTest {
     private static final String STRING_JSON = "{\"_derivedTypeId\":\"fixed\",\"payload\":\"text\"}";
     private static final String LIST_JSON = "{\"_derivedTypeId\":\"list\",\"payload\":[\"text\"]}";
+    private static final String ARRAY_JSON = "{\"_derivedTypeId\":\"fixed-array\",\"payload\":[\"text\"]}";
+    private static final String LIST_ARRAY_JSON = "{\"_derivedTypeId\":\"fixed-list-array\",\"payload\":[[\"text\"]]}";
     private final ObjectMapper mapper = mapper();
 
     @Test
@@ -92,10 +94,79 @@ final class FixedDerivedTypeBindingsJavaConformanceTest {
         assertEquals("text", unknownElements.payload.get(0));
     }
 
+    @Test
+    void covariantArrayComponentsIgnoreUnrelatedOwnerBindings() throws Exception {
+        Holder<Integer, CharSequence> result = mapper.readValue("{\"value\":" + ARRAY_JSON + "}",
+            new TypeReference<Holder<Integer, CharSequence>>() {});
+        CharSequence element = result.value.payload[0];
+        assertEquals("text", element.toString());
+        assertEquals(String[].class, result.value.payload.getClass());
+    }
+
+    @Test
+    void exactArrayComponentsRemainReadableWithTwoOwnerParameters() throws Exception {
+        Holder<Integer, String> result = mapper.readValue("{\"value\":" + ARRAY_JSON + "}",
+            new TypeReference<Holder<Integer, String>>() {});
+        String element = result.value.payload[0];
+        assertEquals("text", element);
+        assertEquals(String[].class, result.value.payload.getClass());
+    }
+
+    @Test
+    void incompatibleArrayComponentsFailDuringTypedJavaRead() {
+        var failure = assertThrows(JsonMappingException.class,
+            () -> mapper.readValue("{\"value\":" + ARRAY_JSON + "}",
+                new TypeReference<Holder<Integer, Payload>>() {}));
+        assertTrue(failure.getOriginalMessage().contains(FixedArrayLeaf.class.getName()));
+        assertTrue(failure.getOriginalMessage().contains(Payload.class.getName()));
+        assertEquals("value", failure.getPath().get(0).getFieldName());
+    }
+
+    @Test
+    void compatibleGenericArrayComponentsIgnoreUnrelatedOwnerBindings() throws Exception {
+        Holder<Integer, List<CharSequence>> result = mapper.readValue("{\"value\":" + LIST_ARRAY_JSON + "}",
+            new TypeReference<Holder<Integer, List<CharSequence>>>() {});
+        CharSequence element = result.value.payload[0].get(0);
+        assertEquals("text", element.toString());
+        assertEquals(List[].class, result.value.payload.getClass());
+    }
+
+    @Test
+    void incompatibleGenericArrayComponentsFailBeyondRawErasure() {
+        var failure = assertThrows(JsonMappingException.class,
+            () -> mapper.readValue("{\"value\":" + LIST_ARRAY_JSON + "}",
+                new TypeReference<Holder<Integer, List<Payload>>>() {}));
+        assertTrue(failure.getOriginalMessage().contains(FixedListArrayLeaf.class.getName()));
+        assertTrue(failure.getOriginalMessage().contains("base<T>.content.content"));
+        assertTrue(failure.getOriginalMessage().contains(Payload.class.getName()));
+        assertTrue(failure.getOriginalMessage().contains(String.class.getName()));
+        assertEquals("value", failure.getPath().get(0).getFieldName());
+    }
+
+    @Test
+    void multidimensionalCovariantArrayComponentsIgnoreUnrelatedOwnerBindings() throws Exception {
+        Holder<Integer, CharSequence[]> result = mapper.readValue(
+            "{\"value\":{\"_derivedTypeId\":\"fixed-matrix\",\"payload\":[[\"text\"]]}}",
+            new TypeReference<Holder<Integer, CharSequence[]>>() {});
+        CharSequence element = result.value.payload[0][0];
+        assertEquals("text", element.toString());
+        assertEquals(String[][].class, result.value.payload.getClass());
+    }
+
+    @Test
+    void arrayBindingsRemainReadableThroughNonArrayInterfaces() throws Exception {
+        Base<Cloneable> result = mapper.readValue(ARRAY_JSON, new TypeReference<Base<Cloneable>>() {});
+        Cloneable payload = result.payload;
+        assertEquals(String[].class, payload.getClass());
+    }
+
     private static ObjectMapper mapper() {
         var registry = new ConcurrentDerivedTypeRegistry();
         registry.register(Base.class, FixedStringLeaf.class);
         registry.register(Base.class, FixedListLeaf.class);
+        registry.register(Base.class, FixedArrayLeaf.class);
+        registry.register(Base.class, FixedListArrayLeaf.class);
+        registry.register(Base.class, FixedMatrixLeaf.class);
         return ArcObjectMapper.create(registry);
     }
 
@@ -108,6 +179,21 @@ final class FixedDerivedTypeBindingsJavaConformanceTest {
 
     @DerivedType(id = "list")
     public static final class FixedListLeaf extends Base<List<String>> { }
+
+    public abstract static class Middle<A, B> extends Base<A[]> { }
+
+    @DerivedType(id = "fixed-array")
+    public static final class FixedArrayLeaf extends Middle<String, Integer> { }
+
+    @DerivedType(id = "fixed-list-array")
+    public static final class FixedListArrayLeaf extends Middle<List<String>, Integer> { }
+
+    @DerivedType(id = "fixed-matrix")
+    public static final class FixedMatrixLeaf extends Middle<String[], Integer> { }
+
+    public static final class Holder<X, Y> {
+        public Base<Y[]> value;
+    }
 
     public record Payload(String name) { }
 
