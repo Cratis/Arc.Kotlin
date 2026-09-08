@@ -80,17 +80,16 @@ external signals *confirm* it.
 
 | Gate | Command | Pass criteria |
 | --- | --- | --- |
-| Full workspace | `./gradlew clean build --no-configuration-cache -x :ContractTests:typeScriptRuntimeTest` | zero errors, zero warnings |
+| Full workspace | `./gradlew build --no-configuration-cache -x :ContractTests:typeScriptRuntimeTest` | zero errors, zero warnings |
 | Binary compatibility | `./gradlew apiCheck` | no unintended `.api` diff; deliberate changes land as an `apiDump` in the same commit |
 | Proxy determinism | `./gradlew :GradlePlugin:verifyContractTestProxyDeterminism :ContractTests:typeScriptBuild --no-configuration-cache` | deterministic regeneration, strict-mode compile |
 | TypeScript runtime | `./gradlew :ContractTests:typeScriptRuntimeTest --no-configuration-cache` | exact TAP totals, zero fail/skip/todo |
 | Documentation | `./Documentation/verify-markdown.sh` | lint, snippet validation, toc and link checks pass |
 | AI corpus | `./.ai/verify-corpus.sh` | adapters, skill frontmatter, links, the rule index, and lint are clean |
 
-Run the gates a change can actually affect, and all of them before calling framework work complete.
-A documentation-only change needs the documentation gate, not the runtime gates. After pushing,
-watch CI and fix what it reports; the task is not done until CI is green or the only failures are
-confirmed pre-existing and unrelated.
+Run affected-project incremental checks after a coherent change, then targeted regression tests for the changed behavior. Re-run a failed gate after a relevant fix. Reserve wider matrices and clean/Release builds for cross-cutting changes, demonstrated stale outputs, or required merge/release gates. Documentation/rule-only edits need relevant Markdown, frontmatter, link, and corpus checks, not an application build. Diagnose unrelated or environmental failures within a bounded attempt; report the evidence and blocker instead of broadening scope or retrying indefinitely. Required gates remain blocking until satisfied; never silently waive red CI.
+
+Documentation-only changes use repository-supported non-release intent, ordinarily `no-release`; confirm the workflow contract rather than assuming a label or API state. Run relevant content, link, frontmatter, and corpus checks instead of unrelated application builds, and satisfy every repository-required check, including release-intent checks where supported. Documentation is never a blanket exemption from red CI.
 
 Gradle needs a JDK 17 toolchain on `PATH`. If `./gradlew` reports it cannot locate a Java runtime,
 point `JAVA_HOME` at a local JDK 17 for the command rather than changing anything in the repository.
