@@ -85,6 +85,7 @@ external signals *confirm* it.
 | Proxy determinism | `./gradlew :GradlePlugin:verifyContractTestProxyDeterminism :ContractTests:typeScriptBuild --no-configuration-cache` | deterministic regeneration, strict-mode compile |
 | TypeScript runtime | `./gradlew :ContractTests:typeScriptRuntimeTest --no-configuration-cache` | exact TAP totals, zero fail/skip/todo |
 | Documentation | `./Documentation/verify-markdown.sh` | lint, snippet validation, toc and link checks pass |
+| AI corpus | `./.ai/verify-corpus.sh` | adapters, skill frontmatter, links, the rule index, and lint are clean |
 
 Run the gates a change can actually affect, and all of them before calling framework work complete.
 A documentation-only change needs the documentation gate, not the runtime gates. After pushing,
