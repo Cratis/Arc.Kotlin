@@ -7,6 +7,7 @@ import com.fasterxml.jackson.core.JsonGenerator
 import com.fasterxml.jackson.core.JsonParser
 import com.fasterxml.jackson.core.JsonToken
 import com.fasterxml.jackson.databind.BeanDescription
+import com.fasterxml.jackson.databind.BeanProperty
 import com.fasterxml.jackson.databind.DeserializationConfig
 import com.fasterxml.jackson.databind.DeserializationContext
 import com.fasterxml.jackson.databind.JavaType
@@ -17,13 +18,18 @@ import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.JsonSerializer
 import com.fasterxml.jackson.databind.SerializationConfig
 import com.fasterxml.jackson.databind.SerializerProvider
+import com.fasterxml.jackson.databind.deser.BeanDeserializerModifier
 import com.fasterxml.jackson.databind.deser.Deserializers
+import com.fasterxml.jackson.databind.deser.std.DelegatingDeserializer
+import com.fasterxml.jackson.databind.jsontype.TypeDeserializer
 import com.fasterxml.jackson.databind.jsontype.TypeSerializer
 import com.fasterxml.jackson.databind.module.SimpleModule
 import com.fasterxml.jackson.databind.node.ObjectNode
 import com.fasterxml.jackson.databind.ser.BeanSerializerModifier
 import com.fasterxml.jackson.databind.ser.Serializers
 import com.fasterxml.jackson.databind.ser.std.StdScalarSerializer
+import com.fasterxml.jackson.databind.type.ResolvedRecursiveType
+import com.fasterxml.jackson.databind.util.AccessPattern
 import com.fasterxml.jackson.databind.util.TokenBuffer
 import io.cratis.arc.concepts.ArcEnum
 import io.cratis.arc.concepts.ConceptAs
@@ -45,6 +51,7 @@ import java.time.format.DateTimeFormatterBuilder
 import java.time.format.DateTimeParseException
 import java.time.format.ResolverStyle
 import java.time.temporal.ChronoField
+import java.util.IdentityHashMap
 import java.util.Locale
 
 /**
@@ -68,7 +75,8 @@ public class ArcJacksonModule @JvmOverloads constructor(
     override fun setupModule(context: SetupContext) {
         super.setupModule(context)
         context.addSerializers(ArcSerializers)
-        context.addDeserializers(ArcDeserializers(registry))
+        context.addDeserializers(ArcDeserializers)
+        context.addBeanDeserializerModifier(ArcDerivedTypeDeserializerModifier(registry))
         context.addBeanSerializerModifier(ArcDerivedTypeSerializerModifier(registry))
     }
 }
@@ -106,14 +114,13 @@ private object ArcSerializers : Serializers.Base() {
     }
 }
 
-private class ArcDeserializers(private val registry: DerivedTypeRegistry) : Deserializers.Base() {
+private object ArcDeserializers : Deserializers.Base() {
     override fun findBeanDeserializer(
         type: JavaType,
         config: DeserializationConfig,
         beanDesc: BeanDescription
     ): JsonDeserializer<*>? = when {
         ConceptAs::class.java.isAssignableFrom(type.rawClass) -> ArcConceptDeserializer(type)
-        registry.registeredBaseTypes().contains(type.rawClass) -> ArcDerivedTypeDeserializer(type, registry)
         else -> null
     }
 
@@ -203,10 +210,59 @@ private class ArcConceptDeserializer(private val conceptType: JavaType) : JsonDe
     }
 }
 
+private class ArcDerivedTypeDeserializerModifier(private val registry: DerivedTypeRegistry) : BeanDeserializerModifier() {
+    override fun modifyDeserializer(
+        config: DeserializationConfig,
+        beanDesc: BeanDescription,
+        deserializer: JsonDeserializer<*>
+    ): JsonDeserializer<*> {
+        val type = beanDesc.type
+        if (type.isEnumType || ConceptAs::class.java.isAssignableFrom(type.rawClass) ||
+            type.rawClass !in registry.registeredBaseTypes()
+        ) return deserializer
+        return ArcDerivedTypeDeserializer(type, registry, deserializer)
+    }
+}
+
 private class ArcDerivedTypeDeserializer(
     private val baseType: JavaType,
-    private val registry: DerivedTypeRegistry
-) : JsonDeserializer<Any>() {
+    private val registry: DerivedTypeRegistry,
+    delegate: JsonDeserializer<*>,
+    private val property: BeanProperty? = null
+) : DelegatingDeserializer(delegate) {
+    override fun newDelegatingInstance(newDelegatee: JsonDeserializer<*>): JsonDeserializer<*> =
+        ArcDerivedTypeDeserializer(baseType, registry, newDelegatee, property)
+
+    override fun createContextual(context: DeserializationContext, property: BeanProperty?): JsonDeserializer<*> =
+        ArcDerivedTypeDeserializer(
+            baseType,
+            registry,
+            context.handleSecondaryContextualization(_delegatee, property, baseType),
+            property
+        )
+
+    // Preserve JsonDeserializer's original replacement-read behavior, not the bean delegate's in-place update.
+    override fun supportsUpdate(config: DeserializationConfig): Boolean? = null
+
+    override fun deserialize(parser: JsonParser, context: DeserializationContext, intoValue: Any): Any? {
+        context.handleBadMerge(this)
+        return deserialize(parser, context)
+    }
+
+    // Preserve JsonDeserializer's original Jackson-owned native dispatch, not the bean delegate's typed behavior.
+    override fun deserializeWithType(
+        parser: JsonParser,
+        context: DeserializationContext,
+        typeDeserializer: TypeDeserializer
+    ): Any? = typeDeserializer.deserializeTypedFromAny(parser, context)
+
+    override fun getNullValue(context: DeserializationContext): Any? = null
+
+    // Empty coercion must preserve null, not manufacture an unregistered base through the bean delegate.
+    override fun getEmptyValue(context: DeserializationContext): Any? = null
+
+    override fun getEmptyAccessPattern(): AccessPattern = AccessPattern.ALWAYS_NULL
+
     override fun deserialize(parser: JsonParser, context: DeserializationContext): Any? {
         if (parser.currentToken == JsonToken.VALUE_NULL) return null
         val node = parser.codec.readTree<JsonNode>(parser) as? ObjectNode
@@ -217,9 +273,81 @@ private class ArcDerivedTypeDeserializer(
         val derivedType = registry.resolve(baseType.rawClass, id)
             ?: throw JsonMappingException.from(parser, "Unknown derived type identifier '$id' for ${baseType.rawClass.name}")
 
-        val treeParser = node.traverse(parser.codec)
-        treeParser.nextToken()
-        return context.readValue(treeParser, derivedType)
+        if (!baseType.rawClass.isAssignableFrom(derivedType)) {
+            throw JsonMappingException.from(
+                parser,
+                "Resolved derived type ${derivedType.name} is not assignable to ${baseType.rawClass.name}"
+            )
+        }
+        val targetType = try {
+            context.constructSpecializedType(baseType, derivedType)
+        } catch (exception: IllegalArgumentException) {
+            throw JsonMappingException.from(
+                parser,
+                "Cannot specialize registered derived type ${derivedType.name} for declared base $baseType; " +
+                    "the target must preserve the declared generic bindings",
+                exception
+            )
+        }
+        // Jackson skips fixed inherited binding validation when the target has no type parameters of its own.
+        if (derivedType.typeParameters.isEmpty() && !baseType.bindings.isEmpty) {
+            val projected = targetType.findSuperType(baseType.rawClass)
+            val conflict = FixedDerivedTypeBindingCompatibility().conflict(baseType, projected, "base")
+            if (conflict != null) {
+                throw JsonMappingException.from(
+                    parser,
+                    "Cannot specialize registered derived type ${derivedType.name} for declared base $baseType; $conflict"
+                )
+            }
+        }
+        val target = context.findNonContextualValueDeserializer(targetType)
+        // Consume this object's discriminator once. Nested properties still use their own Arc wrappers.
+        // Only unwrap our immediate wrapper, never a third-party decorator or its delegate chain.
+        val ordinary = if (target is ArcDerivedTypeDeserializer) target._delegatee else target
+        val contextual = context.handleSecondaryContextualization(ordinary, property, targetType)
+        return node.traverse(parser.codec).use { treeParser ->
+            treeParser.nextToken()
+            contextual.deserialize(treeParser, context)
+        }
+    }
+}
+
+/** Checks only definite contradictions in fixed bindings, not Java mutable generic invariance or payload values. */
+private class FixedDerivedTypeBindingCompatibility {
+    private val visited = IdentityHashMap<JavaType, IdentityHashMap<JavaType, Boolean>>()
+
+    fun conflict(requestedType: JavaType?, actualType: JavaType?, path: String): String? {
+        if (requestedType == null || actualType == null) return null
+        val requested = (requestedType as? ResolvedRecursiveType)?.selfReferencedType ?: requestedType
+        val actual = (actualType as? ResolvedRecursiveType)?.selfReferencedType ?: actualType
+        // Jackson represents unresolved bindings as Object too; the metadata cannot distinguish them here.
+        if (requested.isJavaLangObject || actual.isJavaLangObject) return null
+        val actuals = visited.getOrPut(requested) { IdentityHashMap() }
+        if (actuals.put(actual, true) != null) return null
+        if (!requested.rawClass.isAssignableFrom(actual.rawClass)) {
+            return "$path requires ${requested.rawClass.name}, but the fixed binding is ${actual.rawClass.name}"
+        }
+        // ArrayType bindings can belong to the enclosing declaration, not the array itself.
+        // Compare only components, recursively, including any generic bindings inside them.
+        if (requested.isArrayType) {
+            return conflict(requested.contentType, actual.contentType, "$path.content")
+        }
+        val projected = if (requested.rawClass == actual.rawClass) actual
+            else actual.findSuperType(requested.rawClass) ?: return null
+        conflict(requested.keyType, projected.keyType, "$path.key")?.let { return it }
+        conflict(requested.contentType, projected.contentType, "$path.content")?.let { return it }
+        conflict(requested.referencedType, projected.referencedType, "$path.reference")?.let { return it }
+        val requestedBindings = requested.bindings
+        val actualBindings = projected.bindings
+        for (index in 0 until requestedBindings.size()) {
+            val name = requestedBindings.getBoundName(index) ?: index.toString()
+            conflict(
+                requestedBindings.getBoundType(index),
+                actualBindings.getBoundType(index),
+                "$path<$name>"
+            )?.let { return it }
+        }
+        return null
     }
 }
 

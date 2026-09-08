@@ -91,13 +91,14 @@ declares:
 public class ArcArtifactManifest ... {
     public companion object {
         /** Current language-neutral manifest contract version. */
-        public const val CURRENT_FORMAT_VERSION: Int = 5
+        public const val CURRENT_FORMAT_VERSION: Int = <n>
     }
 }
 ```
 
-The current declared version is **5**. `ArcManifestDiscovery` in `GradlePlugin` enforces it strictly
-on read and will fail the build with a `GradleException` when a manifest:
+Read the declared version from `ArcArtifactManifest.CURRENT_FORMAT_VERSION` rather than from this
+file; it moves whenever the manifest contract does. `ArcManifestDiscovery` in `GradlePlugin` enforces
+it strictly on read and will fail the build with a `GradleException` when a manifest:
 
 - has no numeric `formatVersion`, or one that is not exactly `CURRENT_FORMAT_VERSION`;
 - carries legacy flat fields (`typeName`, `isNullable`, `isEnumerable`, `elementTypeName`,
