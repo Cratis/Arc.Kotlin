@@ -62,6 +62,7 @@ internal class ArcSymbolProcessorNegativeCompilationTest {
             "ARCKSP0210",
             "ARCKSP0300",
             "ARCKSP0301",
+            "ARCKSP0305",
             "ARCKSP0400"
         ).forEach { code -> assertTrue("[$code]" in result.messages, "Missing $code in:\n${result.messages}") }
         assertTrue("annotate it with @FromServices" in result.messages, result.messages)
@@ -76,6 +77,7 @@ internal class ArcSymbolProcessorNegativeCompilationTest {
         }
         assertTrue("OverloadedJavaQueries' has overloaded query name 'find'" in result.messages, result.messages)
         assertTrue("star projections are unsupported" in result.messages, result.messages)
+        assertTrue(unsupportedJavaArrayDiagnostic() in result.messages, result.messages)
         listOf(
             "InvalidMapShapes.kt",
             "value path 'value.key': map keys must be nonnullable String",
@@ -94,6 +96,9 @@ internal class ArcSymbolProcessorNegativeCompilationTest {
         }
         nullableResponseDiagnostics().forEach { message ->
             assertTrue("[ARCKSP0105] $message" in result.messages, "Missing ARCKSP0105 message '$message' in:\n${result.messages}")
+        }
+        concretePolymorphicPropertyDiagnostics().forEach { message ->
+            assertTrue("[ARCKSP0305] $message" in result.messages, "Missing ARCKSP0305 message '$message' in:\n${result.messages}")
         }
         assertTrue("move handling to a public instance handle function" in result.messages, result.messages)
         assertTrue("requires 0 <= min <= max" in result.messages, result.messages)
@@ -154,6 +159,102 @@ internal class ArcSymbolProcessorNegativeCompilationTest {
         assertEquals(KotlinCompilation.ExitCode.OK, result.exitCode, result.messages)
         assertTrue("[ARCKSP0100]" in result.messages, result.messages)
         assertTrue("missing @Command" in result.messages, result.messages)
+    }
+
+    @Test
+    fun `concrete polymorphic Kotlin and Java properties report exact property-use diagnostics`() {
+        val fixtureRoot = Path.of(System.getProperty("arc.contractNegativeFixtures"))
+        val sources = Files.walk(fixtureRoot).use { paths ->
+            paths.filter(Files::isRegularFile)
+                .filter { path -> path.name.startsWith("Concrete") || path.name == "Nullable.java" }
+                .sorted()
+                .map { path ->
+                    val source = Files.readString(path)
+                    if (path.extension == "kt") SourceFile.kotlin(path.name, source) else SourceFile.java(path.name, source)
+                }.toList()
+        }
+        val result = compile(sources)
+        val expected = concretePolymorphicPropertyDiagnostics()
+
+        assertEquals(KotlinCompilation.ExitCode.COMPILATION_ERROR, result.exitCode, result.messages)
+        expected.forEach { message ->
+            assertTrue("[ARCKSP0305] $message" in result.messages, "Missing '$message' in:\n${result.messages}")
+        }
+        assertEquals(expected.size, Regex("\\[ARCKSP0305]").findAll(result.messages).count(), result.messages)
+    }
+
+    @Test
+    fun `concrete Java sealed base property reports exact property-use diagnostic`() {
+        val fixtureRoot = Path.of(System.getProperty("arc.contractNegativeFixtures"))
+            .resolve("java/io/cratis/arc/contracts/negative")
+        val sources = listOf("ConcreteJavaSealedBase", "ConcreteJavaSealedLeaf", "ConcreteJavaSealedCommand")
+            .map { name -> SourceFile.java("$name.java", Files.readString(fixtureRoot.resolve("$name.java"))) }
+        // Prove the fixture is valid Java 17 and its sealed base is instantiable without Arc processing.
+        val javaResult = KotlinCompilation().apply {
+            this.sources = sources
+            inheritClassPath = true
+            jvmTarget = "17"
+            messageOutputStream = System.out
+        }.compile()
+        assertEquals(KotlinCompilation.ExitCode.OK, javaResult.exitCode, javaResult.messages)
+        val base = javaResult.classLoader.loadClass("io.cratis.arc.contracts.negative.ConcreteJavaSealedBase")
+        assertTrue(base.isSealed)
+        assertEquals(base, base.getDeclaredConstructor().newInstance().javaClass)
+
+        val result = compile(sources)
+        val expected = "[ARCKSP0305] Artifact/property 'io.cratis.arc.contracts.negative.ConcreteJavaSealedCommand.value' " +
+            "declares concrete polymorphic base 'io.cratis.arc.contracts.negative.ConcreteJavaSealedBase' " +
+            "with visible @DerivedType descendants; declare an interface or abstract base instead."
+        assertEquals(KotlinCompilation.ExitCode.COMPILATION_ERROR, result.exitCode, result.messages)
+        assertTrue(expected in result.messages, result.messages)
+        assertEquals(1, Regex("\\[ARCKSP0305]").findAll(result.messages).count(), result.messages)
+    }
+
+    @Test
+    fun `Java object arrays retain the existing unsupported variant element diagnostic`() {
+        val fixtureRoot = Path.of(System.getProperty("arc.contractNegativeFixtures"))
+            .resolve("java/io/cratis/arc/contracts/negative")
+        val sources = listOf("ConcreteJavaPropertyBase.java", "UnsupportedConcreteJavaPropertyArrayCommand.java")
+            .map { name -> SourceFile.java(name, Files.readString(fixtureRoot.resolve(name))) }
+        val result = compile(sources)
+
+        assertEquals(KotlinCompilation.ExitCode.COMPILATION_ERROR, result.exitCode, result.messages)
+        assertTrue(unsupportedJavaArrayDiagnostic() in result.messages, result.messages)
+        assertEquals(1, Regex("\\[ARCKSP0300]").findAll(result.messages).count(), result.messages)
+        assertEquals(0, Regex("\\[ARCKSP0305]").findAll(result.messages).count(), result.messages)
+    }
+
+    private fun unsupportedJavaArrayDiagnostic(): String =
+        "[ARCKSP0300] Artifact/property 'io.cratis.arc.contracts.negative.UnsupportedConcreteJavaPropertyArrayCommand.array' " +
+            "value path 'element': raw and wildcard arguments are unsupported; star projections are unsupported; " +
+            "variant generic arguments are unsupported."
+
+    private fun concretePolymorphicPropertyDiagnostics(): List<String> {
+        val packageName = "io.cratis.arc.contracts.negative"
+        val uses = listOf(
+            "ConcretePropertyCommand.direct" to "ConcretePropertyBase",
+            "ConcretePropertyCommand.nullable" to "ConcretePropertyBase",
+            "ConcretePropertyCommand.list" to "ConcretePropertyBase",
+            "ConcretePropertyCommand.array" to "ConcretePropertyBase",
+            "ConcretePropertyCommand.nullableElements" to "ConcretePropertyBase",
+            "ConcretePropertyCommand.transitive" to "TransitivePropertyBase",
+            "ConcretePropertyCommand.annotatedIntermediate" to "ConcretePropertyIntermediate",
+            "ConcretePropertyNestedDto.value" to "ConcretePropertyBase",
+            "ConcretePropertyReadModel.value" to "ConcretePropertyBase",
+            "ConcreteJavaPropertyCommand.direct" to "ConcreteJavaPropertyBase",
+            "ConcreteJavaPropertyCommand.nullable" to "ConcreteJavaPropertyBase",
+            "ConcreteJavaPropertyCommand.list" to "ConcreteJavaPropertyBase",
+            "ConcreteJavaPropertyCommand.annotatedIntermediate" to "ConcreteJavaPropertyIntermediate",
+            "ConcreteJavaPropertyCommand.transitive" to "TransitivePropertyBase",
+            "ConcreteJavaPropertyView.value" to "ConcreteJavaPropertyBase",
+            "ConcreteJavaPropertyView.values" to "ConcreteJavaPropertyBase",
+            "ConcreteJavaPropertyReadModel.value" to "ConcreteJavaPropertyBase",
+            "ConcreteJavaSealedCommand.value" to "ConcreteJavaSealedBase"
+        )
+        return uses.map { (property, base) ->
+            "Artifact/property '$packageName.$property' declares concrete polymorphic base '$packageName.$base' " +
+                "with visible @DerivedType descendants; declare an interface or abstract base instead."
+        }
     }
 
     private fun exactMapDiagnostics(): List<String> = listOf(
@@ -304,6 +405,8 @@ internal class ArcSymbolProcessorNegativeCompilationTest {
         useKsp2()
         this.sources = sources
         inheritClassPath = true
+        // Java sealed fixtures require Java 17 in this embedded compilation, independently of the test task's target.
+        jvmTarget = "17"
         symbolProcessorProviders = mutableListOf(ArcSymbolProcessorProvider())
         kspProcessorOptions = mutableMapOf("arc.moduleName" to "NegativeContracts")
         kspWithCompilation = true

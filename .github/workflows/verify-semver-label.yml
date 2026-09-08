@@ -3,8 +3,17 @@
 
 name: Verify Semver Label
 
+# Inside a called workflow ${{ github.workflow }} resolves to the *caller's* name, so a reusable
+# workflow that derives its group this way and cancels in progress cancels its caller. That is what
+# made Publish fail in #50, except that the call below reaches a repository this one does not
+# control, so the change that would break it need never be reviewed here. See
+# https://docs.github.com/en/actions/reference/workflows-and-actions/reusing-workflow-configurations
+# The literal prefix puts this group in a namespace a called workflow cannot compute, so only runs
+# of this workflow ever land in it. This workflow has no workflow_call trigger, so github.workflow
+# below is always the name above and cancelling within the group can only cancel a superseded run
+# of this same pull request.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: verify-semver-label-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 on:
