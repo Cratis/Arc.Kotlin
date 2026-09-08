@@ -4,8 +4,10 @@
 package io.cratis.arc.json
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
+import com.fasterxml.jackson.annotation.JsonSetter
 import com.fasterxml.jackson.annotation.JsonSubTypes
 import com.fasterxml.jackson.annotation.JsonTypeInfo
+import com.fasterxml.jackson.annotation.Nulls
 import com.fasterxml.jackson.core.JsonParser
 import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.DeserializationContext
@@ -208,6 +210,62 @@ class ArcDerivedTypeDeserializerLifecycleTest {
         assertNull(mapper.readValue("null", LifecycleMiddle::class.java))
     }
 
+    @Test
+    fun `AS_EMPTY property preserves null instead of creating an unregistered concrete base`() {
+        val mapper = ArcObjectMapper.create(emptyValueRegistry())
+        val value = mapper.readValue("""{"value":null,"values":[null]}""", LifecycleEmptyEnvelope::class.java)
+
+        assertNull(value.value)
+    }
+
+    @Test
+    fun `AS_EMPTY collection content preserves null instead of creating an unregistered concrete base`() {
+        val mapper = ArcObjectMapper.create(emptyValueRegistry())
+        val value = mapper.readValue("""{"value":null,"values":[null]}""", LifecycleEmptyEnvelope::class.java)
+
+        assertEquals(1, value.values.size)
+        assertNull(value.values.single())
+    }
+
+    @Test
+    fun `AS_EMPTY properties still bind explicitly registered leaves`() {
+        val mapper = ArcObjectMapper.create(emptyValueRegistry())
+        val value = mapper.readValue(
+            """{"value":{"_derivedTypeId":"empty-leaf","name":"property"},
+                "values":[{"_derivedTypeId":"empty-leaf","name":"element"}]}""",
+            LifecycleEmptyEnvelope::class.java
+        )
+
+        assertEquals("property", (value.value as LifecycleEmptyLeaf).name)
+        assertEquals("element", (value.values.single() as LifecycleEmptyLeaf).name)
+    }
+
+    @Test
+    fun `AS_EMPTY configuration does not accept objects without a discriminator`() {
+        val mapper = ArcObjectMapper.create(emptyValueRegistry())
+        for (json in listOf("""{"value":{}}""", """{"values":[{}]}""")) {
+            val exception = assertThrows(JsonMappingException::class.java) {
+                mapper.readValue(json, LifecycleEmptyEnvelope::class.java)
+            }
+            assertTrue(exception.message.orEmpty().contains("Missing textual _derivedTypeId"))
+        }
+        val exception = assertThrows(JsonMappingException::class.java) {
+            mapper.readValue("{}", LifecycleEmptyBase::class.java)
+        }
+        assertTrue(exception.message.orEmpty().contains("Missing textual _derivedTypeId"))
+    }
+
+    @Test
+    fun `concrete registered base preserves root null`() {
+        val mapper = ArcObjectMapper.create(emptyValueRegistry())
+
+        assertNull(mapper.readValue("null", LifecycleEmptyBase::class.java))
+    }
+
+    private fun emptyValueRegistry(): ConcurrentDerivedTypeRegistry = ConcurrentDerivedTypeRegistry().apply {
+        register(LifecycleEmptyBase::class.java, LifecycleEmptyLeaf::class.java)
+    }
+
     private fun registry(): ConcurrentDerivedTypeRegistry = ConcurrentDerivedTypeRegistry().apply {
         register(LifecycleBase::class.java, LifecycleMiddle::class.java)
         register(LifecycleMiddle::class.java, LifecycleLeaf::class.java)
@@ -250,6 +308,19 @@ data class LifecycleContextualEnvelope(
 )
 
 class LifecycleUnrelated
+
+open class LifecycleEmptyBase
+
+@DerivedType("empty-leaf")
+class LifecycleEmptyLeaf(val name: String) : LifecycleEmptyBase()
+
+class LifecycleEmptyEnvelope {
+    @set:JsonSetter(nulls = Nulls.AS_EMPTY)
+    var value: LifecycleEmptyBase? = LifecycleEmptyBase()
+
+    @set:JsonSetter(contentNulls = Nulls.AS_EMPTY)
+    var values: List<LifecycleEmptyBase?> = listOf(LifecycleEmptyBase())
+}
 
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "nativeKind")
 @JsonSubTypes(JsonSubTypes.Type(value = LifecycleAlternate::class, name = "alternate"))

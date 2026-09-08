@@ -28,6 +28,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode
 import com.fasterxml.jackson.databind.ser.BeanSerializerModifier
 import com.fasterxml.jackson.databind.ser.Serializers
 import com.fasterxml.jackson.databind.ser.std.StdScalarSerializer
+import com.fasterxml.jackson.databind.util.AccessPattern
 import com.fasterxml.jackson.databind.util.TokenBuffer
 import io.cratis.arc.concepts.ArcEnum
 import io.cratis.arc.concepts.ConceptAs
@@ -260,6 +261,11 @@ private class ArcDerivedTypeDeserializer(
     }
 
     override fun getNullValue(context: DeserializationContext): Any? = null
+
+    // Empty coercion must preserve null, not manufacture an unregistered base through the bean delegate.
+    override fun getEmptyValue(context: DeserializationContext): Any? = null
+
+    override fun getEmptyAccessPattern(): AccessPattern = AccessPattern.ALWAYS_NULL
 
     override fun deserialize(parser: JsonParser, context: DeserializationContext): Any? {
         if (parser.currentToken == JsonToken.VALUE_NULL) return null
