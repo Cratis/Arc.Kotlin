@@ -15,6 +15,8 @@ import com.fasterxml.jackson.databind.JsonDeserializer
 import com.fasterxml.jackson.databind.JsonMappingException
 import com.fasterxml.jackson.databind.MapperFeature
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.exc.InvalidTypeIdException
+import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException
 import com.fasterxml.jackson.databind.json.JsonMapper
 import com.fasterxml.jackson.databind.module.SimpleModule
 import io.cratis.arc.concepts.ConceptAs
@@ -178,16 +180,51 @@ class ArcDerivedTypeDeserializerLifecycleTest {
     }
 
     @Test
-    fun `native Jackson type metadata cannot bypass the Arc discriminator guard`() {
+    fun `native Jackson resolver selects its subtype without Arc registry membership or discriminator`() {
+        val registry = registry()
+        assertEquals(LifecycleMiddle::class.java, registry.resolve(LifecycleBase::class.java, "middle"))
+        assertNull(registry.resolve(LifecycleBase::class.java, "alternate"))
+        val mapper = ArcObjectMapper.create(registry)
+            .addMixIn(LifecycleBase::class.java, LifecycleNativeType::class.java)
+        val value = mapper.readValue(
+            """{"nativeKind":"alternate","payload":"value","nested":[["entry"]]}""",
+            LifecycleBase::class.java
+        )
+
+        assertEquals(LifecycleAlternate::class.java, value.javaClass)
+        assertEquals("value", (value as LifecycleAlternate<*>).payload)
+        assertEquals(listOf(listOf("entry")), value.nested)
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = ["unknown", "middle"])
+    fun `native Jackson resolver rejects identifiers outside its own subtype names`(id: String) {
         val mapper = ArcObjectMapper.create(registry())
             .addMixIn(LifecycleBase::class.java, LifecycleNativeType::class.java)
-        for (discriminator in listOf("", "\"_derivedTypeId\":\"middle\",")) {
-            val json = """{"nativeKind":"alternate",${discriminator}"payload":"value","nested":[]}"""
-            val exception = assertThrows(JsonMappingException::class.java) {
-                mapper.readValue(json, LifecycleBase::class.java)
-            }
-            assertTrue(exception.message.orEmpty().contains("native Jackson type metadata"))
+        val exception = assertThrows(InvalidTypeIdException::class.java) {
+            mapper.readValue(
+                """{"nativeKind":"$id","payload":"value","nested":[]}""",
+                LifecycleBase::class.java
+            )
         }
+
+        assertEquals(id, exception.typeId)
+        assertEquals(LifecycleBase::class.java, exception.baseType.rawClass)
+    }
+
+    @Test
+    fun `native Jackson selection leaves the Arc discriminator as an unknown bean property`() {
+        val mapper = ArcObjectMapper.create(registry())
+            .addMixIn(LifecycleBase::class.java, LifecycleNativeType::class.java)
+        val exception = assertThrows(UnrecognizedPropertyException::class.java) {
+            mapper.readValue(
+                """{"nativeKind":"alternate","_derivedTypeId":"middle","payload":"value","nested":[]}""",
+                LifecycleBase::class.java
+            )
+        }
+
+        assertEquals("_derivedTypeId", exception.propertyName)
+        assertEquals(LifecycleAlternate::class.java, exception.referringClass)
     }
 
     @Test

@@ -247,18 +247,12 @@ private class ArcDerivedTypeDeserializer(
         return deserialize(parser, context)
     }
 
+    // Preserve JsonDeserializer's original Jackson-owned native dispatch, not the bean delegate's typed behavior.
     override fun deserializeWithType(
         parser: JsonParser,
         context: DeserializationContext,
         typeDeserializer: TypeDeserializer
-    ): Any? {
-        if (parser.currentToken == JsonToken.VALUE_NULL) return null
-        throw JsonMappingException.from(
-            parser,
-            "Arc derived types do not support native Jackson type metadata for ${baseType.rawClass.name}; " +
-                "use $DERIVED_TYPE_ID and explicit registry membership instead"
-        )
-    }
+    ): Any? = typeDeserializer.deserializeTypedFromAny(parser, context)
 
     override fun getNullValue(context: DeserializationContext): Any? = null
 
