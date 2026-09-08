@@ -107,8 +107,9 @@ Match that posture: reject with an actionable message, do not degrade silently.
   `Documentation/`, and is stated as breaking. The generated-TypeScript temporal/UUID change is the
   precedent: `Documentation/reference/parity.md` says plainly that it "is source-breaking for
   consumers that assigned `Date` or scalar strings".
-- **Versioned wire contracts move deliberately.** `ArcArtifactManifest.CURRENT_FORMAT_VERSION` is
-  `5`; bumping it is a decision with a documented migration, not a side effect.
+- **Versioned wire contracts move deliberately.** Bumping
+  `ArcArtifactManifest.CURRENT_FORMAT_VERSION` is a decision with a documented migration, not a side
+  effect.
 - **Deprecate before removing**, and keep the compatibility projection working while the deprecation
   stands (legacy `ParameterDescriptor` constructors still project to `CLIENT` or `SERVICE`).
 

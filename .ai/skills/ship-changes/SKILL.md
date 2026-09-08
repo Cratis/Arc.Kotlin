@@ -1,6 +1,6 @@
 ---
 name: ship-changes
-description: Use when asked to commit, push, open a pull request, ship, or land a change in Arc.Kotlin — confirming what actually changed and which gates actually passed, branching off `main`, writing the commit, opening the PR with an honest verification section, applying the required release-intent label, watching CI, and merging with a real merge commit.
+description: Use when asked to commit, push, open a pull request, ship, or land a change in Arc.Kotlin; stop at the requested endpoint and separately authorize exact external effects.
 ---
 
 # Ship changes
@@ -10,9 +10,22 @@ Invariants for commits, branches, and merge policy live in
 [local-work-artifacts.md](../../rules/local-work-artifacts.md). This skill is the procedure.
 
 **This workflow performs no destructive git operation.** It never force-pushes, never rewrites
-published history, never squashes, never rebases a pushed branch, never amends a pushed commit, and
+history, never squashes, never rebases, never amends a commit, and
 never deletes a branch or a remote ref. If a situation seems to call for one of those, stop and ask a
 human, and propose an additive alternative (a follow-up commit, or `git revert`).
+
+## Authorization and stopping points
+
+The requested verb is the stopping point, not permission for the whole workflow:
+
+- **Commit-only:** review, explicitly stage authorized paths, commit, and stop. Do not push or open a PR.
+- **Push-only:** push the authorized branch/commits and stop. Do not create additional commits or a PR unless requested.
+- **PR-only:** prepare/open the requested PR and report required checks; stop before merge.
+- **Ship/land:** clarify the exact intended endpoint and effects. These words alone do not authorize destructive or notification-bearing effects.
+
+Merge, issue comments or closure, label mutations (especially labels that trigger publication/releases), publication, and local or remote branch deletion each require separate explicit authorization for exact targets and effects. Apply the repository's current mutation protocol and stricter local/private gates; tool access and inverse escrow alone supply no authority. For destructive/bulk effects, prepare an exact dry-run, capture pre-state and deterministic inverse escrow in ignored `.ai-work/`, obtain approval, recheck preconditions, and record/read back outcomes through the approved repository-owned adapter. If a required adapter, safe inverse/compensation, or authorization is missing, stop. Preserve any stricter prohibition below.
+
+Never rewrite history: no amend, rebase, squash merge, hard reset, force-push, or forced branch deletion. Use new commits, revert, cherry-pick, and merge instead. A request to ship does not override this prohibition.
 
 ## 1. Confirm what actually changed
 
@@ -51,13 +64,13 @@ gate you did not run is a gate you report as not run.
 
 | Gate | Command | Run it when |
 | --- | --- | --- |
-| Full workspace | `./gradlew clean build --no-configuration-cache -x :ContractTests:typeScriptRuntimeTest` | any Kotlin/Java/Gradle change |
+| Full workspace | `./gradlew build --no-configuration-cache -x :ContractTests:typeScriptRuntimeTest` | cross-cutting work or required merge/release gate; use affected-module incremental checks during development |
 | Binary compatibility | `./gradlew apiCheck` | any published public API shape moved |
 | Proxy determinism | `./gradlew :GradlePlugin:verifyContractTestProxyDeterminism :ContractTests:typeScriptBuild --no-configuration-cache` | generated proxies or the TypeScript surface moved |
 | TypeScript runtime | `./gradlew :ContractTests:typeScriptRuntimeTest --no-configuration-cache` | the runtime proxy contract moved |
 | Documentation | `./Documentation/verify-markdown.sh` | anything under `Documentation/` changed |
 
-A documentation-only change runs only the documentation gate — see
+Documentation changes use the documentation gate; `.ai/` changes use `./.ai/verify-corpus.sh`, not Gradle. Wider required CI still applies — see
 [documentation-authoring](../documentation-authoring/SKILL.md). Gradle needs JDK 17 on the PATH;
 check with `java -version` and export `JAVA_HOME` for your own JDK 17 install if it is missing. Never
 commit a machine-specific JDK path.
@@ -96,10 +109,12 @@ and cover it from Kotlin and Java.
 ```
 
 Keep one logical change per commit. Prefer several additive commits over amending — never amend a
-commit that has been pushed. Add only attribution trailers your environment actually requires; the
+commit, pushed or not. Add only attribution trailers your environment actually requires; the
 repository mandates none of its own.
 
 ## 6. Push
+
+**Commit-only stops after step 5.** Push only when explicitly requested; push-only does not authorize new commits or a PR.
 
 ```bash
 git push -u origin <branch>
@@ -108,6 +123,8 @@ git push -u origin <branch>
 Plain `git push` only. No `--force`, no `--force-with-lease`.
 
 ## 7. Open the pull request
+
+**Push-only stops after step 6.** PR creation requires a request; PR-only stops before merge.
 
 ```bash
 gh pr create --base main --title "fix: propagate tenant namespace through the query pipeline" --body-file <path>
@@ -129,8 +146,7 @@ generates the release notes from it. Follow it exactly:
 
 ### Reviewer context goes in a comment, not the body
 
-Everything a reviewer needs but a release note must not carry goes in a separate comment posted
-immediately after the pull request is created:
+Prepare reviewer context separately from release notes. Posting it is a notification effect: require separate explicit authorization for the exact comment text and target, plus repository effect gates. Otherwise return it locally without posting. Only after authorization:
 
 ```bash
 gh pr comment <number> --body-file <path>
@@ -145,20 +161,9 @@ That comment carries three things:
 
 ## 8. Apply the release-intent label
 
-`.github/workflows/verify-semver-label.yml` calls
-`Cratis/Workflows/.github/workflows/verify-release-intent.yml`, which requires **exactly one** of
-`major`, `minor`, `patch`, or `no-release`. Zero labels fail, two version labels fail, and a version
-label together with `no-release` fails. All four labels exist in this repository.
+Documentation-only changes use repository-supported non-release intent, ordinarily `no-release`; confirm the workflow contract rather than assuming a label or API state. Run relevant content, link, frontmatter, and corpus checks instead of unrelated application builds, and satisfy every repository-required check, including release-intent checks where supported. Documentation is never a blanket exemption from red CI.
 
-Documentation-only changes are **not** exempt from the gate, but they take no semantic version label:
-`no-release` is the correct answer for a change that alters nothing a consumer compiles against or
-runs — documentation, CI, tooling, and spec-only changes. That is also consistent with `publish.yml`,
-whose path filter does not include `Documentation/**`.
-
-```bash
-gh pr edit <number> --add-label patch      # or major / minor
-gh pr edit <number> --add-label no-release # documentation, CI, or tooling only
-```
+Propose exactly one supported release-intent label after inspecting current workflows. Applying any label, especially one that triggers publication, requires separate explicit authorization for its exact effects. Read back the result; unknown outcomes require reconciliation, not blind retries.
 
 ## 9. Watch CI and fix what it reports
 
@@ -171,19 +176,14 @@ Workflows that run on a pull request to `main`: **Kotlin Build** (`build.yml` �
 proxy determinism and strict TypeScript, TypeScript runtime gate, documentation verification),
 **CodeQL**, **Verify Semver Label**, **Verify No Work Records**, and **Chronicle Real Kernel** when
 paths it watches changed. Fix what CI reports with new commits on the branch and push again. After a
-fix, re-run the gate that failed rather than arguing to green. The task is not done until CI is green
-or the only failures are confirmed pre-existing and unrelated — say so explicitly if they are.
+fix, re-run the gate that failed rather than arguing to green. Diagnose unrelated/environmental failures within a bounded attempt and report blockers; never retry indefinitely or bypass required red CI.
 
 ## 10. Merge with a real merge commit
 
-Repository merge settings, checked with:
-
-```bash
-gh api repos/Cratis/Arc.Kotlin --jq '{merge:.allow_merge_commit,squash:.allow_squash_merge,rebase:.allow_rebase_merge,default:.default_branch}'
-# {"default":"main","merge":true,"rebase":true,"squash":true}
-```
-
-Merge commits are allowed, so merge exactly this way:
+Confirm current merge settings read-only; do not rely on a recorded API sample.
+**PR-only stops before this step.** Require separate explicit authorization for
+the exact PR/head, merge, and declared publication effects, and passing required
+checks. Only then use a true merge commit:
 
 ```bash
 gh pr merge <number> --merge
@@ -198,21 +198,15 @@ setting; that is not a reason to squash.
 
 ## Stop and ask before anything irreversible
 
-Ask a human first, every time, for: a force-push of any kind, a squash or rebase merge, rewriting or
-amending pushed history, `git reset --hard` over work you did not create, deleting a branch or tag,
-`git clean` over untracked files, publishing or tagging a release, and changing repository settings
-or branch protection.
+History rewriting remains prohibited; propose additive recovery, not approval to rewrite. This skill never deletes branches/refs. Publication, tagging, cleanup, and repository/settings changes are separate exact operations outside the requested commit/push/PR endpoint and need their own explicit authorization and controlling policy.
 
 ## Verify
 
 ```bash
 git status                       # clean tree, nothing ignored staged
 git log --oneline -3             # your commits, on your branch, not on main
-gh pr view <number>              # title, body with Verified / Not verified, one release-intent label
-gh pr checks <number>            # all green, or failures named as pre-existing
+gh pr view <number>              # only if a PR was authorized: reviewed body and supported intent
+gh pr checks <number>            # only for a PR: required checks pass; failures are blockers
 ```
 
-Done means: the branch is not `main`, no work record or build output is tracked, every gate you
-claimed is one you ran, the pull request states what you did not verify, exactly one of
-`major`/`minor`/`patch`/`no-release` is applied, CI is green, and the merge — if you were asked to
-land it — used `gh pr merge --merge`.
+Done means the requested endpoint was reached with authorized scope and truthful verification. Commit-only stops after commit; push-only after push; PR-only before merge. Report pending effects and blockers without executing them. A merge, when separately authorized for the exact PR/head and effects, uses `gh pr merge --merge`.

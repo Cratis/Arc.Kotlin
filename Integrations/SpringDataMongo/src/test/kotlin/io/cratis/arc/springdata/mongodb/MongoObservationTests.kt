@@ -9,6 +9,8 @@ import java.time.Duration
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
@@ -16,6 +18,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.onSubscription
 import kotlinx.coroutines.flow.produceIn
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
@@ -71,6 +74,38 @@ class MongoObservationTests {
         assertEquals("tenant-a", watcher.tenantId)
         snapshots.cancel()
         observed.close()
+    }
+
+    @Test
+    fun `fake watcher readiness retains an immediately emitted first change`() = runBlocking {
+        val watcher = FakeWatcher()
+        withTimeout(2_000) {
+            val received = Channel<MongoChange>(Channel.RENDEZVOUS)
+            // Suspend the emitter first. The normally dispatched collector then resumes it inline
+            // at started.complete, before watch can advance, without a nested Unconfined event loop.
+            val emission = async(Dispatchers.Unconfined) {
+                watcher.started.await()
+                val subscribersAtReadiness = watcher.subscriptionCount
+                watcher.emit(MongoChangeOperation.INSERT, "one", "tenant-a")
+                subscribersAtReadiness
+            }
+            val collection = launch {
+                watcher.watch(MongoTaskReadModel::class.java, "tenant-a", null).collect(received::send)
+            }
+            try {
+                assertEquals(1, emission.await(), "Readiness must follow actual SharedFlow subscription")
+                val change = received.receive()
+                assertEquals(MongoChangeOperation.INSERT, change.operation)
+                assertEquals(BsonDocument("_id", BsonString("one")), change.documentKey)
+                assertEquals("tenant-a", change.tenantId)
+                assertEquals("tenant-a", watcher.tenantId)
+            } finally {
+                emission.cancel()
+                collection.cancel()
+                received.cancel()
+            }
+        }
+        assertEquals(0, watcher.subscriptionCount)
     }
 
     @Test
@@ -209,12 +244,12 @@ class MongoObservationTests {
     private class FakeWatcher : MongoChangeStreamWatcher {
         private val changes = MutableSharedFlow<MongoChange>(extraBufferCapacity = 1)
         val started = CompletableDeferred<Unit>()
+        val subscriptionCount: Int get() = changes.subscriptionCount.value
         var tenantId: String? = null
 
         override fun watch(documentType: Class<*>, tenantId: String?, documentKey: Any?): Flow<MongoChange> = flow {
             this@FakeWatcher.tenantId = tenantId
-            started.complete(Unit)
-            emitAll(changes)
+            emitAll(changes.onSubscription { started.complete(Unit) })
         }
 
         suspend fun emit(operation: MongoChangeOperation, id: String, tenantId: String?) {
