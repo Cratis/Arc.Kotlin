@@ -28,6 +28,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode
 import com.fasterxml.jackson.databind.ser.BeanSerializerModifier
 import com.fasterxml.jackson.databind.ser.Serializers
 import com.fasterxml.jackson.databind.ser.std.StdScalarSerializer
+import com.fasterxml.jackson.databind.type.ResolvedRecursiveType
 import com.fasterxml.jackson.databind.util.AccessPattern
 import com.fasterxml.jackson.databind.util.TokenBuffer
 import io.cratis.arc.concepts.ArcEnum
@@ -50,6 +51,7 @@ import java.time.format.DateTimeFormatterBuilder
 import java.time.format.DateTimeParseException
 import java.time.format.ResolverStyle
 import java.time.temporal.ChronoField
+import java.util.IdentityHashMap
 import java.util.Locale
 
 /**
@@ -287,6 +289,17 @@ private class ArcDerivedTypeDeserializer(
                 exception
             )
         }
+        // Jackson skips fixed inherited binding validation when the target has no type parameters of its own.
+        if (derivedType.typeParameters.isEmpty() && !baseType.bindings.isEmpty) {
+            val projected = targetType.findSuperType(baseType.rawClass)
+            val conflict = FixedDerivedTypeBindingCompatibility().conflict(baseType, projected, "base")
+            if (conflict != null) {
+                throw JsonMappingException.from(
+                    parser,
+                    "Cannot specialize registered derived type ${derivedType.name} for declared base $baseType; $conflict"
+                )
+            }
+        }
         val target = context.findNonContextualValueDeserializer(targetType)
         // Consume this object's discriminator once. Nested properties still use their own Arc wrappers.
         // Only unwrap our immediate wrapper, never a third-party decorator or its delegate chain.
@@ -296,6 +309,41 @@ private class ArcDerivedTypeDeserializer(
             treeParser.nextToken()
             contextual.deserialize(treeParser, context)
         }
+    }
+}
+
+/** Checks only definite contradictions in fixed bindings, not Java mutable generic invariance or payload values. */
+private class FixedDerivedTypeBindingCompatibility {
+    private val visited = IdentityHashMap<JavaType, IdentityHashMap<JavaType, Boolean>>()
+
+    fun conflict(requestedType: JavaType?, actualType: JavaType?, path: String): String? {
+        if (requestedType == null || actualType == null) return null
+        val requested = (requestedType as? ResolvedRecursiveType)?.selfReferencedType ?: requestedType
+        val actual = (actualType as? ResolvedRecursiveType)?.selfReferencedType ?: actualType
+        // Jackson represents unresolved bindings as Object too; the metadata cannot distinguish them here.
+        if (requested.isJavaLangObject || actual.isJavaLangObject) return null
+        val actuals = visited.getOrPut(requested) { IdentityHashMap() }
+        if (actuals.put(actual, true) != null) return null
+        if (!requested.rawClass.isAssignableFrom(actual.rawClass)) {
+            return "$path requires ${requested.rawClass.name}, but the fixed binding is ${actual.rawClass.name}"
+        }
+        // Arrays have component types rather than a findSuperType hierarchy for covariant array classes.
+        val projected = if (requested.rawClass == actual.rawClass || requested.isArrayType) actual
+            else actual.findSuperType(requested.rawClass) ?: return null
+        conflict(requested.keyType, projected.keyType, "$path.key")?.let { return it }
+        conflict(requested.contentType, projected.contentType, "$path.content")?.let { return it }
+        conflict(requested.referencedType, projected.referencedType, "$path.reference")?.let { return it }
+        val requestedBindings = requested.bindings
+        val actualBindings = projected.bindings
+        for (index in 0 until requestedBindings.size()) {
+            val name = requestedBindings.getBoundName(index) ?: index.toString()
+            conflict(
+                requestedBindings.getBoundType(index),
+                actualBindings.getBoundType(index),
+                "$path<$name>"
+            )?.let { return it }
+        }
+        return null
     }
 }
 
