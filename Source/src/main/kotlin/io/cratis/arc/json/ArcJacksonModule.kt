@@ -7,6 +7,7 @@ import com.fasterxml.jackson.core.JsonGenerator
 import com.fasterxml.jackson.core.JsonParser
 import com.fasterxml.jackson.core.JsonToken
 import com.fasterxml.jackson.databind.BeanDescription
+import com.fasterxml.jackson.databind.BeanProperty
 import com.fasterxml.jackson.databind.DeserializationConfig
 import com.fasterxml.jackson.databind.DeserializationContext
 import com.fasterxml.jackson.databind.JavaType
@@ -17,13 +18,17 @@ import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.JsonSerializer
 import com.fasterxml.jackson.databind.SerializationConfig
 import com.fasterxml.jackson.databind.SerializerProvider
+import com.fasterxml.jackson.databind.deser.BeanDeserializerModifier
 import com.fasterxml.jackson.databind.deser.Deserializers
+import com.fasterxml.jackson.databind.deser.std.DelegatingDeserializer
+import com.fasterxml.jackson.databind.jsontype.TypeDeserializer
 import com.fasterxml.jackson.databind.jsontype.TypeSerializer
 import com.fasterxml.jackson.databind.module.SimpleModule
 import com.fasterxml.jackson.databind.node.ObjectNode
 import com.fasterxml.jackson.databind.ser.BeanSerializerModifier
 import com.fasterxml.jackson.databind.ser.Serializers
 import com.fasterxml.jackson.databind.ser.std.StdScalarSerializer
+import com.fasterxml.jackson.databind.util.AccessPattern
 import com.fasterxml.jackson.databind.util.TokenBuffer
 import io.cratis.arc.concepts.ArcEnum
 import io.cratis.arc.concepts.ConceptAs
@@ -68,7 +73,8 @@ public class ArcJacksonModule @JvmOverloads constructor(
     override fun setupModule(context: SetupContext) {
         super.setupModule(context)
         context.addSerializers(ArcSerializers)
-        context.addDeserializers(ArcDeserializers(registry))
+        context.addDeserializers(ArcDeserializers)
+        context.addBeanDeserializerModifier(ArcDerivedTypeDeserializerModifier(registry))
         context.addBeanSerializerModifier(ArcDerivedTypeSerializerModifier)
     }
 }
@@ -106,14 +112,13 @@ private object ArcSerializers : Serializers.Base() {
     }
 }
 
-private class ArcDeserializers(private val registry: DerivedTypeRegistry) : Deserializers.Base() {
+private object ArcDeserializers : Deserializers.Base() {
     override fun findBeanDeserializer(
         type: JavaType,
         config: DeserializationConfig,
         beanDesc: BeanDescription
     ): JsonDeserializer<*>? = when {
         ConceptAs::class.java.isAssignableFrom(type.rawClass) -> ArcConceptDeserializer(type)
-        registry.registeredBaseTypes().contains(type.rawClass) -> ArcDerivedTypeDeserializer(type, registry)
         else -> null
     }
 
@@ -203,10 +208,59 @@ private class ArcConceptDeserializer(private val conceptType: JavaType) : JsonDe
     }
 }
 
+private class ArcDerivedTypeDeserializerModifier(private val registry: DerivedTypeRegistry) : BeanDeserializerModifier() {
+    override fun modifyDeserializer(
+        config: DeserializationConfig,
+        beanDesc: BeanDescription,
+        deserializer: JsonDeserializer<*>
+    ): JsonDeserializer<*> {
+        val type = beanDesc.type
+        if (type.isEnumType || ConceptAs::class.java.isAssignableFrom(type.rawClass) ||
+            type.rawClass !in registry.registeredBaseTypes()
+        ) return deserializer
+        return ArcDerivedTypeDeserializer(type, registry, deserializer)
+    }
+}
+
 private class ArcDerivedTypeDeserializer(
     private val baseType: JavaType,
-    private val registry: DerivedTypeRegistry
-) : JsonDeserializer<Any>() {
+    private val registry: DerivedTypeRegistry,
+    delegate: JsonDeserializer<*>,
+    private val property: BeanProperty? = null
+) : DelegatingDeserializer(delegate) {
+    override fun newDelegatingInstance(newDelegatee: JsonDeserializer<*>): JsonDeserializer<*> =
+        ArcDerivedTypeDeserializer(baseType, registry, newDelegatee, property)
+
+    override fun createContextual(context: DeserializationContext, property: BeanProperty?): JsonDeserializer<*> =
+        ArcDerivedTypeDeserializer(
+            baseType,
+            registry,
+            context.handleSecondaryContextualization(_delegatee, property, baseType),
+            property
+        )
+
+    // Preserve JsonDeserializer's original replacement-read behavior, not the bean delegate's in-place update.
+    override fun supportsUpdate(config: DeserializationConfig): Boolean? = null
+
+    override fun deserialize(parser: JsonParser, context: DeserializationContext, intoValue: Any): Any? {
+        context.handleBadMerge(this)
+        return deserialize(parser, context)
+    }
+
+    // Preserve JsonDeserializer's original Jackson-owned native dispatch, not the bean delegate's typed behavior.
+    override fun deserializeWithType(
+        parser: JsonParser,
+        context: DeserializationContext,
+        typeDeserializer: TypeDeserializer
+    ): Any? = typeDeserializer.deserializeTypedFromAny(parser, context)
+
+    override fun getNullValue(context: DeserializationContext): Any? = null
+
+    // Empty coercion must preserve null, not manufacture an unregistered base through the bean delegate.
+    override fun getEmptyValue(context: DeserializationContext): Any? = null
+
+    override fun getEmptyAccessPattern(): AccessPattern = AccessPattern.ALWAYS_NULL
+
     override fun deserialize(parser: JsonParser, context: DeserializationContext): Any? {
         if (parser.currentToken == JsonToken.VALUE_NULL) return null
         val node = parser.codec.readTree<JsonNode>(parser) as? ObjectNode
@@ -217,9 +271,31 @@ private class ArcDerivedTypeDeserializer(
         val derivedType = registry.resolve(baseType.rawClass, id)
             ?: throw JsonMappingException.from(parser, "Unknown derived type identifier '$id' for ${baseType.rawClass.name}")
 
-        val treeParser = node.traverse(parser.codec)
-        treeParser.nextToken()
-        return context.readValue(treeParser, derivedType)
+        if (!baseType.rawClass.isAssignableFrom(derivedType)) {
+            throw JsonMappingException.from(
+                parser,
+                "Resolved derived type ${derivedType.name} is not assignable to ${baseType.rawClass.name}"
+            )
+        }
+        val targetType = try {
+            context.constructSpecializedType(baseType, derivedType)
+        } catch (exception: IllegalArgumentException) {
+            throw JsonMappingException.from(
+                parser,
+                "Cannot specialize registered derived type ${derivedType.name} for declared base $baseType; " +
+                    "the target must preserve the declared generic bindings",
+                exception
+            )
+        }
+        val target = context.findNonContextualValueDeserializer(targetType)
+        // Consume this object's discriminator once. Nested properties still use their own Arc wrappers.
+        // Only unwrap our immediate wrapper, never a third-party decorator or its delegate chain.
+        val ordinary = if (target is ArcDerivedTypeDeserializer) target._delegatee else target
+        val contextual = context.handleSecondaryContextualization(ordinary, property, targetType)
+        return node.traverse(parser.codec).use { treeParser ->
+            treeParser.nextToken()
+            contextual.deserialize(treeParser, context)
+        }
     }
 }
 
