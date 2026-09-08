@@ -277,7 +277,16 @@ private class ArcDerivedTypeDeserializer(
                 "Resolved derived type ${derivedType.name} is not assignable to ${baseType.rawClass.name}"
             )
         }
-        val targetType = context.constructSpecializedType(baseType, derivedType)
+        val targetType = try {
+            context.constructSpecializedType(baseType, derivedType)
+        } catch (exception: IllegalArgumentException) {
+            throw JsonMappingException.from(
+                parser,
+                "Cannot specialize registered derived type ${derivedType.name} for declared base $baseType; " +
+                    "the target must preserve the declared generic bindings",
+                exception
+            )
+        }
         val target = context.findNonContextualValueDeserializer(targetType)
         // Consume this object's discriminator once. Nested properties still use their own Arc wrappers.
         // Only unwrap our immediate wrapper, never a third-party decorator or its delegate chain.

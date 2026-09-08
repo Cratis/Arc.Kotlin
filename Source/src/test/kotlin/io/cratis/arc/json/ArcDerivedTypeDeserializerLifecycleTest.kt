@@ -299,6 +299,77 @@ class ArcDerivedTypeDeserializerLifecycleTest {
         assertNull(mapper.readValue("null", LifecycleEmptyBase::class.java))
     }
 
+    @Test
+    fun `incompatible fixed generic target reports a mapping failure at the root`() {
+        val exception = assertThrows(JsonMappingException::class.java) {
+            fixedGenericMapper().readValue(
+                fixedGenericJson,
+                object : TypeReference<LifecycleBase<LifecyclePayload>>() {}
+            )
+        }
+
+        assertSpecializationFailure(exception)
+        assertTrue(exception.path.isEmpty())
+    }
+
+    @Test
+    fun `incompatible fixed generic property retains the specialization cause and property path`() {
+        val exception = assertThrows(JsonMappingException::class.java) {
+            fixedGenericMapper().readValue(
+                """{"value":$fixedGenericJson}""",
+                LifecycleFixedGenericEnvelope::class.java
+            )
+        }
+
+        assertSpecializationFailure(exception)
+        assertEquals(listOf("value"), exception.path.map { it.fieldName })
+    }
+
+    @Test
+    fun `incompatible fixed generic list element retains the specialization cause and indexed path`() {
+        val exception = assertThrows(JsonMappingException::class.java) {
+            fixedGenericMapper().readValue(
+                """{"values":[$fixedGenericJson]}""",
+                LifecycleFixedGenericListEnvelope::class.java
+            )
+        }
+
+        assertSpecializationFailure(exception)
+        assertEquals(2, exception.path.size)
+        assertEquals("values", exception.path[0].fieldName)
+        assertEquals(0, exception.path[1].index)
+    }
+
+    @Test
+    fun `compatible fixed generic target still binds its payload and unrelated type parameter`() {
+        val value = fixedGenericMapper().readValue(
+            """{"_derivedTypeId":"fixed-string","payload":"value","nested":[["entry"]],"extra":"extra"}""",
+            object : TypeReference<LifecycleBase<String>>() {}
+        )
+
+        assertEquals(LifecycleFixedStringLeaf::class.java, value.javaClass)
+        assertEquals("value", (value as LifecycleFixedStringLeaf<*>).payload)
+        assertEquals(listOf(listOf("entry")), value.nested)
+        assertEquals("extra", value.extra)
+    }
+
+    private fun assertSpecializationFailure(exception: JsonMappingException) {
+        assertEquals(IllegalArgumentException::class.java, exception.cause?.javaClass)
+        assertTrue(exception.cause?.message.orEmpty().contains("Failed to specialize"))
+        assertTrue(exception.message.orEmpty().contains("Cannot specialize registered derived type"))
+        assertTrue(exception.message.orEmpty().contains(LifecycleFixedStringLeaf::class.java.name))
+        assertTrue(exception.message.orEmpty().contains(LifecyclePayload::class.java.name))
+    }
+
+    private fun fixedGenericMapper(): ObjectMapper = ArcObjectMapper.create(
+        ConcurrentDerivedTypeRegistry().apply {
+            register(LifecycleBase::class.java, LifecycleFixedStringLeaf::class.java)
+        }
+    )
+
+    private val fixedGenericJson = """{"_derivedTypeId":"fixed-string","payload":{"value":"root"},
+        "nested":[[{"value":"nested"}]],"extra":"extra"}"""
+
     private fun emptyValueRegistry(): ConcurrentDerivedTypeRegistry = ConcurrentDerivedTypeRegistry().apply {
         register(LifecycleEmptyBase::class.java, LifecycleEmptyLeaf::class.java)
     }
@@ -332,6 +403,13 @@ class LifecycleLeaf<T>(payload: T, nested: List<List<T>>) : LifecycleMiddle<T>(p
 
 @DerivedType("middle")
 class LifecycleAlternate<T>(val payload: T, val nested: List<List<T>>) : LifecycleBase<T>()
+
+@DerivedType("fixed-string")
+class LifecycleFixedStringLeaf<U>(val payload: String, val nested: List<List<String>>, val extra: U) : LifecycleBase<String>()
+
+data class LifecycleFixedGenericEnvelope(val value: LifecycleBase<LifecyclePayload>)
+
+data class LifecycleFixedGenericListEnvelope(val values: List<LifecycleBase<LifecyclePayload>>)
 
 data class LifecyclePayload(val value: String)
 
