@@ -19,7 +19,13 @@ public interface Authentication {
     public suspend fun handleAuthentication(context: AuthenticationRequestContext): AuthenticationResult
 }
 
-/** Ordered handler chain. The first success wins; otherwise all failures are retained in handler order. */
+/**
+ * Ordered handler chain in which the first handler that recognizes the request decides the outcome.
+ *
+ * A handler recognizes a request by either supplying a principal or rejecting the credentials. Both outcomes are
+ * terminal: no later handler runs, so a rejection can never be overridden by a later success.
+ * [AuthenticationResult.ANONYMOUS] is returned only when no handler recognized the request.
+ */
 public class DefaultAuthentication(handlers: List<AuthenticationHandler>) : Authentication {
     private val handlers: List<AuthenticationHandler> = java.util.List.copyOf(handlers)
 
@@ -27,13 +33,11 @@ public class DefaultAuthentication(handlers: List<AuthenticationHandler>) : Auth
         get() = handlers.isNotEmpty()
 
     override suspend fun handleAuthentication(context: AuthenticationRequestContext): AuthenticationResult {
-        val failures = mutableListOf<AuthenticationFailureReason>()
         handlers.forEach { handler ->
             val result = handler.handleAuthentication(context)
-            if (result.isAuthenticated) return result
-            result.failure?.reasons?.let(failures::addAll)
+            if (result.isAuthenticated || result.failure != null) return result
         }
-        return if (failures.isEmpty()) AuthenticationResult.ANONYMOUS else AuthenticationResult.failed(failures)
+        return AuthenticationResult.ANONYMOUS
     }
 }
 

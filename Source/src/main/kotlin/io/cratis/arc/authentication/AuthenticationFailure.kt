@@ -9,7 +9,11 @@ public class AuthenticationFailure(reasons: List<AuthenticationFailureReason>) {
         require(reasons.isNotEmpty()) { "Authentication failure must contain at least one reason." }
     }
 
-    /** Failure reasons in authentication-handler order. */
+    /**
+     * Failure reasons supplied by the handler that rejected the request, in the order that handler declared them.
+     *
+     * A rejection is terminal, so the reasons always originate from a single handler.
+     */
     public val reasons: List<AuthenticationFailureReason> = java.util.List.copyOf(reasons)
 
     /** Compatibility view of the first failure reason. */
