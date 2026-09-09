@@ -16,11 +16,20 @@ public class QueryScenarioResult<TData>(public val result: QueryResult<TData>) {
     /** Asserts that the query succeeded. */
     public fun shouldSucceed(): QueryScenarioResult<TData> = assertThat(result.isSuccess, "Expected the query to succeed.")
 
+    /** Asserts that authorization accepted the query, regardless of any later rejection. */
+    public fun shouldBeAuthorized(): QueryScenarioResult<TData> = assertThat(
+        result.isAuthorized,
+        "Expected the query to be authorized."
+    )
+
     /** Asserts that authorization rejected the query. */
     public fun shouldBeUnauthorized(): QueryScenarioResult<TData> = assertThat(
         !result.isAuthorized,
         "Expected the query to be unauthorized."
     )
+
+    /** Asserts that the query produced no validation feedback of any severity. */
+    public fun shouldBeValid(): QueryScenarioResult<TData> = assertThat(result.isValid, "Expected the query to be valid.")
 
     /** Asserts that validation rejected the query. */
     public fun shouldBeInvalid(): QueryScenarioResult<TData> = assertThat(!result.isValid, "Expected the query to be invalid.")

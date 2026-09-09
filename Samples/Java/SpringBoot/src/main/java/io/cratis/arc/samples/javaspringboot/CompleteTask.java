@@ -7,7 +7,6 @@ import io.cratis.arc.artifacts.Command;
 import io.cratis.arc.artifacts.CommandKey;
 import io.cratis.arc.authorization.AllowAnonymous;
 import io.cratis.arc.results.ValidationResult;
-import io.cratis.arc.results.ValidationResultSeverity;
 import java.util.List;
 import java.util.concurrent.CompletionStage;
 import kotlin.Pair;
@@ -36,9 +35,6 @@ public record CompleteTask(@CommandKey String taskId) {
     }
 
     private static ValidationResult validation(String message) {
-        return new ValidationResult(
-            ValidationResultSeverity.Error,
-            message,
-            List.of("taskId"));
+        return ValidationResult.error(message, List.of("taskId"));
     }
 }

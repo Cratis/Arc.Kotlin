@@ -42,6 +42,7 @@ public class CommandScenario<TCommand : Any> private constructor(
     private val contextValuesProviders = mutableListOf<CommandContextValuesProvider>()
     private val validators = mutableListOf<CommandValidator<*>>()
     private val readModelResolvers = mutableListOf<CanResolveReadModelForCommand>()
+    private val pinnedReadModels = mutableListOf<PinnedReadModel>()
     private val policies = LinkedHashMap<String, AuthorizationPolicy>()
     private val extensions = LinkedHashMap<Class<out CommandScenarioExtender>, CommandScenarioExtender>()
     private val objectMapper: ObjectMapper = ArcObjectMapper.create()
@@ -118,6 +119,49 @@ public class CommandScenario<TCommand : Any> private constructor(
     public fun addReadModelResolver(resolver: CanResolveReadModelForCommand): CommandScenario<TCommand> = apply {
         readModelResolvers.add(resolver)
     }
+
+    /**
+     * Pins [readModel] as the command-side read model of exact [type], whatever key the command resolves.
+     *
+     * A `null` [readModel] pins deliberate absence, so a required parameter fails with `dependencyUnavailable` while a
+     * Kotlin nullable or Java `Optional` parameter observes the empty state. No store or query pipeline is involved.
+     */
+    public fun <T : Any> withReadModel(type: Class<T>, readModel: T?): CommandScenario<TCommand> = apply {
+        require(pinnedReadModels.none { pin -> pin.readModelType == type }) {
+            "A command-side read model is already pinned for '${type.name}'."
+        }
+        pinnedReadModels.add(PinnedReadModel(type, hasKey = false, key = null, readModel = readModel))
+    }
+
+    /**
+     * Pins [readModel] as the command-side read model of exact [type] for command key [key] only.
+     *
+     * Any other command key resolves to absence, so the test also proves that the command carries the expected key.
+     * Keys are compared after unwrapping [io.cratis.arc.concepts.ConceptAs] wrappers, so a scalar pin matches a
+     * concept-typed command key.
+     */
+    public fun <T : Any> withReadModelForKey(
+        type: Class<T>,
+        key: Any,
+        readModel: T?
+    ): CommandScenario<TCommand> = apply {
+        val normalizedKey = normalizePinKey(key)
+        require(pinnedReadModels.none { pin -> pin.readModelType == type && !pin.hasKey }) {
+            "A command-side read model is already pinned for '${type.name}' without a key."
+        }
+        require(pinnedReadModels.none { pin -> pin.readModelType == type && pin.key == normalizedKey }) {
+            "A command-side read model is already pinned for '${type.name}' and key '$key'."
+        }
+        pinnedReadModels.add(PinnedReadModel(type, hasKey = true, key = normalizedKey, readModel = readModel))
+    }
+
+    /** Kotlin convenience for [withReadModel]. */
+    public inline fun <reified T : Any> withReadModel(readModel: T?): CommandScenario<TCommand> =
+        withReadModel(T::class.java, readModel)
+
+    /** Kotlin convenience for [withReadModelForKey]. */
+    public inline fun <reified T : Any> withReadModelForKey(key: Any, readModel: T?): CommandScenario<TCommand> =
+        withReadModelForKey(T::class.java, key, readModel)
 
     /** Adds a named authorization policy, rejecting duplicate names. */
     public fun addPolicy(name: String, policy: AuthorizationPolicy): CommandScenario<TCommand> = apply {
@@ -237,13 +281,18 @@ public class CommandScenario<TCommand : Any> private constructor(
     )
 
     private fun servicesWithReadModelResolvers(): ScenarioServiceResolver {
-        if (readModelResolvers.isEmpty()) return services
+        val resolvers = readModelResolvers + if (pinnedReadModels.isEmpty()) {
+            emptyList()
+        } else {
+            listOf(PinnedReadModelsForCommand(pinnedReadModels.toList()))
+        }
+        if (resolvers.isEmpty()) return services
         require(!services.contains(ReadModelForCommandResolverRegistry::class.java)) {
-            "Configure command-side read-model resolvers either with addReadModelResolver or as an explicit registry service, not both."
+            "Configure command-side read models either with addReadModelResolver and withReadModel or as an explicit registry service, not both."
         }
         return services.put(
             ReadModelForCommandResolverRegistry::class.java,
-            ReadModelForCommandResolverRegistry(readModelResolvers)
+            ReadModelForCommandResolverRegistry(resolvers)
         )
     }
 

@@ -5,9 +5,7 @@ package io.cratis.arc.samples.javachronicle;
 
 import io.cratis.arc.chronicle.ChronicleCommandScenarios;
 import io.cratis.arc.generated.JavaChronicleSpringBootSampleArcArtifactModule;
-import io.cratis.arc.queries.BlockingReadModelForCommandResolver;
 import io.cratis.arc.queries.FullyQualifiedQueryName;
-import io.cratis.arc.queries.ReadModelForCommandOwnership;
 import io.cratis.arc.testing.CommandScenario;
 import io.cratis.arc.testing.QueryScenario;
 import io.cratis.arc.testing.java.BlockingCommandScenario;
@@ -43,7 +41,7 @@ final class JavaChronicleContractsTests {
     void renameInjectsTheCurrentModelAndConstructsAnExactScope() {
         var current = new TaskView("task-1", "Tenant-local title", 7L);
         var configured = new CommandScenario<>(module, RenameTask.class)
-            .addReadModelResolver(new FixedTaskViewResolver(current))
+            .withReadModelForKey(TaskView.class, "task-1", current)
             .withTenant("tenant-a");
 
         try (var scenario = new BlockingCommandScenario<>(configured)) {
@@ -88,33 +86,6 @@ final class JavaChronicleContractsTests {
         }
 
         assertEquals(List.of("tenant-a:task-1", "tenant-a:*"), reader.calls);
-    }
-
-    private static final class FixedTaskViewResolver implements BlockingReadModelForCommandResolver {
-        private final TaskView value;
-
-        private FixedTaskViewResolver(TaskView value) {
-            this.value = value;
-        }
-
-        @Override
-        public java.util.Set<Class<?>> readModelTypes() {
-            return java.util.Set.of(TaskView.class);
-        }
-
-        @Override
-        public ReadModelForCommandOwnership ownership() {
-            return ReadModelForCommandOwnership.DECLARED;
-        }
-
-        @Override
-        public Object resolveBlocking(
-            Class<?> readModelType,
-            io.cratis.arc.commands.CommandContext commandContext,
-            Object key
-        ) {
-            return value;
-        }
     }
 
     private static final class CapturingTaskViewReader implements TaskViewReader {

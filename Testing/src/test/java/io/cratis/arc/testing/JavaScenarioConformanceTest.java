@@ -3,13 +3,19 @@
 
 package io.cratis.arc.testing;
 
+import io.cratis.arc.results.CommandResult;
+import io.cratis.arc.results.QueryResult;
+import io.cratis.arc.results.ValidationResult;
+import io.cratis.arc.results.ValidationResultReasons;
 import io.cratis.arc.testing.java.AsyncCommandScenario;
 import io.cratis.arc.testing.java.AsyncQueryScenario;
 import io.cratis.arc.testing.java.BlockingCommandScenario;
 import io.cratis.arc.testing.java.BlockingQueryScenario;
 import io.cratis.arc.tenancy.HeaderTenantIdResolver;
 import io.cratis.arc.tenancy.TenantResolutionContext;
+import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import kotlinx.coroutines.CoroutineScope;
 import kotlinx.coroutines.CoroutineScopeKt;
@@ -57,6 +63,69 @@ final class JavaScenarioConformanceTest {
             commands.execute(new TestCommand("tenant")).shouldSucceed();
         }
         assertEquals("java-tenant", tenantHandler.getLastContext().getTenantId());
+    }
+
+    @Test
+    void positiveAuthorizationValidityAndErrorAssertionsAreJavaFriendly() {
+        UUID correlationId = UUID.randomUUID();
+        CommandScenarioResult<Void> rejectedByValidation = new CommandScenarioResult<>(
+            CommandResult.invalid(correlationId, List.of(ValidationResult.error("rejected", List.of("value")))));
+        CommandScenarioResult<Void> failedWithException = new CommandScenarioResult<>(
+            CommandResult.error(correlationId, "handler exploded"));
+        QueryScenarioResult<TestModel> readyQuery = new QueryScenarioResult<>(
+            QueryResult.success(correlationId, new TestModel("data")));
+
+        rejectedByValidation.shouldBeAuthorized().shouldBeInvalid().shouldHaveNoErrors();
+        failedWithException.shouldBeAuthorized().shouldBeValid().shouldHaveErrors();
+        readyQuery.shouldBeAuthorized().shouldBeValid();
+
+        assertTrue(
+            assertThrows(AssertionError.class, rejectedByValidation::shouldBeValid)
+                .getMessage().contains("Expected the command to be valid"));
+        assertTrue(
+            assertThrows(AssertionError.class, failedWithException::shouldHaveNoErrors)
+                .getMessage().contains("Expected the command to have no errors"));
+    }
+
+    @Test
+    void pinnedReadModelsAreConfigurableAndObservableFromJava() {
+        CommandScenario<KeyedTestCommand> pinned =
+            new CommandScenario<KeyedTestCommand>(new ReadModelCommandHandler())
+                .withReadModelForKey(TestModel.class, "model-1", new TestModel("pinned"));
+        try (BlockingCommandScenario<KeyedTestCommand> scenario = new BlockingCommandScenario<>(pinned)) {
+            TestResponse response = scenario.execute(new KeyedTestCommand(new TestModelId("model-1"), "value"))
+                .shouldSucceed()
+                .shouldHaveResponse(TestResponse.class);
+            assertEquals("pinned", response.getValue());
+        }
+
+        CommandScenario<KeyedTestCommand> empty =
+            new CommandScenario<KeyedTestCommand>(new ReadModelCommandHandler(TestReadModelArgument.OPTIONAL))
+                .withReadModel(TestModel.class, null);
+        try (BlockingCommandScenario<KeyedTestCommand> scenario = new BlockingCommandScenario<>(empty)) {
+            TestResponse response = scenario.execute(new KeyedTestCommand(new TestModelId("model-1"), "value"))
+                .shouldSucceed()
+                .shouldHaveResponse(TestResponse.class);
+            assertEquals("absent", response.getValue());
+        }
+
+        CommandScenario<KeyedTestCommand> required =
+            new CommandScenario<KeyedTestCommand>(new ReadModelCommandHandler())
+                .withReadModelForKey(TestModel.class, "other-key", new TestModel("pinned"));
+        try (BlockingCommandScenario<KeyedTestCommand> scenario = new BlockingCommandScenario<>(required)) {
+            assertEquals(
+                ValidationResultReasons.DEPENDENCY_UNAVAILABLE,
+                scenario.execute(new KeyedTestCommand(new TestModelId("model-1"), "value"))
+                    .shouldBeInvalid()
+                    .getResult()
+                    .getValidationResults()
+                    .get(0)
+                    .getReason());
+        }
+
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> pinned.withReadModel(TestModel.class, new TestModel("duplicate")));
     }
 
     @Test

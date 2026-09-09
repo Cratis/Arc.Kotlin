@@ -7,7 +7,6 @@ import io.cratis.arc.artifacts.Command
 import io.cratis.arc.artifacts.CommandKey
 import io.cratis.arc.authorization.AllowAnonymous
 import io.cratis.arc.results.ValidationResult
-import io.cratis.arc.results.ValidationResultSeverity
 
 /** State and stable repository revision loaded during command preparation. */
 public data class TaskCompletionPreparation(public val task: TaskView, public val revision: Long)
@@ -33,9 +32,5 @@ public data class CompleteTask(@CommandKey public val taskId: String) {
         }
     }
 
-    private fun validation(message: String): ValidationResult = ValidationResult(
-        ValidationResultSeverity.Error,
-        message,
-        listOf("taskId")
-    )
+    private fun validation(message: String): ValidationResult = ValidationResult.error(message, listOf("taskId"))
 }

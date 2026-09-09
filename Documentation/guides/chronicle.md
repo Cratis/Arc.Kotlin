@@ -137,3 +137,5 @@ scenario.chronicle()
 ```
 
 Given events establish ordered history and are excluded from appended-event assertions. Builders can arrange deterministic constraint and concurrency violations; assertions inspect the same machine-readable `ValidationResult` contract used at runtime. Java uses the generated `ChronicleCommandScenarios` static bridge. See [Test commands and queries in process](testing.md) for the complete Kotlin and Java examples.
+
+A command that injects a Chronicle read model does not need the read-model service either: pin the model to a known state with `withReadModel` or `withReadModelForKey` on the scenario. The pin claims declared ownership through Arc's own resolver registry rather than substituting a Chronicle service, so it works the same way for a Chronicle, JPA, or MongoDB-owned read model. See [Pin a command-side read model](testing.md#pin-a-command-side-read-model).

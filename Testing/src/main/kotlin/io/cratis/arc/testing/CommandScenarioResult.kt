@@ -20,10 +20,22 @@ public class CommandScenarioResult<TResponse>(public val result: CommandResult<T
         "Expected the command to fail."
     )
 
+    /** Asserts that authorization accepted the command, regardless of any later rejection. */
+    public fun shouldBeAuthorized(): CommandScenarioResult<TResponse> = assertThat(
+        result.isAuthorized,
+        "Expected the command to be authorized."
+    )
+
     /** Asserts that authorization rejected the command. */
     public fun shouldBeUnauthorized(): CommandScenarioResult<TResponse> = assertThat(
         !result.isAuthorized,
         "Expected the command to be unauthorized."
+    )
+
+    /** Asserts that the command produced no validation feedback of any severity. */
+    public fun shouldBeValid(): CommandScenarioResult<TResponse> = assertThat(
+        result.isValid,
+        "Expected the command to be valid."
     )
 
     /** Asserts that validation rejected the command. */
@@ -48,6 +60,18 @@ public class CommandScenarioResult<TResponse>(public val result: CommandResult<T
             (reason == null || validation.reason == reason)
     } ?: fail(
         "Expected validation matching member=${quoted(member)}, message=${quoted(message)}, reason=${quoted(reason)}."
+    )
+
+    /** Asserts that at least one exception message was retained. */
+    public fun shouldHaveErrors(): CommandScenarioResult<TResponse> = assertThat(
+        result.hasExceptions,
+        "Expected the command to have errors."
+    )
+
+    /** Asserts that no exception message was retained. */
+    public fun shouldHaveNoErrors(): CommandScenarioResult<TResponse> = assertThat(
+        !result.hasExceptions,
+        "Expected the command to have no errors."
     )
 
     /** Asserts that an exception message contains [message]. */
