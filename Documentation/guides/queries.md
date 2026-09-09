@@ -84,3 +84,5 @@ Register `GuardObservableQueryEmission` beans when authorization or another cond
 ## Inspect observable health
 
 `QueryHealthTracker` records physical connections, activity timestamps, pong timestamps, and active subscriptions. It exposes both a snapshot and an observable `Flow<QueryHealth>`. The Spring host publishes the current snapshot at `GET /.cratis/queries/health` and RFC QUERY on the same route. The transport removes health entries when connections close or fail.
+
+The snapshot reports connection and subscription identifiers, remote IP addresses, user agents, and user identities, so both methods require an authenticated caller whenever Arc authentication handlers are registered; anonymous callers receive 401. Applications with no `AuthenticationHandler` or `AsyncAuthenticationHandler` bean are unaffected. This is a diagnostics endpoint, not a container liveness probe: use Spring Boot Actuator health groups for liveness and readiness, which Arc never intercepts.

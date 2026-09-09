@@ -187,13 +187,16 @@ private class ArcAuthenticationEndpointMatcher(
         val options = properties.endpoints.toOptions()
         val literalAnonymous = AuthenticationEndpoint(true, true)
         val connectionAnonymous = AuthenticationEndpoint(true, false)
+        val authenticated = AuthenticationEndpoint(false, false)
         val routes = linkedMapOf(
             RouteKey("GET", COMMANDS_INTROSPECTION_ROUTE) to literalAnonymous,
             RouteKey("GET", QUERIES_INTROSPECTION_ROUTE) to literalAnonymous,
+            RouteKey("GET", QUERY_HEALTH_ROUTE) to authenticated,
+            RouteKey("QUERY", QUERY_HEALTH_ROUTE) to authenticated,
             RouteKey("GET", USERS_ROUTE) to literalAnonymous,
             RouteKey("GET", TENANTS_ROUTE) to literalAnonymous,
             RouteKey("GET", IDENTITY_SCHEMA_ROUTE_VALUE) to literalAnonymous,
-            RouteKey("GET", IDENTITY_ROUTE_VALUE) to AuthenticationEndpoint(false, false),
+            RouteKey("GET", IDENTITY_ROUTE_VALUE) to authenticated,
             RouteKey("GET", OBSERVABLE_QUERY_WS_ROUTE) to connectionAnonymous,
             RouteKey("GET", OBSERVABLE_QUERY_SSE_ROUTE) to connectionAnonymous,
             RouteKey("POST", OBSERVABLE_QUERY_SSE_SUBSCRIBE_ROUTE) to connectionAnonymous,
@@ -240,6 +243,13 @@ private data class AuthenticationEndpoint(val allowAnonymous: Boolean, val liter
 private const val AUTHENTICATION_DISPATCHED_ATTRIBUTE = "io.cratis.arc.springboot.authentication.dispatched"
 private const val COMMANDS_INTROSPECTION_ROUTE = "/.cratis/commands"
 private const val QUERIES_INTROSPECTION_ROUTE = "/.cratis/queries"
+
+/**
+ * Observable query health. It reports connection and subscription identifiers, remote addresses, user agents, and
+ * user identities, so it requires an authenticated caller whenever authentication handlers are configured. It is a
+ * diagnostics endpoint, not a container liveness probe.
+ */
+private const val QUERY_HEALTH_ROUTE = "/.cratis/queries/health"
 private const val IDENTITY_ROUTE_VALUE = "/.cratis/me"
 private const val IDENTITY_SCHEMA_ROUTE_VALUE = "/.cratis/identity-details/schema"
 private const val UNAUTHORIZED_RESPONSE = "Unauthorized"
