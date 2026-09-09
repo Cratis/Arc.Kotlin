@@ -4,11 +4,20 @@
 package io.cratis.arc.metadata
 
 import com.fasterxml.jackson.annotation.JsonCreator
+import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.annotation.JsonPropertyOrder
 
 /** Language-neutral query parameter metadata. */
-@JsonPropertyOrder("name", "shape", "source", "hasDefault", "validationRules", "validateRecursively")
+@JsonPropertyOrder(
+    "name",
+    "shape",
+    "source",
+    "hasDefault",
+    "validationRules",
+    "validateRecursively",
+    "summary"
+)
 public class ParameterDescriptor @JvmOverloads constructor(
     /** Parameter name as declared by the operation. */
     public val name: String,
@@ -31,6 +40,7 @@ public class ParameterDescriptor @JvmOverloads constructor(
     private var sourceBacking: QueryParameterSource =
         if (isFromServices) QueryParameterSource.SERVICE else QueryParameterSource.CLIENT
     private var hasDefaultBacking: Boolean = false
+    private var summaryBacking: String? = null
 
     init {
         require(isEnumerable == (elementTypeName != null)) {
@@ -90,6 +100,19 @@ public class ParameterDescriptor @JvmOverloads constructor(
         hasDefaultBacking = requireValidParameterDefault(source, hasDefault)
     }
 
+    /** Creates parameter metadata carrying a single-line source documentation summary. */
+    public constructor(
+        name: String,
+        shape: TypeShapeDescriptor,
+        source: QueryParameterSource,
+        hasDefault: Boolean,
+        validationRules: List<ValidationRuleDescriptor>,
+        validateRecursively: Boolean,
+        summary: String?
+    ) : this(name, shape, source, hasDefault, validationRules, validateRecursively) {
+        summaryBacking = DocumentationSummaries.validate(summary, name)
+    }
+
     /** Preserves the legacy Jackson constructor descriptor for programmatic callers. */
     public constructor(
         name: String,
@@ -130,6 +153,34 @@ public class ParameterDescriptor @JvmOverloads constructor(
         validateRecursively ?: false
     )
 
+    /** Preserves the Jackson creator descriptor used before source documentation metadata was added. */
+    public constructor(
+        name: String,
+        typeName: String?,
+        isNullable: Boolean?,
+        isFromServices: Boolean?,
+        isEnumerable: Boolean?,
+        elementTypeName: String?,
+        validationRules: List<ValidationRuleDescriptor>?,
+        validateRecursively: Boolean?,
+        shape: TypeShapeDescriptor?,
+        source: QueryParameterSource?,
+        hasDefault: Boolean?
+    ) : this(
+        name,
+        typeName,
+        isNullable,
+        isFromServices,
+        isEnumerable,
+        elementTypeName,
+        validationRules,
+        validateRecursively,
+        shape,
+        source,
+        hasDefault,
+        null
+    )
+
     /** Jackson compatibility creator accepting legacy projections and canonical metadata. */
     @JsonCreator
     public constructor(
@@ -143,14 +194,16 @@ public class ParameterDescriptor @JvmOverloads constructor(
         @JsonProperty("validateRecursively") validateRecursively: Boolean?,
         @JsonProperty("shape") shape: TypeShapeDescriptor?,
         @JsonProperty("source") source: QueryParameterSource?,
-        @JsonProperty("hasDefault") hasDefault: Boolean?
+        @JsonProperty("hasDefault") hasDefault: Boolean?,
+        @JsonProperty("summary") summary: String?
     ) : this(
         name,
         resolveParameterShape(typeName, isNullable, isEnumerable, elementTypeName, shape),
         resolveQueryParameterSource(isFromServices, source),
         hasDefault ?: false,
         validationRules.orEmpty(),
-        validateRecursively ?: false
+        validateRecursively ?: false,
+        summary
     )
 
     /** Canonical recursive type metadata. */
@@ -171,12 +224,18 @@ public class ParameterDescriptor @JvmOverloads constructor(
     public val hasDefault: Boolean
         get() = hasDefaultBacking
 
+    /** Single-line source documentation summary, or `null` when the parameter carries none. */
+    @get:JsonInclude(JsonInclude.Include.NON_NULL)
+    public val summary: String?
+        get() = summaryBacking
+
     /** Client-representable Jakarta validation rules in deterministic order. */
     public val validationRules: List<ValidationRuleDescriptor> = java.util.List.copyOf(validationRules)
 
     override fun equals(other: Any?): Boolean = other is ParameterDescriptor &&
         name == other.name && shape == other.shape && source == other.source && hasDefault == other.hasDefault &&
-        validationRules == other.validationRules && validateRecursively == other.validateRecursively
+        validationRules == other.validationRules && validateRecursively == other.validateRecursively &&
+        summary == other.summary
 
     override fun hashCode(): Int {
         var result = name.hashCode()
@@ -184,12 +243,13 @@ public class ParameterDescriptor @JvmOverloads constructor(
         result = 31 * result + source.hashCode()
         result = 31 * result + hasDefault.hashCode()
         result = 31 * result + validationRules.hashCode()
-        return 31 * result + validateRecursively.hashCode()
+        result = 31 * result + validateRecursively.hashCode()
+        return 31 * result + (summary?.hashCode() ?: 0)
     }
 
     override fun toString(): String =
         "ParameterDescriptor(name=$name, shape=$shape, source=$source, hasDefault=$hasDefault, " +
-            "validationRules=$validationRules, validateRecursively=$validateRecursively)"
+            "validationRules=$validationRules, validateRecursively=$validateRecursively, summary=$summary)"
 }
 
 private fun requireValidParameterDefault(source: QueryParameterSource, hasDefault: Boolean): Boolean {

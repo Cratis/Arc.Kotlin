@@ -4,6 +4,7 @@
 package io.cratis.arc.metadata
 
 import com.fasterxml.jackson.annotation.JsonCreator
+import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
 
 /** Immutable metadata describing a command artifact. */
@@ -32,13 +33,13 @@ public class CommandDescriptor @JvmOverloads constructor(
     private val legacyResponseIsEnumerable: Boolean = responseIsEnumerable
     // Constructor-scoped mutation is required so the legacy primary constructor keeps its exact JVM descriptor.
     private var responseValuesBacking: List<CommandResponseValueDescriptor> = normalizeResponseValues(emptyList())
+    private var summaryBacking: String? = null
 
     /**
      * Creates command metadata with explicitly classified response values.
      *
      * The empty default lets Jackson map legacy format-3 metadata, where the property is absent.
      */
-    @JsonCreator
     public constructor(
         name: String,
         typeName: String,
@@ -65,6 +66,42 @@ public class CommandDescriptor @JvmOverloads constructor(
     ) {
         responseValuesBacking = normalizeResponseValues(responseValues)
     }
+
+    /** Creates command metadata carrying a single-line source documentation summary. */
+    @JsonCreator
+    public constructor(
+        @JsonProperty("name") name: String,
+        @JsonProperty("typeName") typeName: String,
+        @JsonProperty("properties") properties: List<PropertyDescriptor>?,
+        @JsonProperty("routeOptions") routeOptions: RouteOptions?,
+        @JsonProperty("location") location: List<String>?,
+        @JsonProperty("authorization") authorization: AuthorizationMetadata?,
+        @JsonProperty("explicitPath") explicitPath: String?,
+        @JsonProperty("treatWarningsAsErrors") treatWarningsAsErrors: Boolean?,
+        @JsonProperty("responseTypeName") responseTypeName: String?,
+        @JsonProperty("responseIsEnumerable") responseIsEnumerable: Boolean?,
+        @JsonProperty("responseValues") responseValues: List<CommandResponseValueDescriptor>?,
+        @JsonProperty("summary") summary: String?
+    ) : this(
+        name,
+        typeName,
+        properties.orEmpty(),
+        routeOptions ?: RouteOptions(),
+        location ?: typeName.substringBeforeLast('.', "").split('.').filter(String::isNotBlank),
+        authorization ?: AuthorizationMetadata(),
+        explicitPath ?: routeOptions?.path,
+        treatWarningsAsErrors ?: false,
+        responseTypeName,
+        responseIsEnumerable ?: false,
+        responseValues.orEmpty()
+    ) {
+        summaryBacking = DocumentationSummaries.validate(summary, typeName)
+    }
+
+    /** Single-line source documentation summary, or `null` when the command carries none. */
+    @get:JsonInclude(JsonInclude.Include.NON_NULL)
+    public val summary: String?
+        get() = summaryBacking
 
     public companion object {
         /** Creates command metadata with explicitly classified response values. */

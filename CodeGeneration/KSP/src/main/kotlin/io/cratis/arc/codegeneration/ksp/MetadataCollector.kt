@@ -95,6 +95,13 @@ internal class MetadataCollector(private val logger: ArcDiagnosticReporter) {
     fun isConcept(typeName: String): Boolean = collectedConcepts.containsKey(typeName)
 
     fun describeProperties(declaration: KSClassDeclaration, identity: String): List<PropertyModel>? {
+        val documentation = DocumentationSummaryParser.parse(declaration.docString)
+        // A Kotlin class documents its properties with `@property`; a Java record or class uses `@param`.
+        val declaredMemberTags = if (declaration.origin == Origin.JAVA) {
+            documentation.paramTags
+        } else {
+            documentation.propertyTags
+        }
         val declarations = declaration.getDeclaredProperties().associateBy { property -> property.simpleName.asString() }
         val constructorParameters = declaration.primaryConstructor?.parameters.orEmpty()
             .mapNotNull { parameter -> parameter.name?.asString()?.let { name -> name to parameter } }
@@ -136,7 +143,8 @@ internal class MetadataCollector(private val logger: ArcDiagnosticReporter) {
                             elementTypeName = shape.elementTypeName,
                             shape = shape.descriptor.withNullability(component.isNullable || shape.isNullable),
                             validationRules = validation.rules,
-                            validateRecursively = validation.validateRecursively
+                            validateRecursively = validation.validateRecursively,
+                            summary = memberSummary(accessor?.docString, declaredMemberTags, component.name)
                         )
                     )
                 }
@@ -144,7 +152,7 @@ internal class MetadataCollector(private val logger: ArcDiagnosticReporter) {
             }
         }
         if (declaration.origin == Origin.JAVA && declaration.classKind == ClassKind.INTERFACE) {
-            return describeJavaInterfaceProperties(declaration, identity)
+            return describeJavaInterfaceProperties(declaration, identity, declaredMemberTags)
         }
         val ordered = if (declaration.origin == Origin.JAVA) {
             declarations.values.sortedBy { it.simpleName.asString() }
@@ -181,16 +189,25 @@ internal class MetadataCollector(private val logger: ArcDiagnosticReporter) {
                     elementTypeName = shape.elementTypeName,
                     shape = shape.descriptor,
                     validationRules = validation.rules,
-                    validateRecursively = validation.validateRecursively
+                    validateRecursively = validation.validateRecursively,
+                    summary = memberSummary(property.docString, declaredMemberTags, name)
                 )
             )
         }
         return properties
     }
 
+    /** Prefers the member's own documentation and falls back to the declaring type's member tag. */
+    private fun memberSummary(
+        own: String?,
+        declaredMemberTags: Map<String, String>,
+        name: String
+    ): String? = DocumentationSummaryParser.parse(own).summary ?: declaredMemberTags[name]
+
     private fun describeJavaInterfaceProperties(
         declaration: KSClassDeclaration,
-        identity: String
+        identity: String,
+        declaredMemberTags: Map<String, String>
     ): List<PropertyModel>? {
         val properties = mutableListOf<PropertyModel>()
         for (function in declaration.getDeclaredFunctions().filter { candidate -> candidate.parameters.isEmpty() }) {
@@ -215,7 +232,8 @@ internal class MetadataCollector(private val logger: ArcDiagnosticReporter) {
                     elementTypeName = shape.elementTypeName,
                     shape = shape.descriptor,
                     validationRules = validation.rules,
-                    validateRecursively = validation.validateRecursively
+                    validateRecursively = validation.validateRecursively,
+                    summary = memberSummary(function.docString, declaredMemberTags, name)
                 )
             )
         }
@@ -481,12 +499,14 @@ internal class MetadataCollector(private val logger: ArcDiagnosticReporter) {
             property.copy(derivatives = derivatives)
         }
         val location = qualifiedName.substringBeforeLast('.', "").split('.').filter(String::isNotBlank)
+        val summary = DocumentationSummaryParser.parse(declaration.docString).summary
         if (declaration.classKind == ClassKind.INTERFACE) {
             collectedInterfaces[qualifiedName] = InterfaceModel(
                 name = declaration.simpleName.asString(),
                 fullyQualifiedName = qualifiedName,
                 location = location,
-                properties = properties
+                properties = properties,
+                summary = summary
             )
         } else {
             collectedTypes[qualifiedName] = TypeModel(
@@ -495,7 +515,8 @@ internal class MetadataCollector(private val logger: ArcDiagnosticReporter) {
                 location = location,
                 properties = properties,
                 baseTypeName = baseTypeName,
-                derivedTypeId = derivedTypeId
+                derivedTypeId = derivedTypeId,
+                summary = summary
             )
         }
 
@@ -1121,7 +1142,8 @@ internal class MetadataCollector(private val logger: ArcDiagnosticReporter) {
             fullyQualifiedName = qualifiedName,
             location = qualifiedName.substringBeforeLast('.', "").split('.').filter(String::isNotBlank),
             members = members,
-            isFlags = declaration.hasAnnotation(FLAGS_ANNOTATION)
+            isFlags = declaration.hasAnnotation(FLAGS_ANNOTATION),
+            summary = DocumentationSummaryParser.parse(declaration.docString).summary
         )
         return true
     }

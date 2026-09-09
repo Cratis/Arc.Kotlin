@@ -44,7 +44,7 @@ internal class ArcManifestJsonTest {
     fun `empty manifest retains all collections format order and exactly one trailing LF`() {
         val manifest = ArcArtifactManifest("Empty")
         assertEquals(
-            """{"formatVersion":5,"moduleName":"Empty","commands":[],"queries":[],"types":[],"interfaces":[],"enums":[],"concepts":[]}""" + "\n",
+            """{"formatVersion":${ArcArtifactManifest.CURRENT_FORMAT_VERSION},"moduleName":"Empty","commands":[],"queries":[],"types":[],"interfaces":[],"enums":[],"concepts":[]}""" + "\n",
             ArcManifestJson.serialize(manifest)
         )
         assertEquivalent(manifest)

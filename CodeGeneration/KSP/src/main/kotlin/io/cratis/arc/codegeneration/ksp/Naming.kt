@@ -64,8 +64,13 @@ internal fun quote(value: String): String = buildString(value.length + 2) {
             '\n' -> append("\\n")
             '\r' -> append("\\r")
             '\t' -> append("\\t")
+            // A rendered value is a Kotlin string literal, where an unescaped dollar starts a template expression.
+            '$' -> append("\\\$")
             else -> append(character)
         }
     }
     append('"')
 }
+
+/** Renders a nullable value as a Kotlin string literal or the `null` literal. */
+internal fun quoteOrNull(value: String?): String = value?.let(::quote) ?: "null"

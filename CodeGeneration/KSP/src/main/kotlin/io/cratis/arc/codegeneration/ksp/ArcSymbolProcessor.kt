@@ -376,7 +376,8 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
             responseTypeName = response.typeName,
             responseIsEnumerable = response.isEnumerable,
             responseValues = response.values,
-            invocationKind = invocationKind
+            invocationKind = invocationKind,
+            summary = DocumentationSummaryParser.parse(command.docString).summary
         )
     }
 
@@ -1202,7 +1203,8 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
             treatWarningsAsErrors = readModel.hasAnnotation(TREAT_WARNINGS_AS_ERRORS_ANNOTATION) ||
                 function.hasAnnotation(TREAT_WARNINGS_AS_ERRORS_ANNOTATION),
             invocationKind = returnShape.invocationKind,
-            adaptsSpringDataPage = returnShape.adaptsSpringDataPage
+            adaptsSpringDataPage = returnShape.adaptsSpringDataPage,
+            summary = DocumentationSummaryParser.parse(function.docString).summary
         )
     }
 
@@ -1210,6 +1212,7 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
         queryName: String,
         function: KSFunctionDeclaration
     ): List<QueryParameterModel>? {
+        val documentation = DocumentationSummaryParser.parse(function.docString)
         val parameters = mutableListOf<QueryParameterModel>()
         val infrastructureSources = mutableSetOf<QueryParameterSource>()
         val hostAdapterKinds = mutableSetOf<QueryHostAdapterKind>()
@@ -1456,7 +1459,10 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
                     isEnumerable = shape.isEnumerable,
                     elementTypeName = shape.elementTypeName,
                     validationRules = validation.rules,
-                    validateRecursively = validation.validateRecursively
+                    validateRecursively = validation.validateRecursively,
+                    // Only a client parameter reaches a generated proxy, so only it carries documentation.
+                    summary = documentation.paramTags[name]
+                        .takeIf { source == QueryParameterSource.CLIENT }
                 )
             )
         }
@@ -1776,6 +1782,7 @@ $keyResolution$preparation
         name = ${quote(command.simpleName)},
         typeName = ${quote(command.qualifiedName)},
         properties = $properties,
+        routeOptions = io.cratis.arc.metadata.RouteOptions(),
         location = listOf($location),
         authorization = io.cratis.arc.metadata.AuthorizationMetadata(
             allowAnonymous = ${command.authorization.allowAnonymous},
@@ -1783,10 +1790,12 @@ $keyResolution$preparation
             roles = listOf($roles),
             schemes = listOf($schemes)
         ),
+        explicitPath = null,
         treatWarningsAsErrors = ${command.treatWarningsAsErrors},
         responseTypeName = $responseTypeName,
         responseIsEnumerable = ${command.responseIsEnumerable},
-        responseValues = $responseValues
+        responseValues = $responseValues,
+        summary = ${quoteOrNull(command.summary)}
     )"""
     }
 
@@ -1997,7 +2006,8 @@ $performerBindings
                     "source = io.cratis.arc.metadata.QueryParameterSource.${parameter.source.name}, " +
                     "hasDefault = ${parameter.hasDefault}, " +
                     "validationRules = ${renderValidationRules(parameter.validationRules)}, " +
-                    "validateRecursively = ${parameter.validateRecursively})"
+                    "validateRecursively = ${parameter.validateRecursively}, " +
+                    "summary = ${quoteOrNull(parameter.summary)})"
             }
         }
         val location = query.declaringTypeName.substringBeforeLast('.', "")
@@ -2032,7 +2042,8 @@ $performerBindings
         isEnumerable = ${query.isEnumerable},
         supportsPaging = ${query.supportsPaging},
         supportsSorting = ${query.supportsSorting},
-        treatWarningsAsErrors = ${query.treatWarningsAsErrors}
+        treatWarningsAsErrors = ${query.treatWarningsAsErrors},
+        summary = ${quoteOrNull(query.summary)}
     )"""
     }
 
@@ -2141,7 +2152,7 @@ public class $className : io.cratis.arc.artifacts.ArcArtifactModule(
         return "io.cratis.arc.metadata.TypeDescriptor(" +
             "name = ${quote(type.name)}, fullyQualifiedName = ${quote(type.fullyQualifiedName)}, " +
             "location = listOf($location), properties = $properties, baseTypeName = $baseTypeName, " +
-            "derivedTypeId = $derivedTypeId)"
+            "derivedTypeId = $derivedTypeId, summary = ${quoteOrNull(type.summary)})"
     }
 
     private fun renderDerivedTypeRegistration(registration: DerivedTypeRegistrationModel): String =
@@ -2153,7 +2164,8 @@ public class $className : io.cratis.arc.artifacts.ArcArtifactModule(
         val location = interfaceModel.location.joinToString(", ") { segment -> quote(segment) }
         return "io.cratis.arc.metadata.InterfaceDescriptor(" +
             "name = ${quote(interfaceModel.name)}, fullyQualifiedName = ${quote(interfaceModel.fullyQualifiedName)}, " +
-            "location = listOf($location), properties = $properties)"
+            "location = listOf($location), properties = $properties, " +
+            "summary = ${quoteOrNull(interfaceModel.summary)})"
     }
 
     private fun renderConceptDescriptor(concept: ConceptModel): String =
@@ -2171,7 +2183,8 @@ public class $className : io.cratis.arc.artifacts.ArcArtifactModule(
         }
         return "io.cratis.arc.metadata.EnumDescriptor(" +
             "name = ${quote(enum.name)}, fullyQualifiedName = ${quote(enum.fullyQualifiedName)}, " +
-            "location = listOf($location), members = $members, isFlags = ${enum.isFlags})"
+            "location = listOf($location), members = $members, isFlags = ${enum.isFlags}, " +
+            "summary = ${quoteOrNull(enum.summary)})"
     }
 
     private fun renderProperties(properties: List<PropertyModel>): String = if (properties.isEmpty()) {
@@ -2183,7 +2196,8 @@ public class $className : io.cratis.arc.artifacts.ArcArtifactModule(
                 "name = ${quote(property.name)}, shape = ${renderTypeShape(property.shape)}, " +
                 "isCommandKey = ${property.isCommandKey}, " +
                 "validationRules = ${renderValidationRules(property.validationRules)}, " +
-                "validateRecursively = ${property.validateRecursively}, derivatives = listOf($derivatives))"
+                "validateRecursively = ${property.validateRecursively}, derivatives = listOf($derivatives), " +
+                "summary = ${quoteOrNull(property.summary)})"
         }
     }
 
@@ -2206,7 +2220,8 @@ public class $className : io.cratis.arc.artifacts.ArcArtifactModule(
                 type.location,
                 type.properties.map(::toPropertyDescriptor),
                 type.baseTypeName,
-                type.derivedTypeId
+                type.derivedTypeId,
+                type.summary
             )
         },
         enums = enums.map { enum ->
@@ -2215,7 +2230,8 @@ public class $className : io.cratis.arc.artifacts.ArcArtifactModule(
                 enum.fullyQualifiedName,
                 enum.location,
                 enum.members.map { member -> EnumMemberDescriptor(member.name, member.value) },
-                enum.isFlags
+                enum.isFlags,
+                enum.summary
             )
         },
         interfaces = interfaces.map { interfaceModel ->
@@ -2223,7 +2239,8 @@ public class $className : io.cratis.arc.artifacts.ArcArtifactModule(
                 interfaceModel.name,
                 interfaceModel.fullyQualifiedName,
                 interfaceModel.location,
-                interfaceModel.properties.map(::toPropertyDescriptor)
+                interfaceModel.properties.map(::toPropertyDescriptor),
+                interfaceModel.summary
             )
         },
         concepts = concepts.map { concept ->
@@ -2235,14 +2252,17 @@ public class $className : io.cratis.arc.artifacts.ArcArtifactModule(
         name = command.simpleName,
         typeName = command.qualifiedName,
         properties = command.properties.map(::toPropertyDescriptor),
+        routeOptions = RouteOptions(),
         location = command.qualifiedName.substringBeforeLast('.', "").split('.').filter(String::isNotBlank),
         authorization = command.authorization.toDescriptor(),
+        explicitPath = null,
         treatWarningsAsErrors = command.treatWarningsAsErrors,
         responseTypeName = command.responseTypeName,
         responseIsEnumerable = command.responseIsEnumerable,
         responseValues = command.responseValues.map { value ->
             CommandResponseValueDescriptor(value.typeName, value.isEnumerable, value.disposition)
-        }
+        },
+        summary = command.summary
     )
 
     private fun toQueryDescriptor(query: QueryModel): QueryDescriptor = QueryDescriptor(
@@ -2256,7 +2276,8 @@ public class $className : io.cratis.arc.artifacts.ArcArtifactModule(
                 parameter.source,
                 parameter.hasDefault,
                 parameter.validationRules.map(::toValidationRuleDescriptor),
-                parameter.validateRecursively
+                parameter.validateRecursively,
+                parameter.summary
             )
         },
         routeOptions = RouteOptions(query.explicitPath, QueryTransportType.valueOf(query.transport)),
@@ -2269,7 +2290,8 @@ public class $className : io.cratis.arc.artifacts.ArcArtifactModule(
         isEnumerable = query.isEnumerable,
         supportsPaging = query.supportsPaging,
         supportsSorting = query.supportsSorting,
-        treatWarningsAsErrors = query.treatWarningsAsErrors
+        treatWarningsAsErrors = query.treatWarningsAsErrors,
+        summary = query.summary
     )
 
     private fun toPropertyDescriptor(property: PropertyModel): PropertyDescriptor = PropertyDescriptor(
@@ -2278,7 +2300,8 @@ public class $className : io.cratis.arc.artifacts.ArcArtifactModule(
         property.isCommandKey,
         property.validationRules.map(::toValidationRuleDescriptor),
         property.validateRecursively,
-        property.derivatives
+        property.derivatives,
+        property.summary
     )
 
     private fun renderTypeShape(shape: TypeShapeDescriptor): String = when (shape.kind) {

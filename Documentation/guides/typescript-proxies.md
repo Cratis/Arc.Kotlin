@@ -120,13 +120,49 @@ KSP translates exactly representable Jakarta constraints on command properties a
 
 The manifest carries those rules and recursive `@Valid` metadata, and the generator emits the matching TypeScript validators. Rules declared on a concept value are merged with rules declared on the owning command property or query parameter, so the browser enforces the same combined constraints as the server even though the wrapper is erased. Unsupported JavaScript regular expressions, custom groups/payloads, contradictory bounds, and other unrepresentable client constraints stop generation with `ARCKSP0301` rather than silently weakening client validation.
 
+## Propagate source documentation
+
+Kotlin KDoc and Java Javadoc reach the generated clients as single-line JSDoc comments. Documentation is read at compile time, carried in the artifact manifest, and rendered by the generator; nothing is read at runtime.
+
+```kotlin
+/**
+ * Creates an order for a customer.
+ *
+ * @property customerId Customer placing the order.
+ */
+@Command
+public data class CreateOrder(
+    /** Stable order identifier. */
+    @CommandKey public val orderId: String,
+    public val customerId: String
+)
+```
+
+```typescript
+/** Creates an order for a customer. */
+export interface ICreateOrder {
+    /** Stable order identifier. */
+    orderId?: string;
+    /** Customer placing the order. */
+    customerId?: string;
+}
+```
+
+Summaries are captured for commands, query methods, client query parameters, model types and their serializable properties, interfaces and their properties, and enum declarations. A member without its own comment falls back to a Kotlin `@property` tag on the declaring class or a Java `@param` tag on the declaring class or record; a Kotlin `@param` tag documents a constructor parameter and is deliberately not projected onto a property.
+
+Only the first paragraph becomes a summary, folded onto one line and limited to 512 Unicode code points. A leading fenced, indented, or tab code block is skipped, control characters are dropped, and CR/LF plus the Unicode line controls `U+0085`, `U+2028`, and `U+2029` all end a line. The generator neutralizes a comment terminator and an at sign in tag position so a comment cannot end early or be misread as a JSDoc tag.
+
+Documentation is emitted on the command interface and class, the command interface property and its public getter, the query parameter interface and query class, client parameter fields inside the parameter interface, the model class and its generated fields before the decorators, the interface and its fields, and the enum declaration. It is deliberately absent from setters, private backing fields, runtime query fields, enum members, and barrel files, and OpenAPI keeps its conventional descriptions.
+
+Service, request, context, and host-adapter query parameters never carry documentation, because they never reach a generated client.
+
 ## Verify generated compatibility
 
 Command, one-shot and observable query, model, interface, derived-type, enum, and flags proxies compile in strict mode against the actual `@cratis/arc`, `@cratis/arc.react`, and `@cratis/fundamentals` packages. The repository contract gate installs exactly from `package-lock.json`, generates twice to prove byte stability, and runs `tsc --noEmit` with `verbatimModuleSyntax` enabled.
 
 The `:ContractTests:typeScriptRuntimeTest` gate then builds the executable Kotlin Spring Boot sample, copies its real generated proxies, starts the application, and executes the published TypeScript clients against it. The harness has five wired unit tests and enforces 25 behavioral runtime tests: 15 general tests in one UTC Node process, plus five calendar tests in a separate UTC process and the same five in a separate `America/Los_Angeles` process. It parses each TAP summary and requires the exact test/pass count with zero fail, cancelled, skipped, or todo results; a Spring process-spawn error fails cleanly. The behavioral contract covers command validation and typed responses, malformed envelopes, correlation IDs, GET and RFC QUERY, paging and sorting, identity, multiplexed and direct WebSocket observable queries, direct SSE, scalar calendar/UUID serialization, generated-model hydration, timezone stability, and the documented `TimeOnly` truncation. This is an E2E runtime gate rather than a renderer-only fixture.
 
-Recursive type shapes use artifact manifest format 5 and immutable Java-friendly `TypeShapeDescriptor` metadata while preserving legacy JVM constructor descriptors and compatibility getters. Generated format 5 query parameter nodes include an explicit canonical value `source`; canonical file discovery requires it while legacy programmatic `ParameterDescriptor` constructors still project to `CLIENT` or `SERVICE` and serialize canonically. Unversioned, legacy-only, contradictory, or unsupported-context manifests fail. The temporal/UUID generated TypeScript type changes remain source-breaking for client consumers as described above.
+Recursive type shapes use artifact manifest format 6 and immutable Java-friendly `TypeShapeDescriptor` metadata while preserving legacy JVM constructor descriptors and compatibility getters. Format 6 added the optional single-line `summary` field carrying source documentation; a descriptor without documentation serializes exactly as it did in format 5, and the reader still accepts exactly the current version so a classpath cannot mix documented and undocumented manifests silently. Generated format 6 query parameter nodes include an explicit canonical value `source`; canonical file discovery requires it while legacy programmatic `ParameterDescriptor` constructors still project to `CLIENT` or `SERVICE` and serialize canonically. Unversioned, legacy-only, contradictory, or unsupported-context manifests fail. The temporal/UUID generated TypeScript type changes remain source-breaking for client consumers as described above.
 
 A separate differential test generates a shared JVM artifact fixture and compares its complete sorted output path set and bodies exactly with a repository-local expected fixture intended for source control. Exact comparison occurs after CRLF-to-LF and volatile generated-header normalization, the expected fixture's capture-time namespace and query-name casing transformations, and expected-side .NET import rewrites required by `verbatimModuleSyntax`. Those rewrites mark `SetCommandValues`, `ClearCommandValues`, and query helper types including `PerformQuery`, `SetSorting`, `SetPage`, `SetPageSize`, and `ChangeSet` as type-only imports. One expected-side correction in that repository-local fixture at `Commands/CreateFixtures.ts` also changes the exact declaration `Command<ICreateFixtures, FixtureModel>` to `Command<ICreateFixtures, FixtureModel[]>`. Current .NET output already calls `super(FixtureModel, true)` and is enumerable at runtime, so the scalar generic is a known typing defect. The .NET-derived `FixtureModel.labelsByCategory` capture already contains `@field(Object)` and `Record<string, string>` and receives no dictionary rewrite; after the documented line-ending/header and import normalization, that exact declaration is compared byte-for-byte. It proves only this string-key/string-value Record fixture, not non-string keys, nullable entries, typed model values, `ValueMap`, or broader dictionary parity. The guarded normalizations leave actual JVM output untouched, so a JVM scalar regression still fails. Covered shapes include commands, one-shot and observable queries, models, interfaces, derived types, enums, flags, validators, indexes, and that bounded Record fixture. The current .NET fixture contains no `Guid`, `DateOnly`, or `TimeOnly`, so the temporal/UUID mapping itself is covered by focused generator and contract tests rather than this differential. The gate detects drift from the normalized fixture; it does not establish exact raw-output compatibility or broader Arc .NET parity. Capture-time fixture preparation still needs reproducible tooling.
 
