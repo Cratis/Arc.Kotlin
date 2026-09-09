@@ -25,6 +25,7 @@ public class ArcGradlePlugin : Plugin<Project> {
         project.pluginManager.apply("org.jetbrains.kotlin.jvm")
         project.pluginManager.apply("com.google.devtools.ksp")
 
+        configureArcDependencies(project, extension)
         configureJvm(project)
         project.extensions.configure(KspExtension::class.java) { ksp ->
             ksp.arg("arc.moduleName", extension.moduleName)
@@ -40,7 +41,7 @@ public class ArcGradlePlugin : Plugin<Project> {
                 "cratisArc.proxies.segmentsToSkip cannot be negative."
             }
             if (extension.manageDependencies.get()) {
-                addArcDependencies(project, extension.dependencyVersion.get())
+                require(extension.dependencyVersion.get().isNotBlank()) { "cratisArc.dependencyVersion cannot be blank." }
             }
             generateTask.configure { task ->
                 task.onlyIf {
@@ -99,18 +100,41 @@ public class ArcGradlePlugin : Plugin<Project> {
         return task
     }
 
-    private fun addArcDependencies(project: Project, version: String) {
-        require(version.isNotBlank()) { "cratisArc.dependencyVersion cannot be blank." }
-        val runtimeConfigurations = listOf("implementation", "api", "compileOnly", "runtimeOnly")
-        val hasRuntime = runtimeConfigurations.mapNotNull(project.configurations::findByName).any {
-            it.hasDependency("io.cratis", "arc")
-        }
-        if (!hasRuntime) project.dependencies.add("implementation", "io.cratis:arc:$version")
+    private fun configureArcDependencies(project: Project, extension: ArcExtension) {
+        configureManagedDependency(project, extension, "arcManagedRuntime", "implementation", "arc",
+            listOf("implementation", "api", "compileOnly", "runtimeOnly"))
+        configureManagedDependency(project, extension, "arcManagedProcessor", "ksp", "arc-ksp", listOf("ksp"))
+    }
 
-        val ksp = project.configurations.getByName("ksp")
-        if (!ksp.hasDependency("io.cratis", "arc-ksp")) {
-            project.dependencies.add("ksp", "io.cratis:arc-ksp:$version")
+    private fun configureManagedDependency(
+        project: Project,
+        extension: ArcExtension,
+        configurationName: String,
+        targetName: String,
+        artifact: String,
+        consumerConfigurations: List<String>
+    ) {
+        // KSP captures nonempty configurations before Arc's afterEvaluate validation. Register the
+        // provider now, but read the extension and consumer declarations only when Gradle needs them.
+        val managed = project.configurations.create(configurationName) {
+            it.isCanBeConsumed = false
+            it.isCanBeResolved = false
+            it.isVisible = false
         }
+        managed.dependencies.addAllLater(project.provider {
+            if (!extension.manageDependencies.get() || consumerConfigurations
+                    .mapNotNull(project.configurations::findByName)
+                    .any { it.hasDependency("io.cratis", artifact) }) {
+                emptyList()
+            } else {
+                val version = extension.dependencyVersion.get()
+                require(version.isNotBlank()) { "cratisArc.dependencyVersion cannot be blank." }
+                listOf(project.dependencies.create("io.cratis:$artifact:$version"))
+            }
+        })
+        // Inspect only direct consumer dependencies above: allDependencies would include this
+        // parent and recursively evaluate its own provider.
+        project.configurations.getByName(targetName).extendsFrom(managed)
     }
 
     private fun Configuration.hasDependency(group: String, name: String): Boolean =

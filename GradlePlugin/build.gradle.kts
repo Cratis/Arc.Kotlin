@@ -64,6 +64,47 @@ mavenPublishing {
     }
 }
 
+// Private functional-test repository: real JARs and generated POMs, never publication/signing tasks.
+val functionalRepository = layout.buildDirectory.dir("functional-fixtures/repository")
+val functionalPluginJar = tasks.named<Jar>("jar")
+val functionalPluginClasspath = files(functionalPluginJar.flatMap { it.archiveFile }, configurations.runtimeClasspath)
+val prepareFunctionalRepository by tasks.registering(Sync::class) {
+    into(functionalRepository)
+}
+listOf(":Source", ":CodeGeneration:KSP").forEach { modulePath ->
+    evaluationDependsOn(modulePath)
+    val module = project(modulePath)
+    val publication = module.extensions.getByType<org.gradle.api.publish.PublishingExtension>()
+        .publications.getByName("maven") as org.gradle.api.publish.maven.MavenPublication
+    val jar = module.tasks.named<Jar>("jar")
+    val pom = module.tasks.named<org.gradle.api.publish.maven.tasks.GenerateMavenPom>("generatePomFileForMavenPublication")
+    prepareFunctionalRepository.configure {
+        dependsOn(jar, pom)
+        val gavPath = "${publication.groupId.replace('.', '/')}/${publication.artifactId}/${publication.version}"
+        from(jar.flatMap { it.archiveFile }) {
+            into(gavPath)
+            rename { "${publication.artifactId}-${publication.version}.jar" }
+        }
+        from(pom.map { it.destination }) {
+            into(gavPath)
+            rename { "${publication.artifactId}-${publication.version}.pom" }
+        }
+    }
+}
+tasks.test {
+    dependsOn(prepareFunctionalRepository, functionalPluginJar)
+    inputs.files(functionalPluginClasspath)
+    inputs.dir(functionalRepository)
+    systemProperty("arc.functional.repository", functionalRepository.get().asFile.absolutePath)
+    systemProperty("arc.functional.version", project.version.toString())
+    systemProperty("arc.functional.gradleHome", requireNotNull(gradle.gradleHomeDir).absolutePath)
+    systemProperty("arc.functional.work", layout.buildDirectory.dir("functional-tests").get().asFile.absolutePath)
+    doFirst {
+        systemProperty("arc.functional.pluginClasspath", functionalPluginClasspath.asPath)
+        systemProperty("arc.functional.pluginJar", functionalPluginJar.get().archiveFile.get().asFile.absolutePath)
+    }
+}
+
 val contractManifestDirectory = rootProject.layout.projectDirectory.dir(
     "ContractTests/build/generated/ksp/testFixtures/resources"
 )
