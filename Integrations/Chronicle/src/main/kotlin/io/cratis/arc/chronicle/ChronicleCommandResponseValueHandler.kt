@@ -57,6 +57,7 @@ public class ChronicleCommandResponseValueHandler(
         return when (response) {
             is EventResponse.Plain -> appendPlain(context, eventStore, response.events)
             is EventResponse.Routed -> appendRouted(context, eventStore, response.events)
+            is EventResponse.Mixed -> appendMixed(context, eventStore, response.items)
             EventResponse.EmptyRouted -> CommandResult.success(context.correlationId)
             EventResponse.InvalidRouted -> invalidRoutedResponse(context)
         }
@@ -82,6 +83,24 @@ public class ChronicleCommandResponseValueHandler(
             eventStore.eventLog.appendMany(eventSourceId, events, appendOptions)
         }
         return appendResultsToCommandResult(context, results, events.size)
+    }
+
+    private suspend fun appendMixed(
+        context: CommandContext,
+        eventStore: IEventStore,
+        items: List<Any>
+    ): CommandResult<*> {
+        val plainEventSourceId = if (items.any { it !is EventForEventSourceId }) {
+            val commandHandler = commandHandlers.find(context.commandType)
+            commandHandler?.resolveCommandKey(context.command).toChronicleKey()
+                ?: return missingCommandKey(context)
+        } else {
+            null
+        }
+        val routed = items.map { item ->
+            if (item is EventForEventSourceId) item else EventForEventSourceId(requireNotNull(plainEventSourceId), item)
+        }
+        return appendRouted(context, eventStore, routed)
     }
 
     private suspend fun appendRouted(
@@ -148,7 +167,8 @@ public class ChronicleCommandResponseValueHandler(
         listOf(
             ValidationResult(
                 severity = ValidationResultSeverity.Error,
-                message = "Every routed event requires a Chronicle @EventType value.",
+                message = "A routed or mixed Chronicle event response must contain only @EventType values or " +
+                    "EventForEventSourceId wrappers whose event carries @EventType.",
                 members = listOf("events"),
                 reason = ValidationResultReasons.RULE,
                 reasonDetail = "events"
@@ -176,13 +196,18 @@ public class ChronicleCommandResponseValueHandler(
         return when {
             values.any { item -> item is EventForEventSourceId } -> {
                 val routedEvents = values.filterIsInstance<EventForEventSourceId>()
-                if (
+                when {
                     routedEvents.size == values.size &&
-                    routedEvents.all { routedEvent -> routedEvent.event.isChronicleEvent() }
-                ) {
-                    EventResponse.Routed(routedEvents)
-                } else {
-                    EventResponse.InvalidRouted
+                        routedEvents.all { routedEvent -> routedEvent.event.isChronicleEvent() } ->
+                        EventResponse.Routed(routedEvents)
+                    values.all { item ->
+                        when (item) {
+                            is EventForEventSourceId -> item.event.isChronicleEvent()
+                            null -> false
+                            else -> item.isChronicleEvent()
+                        }
+                    } -> EventResponse.Mixed(values.filterNotNull())
+                    else -> EventResponse.InvalidRouted
                 }
             }
             values.all { item -> item != null && item.isChronicleEvent() } ->
@@ -205,6 +230,7 @@ public class ChronicleCommandResponseValueHandler(
     private sealed interface EventResponse {
         data class Plain(val events: List<Any>) : EventResponse
         data class Routed(val events: List<EventForEventSourceId>) : EventResponse
+        data class Mixed(val items: List<Any>) : EventResponse
         data object EmptyRouted : EventResponse
         data object InvalidRouted : EventResponse
     }
