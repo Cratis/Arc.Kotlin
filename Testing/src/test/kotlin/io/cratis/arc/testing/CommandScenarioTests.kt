@@ -233,6 +233,48 @@ class CommandScenarioTests {
     }
 
     @Test
+    fun `invalid assertion rejects dependency-only feedback and points to the explicit assertion`() {
+        val result = CommandScenarioResult(
+            CommandResult.invalid(
+                UUID.randomUUID(),
+                listOf(
+                    ValidationResult.error(
+                        "Required dependency was unavailable.",
+                        reason = ValidationResultReasons.DEPENDENCY_UNAVAILABLE
+                    )
+                )
+            )
+        )
+
+        val failure = assertThrows(AssertionError::class.java) { result.shouldBeInvalid() }
+
+        assertTrue(failure.message!!.contains("only dependencyUnavailable feedback"))
+        assertTrue(failure.message!!.contains("shouldHaveValidation"))
+        assertEquals(
+            ValidationResultReasons.DEPENDENCY_UNAVAILABLE,
+            result.shouldHaveValidation(reason = ValidationResultReasons.DEPENDENCY_UNAVAILABLE).reason
+        )
+    }
+
+    @Test
+    fun `invalid assertion accepts mixed dependency and validation rule feedback`() {
+        val result = CommandScenarioResult(
+            CommandResult.invalid(
+                UUID.randomUUID(),
+                listOf(
+                    ValidationResult.error(
+                        "Required dependency was unavailable.",
+                        reason = ValidationResultReasons.DEPENDENCY_UNAVAILABLE
+                    ),
+                    ValidationResult.error("A validation rule rejected the value.")
+                )
+            )
+        )
+
+        result.shouldBeInvalid()
+    }
+
+    @Test
     fun `pinned read model is injected without any store or query infrastructure`() = runBlocking {
         val result = CommandScenario<KeyedTestCommand>(ReadModelCommandHandler())
             .withReadModel(TestModel::class.java, TestModel("pinned"))
@@ -249,7 +291,7 @@ class CommandScenarioTests {
 
         assertEquals(
             ValidationResultReasons.DEPENDENCY_UNAVAILABLE,
-            result.shouldBeInvalid().result.validationResults.single().reason
+            result.shouldHaveValidation(reason = ValidationResultReasons.DEPENDENCY_UNAVAILABLE).reason
         )
     }
 
