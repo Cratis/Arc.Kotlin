@@ -593,9 +593,10 @@ internal class GeneratedCommandHandlersTest {
         assertTrue(regular.properties.single { property -> property.name == "optionalLabel" }.isNullable)
         assertTrue(regular.authorization.allowAnonymous)
 
-        assertEquals(listOf("operator", "admin", "auditor"), suspend.authorization.roles)
-        assertEquals(listOf("bearer"), suspend.authorization.schemes)
-        assertEquals("orders", suspend.authorization.policy)
+        // 'handle' declares @Roles("auditor"), which replaces the command class's authorization rather than widening it.
+        assertEquals(listOf("auditor"), suspend.authorization.roles)
+        assertEquals(emptyList<String>(), suspend.authorization.schemes)
+        assertNull(suspend.authorization.policy)
         assertTrue(suspend.treatWarningsAsErrors)
         assertFalse(suspend.authorization.allowAnonymous)
 

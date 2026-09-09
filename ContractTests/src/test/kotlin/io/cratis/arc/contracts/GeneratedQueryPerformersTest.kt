@@ -438,9 +438,15 @@ internal class GeneratedQueryPerformersTest {
         )
         assertEquals(listOf("prefix"), all.parameters.filter { it.source == QueryParameterSource.CLIENT }.map { it.name })
         assertTrue(all.parameters.single { it.name == "dependency" }.isFromServices)
-        assertEquals("catalog", all.authorization.policy)
-        assertEquals(listOf("viewer", "reader", "auditor"), all.authorization.roles)
-        assertEquals(listOf("bearer"), all.authorization.schemes)
+        // 'single' declares no authorization of its own, so it inherits the read model's.
+        assertEquals("catalog", single.authorization.policy)
+        assertEquals(listOf("viewer", "reader"), single.authorization.roles)
+        assertEquals(listOf("bearer"), single.authorization.schemes)
+
+        // 'all' declares @Roles("auditor"), which replaces the read model's authorization rather than widening it.
+        assertNull(all.authorization.policy)
+        assertEquals(listOf("auditor"), all.authorization.roles)
+        assertEquals(emptyList<String>(), all.authorization.schemes)
         assertFalse(all.authorization.allowAnonymous)
         assertTrue(all.treatWarningsAsErrors)
 
