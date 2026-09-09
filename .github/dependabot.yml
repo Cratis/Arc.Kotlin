@@ -17,6 +17,12 @@ updates:
     # No versions or update-types restriction: ignore every publishing plugin update.
     ignore:
       - dependency-name: "com.vanniktech.maven.publish"
+      # kotlinx-coroutines 1.10 moved its default-argument bridges onto the interfaces, so anything
+      # Arc compiles against 1.10+ fails with NoSuchMethodError under Spring Boot, whose BOM pins
+      # coroutines to 1.8.1 and wins in every consuming application. Only the TypeScript runtime
+      # gate catches it. Revisit when the supported Spring Boot manages 1.10 or later. See #135.
+      - dependency-name: "org.jetbrains.kotlinx:kotlinx-coroutines-core"
+        versions: [">=1.10.0"]
     groups:
       kotlin-ksp-toolchain:
         # PR #73 confirms Dependabot's names for kotlin("jvm") and kotlin("plugin.spring").
