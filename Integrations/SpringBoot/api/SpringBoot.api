@@ -32,7 +32,6 @@ public class io/cratis/arc/springboot/ArcAutoConfiguration {
 	public fun arcCommandValidationFilter (Lorg/springframework/beans/factory/ObjectProvider;)Lio/cratis/arc/commands/DefaultCommandValidationFilter;
 	public fun arcDerivedTypeRegistry (Lio/cratis/arc/springboot/ArcArtifactModules;Lorg/springframework/beans/factory/ObjectProvider;)Lio/cratis/arc/polymorphism/DerivedTypeRegistry;
 	public fun arcIntrospectionService (Lio/cratis/arc/commands/CommandHandlerRegistry;Lio/cratis/arc/queries/QueryPerformerRegistry;Lio/cratis/arc/springboot/ArcProperties;)Lio/cratis/arc/introspection/IntrospectionService;
-	public fun arcJacksonCustomizer ()Lorg/springframework/boot/autoconfigure/jackson/Jackson2ObjectMapperBuilderCustomizer;
 	public fun arcJacksonModule (Lio/cratis/arc/polymorphism/DerivedTypeRegistry;)Lio/cratis/arc/json/ArcJacksonModule;
 	public fun arcObservableQueryEmissionGuards (Lorg/springframework/beans/factory/ObjectProvider;)Lio/cratis/arc/queries/ObservableQueryEmissionGuards;
 	public fun arcObservableQueryPipeline (Lio/cratis/arc/queries/QueryPerformerRegistry;Lorg/springframework/beans/factory/ObjectProvider;Lio/cratis/arc/queries/QueryRenderers;Lio/cratis/arc/queries/ReadModelInterceptors;Lio/cratis/arc/queries/ObservableQueryEmissionGuards;)Lio/cratis/arc/queries/ObservableQueryPipeline;

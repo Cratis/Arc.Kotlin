@@ -12,8 +12,7 @@ import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.SpringBootConfiguration
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration
-import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.context.annotation.Bean
 import org.springframework.http.MediaType
@@ -44,7 +43,7 @@ internal class ArcOpenApiEndpointTests {
     }
 
     @SpringBootConfiguration
-    @EnableAutoConfiguration(exclude = [SecurityAutoConfiguration::class])
+    @EnableAutoConfiguration
     class Application {
         @Bean
         fun emptyArtifactModule(): ArcArtifactModule = object : ArcArtifactModule(emptyList(), emptyList()) {}
@@ -68,7 +67,7 @@ internal class ArcOpenApiRouteConflictTests {
     }
 
     @SpringBootConfiguration
-    @EnableAutoConfiguration(exclude = [SecurityAutoConfiguration::class])
+    @EnableAutoConfiguration
     class Application {
         @Bean
         fun emptyArtifactModule(): ArcArtifactModule = object : ArcArtifactModule(emptyList(), emptyList()) {}
@@ -99,7 +98,7 @@ internal class ArcOpenApiBeanBackoffTests {
     }
 
     @SpringBootConfiguration
-    @EnableAutoConfiguration(exclude = [SecurityAutoConfiguration::class])
+    @EnableAutoConfiguration
     class Application {
         @Bean
         fun emptyArtifactModule(): ArcArtifactModule = object : ArcArtifactModule(emptyList(), emptyList()) {}

@@ -10,7 +10,7 @@ import org.springframework.data.domain.Page
 public object JpaQueryPageAdapter {
     /** Materializes [page] as the Arc payload understood by the query pipeline. */
     @JvmStatic
-    public fun <T> toQueryPage(page: Page<T>): QueryPage<T> {
+    public fun <T : Any> toQueryPage(page: Page<T>): QueryPage<T> {
         val isUnpaged = page.pageable.isUnpaged
         return QueryPage(
             page.content,

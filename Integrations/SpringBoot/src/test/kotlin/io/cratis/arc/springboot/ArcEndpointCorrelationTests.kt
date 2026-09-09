@@ -19,7 +19,8 @@ import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.SpringBootConfiguration
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration
-import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration
+import org.springframework.boot.security.autoconfigure.web.servlet.ServletWebSecurityAutoConfiguration
+import org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.web.server.LocalServerPort
 import org.springframework.boot.web.servlet.FilterRegistrationBean
@@ -87,7 +88,7 @@ internal class ArcEndpointCorrelationTests {
 
     /** Hosts the Arc fixtures next to a filter that reports what the host established. */
     @SpringBootConfiguration
-    @EnableAutoConfiguration(exclude = [SecurityAutoConfiguration::class])
+    @EnableAutoConfiguration(exclude = [ServletWebSecurityAutoConfiguration::class, UserDetailsServiceAutoConfiguration::class])
     class Application {
         /**
          * Reports the correlation identifier the host established, as an ordinary application filter

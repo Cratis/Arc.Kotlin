@@ -8,21 +8,25 @@ plugins {
     id("com.vanniktech.maven.publish")
 }
 
-val springBootVersion = "3.5.16"
+val springBootVersion = "4.1.1"
 
 dependencies {
     api(project(":Source"))
     api("org.springframework.boot:spring-boot:$springBootVersion")
     api("org.springframework.boot:spring-boot-autoconfigure:$springBootVersion")
+    // Spring Boot 4 defaults to Jackson 3, while Arc's published JSON contract remains Jackson 2.
+    // This compatibility module supplies the Jackson 2 ObjectMapper and customizer infrastructure.
+    api("org.springframework.boot:spring-boot-jackson2:$springBootVersion")
 
-    compileOnly("org.springframework.boot:spring-boot-starter-web:$springBootVersion")
+    compileOnly("org.springframework.boot:spring-boot-starter-webmvc:$springBootVersion")
     compileOnly("org.springframework.boot:spring-boot-starter-websocket:$springBootVersion")
     compileOnly("org.springframework.boot:spring-boot-starter-security:$springBootVersion")
     compileOnly("jakarta.validation:jakarta.validation-api:3.1.1")
     compileOnly("org.springframework.boot:spring-boot-configuration-processor:$springBootVersion")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test:$springBootVersion")
-    testImplementation("org.springframework.boot:spring-boot-starter-web:$springBootVersion")
+    testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test:$springBootVersion")
+    testImplementation("org.springframework.boot:spring-boot-starter-webmvc:$springBootVersion")
     testImplementation("org.springframework.boot:spring-boot-starter-websocket:$springBootVersion")
     testImplementation("org.springframework.boot:spring-boot-starter-security:$springBootVersion")
     testImplementation("org.springframework.boot:spring-boot-starter-validation:$springBootVersion")

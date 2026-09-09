@@ -41,7 +41,7 @@ internal class SpringSecurityArcPrincipalFactory : ArcPrincipalFactory {
         val claims = claimsFrom(authentication?.principal ?: principal)
         val roles = linkedSetOf<String>()
         authentication?.authorities.orEmpty().forEach { authority ->
-            roles.add(authority.authority.removePrefix(SPRING_ROLE_PREFIX))
+            authority.authority?.removePrefix(SPRING_ROLE_PREFIX)?.let(roles::add)
         }
         requiredRoles.filter(request::isUserInRole).forEach(roles::add)
         return ArcPrincipal(

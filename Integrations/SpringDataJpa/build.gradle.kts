@@ -8,7 +8,7 @@ plugins {
     id("com.vanniktech.maven.publish")
 }
 
-val springBootVersion = "3.5.16"
+val springBootVersion = "4.1.1"
 val h2Version = "2.5.250"
 
 dependencies {
@@ -17,7 +17,7 @@ dependencies {
     api("org.springframework.boot:spring-boot-starter-data-jpa:$springBootVersion")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test:$springBootVersion")
-    testImplementation("org.springframework.boot:spring-boot-starter-web:$springBootVersion")
+    testImplementation("org.springframework.boot:spring-boot-starter-webmvc:$springBootVersion")
     testRuntimeOnly("com.h2database:h2:$h2Version")
 }
 

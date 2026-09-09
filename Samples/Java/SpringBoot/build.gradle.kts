@@ -27,11 +27,12 @@ val javaForKotlinDirectory = layout.buildDirectory.dir("intermediates/java-for-k
 
 dependencies {
     implementation(project(":Integrations:SpringBoot"))
-    implementation("org.springframework.boot:spring-boot-starter-web")
+    implementation("org.springframework.boot:spring-boot-starter-webmvc")
     ksp(project(":CodeGeneration:KSP"))
     arcProxyGenerator(project(":GradlePlugin"))
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
 }
 
 ksp {

@@ -123,4 +123,6 @@ Repository proxy verification has three distinct gates: deterministic generation
 
 ## Manual KSP setup
 
-Without the plugin, apply Kotlin/JVM and `com.google.devtools.ksp`, add `io.cratis:arc` to `implementation`, add `io.cratis:arc-ksp` to `ksp`, and set `arc.moduleName` in the KSP extension. Kotlin Spring applications also apply Kotlin's Spring plugin. Add the Arc Spring starter and `spring-boot-starter-web` for HTTP hosting.
+Without the plugin, apply Kotlin/JVM and `com.google.devtools.ksp`, add `io.cratis:arc` to `implementation`, add `io.cratis:arc-ksp` to `ksp`, and set `arc.moduleName` in the KSP extension. Kotlin Spring applications also apply Kotlin's Spring plugin. Add the Arc Spring starter and `spring-boot-starter-webmvc` for HTTP hosting.
+
+Spring Boot 4 defaults conventional MVC controllers to Jackson 3. Arc endpoints keep using the Jackson 2 mapper supplied by the starter's compatibility bridge because Jackson 2 remains part of Arc's published API. Set `spring.http.converters.preferred-json-mapper=jackson2` when ordinary MVC controllers should use the same Arc naming, inclusion, temporal, and polymorphism policy. Arc does not select an application-wide MVC mapper implicitly.

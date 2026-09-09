@@ -17,19 +17,20 @@ updates:
     # No versions or update-types restriction: ignore every publishing plugin update.
     ignore:
       - dependency-name: "com.vanniktech.maven.publish"
-      # kotlinx-coroutines 1.10 moved its default-argument bridges onto the interfaces, so anything
-      # Arc compiles against 1.10+ fails with NoSuchMethodError under Spring Boot, whose BOM pins
-      # coroutines to 1.8.1 and wins in every consuming application. Only the TypeScript runtime
-      # gate catches it. Revisit when the supported Spring Boot manages 1.10 or later. See #135.
+      # Arc must compile against the versions the supported Boot host supplies at runtime. Keep
+      # these synchronized with Spring Boot 4.1.1's BOM and Jackson 2 compatibility module; #135
+      # demonstrated that compiling against a newer coroutines binary can crash after Boot's
+      # dependency management selects its older runtime version.
       - dependency-name: "org.jetbrains.kotlinx:kotlinx-coroutines-core"
-        versions: [">=1.10.0"]
-      # Spring Boot 4 switches its managed JSON stack from Jackson 2 (com.fasterxml.jackson) to
-      # Jackson 3 (tools.jackson), while Arc publishes Jackson 2 as an api dependency and exposes
-      # JsonNode in binary signatures. This is a planned major migration, not an update. See #138.
+        versions: [">1.10.2"]
+      - dependency-name: "com.fasterxml.jackson.*"
+        versions: [">2.21.5"]
+      # Boot's Jackson 2 compatibility bridge is planned for removal in a future 4.x release.
+      # Hold later minors until validated deliberately; issue #150 owns the Jackson 3 migration.
       - dependency-name: "springBootVersion"
-        versions: [">=4.0.0"]
+        versions: [">=4.2.0"]
       - dependency-name: "org.springframework.boot"
-        versions: [">=4.0.0"]
+        versions: [">=4.2.0"]
     groups:
       kotlin-ksp-toolchain:
         # PR #73 confirms Dependabot's names for kotlin("jvm") and kotlin("plugin.spring").

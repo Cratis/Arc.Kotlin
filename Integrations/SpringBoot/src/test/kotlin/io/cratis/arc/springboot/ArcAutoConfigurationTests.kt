@@ -50,19 +50,65 @@ import org.junit.jupiter.api.Assertions.assertSame
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.springframework.boot.autoconfigure.AutoConfigurations
-import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner
+import org.springframework.beans.factory.config.BeanPostProcessor
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.web.servlet.handler.SimpleUrlHandlerMapping
 
+private val jackson2AutoConfiguration: Class<*> =
+    Class.forName("org.springframework.boot.jackson2.autoconfigure.Jackson2AutoConfiguration")
+private val jackson3AutoConfiguration: Class<*> =
+    Class.forName("org.springframework.boot.jackson.autoconfigure.JacksonAutoConfiguration")
+private val jackson3ObjectMapper: Class<*> = Class.forName("tools.jackson.databind.ObjectMapper")
+
 internal class ArcAutoConfigurationTests {
+    @Test
+    fun `Jackson 3 and Arc configured Jackson 2 coexist`() {
+        ApplicationContextRunner()
+            .withConfiguration(
+                AutoConfigurations.of(
+                    jackson3AutoConfiguration,
+                    jackson2AutoConfiguration,
+                    ArcAutoConfiguration::class.java
+                )
+            )
+            .run { context ->
+                assertThat(context.beanFactory.getBeanNamesForType(jackson3ObjectMapper)).isNotEmpty()
+                assertThat(context.getBeansOfType(ObjectMapper::class.java)).hasSize(1)
+                assertThat(context.getBean(ObjectMapper::class.java).propertyNamingStrategy)
+                    .isInstanceOf(io.cratis.arc.json.ArcPropertyNamingStrategy::class.java)
+            }
+    }
+
+    @Test
+    fun `application supplied Jackson 2 mapper is configured without replacement`() {
+        val mapper = ObjectMapper()
+        ApplicationContextRunner()
+            .withBean(ObjectMapper::class.java, { mapper })
+            .withConfiguration(AutoConfigurations.of(ArcAutoConfiguration::class.java))
+            .run { context ->
+                assertSame(mapper, context.getBean(ObjectMapper::class.java))
+                assertThat(mapper.propertyNamingStrategy)
+                    .isInstanceOf(io.cratis.arc.json.ArcPropertyNamingStrategy::class.java)
+            }
+    }
+
+    @Test
+    fun `Jackson defaults bean backs off for the historical application override name`() {
+        val replacement = object : BeanPostProcessor {}
+        ApplicationContextRunner()
+            .withBean("arcJacksonCustomizer", BeanPostProcessor::class.java, { replacement })
+            .withConfiguration(AutoConfigurations.of(ArcAutoConfiguration::class.java))
+            .run { context -> assertSame(replacement, context.getBean("arcJacksonCustomizer")) }
+    }
+
     @Test
     fun `Spring Jackson mapper uses the Arc duration wire format`() {
         ApplicationContextRunner()
             .withConfiguration(
-                AutoConfigurations.of(JacksonAutoConfiguration::class.java, ArcAutoConfiguration::class.java)
+                AutoConfigurations.of(jackson2AutoConfiguration, ArcAutoConfiguration::class.java)
             )
             .run { context ->
                 val mapper = context.getBean(ObjectMapper::class.java)
@@ -206,7 +252,7 @@ internal class ArcAutoConfigurationTests {
         WebApplicationContextRunner()
             .withConfiguration(
                 AutoConfigurations.of(
-                    JacksonAutoConfiguration::class.java,
+                    jackson2AutoConfiguration,
                     ArcAutoConfiguration::class.java,
                     ArcValidationAutoConfiguration::class.java,
                     ArcWebAutoConfiguration::class.java
@@ -229,7 +275,7 @@ internal class ArcAutoConfigurationTests {
         WebApplicationContextRunner()
             .withConfiguration(
                 AutoConfigurations.of(
-                    JacksonAutoConfiguration::class.java,
+                    jackson2AutoConfiguration,
                     ArcAutoConfiguration::class.java,
                     ArcValidationAutoConfiguration::class.java,
                     ArcWebAutoConfiguration::class.java
@@ -248,7 +294,7 @@ internal class ArcAutoConfigurationTests {
         WebApplicationContextRunner()
             .withConfiguration(
                 AutoConfigurations.of(
-                    JacksonAutoConfiguration::class.java,
+                    jackson2AutoConfiguration,
                     ArcAutoConfiguration::class.java,
                     ArcValidationAutoConfiguration::class.java,
                     ArcWebAutoConfiguration::class.java
@@ -269,7 +315,7 @@ internal class ArcAutoConfigurationTests {
         WebApplicationContextRunner()
             .withConfiguration(
                 AutoConfigurations.of(
-                    JacksonAutoConfiguration::class.java,
+                    jackson2AutoConfiguration,
                     ArcAutoConfiguration::class.java,
                     ArcValidationAutoConfiguration::class.java,
                     ArcWebAutoConfiguration::class.java

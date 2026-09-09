@@ -8,17 +8,18 @@ plugins {
     id("com.vanniktech.maven.publish")
 }
 
-val springBootVersion = "3.5.16"
+val springBootVersion = "4.1.1"
 val swaggerModelsVersion = "2.2.55"
 
 dependencies {
     api(project(":Integrations:SpringBoot"))
     api("io.swagger.core.v3:swagger-models:$swaggerModelsVersion")
 
-    compileOnly("org.springframework.boot:spring-boot-starter-web:$springBootVersion")
+    compileOnly("org.springframework.boot:spring-boot-starter-webmvc:$springBootVersion")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test:$springBootVersion")
-    testImplementation("org.springframework.boot:spring-boot-starter-web:$springBootVersion")
+    testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test:$springBootVersion")
+    testImplementation("org.springframework.boot:spring-boot-starter-webmvc:$springBootVersion")
 }
 
 tasks.named("apiCheck") {

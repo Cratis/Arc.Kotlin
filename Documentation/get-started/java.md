@@ -28,7 +28,7 @@ Use the Arc plugin and Spring Boot starter:
 plugins {
     java
     id("io.cratis.arc") version "<version>"
-    id("org.springframework.boot") version "3.5.3"
+    id("org.springframework.boot") version "4.1.1"
     id("io.spring.dependency-management") version "1.1.7"
 }
 
@@ -42,16 +42,17 @@ cratisArc {
 
 dependencies {
     implementation("io.cratis:arc-spring-boot-starter:<version>")
-    implementation("org.springframework.boot:spring-boot-starter-web")
+    implementation("org.springframework.boot:spring-boot-starter-webmvc")
 }
 ```
 
 For builds that do not use the Arc plugin, apply `java`, Kotlin/JVM `2.4.10`, KSP `2.3.11`, and Spring Boot directly; add `io.cratis:arc`, `io.cratis:arc-spring-boot-starter`, and `ksp("io.cratis:arc-ksp:<version>")`, then set `ksp { arg("arc.moduleName", "TaskApplication") }`. The plugin and manual setup produce the same generated contracts.
 
-Set the matching host convention in `src/main/resources/application.properties`:
+Set the matching host convention in `src/main/resources/application.properties`. Spring Boot 4 defaults conventional MVC controllers to Jackson 3; select Jackson 2 so ordinary controllers and generated Arc endpoints use the same Arc-configured wire policy:
 
 ```properties
 cratis.arc.endpoints.segments-to-skip-for-route=2
+spring.http.converters.preferred-json-mapper=jackson2
 ```
 
 ## Add the application model

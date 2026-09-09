@@ -29,9 +29,9 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.boot.autoconfigure.condition.ConditionalOnSingleCandidate
-import org.springframework.boot.autoconfigure.data.mongo.MongoDataAutoConfiguration
-import org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration
-import org.springframework.boot.autoconfigure.transaction.TransactionAutoConfiguration
+import org.springframework.boot.data.mongodb.autoconfigure.DataMongoAutoConfiguration
+import org.springframework.boot.mongodb.autoconfigure.MongoAutoConfiguration
+import org.springframework.boot.transaction.autoconfigure.TransactionAutoConfiguration
 import org.springframework.context.annotation.Bean
 import org.springframework.data.mongodb.MongoTransactionManager
 import org.springframework.data.mongodb.core.MongoOperations
@@ -43,7 +43,7 @@ import org.springframework.data.mongodb.core.mapping.MongoMappingContext
     after = [
         ArcAutoConfiguration::class,
         MongoAutoConfiguration::class,
-        MongoDataAutoConfiguration::class,
+        DataMongoAutoConfiguration::class,
         TransactionAutoConfiguration::class
     ]
 )

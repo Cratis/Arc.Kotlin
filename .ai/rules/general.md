@@ -48,7 +48,7 @@ for a convention.
 
 Authoritative platform facts, module boundaries, and dependency direction live in
 [`AGENTS.md`](../../AGENTS.md) at the repository root — JDK 17, Gradle 8.14.4, Kotlin implementation,
-Java as a first-class consumer, Spring Boot 3.5.x as the supported host baseline, Jackson for JSON, no `ThreadLocal` for
+Java as a first-class consumer, Spring Boot 4.1.x as the supported host baseline, Jackson for JSON, no `ThreadLocal` for
 coroutine-visible state, warnings as errors, JUnit 5, binary-compatibility baselines.
 
 `AGENTS.md` is the short contract; the files in this folder are the depth behind it. If the two ever

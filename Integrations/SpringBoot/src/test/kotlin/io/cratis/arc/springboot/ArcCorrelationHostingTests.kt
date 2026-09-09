@@ -23,8 +23,9 @@ import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.boot.SpringBootConfiguration
 import org.springframework.boot.autoconfigure.AutoConfigurations
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration
-import org.springframework.boot.autoconfigure.security.SecurityProperties
-import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration
+import org.springframework.boot.security.autoconfigure.web.servlet.SecurityFilterProperties
+import org.springframework.boot.security.autoconfigure.web.servlet.ServletWebSecurityAutoConfiguration
+import org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner
 import org.springframework.boot.test.web.server.LocalServerPort
@@ -141,11 +142,11 @@ internal class ArcCorrelationHostingTests {
     @Test
     fun `correlation filter runs before Spring Security and Arc authentication`() {
         assertTrue(
-            correlationRegistration.order < SecurityProperties.DEFAULT_FILTER_ORDER,
+            correlationRegistration.order < SecurityFilterProperties.DEFAULT_FILTER_ORDER,
             "Arc correlation must precede springSecurityFilterChain."
         )
         assertTrue(
-            SecurityProperties.DEFAULT_FILTER_ORDER < authenticationRegistration.order,
+            SecurityFilterProperties.DEFAULT_FILTER_ORDER < authenticationRegistration.order,
             "Arc authentication is expected to keep running after Spring Security."
         )
     }
@@ -188,7 +189,7 @@ internal class ArcCorrelationHostingTests {
     }
 
     @SpringBootConfiguration
-    @EnableAutoConfiguration(exclude = [SecurityAutoConfiguration::class])
+    @EnableAutoConfiguration(exclude = [ServletWebSecurityAutoConfiguration::class, UserDetailsServiceAutoConfiguration::class])
     class Application {
         /** Registers the non-Arc controller the way an application would. */
         @Bean

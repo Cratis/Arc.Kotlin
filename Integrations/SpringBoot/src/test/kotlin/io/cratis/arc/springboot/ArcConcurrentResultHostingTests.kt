@@ -15,7 +15,7 @@ import org.junit.jupiter.api.extension.ExtendWith
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.system.CapturedOutput
 import org.springframework.boot.test.system.OutputCaptureExtension
@@ -88,7 +88,7 @@ internal class ArcConcurrentResultHostingTests {
         initial.getAsyncResult(5000)
 
         val response = mockMvc.perform(asyncDispatch(initial))
-            .andExpect(status().isPayloadTooLarge).andReturn().response
+            .andExpect(status().isContentTooLarge).andReturn().response
 
         assertCorrelation(response, correlationId)
         assertEquals("malformedRequest", objectMapper.readTree(response.contentAsString)
@@ -133,10 +133,10 @@ internal class ArcConcurrentResultHostingTests {
             val response = MockHttpServletResponse()
             val manager = WebAsyncUtils.getAsyncManager(servletRequest)
             manager.setAsyncWebRequest(StandardServletAsyncWebRequest(servletRequest, response))
-            val deferred = DeferredResult<Any?>()
+            val deferred = DeferredResult<Any>()
             if (useContext) manager.startDeferredResultProcessing(deferred, contextId)
             else manager.startDeferredResultProcessing(deferred)
-            assertTrue(deferred.setResult(value))
+            assertTrue(DeferredResults.setResult(deferred, value))
             assertTrue(manager.hasConcurrentResult())
             assertSame(value, manager.concurrentResult)
 

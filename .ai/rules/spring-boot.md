@@ -3,11 +3,11 @@
 This file governs `Integrations/SpringBoot` (published as `io.cratis:arc-spring-boot-starter`) and
 the Spring-facing surface of the other integrations: how autoconfiguration is structured, how
 optional dependencies are expressed, how configuration properties are named and documented, and how
-Spring bean lifetime interacts with Arc's coroutine model. Spring Boot 3.5.x is the **only** supported
-host integration baseline — see the boundary rule at the end of this file. Spring Boot 4 is not a
-routine dependency update: it replaces Jackson 2 (`com.fasterxml.jackson`) with Jackson 3
-(`tools.jackson`) while Arc exposes Jackson 2 types in its published API. Hold it until issue #138
-deliberately migrates that breaking surface. Framework-wide design principles
+Spring bean lifetime interacts with Arc's coroutine model. Spring Boot 4.1.x is the **only** supported
+host integration baseline — see the boundary rule at the end of this file. Arc retains its published
+Jackson 2 (`com.fasterxml.jackson`) contract through Boot's `spring-boot-jackson2` compatibility
+module while Boot's application stack defaults to Jackson 3 (`tools.jackson`). That bridge is bounded;
+issue #150 owns the public Jackson 3 migration required before Spring Boot removes it. Framework-wide design principles
 live in [framework.md](./framework.md); build wiring lives in [gradle.md](./gradle.md).
 
 ## Dependency direction is one-way
@@ -17,9 +17,10 @@ live in [framework.md](./framework.md); build wiring lives in [gradle.md](./grad
   `QueryPipeline`, `CommandExecutionScope`, `ServiceResolver`, `TenantIdResolver`,
   `AuthenticationHandler`, `IdentityDetailsProvider`) live in `Source`; the Spring adaptation of each
   lives here.
-- The starter's `build.gradle.kts` declares only three `api` dependencies — `project(":Source")`,
-  `spring-boot`, and `spring-boot-autoconfigure`. Everything else is deliberately `compileOnly`:
-  `spring-boot-starter-web`, `spring-boot-starter-websocket`, `spring-boot-starter-security`,
+- The starter's `build.gradle.kts` declares four `api` dependencies — `project(":Source")`,
+  `spring-boot`, `spring-boot-autoconfigure`, and the bounded `spring-boot-jackson2` compatibility
+  bridge. Everything else is deliberately `compileOnly`: `spring-boot-starter-webmvc`,
+  `spring-boot-starter-websocket`, `spring-boot-starter-security`,
   `jakarta.validation:jakarta.validation-api`, and `spring-boot-configuration-processor`.
 - Do not promote a `compileOnly` dependency to `api`/`implementation` to make something compile. If
   a feature needs a library at runtime, it belongs behind a `@ConditionalOnClass` guard with the
@@ -29,13 +30,14 @@ live in [framework.md](./framework.md); build wiring lives in [gradle.md](./grad
 
 ## Registered autoconfigurations
 
-Exactly four classes are listed in
+Exactly five classes are listed in
 `Integrations/SpringBoot/src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`.
 Know which layer you are editing:
 
 | Class | Guarded by | Owns |
 | --- | --- | --- |
-| `ArcAutoConfiguration` | none (host-neutral) | registries, pipelines, authentication, authorization, tenancy resolution, introspection, artifact modules, coroutine scope, Jackson wiring |
+| `ArcAutoConfiguration` | none (host-neutral) | registries, pipelines, authentication, authorization, tenancy resolution, introspection, artifact modules, coroutine scope, Jackson 2 wiring |
+| `ArcCorrelationAutoConfiguration` | servlet application with `cratis.arc.correlation-enabled` enabled (the default) | host-wide correlation request wrapping, response headers, and servlet-thread MDC |
 | `ArcValidationAutoConfiguration` | `@AutoConfiguration(after = [ArcAutoConfiguration::class])`, `@ConditionalOnClass(name = ["jakarta.validation.Validator"])` | the Jakarta Bean Validation command and query filters |
 | `ArcWebAutoConfiguration` | `@ConditionalOnWebApplication(type = SERVLET)`, `@ConditionalOnClass(name = ["jakarta.servlet.Servlet", "org.springframework.web.servlet.DispatcherServlet"])` | servlet hosting: the authentication filter registration, observable-query transport, and the command/query handler mapping |
 | `ArcObservableQueryWebSocketConfiguration` | `@ConditionalOnClass(name = ["org.springframework.web.socket.config.annotation.WebSocketConfigurer"])` plus `@ConditionalOnProperty(prefix = "cratis.arc.observable-queries", name = ["web-socket-enabled"], havingValue = "true", matchIfMissing = true)` | direct and multiplexed WebSocket routes |
@@ -79,7 +81,9 @@ Each of the other integrations registers exactly one autoconfiguration in its ow
   `@Bean("arcJakartaBeanValidationCommandFilter")` with
   `@ConditionalOnMissingBean(name = ["arcJakartaBeanValidationCommandFilter"])` — when the declared
   return type is a type applications legitimately register many of (`CommandFilter`, `QueryFilter`,
-  `Jackson2ObjectMapperBuilderCustomizer`, `FilterRegistrationBean`, `SimpleUrlHandlerMapping`).
+  `BeanPostProcessor`, `FilterRegistrationBean`, `SimpleUrlHandlerMapping`). The Jackson 2 defaults
+  bean retains the historical `arcJacksonCustomizer` name even though Boot 4 requires a
+  warning-free BeanPostProcessor instead of its deprecated compatibility customizer interface.
   Getting this wrong silently disables Arc's own bean; a bean-backoff test is required.
 - **Collect application contributions with `ObjectProvider<T>.orderedStream()`**, so Spring `@Order`
   is the complete and documented precedence rule, as `arcCommandPipeline`, `arcQueryRenderers`, and
@@ -156,7 +160,7 @@ Each of the other integrations registers exactly one autoconfiguration in its ow
    file — an unregistered class is dead code.
 5. Test it with Spring Boot's context runners, which is the established convention here:
    `ApplicationContextRunner` for host-neutral wiring and `WebApplicationContextRunner` for servlet
-   wiring, composed with `AutoConfigurations.of(JacksonAutoConfiguration::class.java, ArcAutoConfiguration::class.java, ...)`.
+   wiring, composed with `Jackson2AutoConfiguration` (loaded by class name in tests to avoid compiling against Boot's deprecated bridge type), `ArcAutoConfiguration`, and the relevant web/security auto-configurations.
    Cover at least: the default bean is present; an application `withBean(...)` replaces it
    (`assertSame`); property variants behave (`withPropertyValues("cratis.arc.tenancy.resolvers=subdomain", ...)`);
    and invalid configuration fails startup with the exact message
@@ -164,14 +168,18 @@ Each of the other integrations registers exactly one autoconfiguration in its ow
 6. Update the `.api` baseline if a public type or bean method signature changed, then
    `Documentation/reference/configuration.md` and the relevant guide.
 
-## Spring Boot 3.5.x is the only supported host baseline
+## Spring Boot 4.1.x is the only supported host baseline
 
-Spring Boot 4 is intentionally unsupported until issue #138 migrates Arc's public JSON contract from
-Jackson 2 to Jackson 3. Do not merge a Spring Boot 4 Dependabot PR or locally override the version to
-make it compile: `Source` publishes Jackson 2 as an `api` dependency and exposes its `JsonNode` in
-binary signatures, so the move requires a reviewed API baseline change and a `major` release. The
-modularized Spring Boot 4 test starters and relocated Jackson autoconfiguration are part of that same
-migration, not independent dependency fixes.
+Spring Boot 4 defaults application MVC to Jackson 3, but Arc endpoints inject and write with Jackson
+2 directly. The starter therefore publishes `spring-boot-jackson2`, supplies `ArcJacksonModule`, and
+applies Arc's wire defaults to Jackson 2 mapper beans without referencing Boot's deprecated Jackson 2
+customizer API. Applications that want conventional MVC controllers to use the same Jackson 2 mapper
+select `spring.http.converters.preferred-json-mapper=jackson2`; Arc does not silently make that
+application-wide decision.
+
+The compatibility module is deprecated for removal in Spring Boot 4.3. Issue #150 owns the deliberate
+Jackson 3 public-API migration required before that baseline. Hold unverified Spring Boot minors at
+4.1.x rather than discovering bridge removal through a dependency update.
 
 `AGENTS.md`, `README.md`, and `Documentation/reference/parity.md` all state that Spring Boot is the
 only host, and the parity
