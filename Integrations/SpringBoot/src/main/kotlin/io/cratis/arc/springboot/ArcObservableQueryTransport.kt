@@ -546,11 +546,9 @@ public class ArcObservableQueryTransport internal constructor(
                 ),
                 identity.correlationId
             )
-            when (val opened = pipeline.open(
-                captured.request,
-                captured.options,
-                request.transferMode ?: ObservableQueryTransferMode.FULL
-            )) {
+            // An omitted transfer mode is not "full": it selects the legacy snapshot-plus-change-set behavior,
+            // which the pipeline expresses as a null mode.
+            when (val opened = pipeline.open(captured.request, captured.options, request.transferMode)) {
                 is ObservableQueryOpenResult.Failure -> {
                     if (!opened.result.isAuthorized) {
                         connection.send(unauthorized(queryId, operation.revision))

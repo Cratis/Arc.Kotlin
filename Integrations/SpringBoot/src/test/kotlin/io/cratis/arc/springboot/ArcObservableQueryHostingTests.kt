@@ -278,6 +278,28 @@ internal class ArcObservableQueryHostingTests {
     }
 
     @Test
+    fun `an omitted hub transfer mode keeps the legacy snapshot and change set`() {
+        val socket = openSocket(OBSERVABLE_QUERY_WS_ROUTE)
+        socket.awaitType("Connected")
+
+        socket.send("""{"type":"Subscribe","queryId":"q-legacy","revision":1,"payload":{"queryName":"$OBSERVABLE_NAME"}}""")
+        val first = socket.awaitQuery("q-legacy").path("payload")
+        assertEquals("one", first.path("data").path(0).path("value").textValue())
+        assertEquals("one", first.path("changeSet").path("added").path(0).path("value").textValue())
+
+        ObservableFixtureModule.items.value = listOf(Item(1, "two"), Item(2, "added"))
+        val second = socket.awaitQuery("q-legacy").path("payload")
+        assertEquals("two", second.path("data").path(0).path("value").textValue())
+        assertEquals("added", second.path("changeSet").path("added").path(0).path("value").textValue())
+        assertEquals("two", second.path("changeSet").path("replaced").path(0).path("value").textValue())
+
+        socket.send(subscribe("q-full", 1, OBSERVABLE_NAME, "full"))
+        val full = socket.awaitQuery("q-full").path("payload")
+        assertEquals("two", full.path("data").path(0).path("value").textValue())
+        assertTrue(full.path("changeSet").isMissingNode || full.path("changeSet").isNull, full.toString())
+    }
+
+    @Test
     fun `multiplexed transport captures optional credentials and authorizes each subscription`() {
         val anonymous = openSocket(OBSERVABLE_QUERY_WS_ROUTE)
         anonymous.awaitType("Connected")

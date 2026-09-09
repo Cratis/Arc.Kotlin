@@ -91,6 +91,7 @@ final class JavaObservableAdaptersTest {
             upstream.emit(List.of("two"));
             assertEquals(1, subscriber.values.size());
             assertEquals(List.of("one"), subscriber.values.get(0).getData());
+            assertNull(subscriber.values.get(0).getChangeSet());
 
             subscriber.subscription.cancel();
             assertTrue(upstream.cancelledLatch.await(2, TimeUnit.SECONDS));
@@ -139,6 +140,37 @@ final class JavaObservableAdaptersTest {
             assertEquals(List.of(true, true, true), observed);
             assertEquals(1, subscriber.values.size());
             assertEquals(List.of("delivered"), subscriber.values.get(0).getData());
+
+            subscriber.subscription.cancel();
+        }
+    }
+
+    @Test
+    void anOmittedTransferModeKeepsTheLegacySnapshotAndChangeSet() throws Exception {
+        RecordingPublisher<List<String>> upstream = new RecordingPublisher<>();
+        ConcurrentQueryPerformerRegistry performers = new ConcurrentQueryPerformerRegistry();
+        performers.register(new BlockingQueryPerformerAdapter(new BlockingQueryPerformer() {
+            @Override public QueryDescriptor getDescriptor() { return observableDescriptor(); }
+            @Override public FullyQualifiedQueryName getFullyQualifiedName() { return QUERY_NAME; }
+            @Override public Object perform(io.cratis.arc.queries.QueryContext context) { return upstream; }
+        }));
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try (JavaAsyncScope scope = JavaAsyncScope.owningExecutorService(executor)) {
+            AsyncObservableQueryOpenResult opened = scope.observableQueries(new DefaultObservableQueryPipeline(performers))
+                .open(new QueryRequest(QUERY_NAME), options(), null, value -> value)
+                .toCompletableFuture().join();
+            RecordingSubscriber<QueryResult<?>> subscriber = new RecordingSubscriber<>();
+            ((AsyncObservableQueryOpenResult.Stream) opened).getResults().subscribe(subscriber);
+
+            subscriber.subscription.request(1);
+            assertTrue(upstream.subscribedLatch.await(2, TimeUnit.SECONDS));
+            upstream.emit(List.of("one"));
+            assertTrue(subscriber.firstValue.await(2, TimeUnit.SECONDS));
+
+            QueryResult<?> result = subscriber.values.get(0);
+            assertEquals(List.of("one"), result.getData());
+            assertNotNull(result.getChangeSet());
+            assertEquals(List.of("one"), result.getChangeSet().getAdded());
 
             subscriber.subscription.cancel();
         }

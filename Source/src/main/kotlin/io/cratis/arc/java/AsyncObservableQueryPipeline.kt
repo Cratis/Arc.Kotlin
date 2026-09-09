@@ -59,18 +59,28 @@ public class AsyncObservableQueryPipeline internal constructor(
     ): CompletionStage<AsyncObservableQueryOpenResult> =
         open(request, options, ObservableQueryTransferMode.FULL, null)
 
-    /** Opens an observable query with an explicit transfer mode. */
+    /**
+     * Opens an observable query with an explicit transfer mode.
+     *
+     * Pass `null` when a subscriber did not ask for one, which selects the legacy behavior of a complete
+     * snapshot plus a change set on every emission.
+     */
     public fun open(
         request: QueryRequest,
         options: QueryExecutionOptions,
-        transferMode: ObservableQueryTransferMode
+        transferMode: ObservableQueryTransferMode?
     ): CompletionStage<AsyncObservableQueryOpenResult> = open(request, options, transferMode, null)
 
-    /** Opens an observable query without exposing suspend, Flow, or Kotlin function types. */
+    /**
+     * Opens an observable query without exposing suspend, Flow, or Kotlin function types.
+     *
+     * Pass `null` as the transfer mode when a subscriber did not ask for one, which selects the legacy
+     * behavior of a complete snapshot plus a change set on every emission.
+     */
     public fun open(
         request: QueryRequest,
         options: QueryExecutionOptions,
-        transferMode: ObservableQueryTransferMode,
+        transferMode: ObservableQueryTransferMode?,
         keyExtractor: ObservableQueryKeyExtractor?
     ): CompletionStage<AsyncObservableQueryOpenResult> = launchStage(coroutineScope) {
         val extractor: ((Any) -> Any?)? = keyExtractor?.let { javaExtractor ->
