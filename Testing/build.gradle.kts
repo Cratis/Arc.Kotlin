@@ -9,7 +9,7 @@ plugins {
 
 dependencies {
     api(project(":Source"))
-    testImplementation("org.junit.jupiter:junit-jupiter-api:5.11.4")
+    testImplementation("org.junit.jupiter:junit-jupiter-api:6.1.3")
 }
 
 tasks.named("apiCheck") {
