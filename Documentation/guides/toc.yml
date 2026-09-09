@@ -5,6 +5,8 @@
       href: commands.md
     - name: Queries
       href: queries.md
+    - name: Authentication and authorization
+      href: security.md
     - name: Spring Data read models
       href: spring-data.md
     - name: TypeScript proxies
