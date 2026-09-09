@@ -2087,6 +2087,9 @@ ${factories.joinToString("\n\n")}
         val interfaces = renderModuleArtifacts(sortedInterfaces.map(::renderInterfaceDescriptor))
         val enums = renderModuleArtifacts(sortedEnums.map(::renderEnumDescriptor))
         val concepts = renderModuleArtifacts(sortedConcepts.map(::renderConceptDescriptor))
+        val derivedTypes = renderModuleArtifacts(
+            metadataCollector.derivedTypes.map(::renderDerivedTypeRegistration)
+        )
         val source = """// Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
@@ -2099,7 +2102,8 @@ public class $className : io.cratis.arc.artifacts.ArcArtifactModule(
     types = $types,
     enums = $enums,
     interfaces = $interfaces,
-    concepts = $concepts
+    concepts = $concepts,
+    derivedTypes = $derivedTypes
 )
 """
         codeGenerator.createNewFile(dependencies, GENERATED_PACKAGE, className).bufferedWriter().use { writer ->
@@ -2139,6 +2143,10 @@ public class $className : io.cratis.arc.artifacts.ArcArtifactModule(
             "location = listOf($location), properties = $properties, baseTypeName = $baseTypeName, " +
             "derivedTypeId = $derivedTypeId)"
     }
+
+    private fun renderDerivedTypeRegistration(registration: DerivedTypeRegistrationModel): String =
+        "io.cratis.arc.polymorphism.DerivedTypeRegistration(" +
+            "${registration.baseTypeName}::class.java, ${registration.derivedTypeName}::class.java)"
 
     private fun renderInterfaceDescriptor(interfaceModel: InterfaceModel): String {
         val properties = renderProperties(interfaceModel.properties)
