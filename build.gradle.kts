@@ -16,9 +16,9 @@ plugins {
     id("org.springframework.boot") version "3.5.3" apply false
     id("io.spring.dependency-management") version "1.1.7" apply false
     id("com.vanniktech.maven.publish") version "0.33.0" apply false
-    id("com.github.ben-manes.versions") version "0.51.0"
-    id("se.patrikerdes.use-latest-versions") version "0.2.18"
-    id("org.jetbrains.kotlinx.binary-compatibility-validator") version "0.18.1"
+    id("com.github.ben-manes.versions") version "0.61.0"
+    id("se.patrikerdes.use-latest-versions") version "0.2.19"
+    id("org.jetbrains.kotlinx.binary-compatibility-validator") version "0.18.2"
 }
 
 subprojects {
