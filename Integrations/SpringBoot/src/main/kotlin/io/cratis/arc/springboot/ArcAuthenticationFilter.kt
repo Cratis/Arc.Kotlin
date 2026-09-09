@@ -23,7 +23,7 @@ import jakarta.servlet.http.HttpServletResponse
 import java.nio.charset.StandardCharsets
 import java.security.Principal
 import java.util.Locale
-import java.util.UUID
+import io.cratis.arc.correlation.CorrelationIdResolver
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
@@ -54,10 +54,9 @@ internal class ArcAuthenticationFilter(
         val httpRequest = request as? HttpServletRequest ?: return chain.doFilter(request, response)
         val httpResponse = response as? HttpServletResponse ?: return chain.doFilter(request, response)
         val endpoint = endpointMatcher.endpoint(httpRequest) ?: return chain.doFilter(request, response)
-        val correlationId = httpRequest.getHeader(properties.correlationHeader)
-            ?.trim()
-            ?.let { value -> runCatching { UUID.fromString(value) }.getOrNull() }
-            ?: UUID.randomUUID()
+        val correlationId = CorrelationIdResolver.resolveOrCreate(
+            httpRequest.getHeader(properties.correlationHeader)
+        )
         httpResponse.setHeader(properties.correlationHeader, correlationId.toString())
         if (!authentication.hasHandlers || endpoint.literalAnonymous) {
             chain.doFilter(request, response)
