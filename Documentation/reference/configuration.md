@@ -47,7 +47,8 @@ All properties use the `cratis.arc` prefix.
 | `endpoints.include-command-name-in-route` | `true` | Includes command names in conventional routes. |
 | `endpoints.include-query-name-in-route` | `true` | Includes query names in conventional routes. |
 | `endpoints.enable-query-http-method` | `true` | Adds RFC QUERY alongside GET for one-shot and observable snapshot routes. |
-| `correlation-header` | `X-Correlation-ID` | Java-friendly request and response header name used consistently by command and query transports. Must not be blank. |
+| `correlation-header` | `X-Correlation-ID` | Java-friendly request and response header name used consistently by every route in the host. Must not be blank. |
+| `correlation-enabled` | `true` | Registers the host-wide correlation filter for `/*`. Disable it when the application owns correlation itself. |
 | `tenant-header` | `x-cratis-tenant-id` | Backward-compatible alias and default for `tenancy.header-name`. |
 | `tenancy.resolvers` | `header` | Ordered resolver precedence. Values are `fixed`, `header`, `query`, `claim`, `subdomain`, and `development`. |
 | `tenancy.required` | `false` | Rejects unresolved command, query, observable, and identity requests with 400 when enabled. |

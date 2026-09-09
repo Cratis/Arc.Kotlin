@@ -437,5 +437,15 @@ private class MockMvcAsyncSettlingFilter : Filter {
     }
 }
 
-private const val MOCK_MVC_ASYNC_SETTLING_FILTER_ORDER = -100
+/**
+ * The settling filter only works as the outermost filter: it must see the container's own request and
+ * must not return until everything inside it has settled. It therefore has to be ordered below every
+ * application filter, including `ArcCorrelationFilter` at -110, which wraps the request. When that
+ * filter ran first, the settling filter registered its async listener against the wrapped request's
+ * async context while MockMvc kept reading the original `MockHttpServletRequest`, and the tests in
+ * this class failed non-deterministically in CI — a different one each run.
+ *
+ * Keep this below the lowest application filter order. It is not a magic number to nudge.
+ */
+private const val MOCK_MVC_ASYNC_SETTLING_FILTER_ORDER = Int.MIN_VALUE
 private const val SETTLE_TIMEOUT_SECONDS = 30L

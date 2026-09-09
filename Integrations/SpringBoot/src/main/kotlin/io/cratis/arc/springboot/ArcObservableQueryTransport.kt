@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import io.cratis.arc.ExceptionDetailRedactor
 import io.cratis.arc.authorization.ArcPrincipal
 import io.cratis.arc.commands.ServiceResolver
+import io.cratis.arc.correlation.CorrelationIdResolver
 import io.cratis.arc.http.ArcHttpStatusMapper
 import io.cratis.arc.queries.FullyQualifiedQueryName
 import io.cratis.arc.queries.ObservableQueryHubMessage
@@ -773,13 +774,8 @@ public class ArcObservableQueryTransport internal constructor(
         response.setHeader("Allow", "POST")
     }
 
-    private fun correlationId(request: HttpServletRequest): UUID = request.getHeader(properties.correlationHeader)
-        ?.trim()
-        ?.let { runCatching { UUID.fromString(it) }.getOrNull() }
-        ?: UUID.randomUUID()
-
     private fun prepareCorrelation(request: HttpServletRequest, response: HttpServletResponse): UUID =
-        correlationId(request).also { correlationId ->
+        CorrelationIdResolver.resolveOrCreate(request.getHeader(properties.correlationHeader)).also { correlationId ->
             response.setHeader(properties.correlationHeader, correlationId.toString())
         }
 

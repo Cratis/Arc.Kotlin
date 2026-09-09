@@ -31,9 +31,14 @@ Arc never records command values, query arguments, tenant identifiers, user iden
 
 ## Correlation context
 
+The correlation identifier itself is established by the Arc Spring Boot starter, not by this one.
+Its host-wide correlation filter resolves one identifier per request, publishes it to every route in
+the host, and places it in MDC under `arc.correlation_id` for the duration of the servlet filter
+chain. See the [HTTP contract reference](../reference/http-contract.md) for that contract.
+
 For command and query operations, Arc places the existing request correlation identifier in the observation context under `arc.correlation_id`. It is deliberately not a metric or span tag.
 
-When SLF4J is available, the starter also places the value in MDC under `arc.correlation_id` for the duration of each coroutine resume. When the OpenTelemetry API is available, it places the same value in baggage. Both contexts are restored after execution, including cancellation and failure. This preserves structured coroutine propagation rather than relying on an unmanaged application `ThreadLocal`.
+When SLF4J is available, the starter also places the value in MDC under `arc.correlation_id` for the duration of each coroutine resume, which is where the servlet-thread binding cannot reach. When the OpenTelemetry API is available, it places the same value in baggage. Both contexts are restored after execution, including cancellation and failure. This preserves structured coroutine propagation rather than relying on an unmanaged application `ThreadLocal`.
 
 OpenTelemetry is optional. Add the tracing implementation appropriate for the application, for example Spring Boot Actuator with Micrometer's OpenTelemetry bridge. The Arc starter does not select an exporter.
 
