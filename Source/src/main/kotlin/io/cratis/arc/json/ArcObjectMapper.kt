@@ -34,7 +34,7 @@ public object ArcObjectMapper {
     @JvmStatic
     public fun configure(objectMapper: ObjectMapper, derivedTypes: DerivedTypeRegistry): ObjectMapper {
         objectMapper.propertyNamingStrategy = ArcPropertyNamingStrategy()
-        objectMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL)
+        objectMapper.setDefaultPropertyInclusion(JsonInclude.Include.NON_NULL)
         objectMapper.enable(JsonReadFeature.ALLOW_NON_NUMERIC_NUMBERS.mappedFeature())
         objectMapper.enable(JsonWriteFeature.WRITE_NAN_AS_STRINGS.mappedFeature())
         objectMapper.disable(

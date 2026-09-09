@@ -27,7 +27,7 @@ internal object ArcManifestJson {
     // Runtime JSON still uses ArcObjectMapper; this writer must remain serialization-only and byte-equivalent.
     private val writer = JsonMapper.builder()
         .propertyNamingStrategy(ArcPropertyNamingStrategy())
-        .serializationInclusion(JsonInclude.Include.NON_NULL)
+        .defaultPropertyInclusion(JsonInclude.Value.construct(JsonInclude.Include.NON_NULL, JsonInclude.Include.NON_NULL))
         .enable(JsonWriteFeature.WRITE_NAN_AS_STRINGS)
         .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, SerializationFeature.WRITE_DURATIONS_AS_TIMESTAMPS)
         .addModule(JavaTimeModule())
