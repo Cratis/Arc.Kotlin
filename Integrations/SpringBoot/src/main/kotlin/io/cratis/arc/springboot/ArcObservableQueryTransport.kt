@@ -153,6 +153,8 @@ public class ArcObservableQueryTransport internal constructor(
 
     internal fun parseSubscription(payload: Any?): ObservableQuerySubscriptionRequest? = runCatching {
         subscriptionMapper.convertValue(payload, ObservableQuerySubscriptionRequest::class.java)
+    }.onFailure { exception ->
+        logger.debug("Arc observable query subscription payload could not be read.", exception)
     }.getOrNull()
 
     internal fun createHubConnection(
@@ -206,7 +208,8 @@ public class ArcObservableQueryTransport internal constructor(
         }
         val queryRequest = try {
             requestBinder.fromSubscription(request, performer)
-        } catch (_: MalformedQueryRequestException) {
+        } catch (exception: MalformedQueryRequestException) {
+            logger.debug("Arc observable query subscription could not be bound. queryId={}", queryId, exception)
             return HubSubscribeResult.MALFORMED
         }
         val principal = subscriptionHandshake.principal
@@ -286,7 +289,8 @@ public class ArcObservableQueryTransport internal constructor(
         } catch (exception: ArcRequestBodyTooLargeException) {
             writeResult(response, malformed(correlationId), HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE)
             return
-        } catch (_: Exception) {
+        } catch (exception: Exception) {
+            logger.debug("Arc observable query request could not be bound. correlationId={}", correlationId, exception)
             writeResult(response, malformed(correlationId))
             return
         }
@@ -635,7 +639,8 @@ public class ArcObservableQueryTransport internal constructor(
 
     private fun <T> readBody(request: HttpServletRequest, type: Class<T>): T? = try {
         objectMapper.readValue(request.inputStream, type)
-    } catch (_: Exception) {
+    } catch (exception: Exception) {
+        logger.debug("Arc observable query body could not be read as {}.", type.name, exception)
         null
     }
 
@@ -817,6 +822,7 @@ public class ArcObservableQueryTransport internal constructor(
         private const val ALLOWED_SEVERITY_HEADER = "X-Allowed-Severity"
         private const val WAIT_FOR_FIRST = "waitForFirstResult"
         private const val WAIT_FOR_FIRST_TIMEOUT = "waitForFirstResultTimeout"
+        private val logger = LoggerFactory.getLogger(ArcObservableQueryTransport::class.java)
     }
 }
 
