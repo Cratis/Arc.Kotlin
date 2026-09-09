@@ -13,8 +13,40 @@ updates:
       - dependencies
       - no-release
     open-pull-requests-limit: 10
+    # Temporary hold until the coordinated publishing migration in #121 is approved.
+    # No versions or update-types restriction: ignore every publishing plugin update.
+    ignore:
+      - dependency-name: "com.vanniktech.maven.publish"
     groups:
+      kotlin-ksp-toolchain:
+        # PR #73 confirms Dependabot's names for kotlin("jvm") and kotlin("plugin.spring").
+        # Grouping is review isolation, not proof of cross-component version compatibility.
+        patterns:
+          - "jvm"
+          - "plugin.spring"
+          - "org.jetbrains.kotlin:*"
+          - "com.google.devtools.ksp"
+          - "com.google.devtools.ksp:*"
+          - "dev.zacsweers.kctfork:*"
+        update-types:
+          - minor
+          - patch
+      publishing:
+        # Kept separate when the temporary ignore above is deliberately revisited.
+        patterns:
+          - "com.vanniktech.maven.publish"
+        update-types:
+          - minor
+          - patch
       gradle-non-major:
+        exclude-patterns:
+          - "jvm"
+          - "plugin.spring"
+          - "org.jetbrains.kotlin:*"
+          - "com.google.devtools.ksp"
+          - "com.google.devtools.ksp:*"
+          - "dev.zacsweers.kctfork:*"
+          - "com.vanniktech.maven.publish"
         update-types:
           - minor
           - patch
