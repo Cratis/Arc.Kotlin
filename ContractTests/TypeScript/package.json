@@ -11,7 +11,7 @@
   "dependencies": {
     "@cratis/arc": "22.10.4",
     "@cratis/arc.react": "22.10.4",
-    "@cratis/fundamentals": "7.18.3",
+    "@cratis/fundamentals": "7.18.4",
     "react": "19.2.8"
   },
   "devDependencies": {
