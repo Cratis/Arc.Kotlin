@@ -1,19 +1,5 @@
 name: Verify No Work Records
 
-# Inside a called workflow ${{ github.workflow }} resolves to the *caller's* name, so a reusable
-# workflow that derives its group this way and cancels in progress cancels its caller. That is what
-# made Publish fail in #50, except that the call below reaches a repository this one does not
-# control, so the change that would break it need never be reviewed here. See
-# https://docs.github.com/en/actions/reference/workflows-and-actions/reusing-workflow-configurations
-# The literal prefix puts this group in a namespace a called workflow cannot compute, so only runs
-# of this workflow ever land in it. This workflow has no workflow_call trigger, so github.workflow
-# below is always the name above. On a pull request the group is per pull request, and on a push to
-# main it is per ref, so cancelling within it can only cancel a superseded run of the same subject —
-# the same trade-off build.yml already makes.
-concurrency:
-  group: verify-no-work-records-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
-
 on:
   pull_request:
   push:
@@ -21,8 +7,4 @@ on:
 
 jobs:
   verify:
-    # Pinned to a commit rather than the moving `main` ref, the way verify-semver-label.yml pins its
-    # own call, so an upstream push cannot change what runs here without a reviewed bump. The
-    # trailing comment records the branch the commit was taken from; Cratis/Workflows publishes no
-    # tags or releases, so this is bumped by hand.
-    uses: Cratis/Workflows/.github/workflows/verify-no-work-records.yml@8761ddf55737e225437309e314195c4c865a33ba # main
+    uses: Cratis/Workflows/.github/workflows/verify-no-work-records.yml@main

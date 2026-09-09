@@ -1,21 +1,12 @@
-# Copyright (c) Cratis. All rights reserved.
-# Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-name: Automatic Dependency Updates Suspended
+name: Update Packages
 
 on:
   schedule:
     - cron: '0 6 * * *'
   workflow_dispatch:
 
-permissions: {}
-
 jobs:
-  updates-suspended:
-    name: Automatic dependency updates suspended
-    runs-on: ubuntu-latest
-    steps:
-      - name: Report suspension
-        shell: bash
-        run: |-
-          printf '%s\n' 'Automatic dependency updates are suspended pending #121; no dependency updates will run.'
+  update:
+    uses: Cratis/Workflows/.github/workflows/update-packages.yml@main
+    secrets:
+      PAT_WORKFLOWS: ${{ secrets.PAT_WORKFLOWS }}
