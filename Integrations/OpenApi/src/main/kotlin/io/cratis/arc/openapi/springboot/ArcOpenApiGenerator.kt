@@ -46,7 +46,7 @@ public class ArcOpenApiGenerator @JvmOverloads constructor(
     objectMapper: ObjectMapper = ObjectMapper()
 ) {
     private val writer = objectMapper.copy()
-        .setSerializationInclusion(JsonInclude.Include.NON_NULL)
+        .setDefaultPropertyInclusion(JsonInclude.Include.NON_NULL)
         .enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS)
         .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
         .writerWithDefaultPrettyPrinter()
