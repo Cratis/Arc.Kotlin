@@ -23,10 +23,9 @@ updates:
       # dependency management selects its older runtime version.
       - dependency-name: "org.jetbrains.kotlinx:kotlinx-coroutines-core"
         versions: [">1.10.2"]
-      - dependency-name: "com.fasterxml.jackson.*"
-        versions: [">2.21.5"]
-      # Boot's Jackson 2 compatibility bridge is planned for removal in a future 4.x release.
-      # Hold later minors until validated deliberately; issue #150 owns the Jackson 3 migration.
+      - dependency-name: "tools.jackson.*"
+        versions: [">3.1.5"]
+      # Hold later Boot minors until their managed Jackson and coroutines versions are deliberately synchronized.
       - dependency-name: "springBootVersion"
         versions: [">=4.2.0"]
       - dependency-name: "org.springframework.boot"

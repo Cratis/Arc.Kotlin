@@ -3,8 +3,8 @@
 
 package io.cratis.arc.springboot
 
-import com.fasterxml.jackson.databind.JsonNode
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.JsonNode
+import tools.jackson.databind.ObjectMapper
 import io.cratis.arc.artifacts.ArcArtifactModule
 import io.cratis.arc.authentication.AuthenticationHandler
 import io.cratis.arc.authentication.AuthenticationResult
@@ -144,7 +144,7 @@ internal class ArcObservableQueryCompositionHostingTests {
         assertEquals(correlation.toString(), response.headers().firstValue("X-Arc-Correlation").orElse(""))
         if (method == "QUERY") assertEquals("no-store", response.headers().firstValue("Cache-Control").orElse(""))
         val envelope = mapper.readTree(response.body())
-        assertEquals(correlation.toString(), envelope.path("correlationId").textValue())
+        assertEquals(correlation.toString(), envelope.path("correlationId").stringValue())
         assertEquals(mapper.nodeFactory.booleanNode(allowed), envelope.path("isReady"))
         assertAbsent(envelope.path("changeSet"))
         if (allowed) {
@@ -201,10 +201,10 @@ internal class ArcObservableQueryCompositionHostingTests {
 
     private fun query(listener: CompositionSocket): JsonNode {
         val message = listener.awaitType("QueryResult")
-        assertEquals("composition", message.path("queryId").textValue())
+        assertEquals("composition", message.path("queryId").stringValue())
         assertEquals(7, message.path("revision").intValue())
         val payload = message.path("payload")
-        assertEquals(correlation.toString(), payload.path("correlationId").textValue())
+        assertEquals(correlation.toString(), payload.path("correlationId").stringValue())
         assertTrue(payload.path("isSuccess").booleanValue(), message.toString())
         assertTrue(payload.path("isReady").booleanValue(), message.toString())
         return payload
@@ -416,7 +416,7 @@ private class CompositionSocket(private val mapper: ObjectMapper) : WebSocket.Li
             val remaining = deadline - System.nanoTime()
             if (remaining <= 0) break
             val message = messages.poll(remaining, TimeUnit.NANOSECONDS) ?: break
-            val type = message.path("type").textValue()
+            val type = message.path("type").stringValue()
             if (type == "Ping") {
                 send("""{"type":"Pong","timestamp":${message.path("timestamp").asLong()}}""")
                 continue
@@ -433,7 +433,7 @@ private class CompositionSocket(private val mapper: ObjectMapper) : WebSocket.Li
             current.sendClose(WebSocket.NORMAL_CLOSURE, "done").get(5, TimeUnit.SECONDS)
             assertEquals(WebSocket.NORMAL_CLOSURE, closed.get(5, TimeUnit.SECONDS))
             assertNull(failure.get(), "WebSocket listener errors must not be swallowed")
-            assertTrue(messages.none { it.path("type").textValue() != "Ping" }, "Unexpected undelivered hub frames: $messages")
+            assertTrue(messages.none { it.path("type").stringValue() != "Ping" }, "Unexpected undelivered hub frames: $messages")
         } finally {
             if (!current.isInputClosed || !current.isOutputClosed) current.abort()
         }

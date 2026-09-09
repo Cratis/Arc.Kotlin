@@ -3,14 +3,14 @@
 
 package io.cratis.arc.json
 
-import com.fasterxml.jackson.core.JsonParser
-import com.fasterxml.jackson.core.type.TypeReference
-import com.fasterxml.jackson.databind.DeserializationContext
-import com.fasterxml.jackson.databind.JsonDeserializer
-import com.fasterxml.jackson.databind.JsonMappingException
-import com.fasterxml.jackson.databind.deser.ResolvableDeserializer
-import com.fasterxml.jackson.databind.module.SimpleModule
-import com.fasterxml.jackson.databind.type.ResolvedRecursiveType
+import tools.jackson.core.JsonParser
+import tools.jackson.core.type.TypeReference
+import tools.jackson.databind.DeserializationContext
+import tools.jackson.databind.ValueDeserializer
+import tools.jackson.databind.DatabindException
+import tools.jackson.databind.json.JsonMapper
+import tools.jackson.databind.module.SimpleModule
+import tools.jackson.databind.type.ResolvedRecursiveType
 import io.cratis.arc.polymorphism.ConcurrentDerivedTypeRegistry
 import io.cratis.arc.polymorphism.DerivedType
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -34,7 +34,7 @@ internal class ArcFixedDerivedTypeBindingsTest {
 
     @Test
     fun `fixed inherited binding rejects incompatible typed root before returning a value`() {
-        val failure = assertThrows(JsonMappingException::class.java) {
+        val failure = assertThrows(DatabindException::class.java) {
             mapper.readValue(json("string", "\"text\""), object : TypeReference<Base<Payload>>() {})
         }
         assertTrue(failure.originalMessage.contains(FixedString::class.java.name), failure.message)
@@ -45,31 +45,31 @@ internal class ArcFixedDerivedTypeBindingsTest {
 
     @Test
     fun `nested property validates its declared generic binding`() {
-        val failure = assertThrows(JsonMappingException::class.java) {
+        val failure = assertThrows(DatabindException::class.java) {
             mapper.readValue("""{"value":${json("string", "\"text\"")}}""", Envelope::class.java)
         }
-        assertEquals("value", failure.path.single().fieldName)
+        assertEquals("value", failure.path.single().propertyName)
     }
 
     @Test
     fun `nested collection element validates its declared generic binding`() {
-        val failure = assertThrows(JsonMappingException::class.java) {
+        val failure = assertThrows(DatabindException::class.java) {
             mapper.readValue("""{"values":[${json("string", "\"text\"")}]}""", Envelope::class.java)
         }
-        assertEquals("values", failure.path[0].fieldName)
+        assertEquals("values", failure.path[0].propertyName)
         assertEquals(0, failure.path[1].index)
     }
 
     @Test
     fun `fixed list rejects incompatible elements without inspecting payload`() {
-        assertThrows(JsonMappingException::class.java) {
+        assertThrows(DatabindException::class.java) {
             mapper.readValue(json("list", "[]"), object : TypeReference<Base<List<Payload>>>() {})
         }
     }
 
     @Test
     fun `differing collection erasures are projected before recursively comparing arguments`() {
-        val failure = assertThrows(JsonMappingException::class.java) {
+        val failure = assertThrows(DatabindException::class.java) {
             mapper.readValue(json("nested", "[[\"text\"]]"),
                 object : TypeReference<Base<Collection<Collection<Payload>>>>() {})
         }
@@ -79,17 +79,17 @@ internal class ArcFixedDerivedTypeBindingsTest {
 
     @Test
     fun `fixed map rejects incompatible values and keys`() {
-        assertThrows(JsonMappingException::class.java) {
+        assertThrows(DatabindException::class.java) {
             mapper.readValue(json("map", "{}"), object : TypeReference<Base<Map<String, List<Payload>>>>() {})
         }
-        assertThrows(JsonMappingException::class.java) {
+        assertThrows(DatabindException::class.java) {
             mapper.readValue(json("map", "{}"), object : TypeReference<Base<Map<Payload, List<String>>>>() {})
         }
     }
 
     @Test
     fun `fixed ordinary generic subtype is projected before comparing bindings`() {
-        assertThrows(JsonMappingException::class.java) {
+        assertThrows(DatabindException::class.java) {
             mapper.readValue(json("box", "{\"value\":\"text\"}"), object : TypeReference<Base<Box<Payload>>>() {})
         }
         val value = mapper.readValue(json("box", "{\"value\":\"text\"}"),
@@ -100,7 +100,7 @@ internal class ArcFixedDerivedTypeBindingsTest {
     @Test
     fun `raw container request still rejects incompatible erasure`() {
         val requested = mapper.typeFactory.constructParametricType(Base::class.java, List::class.java)
-        assertThrows(JsonMappingException::class.java) {
+        assertThrows(DatabindException::class.java) {
             mapper.readValue<Any>(json("string", "\"text\""), requested)
         }
         val value = mapper.readValue<Base<*>>(json("list", "[\"text\"]"), requested)
@@ -109,14 +109,14 @@ internal class ArcFixedDerivedTypeBindingsTest {
 
     @Test
     fun `fixed reference rejects incompatible referenced binding`() {
-        assertThrows(JsonMappingException::class.java) {
+        assertThrows(DatabindException::class.java) {
             mapper.readValue(json("reference", "\"text\""), object : TypeReference<Base<AtomicReference<Payload>>>() {})
         }
     }
 
     @Test
     fun `fixed generic array rejects incompatible component binding`() {
-        assertThrows(JsonMappingException::class.java) {
+        assertThrows(DatabindException::class.java) {
             mapper.readValue(json("array", "[]"), object : TypeReference<Base<Array<List<Payload>>>>() {})
         }
     }
@@ -158,7 +158,7 @@ internal class ArcFixedDerivedTypeBindingsTest {
 
     @Test
     fun `null payload does not erase a definite metadata contradiction`() {
-        assertThrows(JsonMappingException::class.java) {
+        assertThrows(DatabindException::class.java) {
             mapper.readValue(json("string", "null"), object : TypeReference<Base<Payload>>() {})
         }
     }
@@ -186,8 +186,8 @@ internal class ArcFixedDerivedTypeBindingsTest {
     fun `definite contradiction is rejected before custom target delegate lookup or invocation`() {
         var invocations = 0
         var resolutions = 0
-        mapper.registerModule(SimpleModule().addDeserializer(FixedString::class.java,
-            object : JsonDeserializer<FixedString>(), ResolvableDeserializer {
+        val configuredMapper = (mapper as JsonMapper).rebuild().addModule(SimpleModule().addDeserializer(FixedString::class.java,
+            object : ValueDeserializer<FixedString>() {
                 override fun resolve(context: DeserializationContext) { resolutions++ }
 
                 override fun deserialize(parser: JsonParser, context: DeserializationContext): FixedString {
@@ -195,13 +195,13 @@ internal class ArcFixedDerivedTypeBindingsTest {
                     parser.skipChildren()
                     return FixedString().apply { payload = "custom" }
                 }
-            }))
-        assertThrows(JsonMappingException::class.java) {
-            mapper.readValue(json("string", "\"text\""), object : TypeReference<Base<Payload>>() {})
+            })).build()
+        assertThrows(DatabindException::class.java) {
+            configuredMapper.readValue(json("string", "\"text\""), object : TypeReference<Base<Payload>>() {})
         }
         assertEquals(0, invocations)
         assertEquals(0, resolutions)
-        val valid = mapper.readValue(json("string", "\"text\""), object : TypeReference<Base<String>>() {})
+        val valid = configuredMapper.readValue(json("string", "\"text\""), object : TypeReference<Base<String>>() {})
         assertEquals("custom", valid.payload)
         assertEquals(1, invocations)
         assertEquals(1, resolutions)

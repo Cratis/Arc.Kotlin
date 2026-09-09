@@ -197,7 +197,7 @@ internal class CommandResponseMetadataTest {
     }
 
     private fun assertDescriptorRoundTrip(
-        mapper: com.fasterxml.jackson.databind.ObjectMapper,
+        mapper: tools.jackson.databind.ObjectMapper,
         manifest: ArcArtifactManifest,
         descriptor: CommandDescriptor
     ) {

@@ -3,7 +3,7 @@
 
 package io.cratis.arc.introspection
 
-import com.fasterxml.jackson.databind.JsonNode
+import tools.jackson.databind.JsonNode
 import io.cratis.arc.commands.CommandContext
 import io.cratis.arc.commands.CommandHandler
 import io.cratis.arc.commands.ConcurrentCommandHandlerRegistry
@@ -52,7 +52,7 @@ internal class IntrospectionServiceTest {
         assertTrue(firstQueries.first().supportsPaging)
         assertTrue(firstQueries.first().supportsSorting)
         assertEquals(listOf("name"), firstQueries.first().parameters.map { it.name })
-        assertEquals("string", firstCommands.first().payloadSchema["properties"]["value"]["type"].textValue())
+        assertEquals("string", firstCommands.first().payloadSchema["properties"]["value"]["type"].stringValue())
 
         queries.register(query("io.example.BModel.byId"))
         assertEquals(3, service.queries.size)
@@ -77,10 +77,10 @@ internal class IntrospectionServiceTest {
         )
         val metadata = DefaultIntrospectionService(ConcurrentCommandHandlerRegistry(), queries).queries.single()
 
-        assertEquals(listOf("required"), metadata.argumentsSchema["required"].map(JsonNode::textValue))
+        assertEquals(listOf("required"), metadata.argumentsSchema["required"].values().map(JsonNode::stringValue))
         assertTrue(metadata.parameters.single { parameter -> parameter.name == "limit" }.hasDefault)
         val json = ArcObjectMapper.create().valueToTree<JsonNode>(metadata)
-        val defaulted = json["parameters"].single { parameter -> parameter["name"].textValue() == "limit" }
+        val defaulted = json["parameters"].single { parameter -> parameter["name"].stringValue() == "limit" }
         assertTrue(defaulted["hasDefault"].booleanValue())
         assertFalse(defaulted.has("default"))
         assertFalse(defaulted.has("defaultExpression"))
@@ -144,11 +144,11 @@ internal class IntrospectionServiceTest {
             service.commands.single().payloadSchema["properties"],
             service.queries.single().argumentsSchema["properties"]
         ).forEach { properties ->
-            assertEquals("object", properties["model"]["type"].textValue())
-            assertEquals("io.example.Model", properties["model"]["javaType"].textValue())
-            assertEquals("array", properties["models"]["type"].textValue())
-            assertEquals("object", properties["models"]["items"]["type"].textValue())
-            assertEquals("io.example.Model", properties["models"]["items"]["javaType"].textValue())
+            assertEquals("object", properties["model"]["type"].stringValue())
+            assertEquals("io.example.Model", properties["model"]["javaType"].stringValue())
+            assertEquals("array", properties["models"]["type"].stringValue())
+            assertEquals("object", properties["models"]["items"]["type"].stringValue())
+            assertEquals("io.example.Model", properties["models"]["items"]["javaType"].stringValue())
         }
     }
 
@@ -329,15 +329,15 @@ internal class IntrospectionServiceTest {
     )
 
     private fun assertTerminalTextualSchemas(properties: JsonNode) {
-        assertEquals("string", properties["localTime"]["type"].textValue())
-        assertEquals("string", properties["duration"]["type"].textValue())
-        assertEquals("string", properties["uuid"]["type"].textValue())
-        assertEquals("array", properties["localTimes"]["type"].textValue())
-        assertEquals("string", properties["localTimes"]["items"]["type"].textValue())
-        assertEquals("array", properties["durations"]["type"].textValue())
-        assertEquals("string", properties["durations"]["items"]["type"].textValue())
-        assertEquals("array", properties["uuids"]["type"].textValue())
-        assertEquals("string", properties["uuids"]["items"]["type"].textValue())
+        assertEquals("string", properties["localTime"]["type"].stringValue())
+        assertEquals("string", properties["duration"]["type"].stringValue())
+        assertEquals("string", properties["uuid"]["type"].stringValue())
+        assertEquals("array", properties["localTimes"]["type"].stringValue())
+        assertEquals("string", properties["localTimes"]["items"]["type"].stringValue())
+        assertEquals("array", properties["durations"]["type"].stringValue())
+        assertEquals("string", properties["durations"]["items"]["type"].stringValue())
+        assertEquals("array", properties["uuids"]["type"].stringValue())
+        assertEquals("string", properties["uuids"]["items"]["type"].stringValue())
     }
 
     private class ACommand

@@ -3,7 +3,7 @@
 
 package io.cratis.arc.springboot
 
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.ObjectMapper
 import io.cratis.arc.ExceptionDetailRedactor
 import io.cratis.arc.identity.AsyncUsersProvider
 import io.cratis.arc.identity.AsyncUsersProviderAdapter

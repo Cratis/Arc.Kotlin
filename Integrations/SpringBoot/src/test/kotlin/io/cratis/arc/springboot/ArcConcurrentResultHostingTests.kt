@@ -3,7 +3,7 @@
 
 package io.cratis.arc.springboot
 
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.ObjectMapper
 import io.cratis.arc.ExceptionDetailRedactor
 import java.util.UUID
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -67,9 +67,9 @@ internal class ArcConcurrentResultHostingTests {
         val body = objectMapper.readTree(response.contentAsString)
         assertTrue(body["isSuccess"].asBoolean())
         if (kind == "command") {
-            assertEquals("handled:classification", body["response"]["message"].asText())
+            assertEquals("handled:classification", body["response"]["message"].asString())
         } else {
-            assertEquals("query", body["data"]["transport"].asText())
+            assertEquals("query", body["data"]["transport"].asString())
         }
         assertFalse(manager.hasConcurrentResult())
         assertNull(manager.concurrentResultContext)
@@ -92,7 +92,7 @@ internal class ArcConcurrentResultHostingTests {
 
         assertCorrelation(response, correlationId)
         assertEquals("malformedRequest", objectMapper.readTree(response.contentAsString)
-            ["validationResults"][0]["reason"].asText())
+            ["validationResults"][0]["reason"].asString())
         assertFalse(WebAsyncUtils.getAsyncManager(initial.request).hasConcurrentResult())
     }
 
@@ -146,8 +146,8 @@ internal class ArcConcurrentResultHostingTests {
             assertEquals(MediaType.APPLICATION_JSON_VALUE, response.contentType)
             assertCorrelation(response, expectedId)
             val body = objectMapper.readTree(response.contentAsString)
-            assertEquals(ExceptionDetailRedactor.REDACTED_MESSAGE, body["exceptionMessages"][0].asText())
-            assertEquals("", body["exceptionStackTrace"].asText())
+            assertEquals(ExceptionDetailRedactor.REDACTED_MESSAGE, body["exceptionMessages"][0].asString())
+            assertEquals("", body["exceptionStackTrace"].asString())
             assertFalse(body["isSuccess"].asBoolean())
             assertFalse(manager.hasConcurrentResult())
             assertNull(manager.concurrentResultContext)
@@ -167,7 +167,7 @@ internal class ArcConcurrentResultHostingTests {
 
     private fun assertCorrelation(response: MockHttpServletResponse, correlationId: UUID) {
         assertEquals(correlationId.toString(), response.getHeader(CORRELATION_HEADER))
-        assertEquals(correlationId.toString(), objectMapper.readTree(response.contentAsString)["correlationId"].asText())
+        assertEquals(correlationId.toString(), objectMapper.readTree(response.contentAsString)["correlationId"].asString())
     }
 
     private companion object {

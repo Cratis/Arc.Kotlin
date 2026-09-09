@@ -3,13 +3,14 @@
 
 package io.cratis.arc.json
 
-import com.fasterxml.jackson.databind.DeserializationFeature
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException
-import com.fasterxml.jackson.databind.json.JsonMapper
+import tools.jackson.databind.DeserializationFeature
+import tools.jackson.databind.ObjectMapper
+import tools.jackson.databind.exc.UnrecognizedPropertyException
+import tools.jackson.databind.json.JsonMapper
 import io.cratis.arc.polymorphism.ConcurrentDerivedTypeRegistry
 import io.cratis.arc.polymorphism.DerivedType
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotSame
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -26,7 +27,7 @@ class ArcObjectMapperUnknownFieldTest {
 
     @Test
     fun `created mapper leaves Jackson's strict unknown-field default in place`() {
-        assertTrue(mapper.deserializationConfig.isEnabled(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES))
+        assertTrue(mapper.deserializationConfig().isEnabled(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES))
     }
 
     @Test
@@ -70,6 +71,7 @@ class ArcObjectMapperUnknownFieldTest {
 
         val configured: ObjectMapper = ArcObjectMapper.configure(relaxed)
 
+        assertNotSame(relaxed, configured)
         assertEquals(
             UnknownFieldPayload("hello"),
             configured.readValue("""{"value":"hello","unexpected":"extra"}""", UnknownFieldPayload::class.java)

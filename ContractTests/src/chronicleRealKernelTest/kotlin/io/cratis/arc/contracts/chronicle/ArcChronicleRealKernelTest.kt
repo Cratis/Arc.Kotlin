@@ -5,7 +5,7 @@ package io.cratis.arc.contracts.chronicle
 
 import Cratis.Chronicle.Contracts.EventStores.Eventstores
 import Cratis.Chronicle.Contracts.Namespaces.NamespacesOuterClass
-import com.fasterxml.jackson.databind.JsonNode
+import tools.jackson.databind.JsonNode
 import io.cratis.arc.json.ArcObjectMapper
 import io.cratis.chronicle.ChronicleClient
 import io.cratis.chronicle.ChronicleOptions
@@ -75,7 +75,7 @@ class ArcChronicleRealKernelTest {
                 """{"id":"$taskId","title":"Tenant A title"}"""
             )
             createdA.shouldSucceedWithoutResponse()
-            val initialA = application.awaitTask(tenantA, taskId) { it.path("title").asText() == "Tenant A title" }
+            val initialA = application.awaitTask(tenantA, taskId) { it.path("title").asString() == "Tenant A title" }
             val initialPosition = initialA.path("eventLogPosition").asLong()
 
             val createdB = application.postCommand(
@@ -84,7 +84,7 @@ class ArcChronicleRealKernelTest {
                 """{"id":"$taskId","title":"Tenant B title"}"""
             )
             createdB.shouldSucceedWithoutResponse()
-            application.awaitTask(tenantB, taskId) { it.path("title").asText() == "Tenant B title" }
+            application.awaitTask(tenantB, taskId) { it.path("title").asString() == "Tenant B title" }
 
             val acceptedRename = application.postCommand(
                 "/api/rename-task",
@@ -92,7 +92,7 @@ class ArcChronicleRealKernelTest {
                 """{"id":"$taskId","title":"Accepted title","expectedSequenceNumber":$initialPosition}"""
             )
             acceptedRename.shouldSucceedWithoutResponse()
-            application.awaitTask(tenantA, taskId) { it.path("title").asText() == "Accepted title" }
+            application.awaitTask(tenantA, taskId) { it.path("title").asString() == "Accepted title" }
 
             val rejectedRename = application.postCommand(
                 "/api/rename-task",
@@ -101,18 +101,18 @@ class ArcChronicleRealKernelTest {
             )
             assertEquals(400, rejectedRename.status)
             val validation = rejectedRename.json.path("validationResults").single {
-                it.path("reason").asText() == "concurrencyViolation"
+                it.path("reason").asString() == "concurrencyViolation"
             }
             assertEquals(initialPosition, validation.path("state").path("expectedSequenceNumber").asLong())
             assertTrue(validation.path("state").path("actualSequenceNumber").asLong() > initialPosition)
 
-            application.awaitTask(tenantA, taskId) { it.path("title").asText() == "Accepted title" }
-            val finalB = application.awaitTask(tenantB, taskId) { it.path("title").asText() == "Tenant B title" }
-            assertEquals("Tenant B title", finalB.path("title").asText())
+            application.awaitTask(tenantA, taskId) { it.path("title").asString() == "Accepted title" }
+            val finalB = application.awaitTask(tenantB, taskId) { it.path("title").asString() == "Tenant B title" }
+            assertEquals("Tenant B title", finalB.path("title").asString())
 
             val allA = application.queryAll(tenantA)
             assertTrue(allA.json.path("isSuccess").asBoolean())
-            assertEquals(listOf(taskId), allA.json.path("data").map { it.path("id").asText() })
+            assertEquals(listOf(taskId), allA.json.path("data").values().map { it.path("id").asString() })
 
             val directClient = ChronicleClient(ChronicleOptions.fromConnectionString(connectionString).withoutAutoRegistration())
             try {
@@ -130,7 +130,7 @@ class ArcChronicleRealKernelTest {
                 assertEquals(1, tenantBEvents.size)
                 val accepted = tenantAEvents.single { it.content.contains("Accepted title") }
                 val acceptedContent = objectMapper.readTree(accepted.content)
-                assertEquals("Tenant A title", acceptedContent.path("previousTitle").asText())
+                assertEquals("Tenant A title", acceptedContent.path("previousTitle").asString())
                 assertFalse(tenantAEvents.any { it.content.contains("Rejected title") })
                 assertTrue(tenantBEvents.single().content.contains("Tenant B title"))
             } finally {

@@ -3,7 +3,7 @@
 
 package io.cratis.arc.json
 
-import com.fasterxml.jackson.databind.JsonMappingException
+import tools.jackson.databind.DatabindException
 import io.cratis.arc.polymorphism.ConcurrentDerivedTypeRegistry
 import io.cratis.arc.polymorphism.DerivedType
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -23,14 +23,14 @@ internal class ConcretePolymorphicPropertyCharacterizationTest {
 
         assertEquals("""{"value":{"name":"base"}}""", json)
         assertFalse(mapper.readTree(json)["value"].has("_derivedTypeId"))
-        val exception = assertThrows(JsonMappingException::class.java) {
+        val exception = assertThrows(DatabindException::class.java) {
             mapper.readValue(json, ConcretePropertyHolder::class.java)
         }
         assertTrue(
             exception.originalMessage.contains("Missing textual _derivedTypeId for ${ConcretePropertyBase::class.java.name}"),
             exception.message
         )
-        assertEquals("value", exception.path.single().fieldName)
+        assertEquals("value", exception.path.single().propertyName)
     }
 }
 

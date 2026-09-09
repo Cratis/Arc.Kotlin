@@ -719,12 +719,12 @@ public final class io/cratis/arc/identity/UsersProviders {
 }
 
 public final class io/cratis/arc/introspection/CommandIntrospectionMetadata {
-	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lcom/fasterxml/jackson/databind/JsonNode;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/util/List;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ltools/jackson/databind/JsonNode;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/util/List;)V
 	public final fun getAuthorization ()Lio/cratis/arc/metadata/AuthorizationMetadata;
 	public final fun getDocumentationSummary ()Ljava/lang/String;
 	public final fun getName ()Ljava/lang/String;
 	public final fun getNamespace ()Ljava/lang/String;
-	public final fun getPayloadSchema ()Lcom/fasterxml/jackson/databind/JsonNode;
+	public final fun getPayloadSchema ()Ltools/jackson/databind/JsonNode;
 	public final fun getProperties ()Ljava/util/List;
 	public final fun getRoute ()Ljava/lang/String;
 	public final fun getType ()Ljava/lang/String;
@@ -743,9 +743,9 @@ public abstract interface class io/cratis/arc/introspection/IntrospectionService
 }
 
 public final class io/cratis/arc/introspection/QueryIntrospectionMetadata {
-	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lcom/fasterxml/jackson/databind/JsonNode;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/util/List;Lio/cratis/arc/queries/QueryTransportType;ZLio/cratis/arc/queries/QueryHttpMethodType;)V
-	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lcom/fasterxml/jackson/databind/JsonNode;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/util/List;Lio/cratis/arc/queries/QueryTransportType;ZZLio/cratis/arc/queries/QueryHttpMethodType;)V
-	public final fun getArgumentsSchema ()Lcom/fasterxml/jackson/databind/JsonNode;
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ltools/jackson/databind/JsonNode;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/util/List;Lio/cratis/arc/queries/QueryTransportType;ZLio/cratis/arc/queries/QueryHttpMethodType;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ltools/jackson/databind/JsonNode;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/util/List;Lio/cratis/arc/queries/QueryTransportType;ZZLio/cratis/arc/queries/QueryHttpMethodType;)V
+	public final fun getArgumentsSchema ()Ltools/jackson/databind/JsonNode;
 	public final fun getAuthorization ()Lio/cratis/arc/metadata/AuthorizationMetadata;
 	public final fun getDocumentationSummary ()Ljava/lang/String;
 	public final fun getFullyQualifiedName ()Ljava/lang/String;
@@ -1061,24 +1061,23 @@ public final class io/cratis/arc/json/ArcCamelCase {
 	public static final fun convert (Ljava/lang/String;)Ljava/lang/String;
 }
 
-public final class io/cratis/arc/json/ArcJacksonModule : com/fasterxml/jackson/databind/module/SimpleModule {
+public final class io/cratis/arc/json/ArcJacksonModule : tools/jackson/databind/module/SimpleModule {
 	public fun <init> ()V
 	public fun <init> (Lio/cratis/arc/polymorphism/DerivedTypeRegistry;)V
 	public synthetic fun <init> (Lio/cratis/arc/polymorphism/DerivedTypeRegistry;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public fun setupModule (Lcom/fasterxml/jackson/databind/Module$SetupContext;)V
+	public fun setupModule (Ltools/jackson/databind/JacksonModule$SetupContext;)V
 }
 
 public final class io/cratis/arc/json/ArcObjectMapper {
 	public static final field INSTANCE Lio/cratis/arc/json/ArcObjectMapper;
-	public static final fun configure (Lcom/fasterxml/jackson/databind/ObjectMapper;)Lcom/fasterxml/jackson/databind/ObjectMapper;
-	public static final fun configure (Lcom/fasterxml/jackson/databind/ObjectMapper;Lio/cratis/arc/polymorphism/DerivedTypeRegistry;)Lcom/fasterxml/jackson/databind/ObjectMapper;
-	public static final fun create ()Lcom/fasterxml/jackson/databind/ObjectMapper;
-	public static final fun create (Lio/cratis/arc/polymorphism/DerivedTypeRegistry;)Lcom/fasterxml/jackson/databind/ObjectMapper;
+	public static final fun configure (Ltools/jackson/databind/ObjectMapper;)Ltools/jackson/databind/ObjectMapper;
+	public static final fun configure (Ltools/jackson/databind/ObjectMapper;Lio/cratis/arc/polymorphism/DerivedTypeRegistry;)Ltools/jackson/databind/ObjectMapper;
+	public static final fun create ()Ltools/jackson/databind/ObjectMapper;
+	public static final fun create (Lio/cratis/arc/polymorphism/DerivedTypeRegistry;)Ltools/jackson/databind/ObjectMapper;
 }
 
-public final class io/cratis/arc/json/ArcPropertyNamingStrategy : com/fasterxml/jackson/databind/PropertyNamingStrategies$NamingBase {
+public final class io/cratis/arc/json/ArcPropertyNamingStrategy : tools/jackson/databind/PropertyNamingStrategies$NamingBase {
 	public fun <init> ()V
-	public fun translate (Ljava/lang/String;)Ljava/lang/String;
 }
 
 public final class io/cratis/arc/metadata/ApiEndpointOptions {
@@ -1606,9 +1605,9 @@ public abstract interface class io/cratis/arc/queries/CanResolveReadModelForComm
 
 public final class io/cratis/arc/queries/ChangeSetComputer {
 	public fun <init> ()V
-	public fun <init> (Lcom/fasterxml/jackson/databind/ObjectMapper;)V
-	public fun <init> (Lcom/fasterxml/jackson/databind/ObjectMapper;Ljava/util/Map;)V
-	public synthetic fun <init> (Lcom/fasterxml/jackson/databind/ObjectMapper;Ljava/util/Map;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ltools/jackson/databind/ObjectMapper;)V
+	public fun <init> (Ltools/jackson/databind/ObjectMapper;Ljava/util/Map;)V
+	public synthetic fun <init> (Ltools/jackson/databind/ObjectMapper;Ljava/util/Map;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun compute (Ljava/util/List;Ljava/util/List;)Lio/cratis/arc/results/ChangeSet;
 	public final fun compute (Ljava/util/List;Ljava/util/List;Lkotlin/jvm/functions/Function1;)Lio/cratis/arc/results/ChangeSet;
 	public static synthetic fun compute$default (Lio/cratis/arc/queries/ChangeSetComputer;Ljava/util/List;Ljava/util/List;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lio/cratis/arc/results/ChangeSet;
@@ -1830,8 +1829,8 @@ public final class io/cratis/arc/queries/ObservableQuerySSEUnsubscribeRequest {
 
 public final class io/cratis/arc/queries/ObservableQuerySubscriptionIdentity {
 	public fun <init> (Lio/cratis/arc/queries/FullyQualifiedQueryName;Ljava/util/Map;Lio/cratis/arc/authorization/ArcPrincipal;Ljava/lang/String;Ljava/lang/String;Ljava/util/UUID;)V
-	public fun <init> (Lio/cratis/arc/queries/FullyQualifiedQueryName;Ljava/util/Map;Lio/cratis/arc/authorization/ArcPrincipal;Ljava/lang/String;Ljava/lang/String;Ljava/util/UUID;Lcom/fasterxml/jackson/databind/ObjectMapper;)V
-	public synthetic fun <init> (Lio/cratis/arc/queries/FullyQualifiedQueryName;Ljava/util/Map;Lio/cratis/arc/authorization/ArcPrincipal;Ljava/lang/String;Ljava/lang/String;Ljava/util/UUID;Lcom/fasterxml/jackson/databind/ObjectMapper;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Lio/cratis/arc/queries/FullyQualifiedQueryName;Ljava/util/Map;Lio/cratis/arc/authorization/ArcPrincipal;Ljava/lang/String;Ljava/lang/String;Ljava/util/UUID;Ltools/jackson/databind/ObjectMapper;)V
+	public synthetic fun <init> (Lio/cratis/arc/queries/FullyQualifiedQueryName;Ljava/util/Map;Lio/cratis/arc/authorization/ArcPrincipal;Ljava/lang/String;Ljava/lang/String;Ljava/util/UUID;Ltools/jackson/databind/ObjectMapper;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun createArguments ()Ljava/util/Map;
 	public final fun getCorrelationId ()Ljava/util/UUID;
 	public final fun getPrincipal ()Lio/cratis/arc/authorization/ArcPrincipal;

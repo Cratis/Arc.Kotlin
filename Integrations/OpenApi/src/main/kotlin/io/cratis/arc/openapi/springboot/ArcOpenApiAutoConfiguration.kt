@@ -3,7 +3,7 @@
 
 package io.cratis.arc.openapi.springboot
 
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.ObjectMapper
 import io.cratis.arc.identity.AsyncIdentityDetailsProvider
 import io.cratis.arc.identity.IdentityDetailsProvider
 import io.cratis.arc.metadata.ApiEndpointOptions

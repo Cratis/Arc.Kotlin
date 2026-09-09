@@ -3,7 +3,7 @@
 
 package io.cratis.arc.introspection
 
-import com.fasterxml.jackson.databind.JsonNode
+import tools.jackson.databind.JsonNode
 import io.cratis.arc.metadata.AuthorizationMetadata
 import io.cratis.arc.metadata.PropertyDescriptor
 

@@ -3,11 +3,11 @@
 
 package io.cratis.arc.springboot
 
-import com.fasterxml.jackson.databind.JavaType
-import com.fasterxml.jackson.databind.JsonNode
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.databind.node.ArrayNode
-import com.fasterxml.jackson.databind.node.ObjectNode
+import tools.jackson.databind.JavaType
+import tools.jackson.databind.JsonNode
+import tools.jackson.databind.ObjectMapper
+import tools.jackson.databind.node.ArrayNode
+import tools.jackson.databind.node.ObjectNode
 import io.cratis.arc.authorization.ArcPrincipal
 import io.cratis.arc.identity.AsyncIdentityDetailsProvider
 import io.cratis.arc.identity.AsyncIdentityDetailsProviderAdapter
@@ -269,11 +269,11 @@ private class IdentityDetailsSchemaGenerator(private val objectMapper: ObjectMap
             raw == Boolean::class.javaObjectType || raw == Boolean::class.javaPrimitiveType -> typed("boolean")
             raw in INTEGER_TYPES -> typed("integer")
             raw in NUMBER_TYPES || Number::class.java.isAssignableFrom(raw) -> typed("number")
-            raw.isEnum -> typed("string").set<ArrayNode>(
+            raw.isEnum -> typed("string").set(
                 "enum",
                 objectMapper.createArrayNode().also { values -> raw.enumConstants.forEach { values.add((it as Enum<*>).name) } }
             )
-            type.isArrayType || type.isCollectionLikeType -> typed("array").set<ObjectNode>(
+            type.isArrayType || type.isCollectionLikeType -> typed("array").set(
                 "items",
                 schemaFor(type.contentType ?: objectMapper.typeFactory.constructType(Any::class.java), visiting) as ObjectNode
             )
@@ -283,9 +283,9 @@ private class IdentityDetailsSchemaGenerator(private val objectMapper: ObjectMap
         if (nullable && schema is ObjectNode) {
             val typeNode = schema.remove("type")
             if (typeNode != null) {
-                schema.set<ArrayNode>(
+                schema.set(
                     "type",
-                    objectMapper.createArrayNode().add(typeNode.asText()).add("null")
+                    objectMapper.createArrayNode().add(typeNode.asString()).add("null")
                 )
             }
         }
@@ -295,12 +295,15 @@ private class IdentityDetailsSchemaGenerator(private val objectMapper: ObjectMap
     private fun objectSchema(type: JavaType, visiting: MutableSet<Class<*>>): ObjectNode {
         val schema = typed("object")
         val properties = objectMapper.createObjectNode()
-        schema.set<ObjectNode>("properties", properties)
+        schema.set("properties", properties)
         if (!visiting.add(type.rawClass)) return schema
         val kotlinProperties = runCatching { type.rawClass.kotlin.memberProperties.associateBy { it.name } }
             .getOrDefault(emptyMap())
         val required = objectMapper.createArrayNode()
-        objectMapper.serializationConfig.introspect(type).findProperties().sortedBy { it.name }.forEach { property ->
+        val config = objectMapper.serializationConfig()
+        val introspector = config.classIntrospectorInstance().forOperation(config)
+        val annotated = introspector.introspectClassAnnotations(type)
+        introspector.introspectForSerialization(type, annotated).findProperties().sortedBy { it.name }.forEach { property ->
             val propertyType = property.primaryType
             val kotlinProperty = kotlinProperties[property.internalName]
             val isNullable = if (propertyType.rawClass.isPrimitive) {
@@ -308,10 +311,10 @@ private class IdentityDetailsSchemaGenerator(private val objectMapper: ObjectMap
             } else {
                 kotlinProperty?.returnType?.isMarkedNullable ?: !property.isRequired
             }
-            properties.set<JsonNode>(property.name, schemaFor(propertyType, visiting, isNullable))
+            properties.set(property.name, schemaFor(propertyType, visiting, isNullable))
             if (!isNullable) required.add(property.name)
         }
-        if (!required.isEmpty) schema.set<ArrayNode>("required", required)
+        if (!required.isEmpty) schema.set("required", required)
         visiting.remove(type.rawClass)
         return schema
     }

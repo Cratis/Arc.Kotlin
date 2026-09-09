@@ -4,8 +4,9 @@
 package io.cratis.arc.queries
 
 import com.fasterxml.jackson.annotation.JsonInclude
-import com.fasterxml.jackson.core.type.TypeReference
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.core.type.TypeReference
+import tools.jackson.databind.ObjectMapper
+import tools.jackson.databind.json.JsonMapper
 import io.cratis.arc.authorization.ArcPrincipal
 import io.cratis.arc.json.ArcObjectMapper
 import java.time.Duration
@@ -23,9 +24,15 @@ public class ObservableQuerySubscriptionIdentity @JvmOverloads constructor(
     public val correlationId: UUID,
     objectMapper: ObjectMapper = ArcObjectMapper.create()
 ) {
-    private val mapper = objectMapper.copy().setDefaultPropertyInclusion(
-        JsonInclude.Value.construct(JsonInclude.Include.NON_NULL, JsonInclude.Include.ALWAYS)
-    )
+    private val mapper = (objectMapper as? JsonMapper
+        ?: throw IllegalArgumentException("Observable query subscriptions require a JSON mapper."))
+        .rebuild()
+        .changeDefaultPropertyInclusion { inclusion ->
+            inclusion
+                .withValueInclusion(JsonInclude.Include.NON_NULL)
+                .withContentInclusion(JsonInclude.Include.ALWAYS)
+        }
+        .build()
     private val argumentBytes = mapper.writeValueAsBytes(LinkedHashMap(arguments))
 
     /** A defensive copy of the arguments serialized at subscribe time. */

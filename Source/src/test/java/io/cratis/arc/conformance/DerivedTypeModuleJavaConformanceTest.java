@@ -3,7 +3,7 @@
 
 package io.cratis.arc.conformance;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import io.cratis.arc.artifacts.ArcArtifactModule;
 import io.cratis.arc.artifacts.ArcArtifactModuleRegistry;
 import io.cratis.arc.json.ArcObjectMapper;

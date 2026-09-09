@@ -3,7 +3,8 @@
 
 package io.cratis.arc.gradle
 
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.ObjectMapper
+import tools.jackson.databind.json.JsonMapper
 import java.io.File
 import java.nio.file.Files
 import java.util.jar.JarFile
@@ -369,11 +370,11 @@ class ArcGradlePluginFunctionalTest {
         assertTrue(result.output.contains("PLUGIN_ORIGIN_JAR "), result.output)
         assertTrue(result.output.contains("RESOLVED_DEPENDENCIES_VERIFIED $version"), result.output)
         assertTrue(result.output.contains("RUNTIME_PROBE_VERIFIED "), result.output)
-        val manifest = ObjectMapper().readTree(consumer.resolve("build/generated/ksp/main/resources/META-INF/cratis/arc/Consumer.json"))
-        assertEquals("Consumer", manifest["moduleName"].asText())
+        val manifest = JsonMapper.builder().build().readTree(consumer.resolve("build/generated/ksp/main/resources/META-INF/cratis/arc/Consumer.json"))
+        assertEquals("Consumer", manifest["moduleName"].asString())
         assertEquals(if (extra) listOf("Extra", "Input", "JavaInput") else listOf("Input", "JavaInput"),
-            manifest["commands"].map { it["name"].asText() })
-        assertEquals(listOf("all"), manifest["queries"].map { it["name"].asText() })
+            manifest["commands"].values().map { it["name"].asString() })
+        assertEquals(listOf("all"), manifest["queries"].values().map { it["name"].asString() })
         assertEquals("io.cratis.arc.generated.ConsumerArcArtifactModule\n", consumer.resolve(
             "build/resources/main/META-INF/services/io.cratis.arc.artifacts.ArcArtifactModule").readText())
         for (proxy in listOf("Input", "JavaInput", "All", "View") + if (extra) listOf("Extra") else emptyList()) {

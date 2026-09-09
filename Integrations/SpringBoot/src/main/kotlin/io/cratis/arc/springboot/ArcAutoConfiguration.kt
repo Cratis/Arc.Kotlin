@@ -70,7 +70,7 @@ import org.springframework.context.annotation.Import
 /** Host-neutral Arc runtime wiring shared by web and non-web Spring Boot applications. */
 @AutoConfiguration
 @EnableConfigurationProperties(ArcProperties::class)
-@Import(ArcJackson2ObjectMapperConfiguration::class)
+@Import(ArcJacksonObjectMapperConfiguration::class)
 public class ArcAutoConfiguration {
 
     /** Resolves tenants from the configured strategy chain unless the application supplies an override. */

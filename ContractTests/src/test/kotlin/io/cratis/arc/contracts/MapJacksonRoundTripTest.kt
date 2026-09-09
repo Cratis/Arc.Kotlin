@@ -3,7 +3,7 @@
 
 package io.cratis.arc.contracts
 
-import com.fasterxml.jackson.databind.JsonMappingException
+import tools.jackson.databind.DatabindException
 import io.cratis.arc.contracts.fixtures.JavaMapMetadataCommand
 import io.cratis.arc.contracts.fixtures.KotlinMapMetadataCommand
 import io.cratis.arc.json.ArcObjectMapper
@@ -59,8 +59,8 @@ internal class MapJacksonRoundTripTest {
         val value = KotlinMapMetadataCommand(strings = mapOf(key to "unsafe"))
         val json = """{"strings":{"$key":"unsafe"},"numbers":{},"nested":{}}"""
 
-        assertThrows(JsonMappingException::class.java) { objectMapper.writeValueAsString(value) }
-        assertThrows(JsonMappingException::class.java) {
+        assertThrows(DatabindException::class.java) { objectMapper.writeValueAsString(value) }
+        assertThrows(DatabindException::class.java) {
             objectMapper.readValue(json, KotlinMapMetadataCommand::class.java)
         }
     }
@@ -71,8 +71,8 @@ internal class MapJacksonRoundTripTest {
         val value = JavaMapMetadataCommand(mapOf(key to "unsafe"), emptyMap(), emptyMap(), null)
         val json = """{"strings":{"$key":"unsafe"},"numbers":{},"nested":{}}"""
 
-        assertThrows(JsonMappingException::class.java) { objectMapper.writeValueAsString(value) }
-        assertThrows(JsonMappingException::class.java) {
+        assertThrows(DatabindException::class.java) { objectMapper.writeValueAsString(value) }
+        assertThrows(DatabindException::class.java) {
             objectMapper.readValue(json, JavaMapMetadataCommand::class.java)
         }
     }
@@ -87,15 +87,15 @@ internal class MapJacksonRoundTripTest {
             null
         )
 
-        assertThrows(JsonMappingException::class.java) { objectMapper.writeValueAsString(kotlinValue) }
-        assertThrows(JsonMappingException::class.java) { objectMapper.writeValueAsString(javaValue) }
-        assertThrows(JsonMappingException::class.java) {
+        assertThrows(DatabindException::class.java) { objectMapper.writeValueAsString(kotlinValue) }
+        assertThrows(DatabindException::class.java) { objectMapper.writeValueAsString(javaValue) }
+        assertThrows(DatabindException::class.java) {
             objectMapper.readValue(
                 """{"strings":{},"numbers":{},"nested":{"safe":{"__proto__":true}}}""",
                 KotlinMapMetadataCommand::class.java
             )
         }
-        assertThrows(JsonMappingException::class.java) {
+        assertThrows(DatabindException::class.java) {
             objectMapper.readValue(
                 """{"strings":{},"numbers":{},"nested":{"safe":{"constructor":true}}}""",
                 JavaMapMetadataCommand::class.java

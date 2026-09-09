@@ -3,7 +3,7 @@
 
 package io.cratis.arc.artifacts
 
-import com.fasterxml.jackson.databind.JsonMappingException
+import tools.jackson.databind.DatabindException
 import io.cratis.arc.json.ArcObjectMapper
 import io.cratis.arc.polymorphism.ConcurrentDerivedTypeRegistry
 import io.cratis.arc.polymorphism.DerivedType
@@ -60,7 +60,7 @@ class ArcArtifactModuleDerivedTypesTest {
         ArcArtifactModuleRegistry.registerDerivedTypes(ModuleUnderTest(), registry)
         val mapper = ArcObjectMapper.create(registry)
 
-        val exception = assertThrows(JsonMappingException::class.java) {
+        val exception = assertThrows(DatabindException::class.java) {
             mapper.readValue("""{"shape":{"radius":2.0,"_derivedTypeId":"triangle"}}""", RegisteredHolder::class.java)
         }
 
@@ -74,7 +74,7 @@ class ArcArtifactModuleDerivedTypesTest {
         ArcArtifactModuleRegistry.registerDerivedTypes(ModuleUnderTest(), registry)
         val mapper = ArcObjectMapper.create(registry)
 
-        val exception = assertThrows(JsonMappingException::class.java) {
+        val exception = assertThrows(DatabindException::class.java) {
             mapper.readValue("""{"shape":{"radius":2.0}}""", RegisteredHolder::class.java)
         }
 

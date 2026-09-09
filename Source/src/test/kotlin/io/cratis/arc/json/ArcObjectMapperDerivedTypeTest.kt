@@ -3,7 +3,7 @@
 
 package io.cratis.arc.json
 
-import com.fasterxml.jackson.databind.JsonMappingException
+import tools.jackson.databind.DatabindException
 import io.cratis.arc.polymorphism.ConcurrentDerivedTypeRegistry
 import io.cratis.arc.polymorphism.DerivedType
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -34,7 +34,7 @@ class ArcObjectMapperDerivedTypeTest {
     fun `serializing a derivative missing from a registered hierarchy names the base type`() {
         val mapper = ArcObjectMapper.create(registryWith(Circle::class.java))
 
-        val exception = assertThrows(JsonMappingException::class.java) {
+        val exception = assertThrows(DatabindException::class.java) {
             mapper.writeValueAsString(Square(2.0))
         }
 
@@ -46,7 +46,7 @@ class ArcObjectMapperDerivedTypeTest {
     fun `the refusal covers a derivative nested inside another value`() {
         val mapper = ArcObjectMapper.create(registryWith(Circle::class.java))
 
-        assertThrows(JsonMappingException::class.java) {
+        assertThrows(DatabindException::class.java) {
             mapper.writeValueAsString(Drawing(Square(2.0)))
         }
     }
@@ -57,7 +57,7 @@ class ArcObjectMapperDerivedTypeTest {
         registry.register(Vehicle::class.java, Car::class.java)
         val mapper = ArcObjectMapper.create(registry)
 
-        assertThrows(JsonMappingException::class.java) {
+        assertThrows(DatabindException::class.java) {
             mapper.writeValueAsString(Truck(3))
         }
     }
@@ -73,7 +73,7 @@ class ArcObjectMapperDerivedTypeTest {
     fun `reading an unregistered identifier still reports the identifier and base type`() {
         val mapper = ArcObjectMapper.create(registryWith(Circle::class.java))
 
-        val exception = assertThrows(JsonMappingException::class.java) {
+        val exception = assertThrows(DatabindException::class.java) {
             mapper.readValue("""{"side":2.0,"_derivedTypeId":"square"}""", Shape::class.java)
         }
 

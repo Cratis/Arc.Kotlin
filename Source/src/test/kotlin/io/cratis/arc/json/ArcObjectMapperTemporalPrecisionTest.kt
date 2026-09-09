@@ -3,7 +3,7 @@
 
 package io.cratis.arc.json
 
-import com.fasterxml.jackson.databind.JsonMappingException
+import tools.jackson.databind.DatabindException
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
@@ -42,10 +42,10 @@ class ArcObjectMapperTemporalPrecisionTest {
 
     @Test
     fun `local time refuses to write a value finer than one hundred nanoseconds`() {
-        assertThrows(JsonMappingException::class.java) {
+        assertThrows(DatabindException::class.java) {
             mapper.writeValueAsString(LocalTime.of(8, 9, 10, 123_456_780))
         }
-        assertThrows(JsonMappingException::class.java) {
+        assertThrows(DatabindException::class.java) {
             mapper.writeValueAsString(LocalTime.of(8, 9, 10, 123_456_789))
         }
     }
@@ -53,7 +53,7 @@ class ArcObjectMapperTemporalPrecisionTest {
     @ParameterizedTest
     @ValueSource(strings = ["08:09:10.12345678", "08:09:10.123456789"])
     fun `local time refuses to read eight or nine fractional digits`(text: String) {
-        assertThrows(JsonMappingException::class.java) {
+        assertThrows(DatabindException::class.java) {
             mapper.readValue("\"$text\"", LocalTime::class.java)
         }
     }

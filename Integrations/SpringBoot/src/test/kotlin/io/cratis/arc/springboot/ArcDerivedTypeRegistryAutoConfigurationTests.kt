@@ -11,16 +11,14 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Test
 import org.springframework.boot.autoconfigure.AutoConfigurations
+import org.springframework.boot.jackson.autoconfigure.JacksonAutoConfiguration
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
 
 /** Wiring for the registry Arc's Jackson module reads derived types from. */
-private val jackson2AutoConfiguration: Class<*> =
-    Class.forName("org.springframework.boot.jackson2.autoconfigure.Jackson2AutoConfiguration")
-
 internal class ArcDerivedTypeRegistryAutoConfigurationTests {
     private val runner = ApplicationContextRunner()
         .withConfiguration(
-            AutoConfigurations.of(jackson2AutoConfiguration, ArcAutoConfiguration::class.java)
+            AutoConfigurations.of(JacksonAutoConfiguration::class.java, ArcAutoConfiguration::class.java)
         )
 
     @Test

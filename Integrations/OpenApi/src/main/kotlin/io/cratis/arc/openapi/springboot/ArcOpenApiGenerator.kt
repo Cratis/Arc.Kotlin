@@ -4,8 +4,10 @@
 package io.cratis.arc.openapi.springboot
 
 import com.fasterxml.jackson.annotation.JsonInclude
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.databind.SerializationFeature
+import tools.jackson.databind.ObjectMapper
+import tools.jackson.databind.SerializationFeature
+import tools.jackson.databind.cfg.DateTimeFeature
+import tools.jackson.databind.json.JsonMapper
 import io.cratis.arc.artifacts.ArcArtifactModule
 import io.cratis.arc.metadata.ApiEndpointOptions
 import io.cratis.arc.metadata.AuthorizationMetadata
@@ -43,12 +45,19 @@ private const val SAFE_STRING_MAP_KEY_PATTERN = "^(?!(?:__proto__|prototype|cons
 
 /** Generates an OpenAPI 3.1 document exclusively from generated Arc artifact metadata. */
 public class ArcOpenApiGenerator @JvmOverloads constructor(
-    objectMapper: ObjectMapper = ObjectMapper()
+    objectMapper: ObjectMapper = JsonMapper.builder().build()
 ) {
-    private val writer = objectMapper.copy()
-        .setDefaultPropertyInclusion(JsonInclude.Include.NON_NULL)
+    private val writer = (objectMapper as? JsonMapper
+        ?: throw IllegalArgumentException("Arc OpenAPI generation requires a JSON mapper."))
+        .rebuild()
+        .changeDefaultPropertyInclusion { inclusion ->
+            inclusion
+                .withValueInclusion(JsonInclude.Include.NON_NULL)
+                .withContentInclusion(JsonInclude.Include.NON_NULL)
+        }
         .enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS)
-        .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
+        .disable(DateTimeFeature.WRITE_DATES_AS_TIMESTAMPS)
+        .build()
         .writerWithDefaultPrettyPrinter()
 
     /** Generates and serializes one deterministic document snapshot. */

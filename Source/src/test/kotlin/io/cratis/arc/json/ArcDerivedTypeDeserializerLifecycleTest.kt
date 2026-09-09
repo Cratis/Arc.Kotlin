@@ -8,17 +8,17 @@ import com.fasterxml.jackson.annotation.JsonSetter
 import com.fasterxml.jackson.annotation.JsonSubTypes
 import com.fasterxml.jackson.annotation.JsonTypeInfo
 import com.fasterxml.jackson.annotation.Nulls
-import com.fasterxml.jackson.core.JsonParser
-import com.fasterxml.jackson.core.type.TypeReference
-import com.fasterxml.jackson.databind.DeserializationContext
-import com.fasterxml.jackson.databind.JsonDeserializer
-import com.fasterxml.jackson.databind.JsonMappingException
-import com.fasterxml.jackson.databind.MapperFeature
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.databind.exc.InvalidTypeIdException
-import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException
-import com.fasterxml.jackson.databind.json.JsonMapper
-import com.fasterxml.jackson.databind.module.SimpleModule
+import tools.jackson.core.JsonParser
+import tools.jackson.core.type.TypeReference
+import tools.jackson.databind.DeserializationContext
+import tools.jackson.databind.ValueDeserializer
+import tools.jackson.databind.DatabindException
+import tools.jackson.databind.MapperFeature
+import tools.jackson.databind.ObjectMapper
+import tools.jackson.databind.exc.InvalidTypeIdException
+import tools.jackson.databind.exc.UnrecognizedPropertyException
+import tools.jackson.databind.json.JsonMapper
+import tools.jackson.databind.module.SimpleModule
 import io.cratis.arc.concepts.ConceptAs
 import io.cratis.arc.polymorphism.ConcurrentDerivedTypeRegistry
 import io.cratis.arc.polymorphism.DerivedType
@@ -78,7 +78,7 @@ class ArcDerivedTypeDeserializerLifecycleTest {
             assertEquals("right", (value.right as LifecycleMiddle<*>).payload)
         }
 
-        val exception = assertThrows(JsonMappingException::class.java) {
+        val exception = assertThrows(DatabindException::class.java) {
             mapper.readValue(json.replace("rightOnly", "leftOnly"), LifecycleContextualEnvelope::class.java)
         }
         assertTrue(exception.message.orEmpty().contains("leftOnly"))
@@ -107,7 +107,7 @@ class ArcDerivedTypeDeserializerLifecycleTest {
                     repeat(20) {
                         assertPayload(primary, LifecycleMiddle::class.java)
                         assertPayload(alternate, LifecycleAlternate::class.java)
-                        assertThrows(JsonMappingException::class.java) {
+                        assertThrows(DatabindException::class.java) {
                             primary.readValue(payloadJson.replace("middle", "unknown"), LifecycleBase::class.java)
                         }
                     }
@@ -129,17 +129,17 @@ class ArcDerivedTypeDeserializerLifecycleTest {
         val hostile = object : DerivedTypeRegistry by registry() {
             override fun resolve(baseType: Class<*>, id: String): Class<*> = LifecycleUnrelated::class.java
         }
-        val mapper = ArcObjectMapper.create(hostile).registerModule(
-            SimpleModule().addDeserializer(LifecycleUnrelated::class.java, object : JsonDeserializer<LifecycleUnrelated>() {
+        val mapper = (ArcObjectMapper.create(hostile) as JsonMapper).rebuild().addModule(
+            SimpleModule().addDeserializer(LifecycleUnrelated::class.java, object : ValueDeserializer<LifecycleUnrelated>() {
                 override fun deserialize(parser: JsonParser, context: DeserializationContext): LifecycleUnrelated {
                     calls.incrementAndGet()
                     parser.skipChildren()
                     return LifecycleUnrelated()
                 }
             })
-        )
+        ).build()
 
-        val exception = assertThrows(JsonMappingException::class.java) {
+        val exception = assertThrows(DatabindException::class.java) {
             mapper.readValue(payloadJson, LifecycleBase::class.java)
         }
         assertTrue(exception.message.orEmpty().contains("not assignable"))
@@ -162,7 +162,7 @@ class ArcDerivedTypeDeserializerLifecycleTest {
             """{"payload":"missing","nested":[]}""",
             """{"_derivedTypeId":"unknown","payload":"unknown","nested":[]}"""
         )) {
-            assertThrows(JsonMappingException::class.java) { reader.readValue<Any>(json) }
+            assertThrows(DatabindException::class.java) { reader.readValue<Any>(json) }
         }
     }
 
@@ -175,7 +175,7 @@ class ArcDerivedTypeDeserializerLifecycleTest {
         val reader = mapper.readerFor(LifecycleBase::class.java)
             .withValueToUpdate(LifecycleMiddle("original", emptyList()))
 
-        val exception = assertThrows(JsonMappingException::class.java) { reader.readValue<Any>(payloadJson) }
+        val exception = assertThrows(DatabindException::class.java) { reader.readValue<Any>(payloadJson) }
         assertTrue(exception.message.orEmpty().contains("cannot be merged"))
     }
 
@@ -184,8 +184,9 @@ class ArcDerivedTypeDeserializerLifecycleTest {
         val registry = registry()
         assertEquals(LifecycleMiddle::class.java, registry.resolve(LifecycleBase::class.java, "middle"))
         assertNull(registry.resolve(LifecycleBase::class.java, "alternate"))
-        val mapper = ArcObjectMapper.create(registry)
+        val mapper = (ArcObjectMapper.create(registry) as JsonMapper).rebuild()
             .addMixIn(LifecycleBase::class.java, LifecycleNativeType::class.java)
+            .build()
         val value = mapper.readValue(
             """{"nativeKind":"alternate","payload":"value","nested":[["entry"]]}""",
             LifecycleBase::class.java
@@ -199,8 +200,9 @@ class ArcDerivedTypeDeserializerLifecycleTest {
     @ParameterizedTest
     @ValueSource(strings = ["unknown", "middle"])
     fun `native Jackson resolver rejects identifiers outside its own subtype names`(id: String) {
-        val mapper = ArcObjectMapper.create(registry())
+        val mapper = (ArcObjectMapper.create(registry()) as JsonMapper).rebuild()
             .addMixIn(LifecycleBase::class.java, LifecycleNativeType::class.java)
+            .build()
         val exception = assertThrows(InvalidTypeIdException::class.java) {
             mapper.readValue(
                 """{"nativeKind":"$id","payload":"value","nested":[]}""",
@@ -214,8 +216,9 @@ class ArcDerivedTypeDeserializerLifecycleTest {
 
     @Test
     fun `native Jackson selection leaves the Arc discriminator as an unknown bean property`() {
-        val mapper = ArcObjectMapper.create(registry())
+        val mapper = (ArcObjectMapper.create(registry()) as JsonMapper).rebuild()
             .addMixIn(LifecycleBase::class.java, LifecycleNativeType::class.java)
+            .build()
         val exception = assertThrows(UnrecognizedPropertyException::class.java) {
             mapper.readValue(
                 """{"nativeKind":"alternate","_derivedTypeId":"middle","payload":"value","nested":[]}""",
@@ -281,12 +284,12 @@ class ArcDerivedTypeDeserializerLifecycleTest {
     fun `AS_EMPTY configuration does not accept objects without a discriminator`() {
         val mapper = ArcObjectMapper.create(emptyValueRegistry())
         for (json in listOf("""{"value":{}}""", """{"values":[{}]}""")) {
-            val exception = assertThrows(JsonMappingException::class.java) {
+            val exception = assertThrows(DatabindException::class.java) {
                 mapper.readValue(json, LifecycleEmptyEnvelope::class.java)
             }
             assertTrue(exception.message.orEmpty().contains("Missing textual _derivedTypeId"))
         }
-        val exception = assertThrows(JsonMappingException::class.java) {
+        val exception = assertThrows(DatabindException::class.java) {
             mapper.readValue("{}", LifecycleEmptyBase::class.java)
         }
         assertTrue(exception.message.orEmpty().contains("Missing textual _derivedTypeId"))
@@ -301,7 +304,7 @@ class ArcDerivedTypeDeserializerLifecycleTest {
 
     @Test
     fun `incompatible fixed generic target reports a mapping failure at the root`() {
-        val exception = assertThrows(JsonMappingException::class.java) {
+        val exception = assertThrows(DatabindException::class.java) {
             fixedGenericMapper().readValue(
                 fixedGenericJson,
                 object : TypeReference<LifecycleBase<LifecyclePayload>>() {}
@@ -314,7 +317,7 @@ class ArcDerivedTypeDeserializerLifecycleTest {
 
     @Test
     fun `incompatible fixed generic property retains the specialization cause and property path`() {
-        val exception = assertThrows(JsonMappingException::class.java) {
+        val exception = assertThrows(DatabindException::class.java) {
             fixedGenericMapper().readValue(
                 """{"value":$fixedGenericJson}""",
                 LifecycleFixedGenericEnvelope::class.java
@@ -322,12 +325,12 @@ class ArcDerivedTypeDeserializerLifecycleTest {
         }
 
         assertSpecializationFailure(exception)
-        assertEquals(listOf("value"), exception.path.map { it.fieldName })
+        assertEquals(listOf("value"), exception.path.map { it.propertyName })
     }
 
     @Test
     fun `incompatible fixed generic list element retains the specialization cause and indexed path`() {
-        val exception = assertThrows(JsonMappingException::class.java) {
+        val exception = assertThrows(DatabindException::class.java) {
             fixedGenericMapper().readValue(
                 """{"values":[$fixedGenericJson]}""",
                 LifecycleFixedGenericListEnvelope::class.java
@@ -336,7 +339,7 @@ class ArcDerivedTypeDeserializerLifecycleTest {
 
         assertSpecializationFailure(exception)
         assertEquals(2, exception.path.size)
-        assertEquals("values", exception.path[0].fieldName)
+        assertEquals("values", exception.path[0].propertyName)
         assertEquals(0, exception.path[1].index)
     }
 
@@ -353,7 +356,7 @@ class ArcDerivedTypeDeserializerLifecycleTest {
         assertEquals("extra", value.extra)
     }
 
-    private fun assertSpecializationFailure(exception: JsonMappingException) {
+    private fun assertSpecializationFailure(exception: DatabindException) {
         assertEquals(IllegalArgumentException::class.java, exception.cause?.javaClass)
         assertTrue(exception.cause?.message.orEmpty().contains("Failed to specialize"))
         assertTrue(exception.message.orEmpty().contains("Cannot specialize registered derived type"))

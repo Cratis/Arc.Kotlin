@@ -3,8 +3,9 @@
 
 package io.cratis.arc.codegeneration.ksp
 
-import com.fasterxml.jackson.databind.JsonNode
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.JsonNode
+import tools.jackson.databind.ObjectMapper
+import tools.jackson.databind.json.JsonMapper
 import com.tschuchort.compiletesting.JvmCompilationResult
 import com.tschuchort.compiletesting.KotlinCompilation
 import com.tschuchort.compiletesting.SourceFile
@@ -105,7 +106,7 @@ internal class ArcSymbolProcessorDocumentationCompilationTest {
         assertEquals("Summary that follows a leading code block.", query.summary())
         assertFalse(manifestJson(directory).contains("fenced code"))
         query.path("parameters").forEach { parameter ->
-            if (parameter.get("source").asText() != "CLIENT") {
+            if (parameter.get("source").asString() != "CLIENT") {
                 assertNull(parameter.get("summary"), "Only a client query parameter may carry documentation.")
             }
         }
@@ -118,18 +119,18 @@ internal class ArcSymbolProcessorDocumentationCompilationTest {
         assertEquals(truncated, DocumentationSummaries.validate(truncated, "value"))
     }
 
-    private fun JsonNode.summary(): String? = get("summary")?.textValue()
+    private fun JsonNode.summary(): String? = get("summary")?.stringValue()
 
     private fun JsonNode.named(collection: String, name: String): JsonNode =
-        path(collection).single { node -> node.get("name").asText() == name }
+        path(collection).single { node -> node.get("name").asString() == name }
 
     private fun JsonNode.property(name: String): JsonNode =
-        path("properties").single { node -> node.get("name").asText() == name }
+        path("properties").single { node -> node.get("name").asString() == name }
 
     private fun JsonNode.parameter(name: String): JsonNode =
-        path("parameters").single { node -> node.get("name").asText() == name }
+        path("parameters").single { node -> node.get("name").asString() == name }
 
-    private fun manifest(directory: File): JsonNode = ObjectMapper().readTree(manifestBytes(directory))
+    private fun manifest(directory: File): JsonNode = JsonMapper.builder().build().readTree(manifestBytes(directory))
 
     private fun manifestJson(directory: File): String = manifestBytes(directory).toString(Charsets.UTF_8)
 

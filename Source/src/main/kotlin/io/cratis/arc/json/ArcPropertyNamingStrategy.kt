@@ -3,7 +3,7 @@
 
 package io.cratis.arc.json
 
-import com.fasterxml.jackson.databind.PropertyNamingStrategies
+import tools.jackson.databind.PropertyNamingStrategies
 
 /** Jackson naming strategy backed by [ArcCamelCase]. */
 public class ArcPropertyNamingStrategy : PropertyNamingStrategies.NamingBase() {
