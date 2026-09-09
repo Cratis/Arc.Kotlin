@@ -9,9 +9,9 @@
     "test:runtime": "node contracts/run-runtime-gate.mjs"
   },
   "dependencies": {
-    "@cratis/arc": "22.7.0",
-    "@cratis/arc.react": "22.7.0",
-    "@cratis/fundamentals": "7.18.2",
+    "@cratis/arc": "22.10.4",
+    "@cratis/arc.react": "22.10.4",
+    "@cratis/fundamentals": "7.18.3",
     "react": "18.3.1"
   },
   "devDependencies": {
