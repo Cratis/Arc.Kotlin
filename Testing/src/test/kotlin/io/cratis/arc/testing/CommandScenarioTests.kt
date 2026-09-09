@@ -12,6 +12,8 @@ import io.cratis.arc.commands.CommandFilter
 import io.cratis.arc.commands.CommandResponseValueHandler
 import io.cratis.arc.commands.CommandValidator
 import io.cratis.arc.commands.require
+import io.cratis.arc.queries.BlockingReadModelForCommandResolver
+import io.cratis.arc.queries.ReadModelForCommandOwnership
 import io.cratis.arc.results.CommandResult
 import io.cratis.arc.results.ValidationResult
 import io.cratis.arc.results.ValidationResultReasons
@@ -228,6 +230,93 @@ class CommandScenarioTests {
             assertThrows(AssertionError::class.java) { failedWithException.shouldHaveNoErrors() }
                 .message!!.contains("Expected the command to have no errors")
         )
+    }
+
+    @Test
+    fun `pinned read model is injected without any store or query infrastructure`() = runBlocking {
+        val result = CommandScenario<KeyedTestCommand>(ReadModelCommandHandler())
+            .withReadModel(TestModel::class.java, TestModel("pinned"))
+            .execute(KeyedTestCommand(TestModelId("model-1"), "value"))
+
+        assertEquals("pinned", result.shouldSucceed().shouldHaveResponse(TestResponse::class.java).value)
+    }
+
+    @Test
+    fun `pinned absence maps to dependency unavailable for a required parameter`() = runBlocking {
+        val result = CommandScenario<KeyedTestCommand>(ReadModelCommandHandler())
+            .withReadModel(TestModel::class.java, null)
+            .execute(KeyedTestCommand(TestModelId("model-1"), "value"))
+
+        assertEquals(
+            ValidationResultReasons.DEPENDENCY_UNAVAILABLE,
+            result.shouldBeInvalid().result.validationResults.single().reason
+        )
+    }
+
+    @Test
+    fun `pinned absence maps to null and empty for nullable and optional parameters`() = runBlocking {
+        val nullable = CommandScenario<KeyedTestCommand>(ReadModelCommandHandler(TestReadModelArgument.NULLABLE))
+            .withReadModel(TestModel::class.java, null)
+            .execute(KeyedTestCommand(TestModelId("model-1"), "value"))
+        assertEquals("absent", nullable.shouldSucceed().shouldHaveResponse(TestResponse::class.java).value)
+
+        val optional = CommandScenario<KeyedTestCommand>(ReadModelCommandHandler(TestReadModelArgument.OPTIONAL))
+            .withReadModel(TestModel::class.java, null)
+            .execute(KeyedTestCommand(TestModelId("model-1"), "value"))
+        assertEquals("absent", optional.shouldSucceed().shouldHaveResponse(TestResponse::class.java).value)
+    }
+
+    @Test
+    fun `keyed pin matches a concept command key by its scalar and ignores every other key`() = runBlocking {
+        val matching = CommandScenario<KeyedTestCommand>(ReadModelCommandHandler(TestReadModelArgument.NULLABLE))
+            .withReadModelForKey(TestModel::class.java, "model-1", TestModel("keyed"))
+            .execute(KeyedTestCommand(TestModelId("model-1"), "value"))
+        assertEquals("keyed", matching.shouldSucceed().shouldHaveResponse(TestResponse::class.java).value)
+
+        val other = CommandScenario<KeyedTestCommand>(ReadModelCommandHandler(TestReadModelArgument.NULLABLE))
+            .withReadModelForKey(TestModel::class.java, TestModelId("model-1"), TestModel("keyed"))
+            .execute(KeyedTestCommand(TestModelId("model-2"), "value"))
+        assertEquals("absent", other.shouldSucceed().shouldHaveResponse(TestResponse::class.java).value)
+    }
+
+    @Test
+    fun `reified pin conveniences configure the same exact read-model type`() = runBlocking {
+        val result = CommandScenario<KeyedTestCommand>(ReadModelCommandHandler())
+            .withReadModelForKey<TestModel>("model-1", TestModel("reified"))
+            .execute(KeyedTestCommand(TestModelId("model-1"), "value"))
+
+        assertEquals("reified", result.shouldSucceed().shouldHaveResponse(TestResponse::class.java).value)
+    }
+
+    @Test
+    fun `a pin wins over a fallback resolver and rejects contradictory setup`() = runBlocking {
+        val fallback = object : BlockingReadModelForCommandResolver {
+            override fun readModelTypes(): Set<Class<*>> = setOf(TestModel::class.java)
+            override fun ownership(): ReadModelForCommandOwnership = ReadModelForCommandOwnership.FALLBACK
+            override fun resolveBlocking(readModelType: Class<*>, commandContext: CommandContext, key: Any): Any? =
+                TestModel("fallback")
+        }
+        val result = CommandScenario<KeyedTestCommand>(ReadModelCommandHandler())
+            .addReadModelResolver(fallback)
+            .withReadModel(TestModel::class.java, TestModel("pinned"))
+            .execute(KeyedTestCommand(TestModelId("model-1"), "value"))
+        assertEquals("pinned", result.shouldSucceed().shouldHaveResponse(TestResponse::class.java).value)
+
+        val scenario = CommandScenario<KeyedTestCommand>(ReadModelCommandHandler())
+            .withReadModel(TestModel::class.java, TestModel("first"))
+        assertThrows(IllegalArgumentException::class.java) {
+            scenario.withReadModel(TestModel::class.java, TestModel("second"))
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            scenario.withReadModelForKey(TestModel::class.java, "model-1", TestModel("second"))
+        }
+
+        val keyed = CommandScenario<KeyedTestCommand>(ReadModelCommandHandler())
+            .withReadModelForKey(TestModel::class.java, TestModelId("model-1"), TestModel("first"))
+        assertThrows(IllegalArgumentException::class.java) {
+            keyed.withReadModelForKey(TestModel::class.java, "model-1", TestModel("second"))
+        }
+        Unit
     }
 
     @Test

@@ -6,6 +6,9 @@ package io.cratis.arc.testing
 import io.cratis.arc.artifacts.ArcArtifactModule
 import io.cratis.arc.commands.CommandContext
 import io.cratis.arc.commands.CommandHandler
+import io.cratis.arc.commands.CommandHandlerArgumentResolver
+import io.cratis.arc.commands.CommandKeyProvider
+import io.cratis.arc.concepts.ConceptAs
 import io.cratis.arc.metadata.AuthorizationMetadata
 import io.cratis.arc.metadata.CommandDescriptor
 import io.cratis.arc.metadata.QueryDescriptor
@@ -73,3 +76,48 @@ public class ManualArtifactModule @JvmOverloads constructor(
     handler: CommandHandler = ManualCommandHandler(),
     performer: QueryPerformer = ManualQueryPerformer()
 ) : ArcArtifactModule(listOf(handler), listOf(performer))
+
+/** Concept-typed command key proving pins written with a scalar match a wrapped key. */
+public data class TestModelId(private val rawValue: String) : ConceptAs<String> {
+    override fun value(): String = rawValue
+}
+
+/** Command carrying an explicit key so the pipeline can resolve a command-side read model. */
+public data class KeyedTestCommand(public val id: TestModelId, public val value: String) : CommandKeyProvider {
+    override fun commandKey(): Any = id
+}
+
+/** How the handler below asks for its command-side read model. */
+public enum class TestReadModelArgument {
+    /** A required Kotlin parameter. */
+    REQUIRED,
+
+    /** A nullable Kotlin parameter. */
+    NULLABLE,
+
+    /** A Java `Optional` parameter. */
+    OPTIONAL
+}
+
+/** Manual handler that resolves a [TestModel] the way a generated handler does. */
+public class ReadModelCommandHandler @JvmOverloads constructor(
+    private val argument: TestReadModelArgument = TestReadModelArgument.REQUIRED
+) : CommandHandler {
+    override val commandType: Class<*> = KeyedTestCommand::class.java
+    override val metadata: CommandDescriptor = CommandDescriptor(
+        "KeyedTestCommand",
+        commandType.name,
+        authorization = AuthorizationMetadata(allowAnonymous = true)
+    )
+
+    override suspend fun invoke(context: CommandContext): Any? {
+        val resolver = CommandHandlerArgumentResolver(context)
+        val model = when (argument) {
+            TestReadModelArgument.REQUIRED -> resolver.resolve(TestModel::class.java, "handle", "model")
+            TestReadModelArgument.NULLABLE -> resolver.resolveNullable(TestModel::class.java, "handle", "model")
+            TestReadModelArgument.OPTIONAL ->
+                resolver.resolveOptional(TestModel::class.java, "handle", "model").orElse(null)
+        }
+        return TestResponse(model?.value ?: "absent")
+    }
+}
