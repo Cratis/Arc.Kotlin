@@ -7,6 +7,7 @@ import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.core.json.JsonReadFeature
 import com.fasterxml.jackson.core.json.JsonWriteFeature
 import com.fasterxml.jackson.databind.SerializationFeature
+import io.cratis.arc.artifacts.ArcArtifactModuleRegistry
 import io.cratis.arc.authentication.AsyncAuthentication
 import io.cratis.arc.authentication.AsyncAuthenticationHandler
 import io.cratis.arc.authentication.Authentication
@@ -34,6 +35,9 @@ import io.cratis.arc.json.ArcJacksonModule
 import io.cratis.arc.introspection.DefaultIntrospectionService
 import io.cratis.arc.introspection.IntrospectionService
 import io.cratis.arc.json.ArcPropertyNamingStrategy
+import io.cratis.arc.polymorphism.ConcurrentDerivedTypeRegistry
+import io.cratis.arc.polymorphism.DerivedTypeRegistrar
+import io.cratis.arc.polymorphism.DerivedTypeRegistry
 import io.cratis.arc.queries.AsyncQueryPipeline
 import io.cratis.arc.queries.ConcurrentQueryPerformerRegistry
 import io.cratis.arc.queries.CanResolveReadModelForCommand
@@ -292,10 +296,30 @@ public class ArcAutoConfiguration {
         coroutineScope: ArcApplicationCoroutineScope
     ): AsyncQueryPipeline = AsyncQueryPipeline.fromCoroutineScope(pipeline, coroutineScope)
 
+    /**
+     * Derived types declared by the generated artifact modules, plus anything application registrars contribute.
+     *
+     * Populating this before Jackson reads anything is what makes `_derivedTypeId` resolvable; an empty registry
+     * leaves every polymorphic value write-only.
+     */
+    @Bean
+    @ConditionalOnMissingBean(DerivedTypeRegistry::class)
+    public fun arcDerivedTypeRegistry(
+        artifactModules: ArcArtifactModules,
+        registrars: ObjectProvider<DerivedTypeRegistrar>
+    ): DerivedTypeRegistry {
+        val registry = ConcurrentDerivedTypeRegistry()
+        artifactModules.modules.forEach { module ->
+            ArcArtifactModuleRegistry.registerDerivedTypes(module, registry)
+        }
+        registrars.orderedStream().forEach { registrar -> registrar.registerDerivedTypes(registry) }
+        return registry
+    }
+
     /** Arc serializers and deserializers, discovered by Spring Boot's Jackson auto-configuration. */
     @Bean
     @ConditionalOnMissingBean
-    public fun arcJacksonModule(): ArcJacksonModule = ArcJacksonModule()
+    public fun arcJacksonModule(derivedTypes: DerivedTypeRegistry): ArcJacksonModule = ArcJacksonModule(derivedTypes)
 
     /** Applies Arc's wire defaults to an application mapper without replacing that mapper. */
     @Bean

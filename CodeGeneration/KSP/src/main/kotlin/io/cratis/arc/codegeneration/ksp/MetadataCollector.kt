@@ -39,11 +39,31 @@ internal class MetadataCollector(private val logger: ArcDiagnosticReporter) {
     private val propertyDerivedTypeNames = mutableSetOf<String>()
     private val concretePropertyUses = mutableSetOf<ConcretePropertyUse>()
     private val reportedConcretePropertyUses = mutableSetOf<ConcretePropertyUse>()
+    private val collectedDerivedTypes = linkedSetOf<DerivedTypeRegistrationModel>()
 
     val types: List<TypeModel> get() = collectedTypes.values.sortedBy(TypeModel::fullyQualifiedName)
     val interfaces: List<InterfaceModel> get() = collectedInterfaces.values.sortedBy(InterfaceModel::fullyQualifiedName)
     val enums: List<EnumModel> get() = collectedEnums.values.sortedBy(EnumModel::fullyQualifiedName)
     val concepts: List<ConceptModel> get() = collectedConcepts.values.sortedBy(ConceptModel::fullyQualifiedName)
+
+    /**
+     * Base-to-derivative mappings for every collected model type that has `@DerivedType` derivatives.
+     *
+     * Only mappings whose base and derivative both survived collection are reported, so a module never carries a
+     * registration for a type it did not also describe.
+     */
+    val derivedTypes: List<DerivedTypeRegistrationModel>
+        get() = collectedDerivedTypes
+            .filter { registration ->
+                (registration.baseTypeName in collectedTypes || registration.baseTypeName in collectedInterfaces) &&
+                    collectedTypes[registration.derivedTypeName]?.derivedTypeId != null
+            }
+            .sortedWith(
+                compareBy(
+                    DerivedTypeRegistrationModel::baseTypeName,
+                    DerivedTypeRegistrationModel::derivedTypeName
+                )
+            )
 
     fun useResolver(resolver: Resolver, derivedTypeNames: Set<String> = emptySet()) {
         this.resolver = resolver
@@ -515,6 +535,7 @@ internal class MetadataCollector(private val logger: ArcDiagnosticReporter) {
         }
         for (derivative in derivativesFor(declaration)) {
             val derivativeName = derivative.qualifiedName?.asString() ?: continue
+            collectedDerivedTypes.add(DerivedTypeRegistrationModel(qualifiedName, derivativeName))
             if (!collectDeclaration(derivative, "$qualifiedName derivative $derivativeName", derivative)) valid = false
         }
 

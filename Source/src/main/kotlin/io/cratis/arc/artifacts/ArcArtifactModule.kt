@@ -8,6 +8,7 @@ import io.cratis.arc.metadata.ConceptDescriptor
 import io.cratis.arc.metadata.EnumDescriptor
 import io.cratis.arc.metadata.InterfaceDescriptor
 import io.cratis.arc.metadata.TypeDescriptor
+import io.cratis.arc.polymorphism.DerivedTypeRegistration
 import io.cratis.arc.queries.QueryPerformer
 
 /** Immutable build-time generated collection of Arc artifacts contributed by one compilation module. */
@@ -17,7 +18,8 @@ public abstract class ArcArtifactModule @JvmOverloads protected constructor(
     types: List<TypeDescriptor> = emptyList(),
     enums: List<EnumDescriptor> = emptyList(),
     interfaces: List<InterfaceDescriptor> = emptyList(),
-    concepts: List<ConceptDescriptor> = emptyList()
+    concepts: List<ConceptDescriptor> = emptyList(),
+    derivedTypes: List<DerivedTypeRegistration> = emptyList()
 ) {
     /** Generated command handlers in deterministic command-name order. */
     public val commandHandlers: List<CommandHandler> = java.util.List.copyOf(commandHandlers)
@@ -36,4 +38,12 @@ public abstract class ArcArtifactModule @JvmOverloads protected constructor(
 
     /** Strongly typed scalar concepts in deterministic fully-qualified-name order. */
     public val concepts: List<ConceptDescriptor> = java.util.List.copyOf(concepts)
+
+    /**
+     * Base-to-derivative mappings in deterministic fully-qualified-name order.
+     *
+     * A host registers these with a [io.cratis.arc.polymorphism.DerivedTypeRegistry] before the first polymorphic
+     * value is read; see [ArcArtifactModuleRegistry.registerDerivedTypes].
+     */
+    public val derivedTypes: List<DerivedTypeRegistration> = java.util.List.copyOf(derivedTypes)
 }

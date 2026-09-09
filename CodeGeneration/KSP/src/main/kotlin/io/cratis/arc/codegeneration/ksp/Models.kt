@@ -125,6 +125,11 @@ internal data class InterfaceModel(
     val properties: List<PropertyModel>
 )
 
+internal data class DerivedTypeRegistrationModel(
+    val baseTypeName: String,
+    val derivedTypeName: String
+)
+
 internal data class EnumModel(
     val name: String,
     val fullyQualifiedName: String,
