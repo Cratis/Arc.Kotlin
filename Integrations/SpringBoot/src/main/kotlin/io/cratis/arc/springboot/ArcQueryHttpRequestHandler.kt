@@ -11,6 +11,7 @@ import io.cratis.arc.authorization.ArcPrincipal
 import io.cratis.arc.commands.ServiceResolver
 import io.cratis.arc.concepts.ArcEnum
 import io.cratis.arc.concepts.ConceptAs
+import io.cratis.arc.correlation.CorrelationIdResolver
 import io.cratis.arc.http.ArcHttpStatusMapper
 import io.cratis.arc.metadata.ParameterDescriptor
 import io.cratis.arc.metadata.QueryParameterSource
@@ -69,7 +70,7 @@ internal class ArcQueryHttpRequestHandler(
             return
         }
 
-        val correlationId = parseCorrelationId(request.getHeader(properties.correlationHeader))
+        val correlationId = CorrelationIdResolver.resolveOrCreate(request.getHeader(properties.correlationHeader))
         prepareResponse(response, correlationId, request.method)
         if (!request.isAsyncSupported) {
             val exception = IllegalStateException(
@@ -218,7 +219,7 @@ internal class ArcQueryHttpRequestHandler(
         val concurrentResult = asyncManager.concurrentResult
         val correlationId = (concurrentResult as? HostedQueryResult)?.result?.correlationId
             ?: asyncManager.concurrentResultContext?.firstOrNull() as? UUID
-            ?: parseCorrelationId(request.getHeader(properties.correlationHeader))
+            ?: CorrelationIdResolver.resolveOrCreate(request.getHeader(properties.correlationHeader))
         asyncManager.clearConcurrentResult()
         val hostedResult = when (concurrentResult) {
             is HostedQueryResult -> concurrentResult
@@ -331,11 +332,6 @@ internal class ArcQueryHttpRequestHandler(
                 )
             )
         )
-
-        fun parseCorrelationId(value: String?): UUID = value
-            ?.trim()
-            ?.let { runCatching { UUID.fromString(it) }.getOrNull() }
-            ?: UUID.randomUUID()
 
         fun parseAllowedSeverity(value: String?): ValidationResultSeverity? {
             if (value == null) return null
