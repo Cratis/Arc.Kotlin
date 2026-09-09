@@ -4,7 +4,8 @@
 package io.cratis.arc.springboot
 
 import com.fasterxml.jackson.annotation.JsonInclude
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.ObjectMapper
+import tools.jackson.databind.json.JsonMapper
 import io.cratis.arc.ExceptionDetailRedactor
 import io.cratis.arc.authorization.ArcPrincipal
 import io.cratis.arc.commands.ServiceResolver
@@ -82,9 +83,15 @@ public class ArcObservableQueryTransport internal constructor(
     private val healthTracker: QueryHealthTracker
 ) : AutoCloseable {
     private val settings get() = properties.observableQueries
-    private val subscriptionMapper = objectMapper.copy().setDefaultPropertyInclusion(
-        JsonInclude.Value.construct(JsonInclude.Include.NON_NULL, JsonInclude.Include.ALWAYS)
-    )
+    private val subscriptionMapper = (objectMapper as? JsonMapper
+        ?: throw IllegalArgumentException("Observable query transport requires a JSON mapper."))
+        .rebuild()
+        .changeDefaultPropertyInclusion { inclusion ->
+            inclusion
+                .withValueInclusion(JsonInclude.Include.NON_NULL)
+                .withContentInclusion(JsonInclude.Include.ALWAYS)
+        }
+        .build()
     private val connections = AtomicInteger()
     private val sseConnections = ConcurrentHashMap<String, HubSseConnection>()
 

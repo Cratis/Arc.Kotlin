@@ -3,7 +3,7 @@
 
 package io.cratis.arc.metadata
 
-import com.fasterxml.jackson.databind.exc.ValueInstantiationException
+import tools.jackson.databind.exc.ValueInstantiationException
 import io.cratis.arc.artifacts.ArcArtifactManifest
 import io.cratis.arc.json.ArcObjectMapper
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -68,7 +68,7 @@ internal class TypeShapeManifestJsonTest {
         assertFalse(property.has("isEnumerable"))
         assertFalse(property.has("elementTypeName"))
         assertTrue(parameter.has("shape"))
-        assertEquals("QUERY_CONTEXT", parameter.path("source").textValue())
+        assertEquals("QUERY_CONTEXT", parameter.path("source").stringValue())
         assertFalse(parameter.path("hasDefault").booleanValue())
         assertFalse(parameter.has("isFromServices"))
         assertFalse(parameter.has("typeName"))

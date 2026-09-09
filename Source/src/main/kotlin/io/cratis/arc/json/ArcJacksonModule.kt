@@ -3,34 +3,36 @@
 
 package io.cratis.arc.json
 
-import com.fasterxml.jackson.core.JsonGenerator
-import com.fasterxml.jackson.core.JsonParser
-import com.fasterxml.jackson.core.JsonToken
-import com.fasterxml.jackson.databind.BeanDescription
-import com.fasterxml.jackson.databind.BeanProperty
-import com.fasterxml.jackson.databind.DeserializationConfig
-import com.fasterxml.jackson.databind.DeserializationContext
-import com.fasterxml.jackson.databind.JavaType
-import com.fasterxml.jackson.databind.JsonDeserializer
-import com.fasterxml.jackson.databind.KeyDeserializer
-import com.fasterxml.jackson.databind.JsonMappingException
-import com.fasterxml.jackson.databind.JsonNode
-import com.fasterxml.jackson.databind.JsonSerializer
-import com.fasterxml.jackson.databind.SerializationConfig
-import com.fasterxml.jackson.databind.SerializerProvider
-import com.fasterxml.jackson.databind.deser.BeanDeserializerModifier
-import com.fasterxml.jackson.databind.deser.Deserializers
-import com.fasterxml.jackson.databind.deser.std.DelegatingDeserializer
-import com.fasterxml.jackson.databind.jsontype.TypeDeserializer
-import com.fasterxml.jackson.databind.jsontype.TypeSerializer
-import com.fasterxml.jackson.databind.module.SimpleModule
-import com.fasterxml.jackson.databind.node.ObjectNode
-import com.fasterxml.jackson.databind.ser.BeanSerializerModifier
-import com.fasterxml.jackson.databind.ser.Serializers
-import com.fasterxml.jackson.databind.ser.std.StdScalarSerializer
-import com.fasterxml.jackson.databind.type.ResolvedRecursiveType
-import com.fasterxml.jackson.databind.util.AccessPattern
-import com.fasterxml.jackson.databind.util.TokenBuffer
+import tools.jackson.core.JsonGenerator
+import tools.jackson.core.JsonParser
+import com.fasterxml.jackson.annotation.JsonFormat
+import tools.jackson.core.JsonToken
+import tools.jackson.databind.BeanDescription
+import tools.jackson.databind.BeanProperty
+import tools.jackson.databind.DeserializationConfig
+import tools.jackson.databind.DeserializationContext
+import tools.jackson.databind.JavaType
+import tools.jackson.databind.ValueDeserializer
+import tools.jackson.databind.KeyDeserializer
+import tools.jackson.databind.DatabindException
+import tools.jackson.databind.JsonNode
+import tools.jackson.databind.ValueSerializer
+import tools.jackson.databind.SerializationConfig
+import tools.jackson.databind.SerializationContext
+import tools.jackson.databind.deser.ValueDeserializerModifier
+import tools.jackson.databind.deser.Deserializers
+import tools.jackson.databind.deser.std.DelegatingDeserializer
+import tools.jackson.databind.json.JsonMapper
+import tools.jackson.databind.jsontype.TypeDeserializer
+import tools.jackson.databind.jsontype.TypeSerializer
+import tools.jackson.databind.module.SimpleModule
+import tools.jackson.databind.node.ObjectNode
+import tools.jackson.databind.ser.ValueSerializerModifier
+import tools.jackson.databind.ser.Serializers
+import tools.jackson.databind.ser.std.StdScalarSerializer
+import tools.jackson.databind.type.ResolvedRecursiveType
+import tools.jackson.databind.util.AccessPattern
+import tools.jackson.databind.util.TokenBuffer
 import io.cratis.arc.concepts.ArcEnum
 import io.cratis.arc.concepts.ConceptAs
 import io.cratis.arc.metadata.MapKeyCodec
@@ -76,20 +78,20 @@ public class ArcJacksonModule @JvmOverloads constructor(
         super.setupModule(context)
         context.addSerializers(ArcSerializers)
         context.addDeserializers(ArcDeserializers)
-        context.addBeanDeserializerModifier(ArcDerivedTypeDeserializerModifier(registry))
-        context.addBeanSerializerModifier(ArcDerivedTypeSerializerModifier(registry))
+        context.addDeserializerModifier(ArcDerivedTypeDeserializerModifier(registry))
+        context.addSerializerModifier(ArcDerivedTypeSerializerModifier(registry))
     }
 }
 
 private const val DERIVED_TYPE_ID = "_derivedTypeId"
 private val reservedStringMapKeys = setOf("__proto__", "prototype", "constructor")
 
-private object ArcStringMapKeySerializer : JsonSerializer<String>() {
-    override fun serialize(value: String, generator: JsonGenerator, serializers: SerializerProvider) {
+private object ArcStringMapKeySerializer : ValueSerializer<String>() {
+    override fun serialize(value: String, generator: JsonGenerator, serializers: SerializationContext) {
         if (value in reservedStringMapKeys) {
-            throw JsonMappingException.from(generator, "Reserved string map key '$value' is not allowed")
+            throw DatabindException.from(generator, "Reserved string map key '$value' is not allowed")
         }
-        generator.writeFieldName(value)
+        generator.writeName(value)
     }
 }
 
@@ -106,32 +108,44 @@ private object ArcSerializers : Serializers.Base() {
     override fun findSerializer(
         config: SerializationConfig,
         type: JavaType,
-        beanDesc: BeanDescription
-    ): JsonSerializer<*>? = when {
+        beanDesc: BeanDescription.Supplier,
+        format: JsonFormat.Value?
+    ): ValueSerializer<*>? = when {
         ConceptAs::class.java.isAssignableFrom(type.rawClass) -> ArcConceptSerializer
-        type.isEnumType && !isNamedProtocolEnum(type.rawClass) -> ArcEnumSerializer
         else -> null
     }
+
+    override fun findEnumSerializer(
+        config: SerializationConfig,
+        type: JavaType,
+        beanDesc: BeanDescription.Supplier,
+        format: JsonFormat.Value?
+    ): ValueSerializer<*>? = if (isNamedProtocolEnum(type.rawClass)) null else ArcEnumSerializer
 }
 
 private object ArcDeserializers : Deserializers.Base() {
+    override fun hasDeserializerFor(config: DeserializationConfig, valueType: Class<*>): Boolean =
+        ConceptAs::class.java.isAssignableFrom(valueType) ||
+            valueType == ObservableQueryTransferMode::class.java ||
+            valueType.isEnum && !isNamedProtocolEnum(valueType)
+
     override fun findBeanDeserializer(
         type: JavaType,
         config: DeserializationConfig,
-        beanDesc: BeanDescription
-    ): JsonDeserializer<*>? = when {
+        beanDesc: BeanDescription.Supplier
+    ): ValueDeserializer<*>? = when {
         ConceptAs::class.java.isAssignableFrom(type.rawClass) -> ArcConceptDeserializer(type)
         else -> null
     }
 
     override fun findEnumDeserializer(
-        type: Class<*>,
+        type: JavaType,
         config: DeserializationConfig,
-        beanDesc: BeanDescription
-    ): JsonDeserializer<*>? = when {
-        type == ObservableQueryTransferMode::class.java -> ArcObservableQueryTransferModeDeserializer
-        isNamedProtocolEnum(type) -> null
-        else -> ArcEnumDeserializer(type)
+        beanDesc: BeanDescription.Supplier
+    ): ValueDeserializer<*>? = when {
+        type.rawClass == ObservableQueryTransferMode::class.java -> ArcObservableQueryTransferModeDeserializer
+        isNamedProtocolEnum(type.rawClass) -> null
+        else -> ArcEnumDeserializer(type.rawClass)
     }
 }
 
@@ -143,14 +157,14 @@ private fun isNamedProtocolEnum(type: Class<*>): Boolean =
         type == SequenceKind::class.java ||
         type == MapKeyCodec::class.java
 
-private object ArcConceptSerializer : JsonSerializer<ConceptAs<*>>() {
-    override fun serialize(value: ConceptAs<*>, generator: JsonGenerator, serializers: SerializerProvider) {
-        serializers.defaultSerializeValue(value.value(), generator)
+private object ArcConceptSerializer : ValueSerializer<ConceptAs<*>>() {
+    override fun serialize(value: ConceptAs<*>, generator: JsonGenerator, serializers: SerializationContext) {
+        generator.writePOJO(value.value())
     }
 }
 
-private object ArcEnumSerializer : JsonSerializer<Enum<*>>() {
-    override fun serialize(value: Enum<*>, generator: JsonGenerator, serializers: SerializerProvider) {
+private object ArcEnumSerializer : ValueSerializer<Enum<*>>() {
+    override fun serialize(value: Enum<*>, generator: JsonGenerator, serializers: SerializationContext) {
         generator.writeNumber(if (value is ArcEnum) value.value() else value.ordinal)
     }
 }
@@ -163,29 +177,29 @@ private object ArcEnumSerializer : JsonSerializer<Enum<*>>() {
  * same state an omitted field produces, and matching is case-insensitive. A value that is not textual at all is
  * a malformed payload rather than an unknown preference, and still fails.
  */
-private object ArcObservableQueryTransferModeDeserializer : JsonDeserializer<ObservableQueryTransferMode>() {
+private object ArcObservableQueryTransferModeDeserializer : ValueDeserializer<ObservableQueryTransferMode>() {
     private val modes = ObservableQueryTransferMode.entries
 
     override fun deserialize(parser: JsonParser, context: DeserializationContext): ObservableQueryTransferMode? =
-        when (parser.currentToken) {
-            JsonToken.VALUE_STRING -> modes.firstOrNull { it.wireValue.equals(parser.text, ignoreCase = true) }
+        when (parser.currentToken()) {
+            JsonToken.VALUE_STRING -> modes.firstOrNull { it.wireValue.equals(parser.string, ignoreCase = true) }
             JsonToken.VALUE_NULL -> null
-            else -> throw JsonMappingException.from(
+            else -> throw DatabindException.from(
                 parser,
                 "Expected a string transfer mode for ${ObservableQueryTransferMode::class.java.name}"
             )
         }
 }
 
-private class ArcEnumDeserializer(enumType: Class<*>) : JsonDeserializer<Any>() {
+private class ArcEnumDeserializer(enumType: Class<*>) : ValueDeserializer<Any>() {
     private val enumClass = enumType
     private val constants = enumType.enumConstants.orEmpty().filterIsInstance<Enum<*>>()
 
-    override fun deserialize(parser: JsonParser, context: DeserializationContext): Any? = when (parser.currentToken) {
+    override fun deserialize(parser: JsonParser, context: DeserializationContext): Any? = when (parser.currentToken()) {
         JsonToken.VALUE_NUMBER_INT -> fromInteger(parser.intValue, parser)
-        JsonToken.VALUE_STRING -> fromString(parser.text, parser)
+        JsonToken.VALUE_STRING -> fromString(parser.string, parser)
         JsonToken.VALUE_NULL -> null
-        else -> throw JsonMappingException.from(
+        else -> throw DatabindException.from(
             parser,
             "Expected an integer or enum name for ${enumClass.name}"
         )
@@ -193,11 +207,11 @@ private class ArcEnumDeserializer(enumType: Class<*>) : JsonDeserializer<Any>() 
 
     private fun fromInteger(value: Int, parser: JsonParser): Enum<*> = constants.firstOrNull { constant ->
         if (constant is ArcEnum) constant.value() == value else constant.ordinal == value
-    } ?: throw JsonMappingException.from(parser, "Integer $value is not defined by ${enumClass.name}")
+    } ?: throw DatabindException.from(parser, "Integer $value is not defined by ${enumClass.name}")
 
     private fun fromString(value: String, parser: JsonParser): Enum<*> = constants.firstOrNull {
         it.name.equals(value, ignoreCase = true)
-    } ?: throw JsonMappingException.from(parser, "Name '$value' is not defined by ${enumClass.name}")
+    } ?: throw DatabindException.from(parser, "Name '$value' is not defined by ${enumClass.name}")
 }
 
 private sealed interface CachedConceptConstructor {
@@ -214,16 +228,16 @@ private val conceptConstructors = object : ClassValue<CachedConceptConstructor>(
     }
 }
 
-private class ArcConceptDeserializer(private val conceptType: JavaType) : JsonDeserializer<Any>() {
+private class ArcConceptDeserializer(private val conceptType: JavaType) : ValueDeserializer<Any>() {
     private val valueType: JavaType = conceptType.findSuperType(ConceptAs::class.java)?.containedType(0)
         ?: throw IllegalArgumentException("${conceptType.rawClass.name} does not declare a ConceptAs value type")
     private val constructor = conceptConstructors.get(conceptType.rawClass)
 
     override fun deserialize(parser: JsonParser, context: DeserializationContext): Any? {
-        if (parser.currentToken == JsonToken.VALUE_NULL) return null
+        if (parser.currentToken() == JsonToken.VALUE_NULL) return null
         val value: Any? = context.readValue(parser, valueType)
         val handle = (constructor as? CachedConceptConstructor.Available)?.handle
-            ?: throw JsonMappingException.from(
+            ?: throw DatabindException.from(
                 parser,
                 "${conceptType.rawClass.name} must expose a public single-value constructor"
             )
@@ -231,18 +245,18 @@ private class ArcConceptDeserializer(private val conceptType: JavaType) : JsonDe
         return try {
             handle.invokeWithArguments(value)
         } catch (exception: Throwable) {
-            throw JsonMappingException.from(parser, "Could not create ${conceptType.rawClass.name}", exception)
+            throw DatabindException.from(parser, "Could not create ${conceptType.rawClass.name}", exception)
         }
     }
 }
 
-private class ArcDerivedTypeDeserializerModifier(private val registry: DerivedTypeRegistry) : BeanDeserializerModifier() {
+private class ArcDerivedTypeDeserializerModifier(private val registry: DerivedTypeRegistry) : ValueDeserializerModifier() {
     override fun modifyDeserializer(
         config: DeserializationConfig,
-        beanDesc: BeanDescription,
-        deserializer: JsonDeserializer<*>
-    ): JsonDeserializer<*> {
-        val type = beanDesc.type
+        beanDesc: BeanDescription.Supplier,
+        deserializer: ValueDeserializer<*>
+    ): ValueDeserializer<*> {
+        val type = beanDesc.get().type
         if (type.isEnumType || ConceptAs::class.java.isAssignableFrom(type.rawClass) ||
             type.rawClass !in registry.registeredBaseTypes()
         ) return deserializer
@@ -253,13 +267,13 @@ private class ArcDerivedTypeDeserializerModifier(private val registry: DerivedTy
 private class ArcDerivedTypeDeserializer(
     private val baseType: JavaType,
     private val registry: DerivedTypeRegistry,
-    delegate: JsonDeserializer<*>,
+    delegate: ValueDeserializer<*>,
     private val property: BeanProperty? = null
 ) : DelegatingDeserializer(delegate) {
-    override fun newDelegatingInstance(newDelegatee: JsonDeserializer<*>): JsonDeserializer<*> =
+    override fun newDelegatingInstance(newDelegatee: ValueDeserializer<*>): ValueDeserializer<*> =
         ArcDerivedTypeDeserializer(baseType, registry, newDelegatee, property)
 
-    override fun createContextual(context: DeserializationContext, property: BeanProperty?): JsonDeserializer<*> =
+    override fun createContextual(context: DeserializationContext, property: BeanProperty?): ValueDeserializer<*> =
         ArcDerivedTypeDeserializer(
             baseType,
             registry,
@@ -267,7 +281,7 @@ private class ArcDerivedTypeDeserializer(
             property
         )
 
-    // Preserve JsonDeserializer's original replacement-read behavior, not the bean delegate's in-place update.
+    // Preserve ValueDeserializer's original replacement-read behavior, not the bean delegate's in-place update.
     override fun supportsUpdate(config: DeserializationConfig): Boolean? = null
 
     override fun deserialize(parser: JsonParser, context: DeserializationContext, intoValue: Any): Any? {
@@ -275,7 +289,7 @@ private class ArcDerivedTypeDeserializer(
         return deserialize(parser, context)
     }
 
-    // Preserve JsonDeserializer's original Jackson-owned native dispatch, not the bean delegate's typed behavior.
+    // Preserve ValueDeserializer's original Jackson-owned native dispatch, not the bean delegate's typed behavior.
     override fun deserializeWithType(
         parser: JsonParser,
         context: DeserializationContext,
@@ -290,17 +304,17 @@ private class ArcDerivedTypeDeserializer(
     override fun getEmptyAccessPattern(): AccessPattern = AccessPattern.ALWAYS_NULL
 
     override fun deserialize(parser: JsonParser, context: DeserializationContext): Any? {
-        if (parser.currentToken == JsonToken.VALUE_NULL) return null
-        val node = parser.codec.readTree<JsonNode>(parser) as? ObjectNode
-            ?: throw JsonMappingException.from(parser, "Expected an object for ${baseType.rawClass.name}")
+        if (parser.currentToken() == JsonToken.VALUE_NULL) return null
+        val node = context.readTree(parser) as? ObjectNode
+            ?: throw DatabindException.from(parser, "Expected an object for ${baseType.rawClass.name}")
         val idNode = node.remove(DERIVED_TYPE_ID)
-        val id = idNode?.takeIf(JsonNode::isTextual)?.textValue()
-            ?: throw JsonMappingException.from(parser, "Missing textual $DERIVED_TYPE_ID for ${baseType.rawClass.name}")
+        val id = idNode?.takeIf(JsonNode::isString)?.stringValue()
+            ?: throw DatabindException.from(parser, "Missing textual $DERIVED_TYPE_ID for ${baseType.rawClass.name}")
         val derivedType = registry.resolve(baseType.rawClass, id)
-            ?: throw JsonMappingException.from(parser, "Unknown derived type identifier '$id' for ${baseType.rawClass.name}")
+            ?: throw DatabindException.from(parser, "Unknown derived type identifier '$id' for ${baseType.rawClass.name}")
 
         if (!baseType.rawClass.isAssignableFrom(derivedType)) {
-            throw JsonMappingException.from(
+            throw DatabindException.from(
                 parser,
                 "Resolved derived type ${derivedType.name} is not assignable to ${baseType.rawClass.name}"
             )
@@ -308,7 +322,7 @@ private class ArcDerivedTypeDeserializer(
         val targetType = try {
             context.constructSpecializedType(baseType, derivedType)
         } catch (exception: IllegalArgumentException) {
-            throw JsonMappingException.from(
+            throw DatabindException.from(
                 parser,
                 "Cannot specialize registered derived type ${derivedType.name} for declared base $baseType; " +
                     "the target must preserve the declared generic bindings",
@@ -320,7 +334,7 @@ private class ArcDerivedTypeDeserializer(
             val projected = targetType.findSuperType(baseType.rawClass)
             val conflict = FixedDerivedTypeBindingCompatibility().conflict(baseType, projected, "base")
             if (conflict != null) {
-                throw JsonMappingException.from(
+                throw DatabindException.from(
                     parser,
                     "Cannot specialize registered derived type ${derivedType.name} for declared base $baseType; $conflict"
                 )
@@ -331,7 +345,7 @@ private class ArcDerivedTypeDeserializer(
         // Only unwrap our immediate wrapper, never a third-party decorator or its delegate chain.
         val ordinary = if (target is ArcDerivedTypeDeserializer) target._delegatee else target
         val contextual = context.handleSecondaryContextualization(ordinary, property, targetType)
-        return node.traverse(parser.codec).use { treeParser ->
+        return context.treeAsTokens(node).use { treeParser ->
             treeParser.nextToken()
             contextual.deserialize(treeParser, context)
         }
@@ -377,39 +391,39 @@ private class FixedDerivedTypeBindingCompatibility {
     }
 }
 
-private class ArcDerivedTypeSerializerModifier(private val registry: DerivedTypeRegistry) : BeanSerializerModifier() {
+private class ArcDerivedTypeSerializerModifier(private val registry: DerivedTypeRegistry) : ValueSerializerModifier() {
     override fun modifySerializer(
         config: SerializationConfig,
-        beanDesc: BeanDescription,
-        serializer: JsonSerializer<*>
-    ): JsonSerializer<*> {
-        val derivedType = beanDesc.beanClass.getAnnotation(DerivedType::class.java) ?: return serializer
+        beanDesc: BeanDescription.Supplier,
+        serializer: ValueSerializer<*>
+    ): ValueSerializer<*> {
+        val derivedType = beanDesc.get().beanClass.getAnnotation(DerivedType::class.java) ?: return serializer
         @Suppress("UNCHECKED_CAST")
-        return ArcDerivedTypeSerializer(serializer as JsonSerializer<Any>, derivedType.id, registry)
+        return ArcDerivedTypeSerializer(serializer as ValueSerializer<Any>, derivedType.id, registry)
     }
 }
 
 private class ArcDerivedTypeSerializer(
-    private val delegate: JsonSerializer<Any>,
+    private val delegate: ValueSerializer<Any>,
     private val id: String,
     private val registry: DerivedTypeRegistry
-) : JsonSerializer<Any>() {
-    override fun serialize(value: Any, generator: JsonGenerator, serializers: SerializerProvider) {
+) : ValueSerializer<Any>() {
+    override fun serialize(value: Any, generator: JsonGenerator, serializers: SerializationContext) {
         rejectUnregisteredDerivative(value, generator)
-        val buffer = TokenBuffer(generator.codec, false)
+        val buffer = TokenBuffer(serializers, false)
         delegate.serialize(value, buffer, serializers)
-        val parser = buffer.asParser(generator.codec)
+        val parser = buffer.asParser()
         parser.nextToken()
-        val node = generator.codec.readTree<JsonNode>(parser) as? ObjectNode
-            ?: throw JsonMappingException.from(generator, "Derived type ${value.javaClass.name} did not serialize as an object")
+        val node = JsonMapper.shared().readTree(parser) as? ObjectNode
+            ?: throw DatabindException.from(generator, "Derived type ${value.javaClass.name} did not serialize as an object")
         node.put(DERIVED_TYPE_ID, id)
-        generator.writeTree(node)
+        generator.objectWriteContext().writeTree(generator, node)
     }
 
     override fun serializeWithType(
         value: Any,
         generator: JsonGenerator,
-        serializers: SerializerProvider,
+        serializers: SerializationContext,
         typeSerializer: TypeSerializer
     ) {
         serialize(value, generator, serializers)
@@ -437,7 +451,7 @@ private class ArcDerivedTypeSerializer(
             .sorted()
         if (missing.isEmpty()) return
 
-        throw JsonMappingException.from(
+        throw DatabindException.from(
             generator,
             "${value.javaClass.name} carries @DerivedType(\"$id\") but is not registered for " +
                 "${missing.joinToString()}; register it so the value can be read back"
@@ -452,7 +466,7 @@ private val arcLocalTimeFormatter: DateTimeFormatter = DateTimeFormatterBuilder(
     .withResolverStyle(ResolverStyle.STRICT)
 
 private object ArcLocalTimeSerializer : StdScalarSerializer<LocalTime>(LocalTime::class.java) {
-    override fun serialize(value: LocalTime, generator: JsonGenerator, provider: SerializerProvider) {
+    override fun serialize(value: LocalTime, generator: JsonGenerator, provider: SerializationContext) {
         if (value.nano % 100 != 0) {
             provider.reportMappingProblem(
                 "LocalTime %s has precision finer than the Arc/.NET 100-nanosecond wire precision",
@@ -463,10 +477,10 @@ private object ArcLocalTimeSerializer : StdScalarSerializer<LocalTime>(LocalTime
     }
 }
 
-private object ArcLocalTimeDeserializer : JsonDeserializer<LocalTime>() {
+private object ArcLocalTimeDeserializer : ValueDeserializer<LocalTime>() {
     override fun deserialize(parser: JsonParser, context: DeserializationContext): LocalTime = try {
         LocalTime.parse(parser.valueAsString, arcLocalTimeFormatter)
     } catch (exception: DateTimeParseException) {
-        throw JsonMappingException.from(parser, "Invalid Arc LocalTime value '${parser.valueAsString}'", exception)
+        throw DatabindException.from(parser, "Invalid Arc LocalTime value '${parser.valueAsString}'", exception)
     }
 }

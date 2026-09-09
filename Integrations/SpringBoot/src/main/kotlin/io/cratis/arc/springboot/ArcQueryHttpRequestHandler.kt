@@ -3,9 +3,9 @@
 
 package io.cratis.arc.springboot
 
-import com.fasterxml.jackson.databind.JsonNode
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.databind.node.TextNode
+import tools.jackson.databind.JsonNode
+import tools.jackson.databind.ObjectMapper
+import tools.jackson.databind.node.StringNode
 import io.cratis.arc.ExceptionDetailRedactor
 import io.cratis.arc.authorization.ArcPrincipal
 import io.cratis.arc.commands.ServiceResolver
@@ -425,7 +425,7 @@ internal class ArcQueryRequestBinder(
             if (exception.isArcRequestBodyTooLarge()) throw ArcRequestBodyTooLargeException()
             throw MalformedQueryRequestException(exception)
         } ?: throw MalformedQueryRequestException()
-        if (!root.isObject || root.fieldNames().asSequence().any { it !in BODY_FIELDS }) {
+        if (!root.isObject || root.propertyNames().iterator().asSequence().any { it !in BODY_FIELDS }) {
             throw MalformedQueryRequestException()
         }
 
@@ -458,11 +458,11 @@ internal class ArcQueryRequestBinder(
         val sortingNode = root.get(SORTING)
         validateSection(sortingNode, SORTING_FIELDS)
         val fieldNode = sortingNode?.takeUnless(JsonNode::isNull)?.get(FIELD)
-        if (fieldNode != null && !fieldNode.isTextual) throw MalformedQueryRequestException()
+        if (fieldNode != null && !fieldNode.isString) throw MalformedQueryRequestException()
         val directionNode = sortingNode?.takeUnless(JsonNode::isNull)?.get(DIRECTION)
-        if (directionNode != null && !directionNode.isTextual) throw MalformedQueryRequestException()
-        val sortField = fieldNode?.textValue().orEmpty()
-        val sortDirection = parseDirection(directionNode?.textValue())
+        if (directionNode != null && !directionNode.isString) throw MalformedQueryRequestException()
+        val sortField = fieldNode?.stringValue().orEmpty()
+        val sortDirection = parseDirection(directionNode?.stringValue())
 
         return QueryRequest(
             performer.fullyQualifiedName,
@@ -512,7 +512,7 @@ internal class ArcQueryRequestBinder(
 
     private fun validateSection(section: JsonNode?, allowedFields: Set<String>) {
         if (section == null || section.isNull) return
-        if (!section.isObject || section.fieldNames().asSequence().any { it !in allowedFields }) {
+        if (!section.isObject || section.propertyNames().iterator().asSequence().any { it !in allowedFields }) {
             throw MalformedQueryRequestException()
         }
     }
@@ -543,11 +543,11 @@ private class ArcQueryArgumentConverter(
     fun fromStrings(values: List<String>, descriptor: ParameterDescriptor): Any? {
         val target = parseType(descriptor.typeName)
         return when (target) {
-            is TargetType.Collection -> values.map { value -> convertScalar(TextNode(value), target.elementType) }
-            is TargetType.Array -> createArray(values.map { value -> convertScalar(TextNode(value), target.elementType) }, target)
+            is TargetType.Collection -> values.map { value -> convertScalar(StringNode(value), target.elementType) }
+            is TargetType.Array -> createArray(values.map { value -> convertScalar(StringNode(value), target.elementType) }, target)
             is TargetType.Scalar -> {
                 if (values.size != 1) throw MalformedQueryRequestException()
-                convertScalar(TextNode(values.single()), target)
+                convertScalar(StringNode(values.single()), target)
             }
         }
     }
@@ -578,15 +578,15 @@ private class ArcQueryArgumentConverter(
         val targetClass = target.type
         try {
             if (targetClass == String::class.java) {
-                if (!value.isTextual) return objectMapper.convertValue(value, String::class.java)
-                return value.textValue()
+                if (!value.isString) return objectMapper.convertValue(value, String::class.java)
+                return value.stringValue()
             }
             if (targetClass == Boolean::class.javaObjectType || targetClass == Boolean::class.javaPrimitiveType) {
                 if (value.isBoolean) return value.booleanValue()
-                if (value.isTextual) {
+                if (value.isString) {
                     return when {
-                        value.textValue().equals("true", ignoreCase = true) -> true
-                        value.textValue().equals("false", ignoreCase = true) -> false
+                        value.stringValue().equals("true", ignoreCase = true) -> true
+                        value.stringValue().equals("false", ignoreCase = true) -> false
                         else -> throw MalformedQueryRequestException()
                     }
                 }
@@ -599,8 +599,8 @@ private class ArcQueryArgumentConverter(
             if (targetClass == LocalTime::class.java) {
                 return objectMapper.treeToValue(value, targetClass)
             }
-            if (value.isTextual && conversionService.canConvert(String::class.java, targetClass)) {
-                return conversionService.convert(value.textValue(), targetClass) ?: throw MalformedQueryRequestException()
+            if (value.isString && conversionService.canConvert(String::class.java, targetClass)) {
+                return conversionService.convert(value.stringValue(), targetClass) ?: throw MalformedQueryRequestException()
             }
             return objectMapper.convertValue(value, targetClass) ?: throw MalformedQueryRequestException()
         } catch (exception: MalformedQueryRequestException) {
@@ -612,14 +612,14 @@ private class ArcQueryArgumentConverter(
 
     private fun convertEnum(value: JsonNode, targetClass: Class<*>): Any {
         val constants = targetClass.enumConstants.filterIsInstance<Enum<*>>()
-        if (value.isIntegralNumber || value.isTextual && value.textValue().toIntOrNull() != null) {
-            val numeric = if (value.isIntegralNumber) value.intValue() else value.textValue().toInt()
+        if (value.isIntegralNumber || value.isString && value.stringValue().toIntOrNull() != null) {
+            val numeric = if (value.isIntegralNumber) value.intValue() else value.stringValue().toInt()
             return constants.firstOrNull { constant ->
                 if (constant is ArcEnum) constant.value() == numeric else constant.ordinal == numeric
             } ?: throw MalformedQueryRequestException()
         }
-        if (!value.isTextual) throw MalformedQueryRequestException()
-        return constants.firstOrNull { constant -> constant.name.equals(value.textValue(), ignoreCase = true) }
+        if (!value.isString) throw MalformedQueryRequestException()
+        return constants.firstOrNull { constant -> constant.name.equals(value.stringValue(), ignoreCase = true) }
             ?: throw MalformedQueryRequestException()
     }
 

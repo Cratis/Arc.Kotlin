@@ -79,7 +79,7 @@ internal class ArcMalformedRequestLoggingTests {
         assertEquals(Level.DEBUG, event.level)
         val throwable = event.throwableProxy ?: fail("The parser failure must be attached to the event")
         assertTrue(
-            throwable.className.startsWith("com.fasterxml.jackson"),
+            throwable.className.startsWith("tools.jackson"),
             "Expected the Jackson failure on the event, got ${throwable.className}"
         )
     }
@@ -99,7 +99,7 @@ internal class ArcMalformedRequestLoggingTests {
         assertEquals(MalformedQueryRequestException::class.java.name, throwable.className)
         val cause = throwable.cause ?: fail("The binding failure must keep the parser failure as its cause")
         assertTrue(
-            cause.className.startsWith("com.fasterxml.jackson"),
+            cause.className.startsWith("tools.jackson"),
             "Expected the Jackson failure as the cause, got ${cause.className}"
         )
     }

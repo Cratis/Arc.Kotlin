@@ -14,9 +14,6 @@ dependencies {
     api(project(":Source"))
     api("org.springframework.boot:spring-boot:$springBootVersion")
     api("org.springframework.boot:spring-boot-autoconfigure:$springBootVersion")
-    // Spring Boot 4 defaults to Jackson 3, while Arc's published JSON contract remains Jackson 2.
-    // This compatibility module supplies the Jackson 2 ObjectMapper and customizer infrastructure.
-    api("org.springframework.boot:spring-boot-jackson2:$springBootVersion")
 
     compileOnly("org.springframework.boot:spring-boot-starter-webmvc:$springBootVersion")
     compileOnly("org.springframework.boot:spring-boot-starter-websocket:$springBootVersion")

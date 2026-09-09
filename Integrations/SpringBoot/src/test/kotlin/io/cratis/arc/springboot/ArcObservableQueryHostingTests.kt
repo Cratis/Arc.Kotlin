@@ -3,8 +3,9 @@
 
 package io.cratis.arc.springboot
 
-import com.fasterxml.jackson.databind.JsonNode
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.JsonNode
+import tools.jackson.databind.ObjectMapper
+import tools.jackson.databind.json.JsonMapper
 import io.cratis.arc.artifacts.ArcArtifactModule
 import io.cratis.arc.authentication.AuthenticationHandler
 import io.cratis.arc.authentication.AuthenticationResult
@@ -113,8 +114,8 @@ internal class ArcObservableQueryHostingTests {
             assertEquals("no-store", response.headers().firstValue("Cache-Control").orElse(""))
             assertEquals(correlationId, response.headers().firstValue("X-Arc-Correlation").orElse(""))
             val envelope = objectMapper.readTree(response.body())
-            assertEquals(correlationId, envelope.path("correlationId").textValue())
-            assertEquals("one", envelope.path("data").path(0).path("value").textValue())
+            assertEquals(correlationId, envelope.path("correlationId").stringValue())
+            assertEquals("one", envelope.path("data").path(0).path("value").stringValue())
         }
     }
 
@@ -134,7 +135,7 @@ internal class ArcObservableQueryHostingTests {
         assertEquals(200, immediate.statusCode())
         val immediateEnvelope = objectMapper.readTree(immediate.body())
         assertTrue(immediateEnvelope.path("isReady").booleanValue())
-        assertEquals("one", immediateEnvelope.path("data").path(0).path("value").textValue())
+        assertEquals("one", immediateEnvelope.path("data").path(0).path("value").stringValue())
 
         val correlationId = "168e3990-d5c9-4c64-a725-8d672efa28b3"
         val ready = http.send(
@@ -147,8 +148,8 @@ internal class ArcObservableQueryHostingTests {
         assertEquals(200, ready.statusCode())
         assertEquals(correlationId, ready.headers().firstValue("X-Arc-Correlation").orElse(""))
         val readyEnvelope = objectMapper.readTree(ready.body())
-        assertEquals(correlationId, readyEnvelope.path("correlationId").textValue())
-        assertEquals("one", readyEnvelope.path("data").path(0).path("value").textValue())
+        assertEquals(correlationId, readyEnvelope.path("correlationId").stringValue())
+        assertEquals("one", readyEnvelope.path("data").path(0).path("value").stringValue())
         assertEquals("observable-tenant", requireNotNull(ObservableFixtureModule.context.get()).tenantId)
         assertEquals("observable-tenant", requireNotNull(ObservableFixtureModule.context.get()).tenantNamespace)
     }
@@ -173,7 +174,7 @@ internal class ArcObservableQueryHostingTests {
             """{"type":"Subscribe","queryId":"q-infrastructure","revision":1,"payload":{"queryName":"$OBSERVABLE_NAME","transferMode":"full","arguments":{"dependency":"forged","request":"forged","context":"forged"}}}"""
         )
         val rejected = socket.awaitType("Error")
-        assertEquals("q-infrastructure", rejected.path("queryId").textValue())
+        assertEquals("q-infrastructure", rejected.path("queryId").stringValue())
     }
 
     @Test
@@ -185,7 +186,7 @@ internal class ArcObservableQueryHostingTests {
             HttpResponse.BodyHandlers.ofString()
         )
         assertEquals(200, absent.statusCode())
-        assertEquals("default-7", objectMapper.readTree(absent.body()).path("data").path(0).path("value").textValue())
+        assertEquals("default-7", objectMapper.readTree(absent.body()).path("data").path(0).path("value").stringValue())
 
         val supplied = http.send(
             HttpRequest.newBuilder(
@@ -194,7 +195,7 @@ internal class ArcObservableQueryHostingTests {
             HttpResponse.BodyHandlers.ofString()
         )
         assertEquals(200, supplied.statusCode())
-        assertEquals("supplied-9", objectMapper.readTree(supplied.body()).path("data").path(0).path("value").textValue())
+        assertEquals("supplied-9", objectMapper.readTree(supplied.body()).path("data").path(0).path("value").stringValue())
 
         val malformed = http.send(
             HttpRequest.newBuilder(
@@ -205,17 +206,17 @@ internal class ArcObservableQueryHostingTests {
         assertEquals(400, malformed.statusCode())
         assertEquals(
             "malformedRequest",
-            objectMapper.readTree(malformed.body()).path("validationResults").path(0).path("reason").textValue()
+            objectMapper.readTree(malformed.body()).path("validationResults").path(0).path("reason").stringValue()
         )
 
         val socket = openSocket(OBSERVABLE_QUERY_WS_ROUTE)
         socket.awaitType("Connected")
         socket.send(subscribe("q-default", 1, DEFAULTED_NAME, "full"))
-        assertEquals("default-7", socket.awaitQuery("q-default").path("payload").path("data").path(0).path("value").textValue())
+        assertEquals("default-7", socket.awaitQuery("q-default").path("payload").path("data").path(0).path("value").stringValue())
         socket.send(
             """{"type":"Subscribe","queryId":"q-null","revision":2,"payload":{"queryName":"$DEFAULTED_NAME","transferMode":"full","arguments":{"count":null}}}"""
         )
-        assertEquals("supplied-null", socket.awaitQuery("q-null").path("payload").path("data").path(0).path("value").textValue())
+        assertEquals("supplied-null", socket.awaitQuery("q-null").path("payload").path("data").path(0).path("value").stringValue())
     }
 
     @Test
@@ -226,15 +227,15 @@ internal class ArcObservableQueryHostingTests {
         val line = BufferedReader(sse.body().reader()).readLine()
         assertTrue(line.startsWith("data: {"))
         val sseEnvelope = objectMapper.readTree(line.removePrefix("data: "))
-        assertEquals(sseCorrelation, sseEnvelope.path("correlationId").textValue())
-        assertEquals("one", sseEnvelope.path("data").path(0).path("value").textValue())
+        assertEquals(sseCorrelation, sseEnvelope.path("correlationId").stringValue())
+        assertEquals("one", sseEnvelope.path("data").path(0).path("value").stringValue())
 
         val webSocketCorrelation = "c77e8e51-5aca-4884-bc4e-b20533185a97"
         val socket = openSocket(OBSERVABLE_ROUTE, correlationId = webSocketCorrelation)
         val data = socket.awaitJson()
-        assertEquals("Data", data.path("type").textValue())
-        assertEquals(webSocketCorrelation, data.path("data").path("correlationId").textValue())
-        assertEquals("one", data.path("data").path("data").path(0).path("value").textValue())
+        assertEquals("Data", data.path("type").stringValue())
+        assertEquals(webSocketCorrelation, data.path("data").path("correlationId").stringValue())
+        assertEquals("one", data.path("data").path("data").path(0).path("value").stringValue())
         socket.socket.sendText("""{"type":"Ping","timestamp":42}""", true).get(2, TimeUnit.SECONDS)
         val pong = socket.awaitType("Pong")
         assertEquals(42, pong.path("timestamp").longValue())
@@ -251,8 +252,8 @@ internal class ArcObservableQueryHostingTests {
         socket.send(subscribe("q-full", 1, OBSERVABLE_NAME, "full"))
         val first = socket.awaitQuery("q-full")
         assertEquals(1, first.path("revision").longValue())
-        assertEquals(correlationId, first.path("payload").path("correlationId").textValue())
-        assertEquals("one", first.path("payload").path("data").path(0).path("value").textValue())
+        assertEquals(correlationId, first.path("payload").path("correlationId").stringValue())
+        assertEquals("one", first.path("payload").path("data").path(0).path("value").stringValue())
 
         socket.send(subscribe("q-delta", 2, OBSERVABLE_NAME, "delta"))
         socket.awaitQuery("q-delta")
@@ -269,12 +270,12 @@ internal class ArcObservableQueryHostingTests {
 
         socket.send(subscribe("q-secured", 3, SECURED_NAME, "full"))
         val unauthorized = socket.awaitType("Unauthorized")
-        assertEquals("q-secured", unauthorized.path("queryId").textValue())
+        assertEquals("q-secured", unauthorized.path("queryId").stringValue())
         assertEquals(3, unauthorized.path("revision").longValue())
         ObservableFixtureModule.items.value = listOf(Item(1, "still-isolated"))
         assertEquals(
             "still-isolated",
-            socket.awaitQuery("q-full").path("payload").path("data").path(0).path("value").textValue()
+            socket.awaitQuery("q-full").path("payload").path("data").path(0).path("value").stringValue()
         )
     }
 
@@ -285,18 +286,18 @@ internal class ArcObservableQueryHostingTests {
 
         socket.send("""{"type":"Subscribe","queryId":"q-legacy","revision":1,"payload":{"queryName":"$OBSERVABLE_NAME"}}""")
         val first = socket.awaitQuery("q-legacy").path("payload")
-        assertEquals("one", first.path("data").path(0).path("value").textValue())
-        assertEquals("one", first.path("changeSet").path("added").path(0).path("value").textValue())
+        assertEquals("one", first.path("data").path(0).path("value").stringValue())
+        assertEquals("one", first.path("changeSet").path("added").path(0).path("value").stringValue())
 
         ObservableFixtureModule.items.value = listOf(Item(1, "two"), Item(2, "added"))
         val second = socket.awaitQuery("q-legacy").path("payload")
-        assertEquals("two", second.path("data").path(0).path("value").textValue())
-        assertEquals("added", second.path("changeSet").path("added").path(0).path("value").textValue())
-        assertEquals("two", second.path("changeSet").path("replaced").path(0).path("value").textValue())
+        assertEquals("two", second.path("data").path(0).path("value").stringValue())
+        assertEquals("added", second.path("changeSet").path("added").path(0).path("value").stringValue())
+        assertEquals("two", second.path("changeSet").path("replaced").path(0).path("value").stringValue())
 
         socket.send(subscribe("q-full", 1, OBSERVABLE_NAME, "full"))
         val full = socket.awaitQuery("q-full").path("payload")
-        assertEquals("two", full.path("data").path(0).path("value").textValue())
+        assertEquals("two", full.path("data").path(0).path("value").stringValue())
         assertTrue(full.path("changeSet").isMissingNode || full.path("changeSet").isNull, full.toString())
     }
 
@@ -305,16 +306,16 @@ internal class ArcObservableQueryHostingTests {
         val anonymous = openSocket(OBSERVABLE_QUERY_WS_ROUTE)
         anonymous.awaitType("Connected")
         anonymous.send(subscribe("anonymous", 1, OBSERVABLE_NAME, "full"))
-        assertEquals("one", anonymous.awaitQuery("anonymous").path("payload").path("data").path(0).path("value").textValue())
+        assertEquals("one", anonymous.awaitQuery("anonymous").path("payload").path("data").path(0).path("value").stringValue())
         anonymous.send(subscribe("protected", 2, SECURED_NAME, "full"))
-        assertEquals("protected", anonymous.awaitType("Unauthorized").path("queryId").textValue())
+        assertEquals("protected", anonymous.awaitType("Unauthorized").path("queryId").stringValue())
 
         val authenticated = openSocket(OBSERVABLE_QUERY_WS_ROUTE, "Bearer good")
         authenticated.awaitType("Connected")
         authenticated.send(subscribe("protected-authenticated", 3, SECURED_NAME, "full"))
         assertEquals(
             "one",
-            authenticated.awaitQuery("protected-authenticated").path("payload").path("data").path(0).path("value").textValue()
+            authenticated.awaitQuery("protected-authenticated").path("payload").path("data").path(0).path("value").stringValue()
         )
     }
 
@@ -327,18 +328,18 @@ internal class ArcObservableQueryHostingTests {
         )
         assertEquals(
             "supplied-9",
-            socket.awaitQuery("q-mixed").path("payload").path("data").path(0).path("value").textValue()
+            socket.awaitQuery("q-mixed").path("payload").path("data").path(0).path("value").stringValue()
         )
 
         socket.send(
             """{"type":"Subscribe","queryId":"q-duplicate","revision":2,"payload":{"queryName":"$DEFAULTED_NAME","arguments":{"count":null,"COUNT":"9"}}}"""
         )
-        assertEquals("q-duplicate", socket.awaitType("Error").path("queryId").textValue())
+        assertEquals("q-duplicate", socket.awaitType("Error").path("queryId").stringValue())
 
         socket.send(
             """{"type":"Subscribe","queryId":"q-unknown","revision":3,"payload":{"queryName":"$DEFAULTED_NAME","arguments":{"unknown":"9"}}}"""
         )
-        assertEquals("q-unknown", socket.awaitType("Error").path("queryId").textValue())
+        assertEquals("q-unknown", socket.awaitType("Error").path("queryId").stringValue())
     }
 
     @Test
@@ -365,8 +366,8 @@ internal class ArcObservableQueryHostingTests {
         val sse = openSse(OBSERVABLE_QUERY_SSE_ROUTE)
         val reader = BufferedReader(sse.body().reader())
         val connected = readSseMessage(reader)
-        assertEquals("Connected", connected.path("type").textValue())
-        val connectionId = connected.path("payload").textValue()
+        assertEquals("Connected", connected.path("type").stringValue())
+        val connectionId = connected.path("payload").stringValue()
         assertTrue(connectionId.isNotBlank())
 
         val unknown = postJson(
@@ -383,10 +384,10 @@ internal class ArcObservableQueryHostingTests {
         )
         assertEquals(200, accepted.statusCode())
         assertEquals(correlationId, accepted.headers().firstValue("X-Arc-Correlation").orElse(""))
-        val result = generateSequence { readSseMessage(reader) }.first { it.path("type").textValue() == "QueryResult" }
-        assertEquals("q-sse", result.path("queryId").textValue())
+        val result = generateSequence { readSseMessage(reader) }.first { it.path("type").stringValue() == "QueryResult" }
+        assertEquals("q-sse", result.path("queryId").stringValue())
         assertEquals(4, result.path("revision").longValue())
-        assertEquals(correlationId, result.path("payload").path("correlationId").textValue())
+        assertEquals(correlationId, result.path("payload").path("correlationId").stringValue())
 
         val removed = postJson(
             OBSERVABLE_QUERY_SSE_UNSUBSCRIBE_ROUTE,
@@ -402,11 +403,11 @@ internal class ArcObservableQueryHostingTests {
 
         socket.send(subscribe("q-unknown-mode", 1, OBSERVABLE_NAME, "compact"))
         val served = socket.awaitQueryWithin("q-unknown-mode").path("payload")
-        assertEquals("one", served.path("data").path(0).path("value").textValue())
+        assertEquals("one", served.path("data").path(0).path("value").stringValue())
 
         socket.send(subscribe("q-cased-mode", 2, OBSERVABLE_NAME, "FULL"))
         val cased = socket.awaitQueryWithin("q-cased-mode").path("payload")
-        assertEquals("one", cased.path("data").path(0).path("value").textValue())
+        assertEquals("one", cased.path("data").path(0).path("value").stringValue())
         assertTrue(cased.path("changeSet").isMissingNode || cased.path("changeSet").isNull, cased.toString())
     }
 
@@ -414,7 +415,7 @@ internal class ArcObservableQueryHostingTests {
     fun `an SSE subscription naming a transfer mode the server does not know is accepted`() {
         val sse = openSse(OBSERVABLE_QUERY_SSE_ROUTE)
         val reader = BufferedReader(sse.body().reader())
-        val connectionId = readSseMessage(reader).path("payload").textValue()
+        val connectionId = readSseMessage(reader).path("payload").stringValue()
 
         val accepted = postJson(
             OBSERVABLE_QUERY_SSE_SUBSCRIBE_ROUTE,
@@ -424,9 +425,9 @@ internal class ArcObservableQueryHostingTests {
         assertEquals(200, accepted.statusCode(), accepted.body())
         val result = generateSequence { readSseMessage(reader) }
             .take(HEARTBEAT_BOUNDED_MESSAGES)
-            .first { it.path("type").textValue() == "QueryResult" }
-        assertEquals("q-sse-unknown-mode", result.path("queryId").textValue())
-        assertEquals("one", result.path("payload").path("data").path(0).path("value").textValue())
+            .first { it.path("type").stringValue() == "QueryResult" }
+        assertEquals("q-sse-unknown-mode", result.path("queryId").stringValue())
+        assertEquals("one", result.path("payload").path("data").path(0).path("value").stringValue())
     }
 
     /**
@@ -438,7 +439,7 @@ internal class ArcObservableQueryHostingTests {
      */
     private fun TestSocket.awaitQueryWithin(queryId: String): JsonNode =
         generateSequence(::awaitJson).take(HEARTBEAT_BOUNDED_MESSAGES).first {
-            it.path("type").textValue() == "QueryResult" && it.path("queryId").textValue() == queryId
+            it.path("type").stringValue() == "QueryResult" && it.path("queryId").stringValue() == queryId
         }
 
     private fun openSocket(
@@ -628,7 +629,7 @@ private class ObservablePerformer(
 }
 
 internal class ArcObservableQuerySocketWaitTests {
-    private val objectMapper = ObjectMapper()
+    private val objectMapper = JsonMapper.builder().build()
 
     @Test
     fun `type wait expires despite sustained pings`() {
@@ -751,10 +752,10 @@ private class TestSocket(
     fun awaitJson(): JsonNode = messages.poll(timeout.toNanos(), TimeUnit.NANOSECONDS)
         ?: throw AssertionError("Timed out waiting for WebSocket message.")
 
-    fun awaitType(type: String): JsonNode = awaitMatching("type '$type'") { it.path("type").textValue() == type }
+    fun awaitType(type: String): JsonNode = awaitMatching("type '$type'") { it.path("type").stringValue() == type }
 
     fun awaitQuery(queryId: String): JsonNode = awaitMatching("QueryResult for queryId '$queryId'") {
-        it.path("type").textValue() == "QueryResult" && it.path("queryId").textValue() == queryId
+        it.path("type").stringValue() == "QueryResult" && it.path("queryId").stringValue() == queryId
     }
 
     private fun awaitMatching(expected: String, matches: (JsonNode) -> Boolean): JsonNode {
@@ -769,8 +770,8 @@ private class TestSocket(
             observed++
             if (recent.size == 5) recent.removeAt(0)
             recent.add(
-                "type=${message.path("type").asText().take(80)}, " +
-                    "queryId=${message.path("queryId").asText().take(80)}"
+                "type=${message.path("type").asString().take(80)}, " +
+                    "queryId=${message.path("queryId").asString().take(80)}"
             )
         }
         throw AssertionError(

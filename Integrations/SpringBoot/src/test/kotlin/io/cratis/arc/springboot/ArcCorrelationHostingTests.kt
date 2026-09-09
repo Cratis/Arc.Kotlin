@@ -3,7 +3,7 @@
 
 package io.cratis.arc.springboot
 
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.ObjectMapper
 import jakarta.servlet.Filter
 import jakarta.servlet.http.HttpServletRequest
 import java.net.URI
@@ -71,9 +71,9 @@ internal class ArcCorrelationHostingTests {
         val echoed = correlationHeader(response)
         UUID.fromString(echoed)
         val observed = objectMapper.readTree(response.body())
-        assertEquals(echoed, observed.path("attribute").textValue())
-        assertEquals(echoed, observed.path("header").textValue())
-        assertEquals(echoed, observed.path("logging").textValue())
+        assertEquals(echoed, observed.path("attribute").stringValue())
+        assertEquals(echoed, observed.path("header").stringValue())
+        assertEquals(echoed, observed.path("logging").stringValue())
     }
 
     @Test
@@ -84,9 +84,9 @@ internal class ArcCorrelationHostingTests {
 
         assertEquals(supplied, correlationHeader(response))
         val observed = objectMapper.readTree(response.body())
-        assertEquals(supplied, observed.path("attribute").textValue())
-        assertEquals(supplied, observed.path("header").textValue())
-        assertEquals(supplied, observed.path("logging").textValue())
+        assertEquals(supplied, observed.path("attribute").stringValue())
+        assertEquals(supplied, observed.path("header").stringValue())
+        assertEquals(supplied, observed.path("logging").stringValue())
     }
 
     @Test
@@ -97,8 +97,8 @@ internal class ArcCorrelationHostingTests {
         assertNotEquals("not-a-correlation-id", echoed)
         UUID.fromString(echoed)
         val observed = objectMapper.readTree(response.body())
-        assertEquals(echoed, observed.path("attribute").textValue())
-        assertEquals(echoed, observed.path("header").textValue())
+        assertEquals(echoed, observed.path("attribute").stringValue())
+        assertEquals(echoed, observed.path("header").stringValue())
     }
 
     @Test
@@ -116,13 +116,13 @@ internal class ArcCorrelationHostingTests {
         val correlated = send("POST", ARC_ROUTE, supplied, """{"value":"hello"}""")
         assertEquals(200, correlated.statusCode())
         assertEquals(supplied, correlationHeader(correlated))
-        assertEquals(supplied, objectMapper.readTree(correlated.body()).path("correlationId").textValue())
+        assertEquals(supplied, objectMapper.readTree(correlated.body()).path("correlationId").stringValue())
 
         val generated = send("POST", ARC_ROUTE, body = """{"value":"hello"}""")
         assertEquals(200, generated.statusCode())
         val echoed = correlationHeader(generated)
         UUID.fromString(echoed)
-        assertEquals(echoed, objectMapper.readTree(generated.body()).path("correlationId").textValue())
+        assertEquals(echoed, objectMapper.readTree(generated.body()).path("correlationId").stringValue())
     }
 
     @Test
@@ -132,11 +132,11 @@ internal class ArcCorrelationHostingTests {
         val correlated = send("GET", ARC_ROUTE, supplied)
         assertEquals(200, correlated.statusCode())
         assertEquals(supplied, correlationHeader(correlated))
-        assertEquals(supplied, objectMapper.readTree(correlated.body()).path("correlationId").textValue())
+        assertEquals(supplied, objectMapper.readTree(correlated.body()).path("correlationId").stringValue())
 
         val generated = send("GET", ARC_ROUTE)
         val echoed = correlationHeader(generated)
-        assertEquals(echoed, objectMapper.readTree(generated.body()).path("correlationId").textValue())
+        assertEquals(echoed, objectMapper.readTree(generated.body()).path("correlationId").stringValue())
     }
 
     @Test

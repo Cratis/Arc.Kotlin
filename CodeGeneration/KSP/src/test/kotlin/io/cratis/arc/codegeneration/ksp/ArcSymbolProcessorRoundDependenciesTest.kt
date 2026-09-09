@@ -127,7 +127,7 @@ internal class ArcSymbolProcessorRoundDependenciesTest {
         val manifest = ArcObjectMapper.create().readTree(
             resources.resolve("META-INF/cratis/arc/RoundDependencies.json")
         )
-        assertEquals(listOf("Input", "LateCommand"), manifest["commands"].map { it["name"].textValue() })
+        assertEquals(listOf("Input", "LateCommand"), manifest["commands"].values().map { it["name"].stringValue() })
         val module = result.classLoader.loadClass("io.cratis.arc.generated.RoundDependenciesArcArtifactModule")
             .getConstructor().newInstance() as ArcArtifactModule
         assertEquals(listOf("Input", "LateCommand"), module.commandHandlers.map { it.metadata.name })

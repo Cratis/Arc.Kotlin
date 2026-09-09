@@ -3,7 +3,7 @@
 
 package io.cratis.arc.queries
 
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.ObjectMapper
 import io.cratis.arc.artifacts.CommandKey
 import io.cratis.arc.json.ArcObjectMapper
 import io.cratis.arc.results.ChangeSet

@@ -3,7 +3,7 @@
 
 package io.cratis.arc.results
 
-import com.fasterxml.jackson.databind.JsonNode
+import tools.jackson.databind.JsonNode
 import io.cratis.arc.ExceptionDetailRedactor
 import io.cratis.arc.http.ArcHttpStatus
 import io.cratis.arc.http.ArcHttpStatusMapper
@@ -45,17 +45,17 @@ class ResultContractsTest {
                 "hasExceptions",
                 "isSuccess"
             ),
-            tree.fieldNames().asSequence().toSet()
+            tree.propertyNames().asSequence().toSet()
         )
-        assertEquals(correlationId.toString(), tree["correlationId"].textValue())
+        assertEquals(correlationId.toString(), tree["correlationId"].stringValue())
         assertTrue(tree["isAuthorized"].booleanValue())
         assertTrue(tree["isValid"].booleanValue())
         assertFalse(tree["hasExceptions"].booleanValue())
         assertTrue(tree["isSuccess"].booleanValue())
         assertTrue(tree["validationResults"].isArray && tree["validationResults"].isEmpty)
         assertTrue(tree["exceptionMessages"].isArray && tree["exceptionMessages"].isEmpty)
-        assertEquals("", tree["exceptionStackTrace"].textValue())
-        assertEquals("", tree["authorizationFailureReason"].textValue())
+        assertEquals("", tree["exceptionStackTrace"].stringValue())
+        assertEquals("", tree["authorizationFailureReason"].stringValue())
         assertNull(tree["response"])
         assertEquals(ArcHttpStatus.OK, ArcHttpStatusMapper.map(result))
     }
@@ -70,7 +70,7 @@ class ResultContractsTest {
         assertFalse(result.isSuccess)
         assertEquals(ArcHttpStatus.BAD_REQUEST, ArcHttpStatusMapper.map(result))
         assertEquals(3, tree["validationResults"][0]["severity"].intValue())
-        assertEquals("rule", tree["validationResults"][0]["reason"].textValue())
+        assertEquals("rule", tree["validationResults"][0]["reason"].stringValue())
         assertTrue(tree["validationResults"][0]["members"].isEmpty)
         assertNull(tree["validationResults"][0]["state"])
         assertNull(tree["validationResults"][0]["reasonDetail"])
@@ -103,19 +103,19 @@ class ResultContractsTest {
                 "hasExceptions",
                 "isSuccess"
             ),
-            tree.fieldNames().asSequence().toSet()
+            tree.propertyNames().asSequence().toSet()
         )
-        assertEquals(listOf("one", "two"), tree["data"].map { it.textValue() })
+        assertEquals(listOf("one", "two"), tree["data"].values().map { it.stringValue() })
         assertEquals(2, tree["paging"]["page"].intValue())
         assertEquals(10, tree["paging"]["size"].intValue())
         assertEquals(21, tree["paging"]["totalItems"].intValue())
         assertEquals(3, tree["paging"]["totalPages"].intValue())
-        assertEquals(listOf("two"), tree["changeSet"]["added"].map { it.textValue() })
+        assertEquals(listOf("two"), tree["changeSet"]["added"].values().map { it.stringValue() })
         assertTrue(tree["changeSet"]["replaced"].isEmpty)
         assertTrue(tree["changeSet"]["removed"].isEmpty)
         assertTrue(tree["validationResults"].isEmpty)
         assertTrue(tree["exceptionMessages"].isEmpty)
-        assertEquals("", tree["exceptionStackTrace"].textValue())
+        assertEquals("", tree["exceptionStackTrace"].stringValue())
         assertNull(tree["authorizationFailureReason"])
     }
 

@@ -20,7 +20,7 @@ If a rule file ever disagrees with this file, this file wins and the rule file i
 
 - Target JDK 17 and Gradle 8.14.4.
 - Kotlin is the implementation language; Java is a first-class consumer language. Keep public APIs straightforward from Java, avoid Kotlin-only call patterns at public boundaries, and verify important APIs from both languages.
-- Spring Boot 4.1.x is the supported host integration baseline. Do not introduce Ktor or another host framework. Arc retains its published Jackson 2 API through Spring Boot's `spring-boot-jackson2` compatibility module; migrating that public surface to Jackson 3 is a separate future major change.
+- Spring Boot 4.1.x is the supported host integration baseline. Do not introduce Ktor or another host framework. Jackson 3.1.x is Arc's JSON implementation and published API; Jackson annotations intentionally remain on the Jackson 2 package, as required by Jackson 3.
 - Use Jackson for JSON. Do not introduce Gson.
 - Prefer structured coroutine context and explicit request/context propagation. Never use `ThreadLocal` for coroutine-visible state.
 - Treat compiler warnings as errors and use JUnit 5.

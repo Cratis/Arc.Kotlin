@@ -3,7 +3,7 @@
 
 package io.cratis.arc.springboot
 
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.ObjectMapper
 import io.cratis.arc.artifacts.ArcArtifactModule
 import io.cratis.arc.authentication.AuthenticationFailureReason
 import io.cratis.arc.authentication.AuthenticationHandler
@@ -133,14 +133,14 @@ internal class ArcAuthenticationHostingTests {
         val anonymousQuery = send("GET", PROTECTED_COMMAND_ROUTE)
         assertEquals(200, anonymousQuery.statusCode())
         assertEquals(true, objectMapper.readTree(anonymousQuery.body()).path("isAuthorized").booleanValue())
-        assertEquals("anonymous-query", objectMapper.readTree(anonymousQuery.body()).path("data").textValue())
+        assertEquals("anonymous-query", objectMapper.readTree(anonymousQuery.body()).path("data").stringValue())
         val anonymousRfcQuery = send(
             "QUERY",
             PROTECTED_COMMAND_ROUTE,
             body = """{"arguments":{},"paging":{},"sorting":{}}"""
         )
         assertEquals(200, anonymousRfcQuery.statusCode())
-        assertEquals("anonymous-query", objectMapper.readTree(anonymousRfcQuery.body()).path("data").textValue())
+        assertEquals("anonymous-query", objectMapper.readTree(anonymousRfcQuery.body()).path("data").stringValue())
 
         val forbiddenCommand = send(
             "POST",
@@ -157,7 +157,7 @@ internal class ArcAuthenticationHostingTests {
         val anonymousCommand = send("POST", ANONYMOUS_COMMAND_ROUTE, body = """{"value":"one"}""")
         assertEquals(200, anonymousCommand.statusCode())
         assertEquals(true, objectMapper.readTree(anonymousCommand.body()).path("isAuthorized").booleanValue())
-        assertEquals("one", objectMapper.readTree(anonymousCommand.body()).path("response").textValue())
+        assertEquals("one", objectMapper.readTree(anonymousCommand.body()).path("response").stringValue())
 
         val queryUnauthorized = send("GET", ANONYMOUS_COMMAND_ROUTE)
         assertEquals(401, queryUnauthorized.statusCode())
@@ -170,7 +170,7 @@ internal class ArcAuthenticationHostingTests {
         val protectedQuery = send("GET", ANONYMOUS_COMMAND_ROUTE, "Bearer good")
         assertEquals(200, protectedQuery.statusCode())
         assertEquals(true, objectMapper.readTree(protectedQuery.body()).path("isAuthorized").booleanValue())
-        assertEquals("protected-query", objectMapper.readTree(protectedQuery.body()).path("data").textValue())
+        assertEquals("protected-query", objectMapper.readTree(protectedQuery.body()).path("data").stringValue())
     }
 
     @Test

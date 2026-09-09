@@ -3,8 +3,8 @@
 
 package io.cratis.arc.springboot
 
-import com.fasterxml.jackson.databind.DeserializationFeature
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.DeserializationFeature
+import tools.jackson.databind.ObjectMapper
 import io.cratis.arc.artifacts.ArcArtifactModule
 import io.cratis.arc.json.ArcObjectMapper
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -48,9 +48,9 @@ internal class ArcUnknownFieldHostingTests {
 
     @Test
     fun `hosted mapper relaxes the unknown-field default that the standalone mapper keeps`() {
-        assertFalse(objectMapper.deserializationConfig.isEnabled(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES))
+        assertFalse(objectMapper.deserializationConfig().isEnabled(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES))
         assertTrue(
-            ArcObjectMapper.create().deserializationConfig
+            ArcObjectMapper.create().deserializationConfig()
                 .isEnabled(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
         )
     }

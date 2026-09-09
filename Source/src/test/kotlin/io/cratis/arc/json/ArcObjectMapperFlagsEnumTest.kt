@@ -3,8 +3,8 @@
 
 package io.cratis.arc.json
 
-import com.fasterxml.jackson.databind.JsonMappingException
-import com.fasterxml.jackson.module.kotlin.readValue
+import tools.jackson.databind.DatabindException
+import tools.jackson.module.kotlin.readValue
 import io.cratis.arc.concepts.ArcEnum
 import io.cratis.arc.concepts.Flags
 import java.util.EnumSet
@@ -38,7 +38,7 @@ class ArcObjectMapperFlagsEnumTest {
 
     @Test
     fun `a combination no constant declares is rejected and names the value and the type`() {
-        val exception = assertThrows(JsonMappingException::class.java) {
+        val exception = assertThrows(DatabindException::class.java) {
             mapper.readValue("3", FlagPermission::class.java)
         }
 
@@ -52,7 +52,7 @@ class ArcObjectMapperFlagsEnumTest {
             mapper.writeValueAsString(UnflaggedPermission.Write),
             mapper.writeValueAsString(FlagPermission.Write)
         )
-        assertThrows(JsonMappingException::class.java) {
+        assertThrows(DatabindException::class.java) {
             mapper.readValue("3", UnflaggedPermission::class.java)
         }
     }
@@ -83,7 +83,7 @@ class ArcObjectMapperFlagsEnumTest {
 
     @Test
     fun `a set of flags rejects an element no constant declares`() {
-        assertThrows(JsonMappingException::class.java) {
+        assertThrows(DatabindException::class.java) {
             mapper.readValue<FlagPermissionHolder>("""{"permissions":[3]}""")
         }
     }

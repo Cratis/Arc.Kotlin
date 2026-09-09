@@ -3,7 +3,7 @@
 
 package io.cratis.arc.codegeneration.ksp
 
-import com.fasterxml.jackson.databind.JsonNode
+import tools.jackson.databind.JsonNode
 import io.cratis.arc.artifacts.ArcArtifactManifest
 import io.cratis.arc.json.ArcObjectMapper
 import io.cratis.arc.metadata.AuthorizationMetadata
@@ -73,7 +73,7 @@ internal class ArcManifestJsonTest {
         assertFalse(root["types"][0].has("derivedTypeId"))
         assertEquals(false, root["types"][0]["properties"][0]["isCommandKey"].booleanValue())
         assertEquals(false, root["enums"][0]["isFlags"].booleanValue())
-        assertEquals("", root["enums"][0]["allFlagsExpression"].textValue())
+        assertEquals("", root["enums"][0]["allFlagsExpression"].stringValue())
     }
 
     @Test
@@ -94,13 +94,13 @@ internal class ArcManifestJsonTest {
         val property = root["commands"][0]["properties"][0]
         assertEquals(listOf("name", "shape", "isCommandKey", "validationRules", "validateRecursively", "derivatives"), keys(property))
         assertEquals(listOf("ruleName", "arguments", "message"), keys(property["validationRules"][0]))
-        assertEquals("ID", property["name"].textValue())
+        assertEquals("ID", property["name"].stringValue())
         assertEquals(true, property["isCommandKey"].booleanValue())
         assertFalse(property.has("commandKey"))
         assertFalse(root["enums"][0].has("flags"))
-        assertEquals("policy", root["commands"][0]["authorization"]["policy"].textValue())
-        assertEquals("/command", root["commands"][0]["explicitPath"].textValue())
-        assertEquals("Flags.read | Flags.write", root["enums"][0]["allFlagsExpression"].textValue())
+        assertEquals("policy", root["commands"][0]["authorization"]["policy"].stringValue())
+        assertEquals("/command", root["commands"][0]["explicitPath"].stringValue())
+        assertEquals("Flags.read | Flags.write", root["enums"][0]["allFlagsExpression"].stringValue())
     }
 
     @Test
@@ -108,15 +108,15 @@ internal class ArcManifestJsonTest {
         val manifest = fullManifest()
         val root = assertEquivalent(manifest)
         val map = root["commands"][0]["properties"][1]["shape"]
-        assertEquals("MAP", map["kind"].textValue())
+        assertEquals("MAP", map["kind"].stringValue())
         assertEquals(true, map["nullable"].booleanValue())
-        assertEquals("STRING", map["keyCodec"].textValue())
+        assertEquals("STRING", map["keyCodec"].stringValue())
         assertEquals(false, map["keyShape"]["nullable"].booleanValue())
-        assertEquals("MAP", map["valueShape"]["kind"].textValue())
-        assertEquals("ARRAY", map["valueShape"]["valueShape"]["sequenceKind"].textValue())
+        assertEquals("MAP", map["valueShape"]["kind"].stringValue())
+        assertEquals("ARRAY", map["valueShape"]["valueShape"]["sequenceKind"].stringValue())
         SequenceKind.entries.forEachIndexed { index, kind ->
             val shape = root["commands"][0]["properties"][index + 2]["shape"]
-            assertEquals(kind.name, shape["sequenceKind"].textValue())
+            assertEquals(kind.name, shape["sequenceKind"].stringValue())
             assertEquals(true, shape["nullable"].booleanValue())
         }
         manifest.queries.forEachIndexed { index, query ->
@@ -126,7 +126,7 @@ internal class ArcManifestJsonTest {
             assertEquals(query.routeOptions.transport.ordinal, node["routeOptions"]["transport"].intValue())
             query.parameters.forEachIndexed { parameterIndex, parameter ->
                 val parameterNode = node["parameters"][parameterIndex]
-                assertEquals(parameter.source.name, parameterNode["source"].textValue())
+                assertEquals(parameter.source.name, parameterNode["source"].stringValue())
                 assertEquals(parameter.source == QueryParameterSource.CLIENT, parameterNode["hasDefault"].booleanValue())
             }
         }
@@ -175,13 +175,13 @@ internal class ArcManifestJsonTest {
             ))
         ))
         val serialized = assertEquivalent(manifest)["types"][0]["properties"][0]["validationRules"]
-        assertEquals(rules[0].message, serialized[0]["message"].textValue())
-        assertEquals("NaN", serialized[0]["arguments"][5].textValue())
-        assertEquals("2025-01-02", serialized[0]["arguments"][6].textValue())
-        assertEquals("03:04:05.1234567", serialized[0]["arguments"][7].textValue())
+        assertEquals(rules[0].message, serialized[0]["message"].stringValue())
+        assertEquals("NaN", serialized[0]["arguments"][5].stringValue())
+        assertEquals("2025-01-02", serialized[0]["arguments"][6].stringValue())
+        assertEquals("03:04:05.1234567", serialized[0]["arguments"][7].stringValue())
         assertFalse(serialized[1].has("message"))
         assertTrue(serialized[1]["arguments"].isEmpty)
-        assertEquals("", serialized[2]["message"].textValue())
+        assertEquals("", serialized[2]["message"].stringValue())
     }
 
     @Test
@@ -204,7 +204,7 @@ internal class ArcManifestJsonTest {
         return runtimeMapper.readTree(actual)
     }
 
-    private fun keys(node: JsonNode): List<String> = node.fieldNames().asSequence().toList()
+    private fun keys(node: JsonNode): List<String> = node.propertyNames().iterator().asSequence().toList()
 
     private fun fullManifest(): ArcArtifactManifest {
         val string = TypeShapeDescriptor.value("kotlin.String")

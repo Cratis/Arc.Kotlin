@@ -3,9 +3,9 @@
 
 package io.cratis.arc.introspection
 
-import com.fasterxml.jackson.databind.JsonNode
-import com.fasterxml.jackson.databind.node.JsonNodeFactory
-import com.fasterxml.jackson.databind.node.ObjectNode
+import tools.jackson.databind.JsonNode
+import tools.jackson.databind.node.JsonNodeFactory
+import tools.jackson.databind.node.ObjectNode
 import io.cratis.arc.commands.CommandHandlerRegistry
 import io.cratis.arc.metadata.ApiEndpointOptions
 import io.cratis.arc.metadata.EndpointRouteHelper
@@ -159,7 +159,7 @@ public class DefaultIntrospectionService(
         val propertySchemas = schema.putObject("properties")
         val required = schema.putArray("required")
         properties.forEach { property ->
-            propertySchemas.set<ObjectNode>(property.name, typeSchema(property.typeName, property.isEnumerable, property.elementTypeName))
+            propertySchemas.set(property.name, typeSchema(property.typeName, property.isEnumerable, property.elementTypeName))
             if (!property.isNullable) required.add(property.name)
         }
         if (required.isEmpty) schema.remove("required")
@@ -171,7 +171,7 @@ public class DefaultIntrospectionService(
         val propertySchemas = schema.putObject("properties")
         val required = schema.putArray("required")
         parameters.forEach { parameter ->
-            propertySchemas.set<ObjectNode>(parameter.name, typeSchema(parameter.typeName, parameter.isEnumerable, parameter.elementTypeName))
+            propertySchemas.set(parameter.name, typeSchema(parameter.typeName, parameter.isEnumerable, parameter.elementTypeName))
             if (!parameter.isNullable && !parameter.hasDefault) required.add(parameter.name)
         }
         if (required.isEmpty) schema.remove("required")

@@ -3,7 +3,7 @@
 
 package io.cratis.arc.springboot
 
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.ObjectMapper
 import jakarta.servlet.Filter
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
@@ -66,7 +66,7 @@ internal class ArcEndpointCorrelationTests {
             if (endpoint.reportsCorrelationInBody) {
                 assertEquals(
                     established,
-                    objectMapper.readTree(response.body()).path("correlationId").textValue(),
+                    objectMapper.readTree(response.body()).path("correlationId").stringValue(),
                     "${endpoint.name} reported a correlation identifier the host did not establish."
                 )
             }
@@ -152,7 +152,7 @@ internal class ArcEndpointCorrelationWithoutFilterTests {
             if (endpoint.reportsCorrelationInBody) {
                 assertEquals(
                     echoed,
-                    objectMapper.readTree(response.body()).path("correlationId").textValue(),
+                    objectMapper.readTree(response.body()).path("correlationId").stringValue(),
                     "${endpoint.name} reported a correlation identifier it did not echo."
                 )
             }

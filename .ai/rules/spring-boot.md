@@ -4,10 +4,9 @@ This file governs `Integrations/SpringBoot` (published as `io.cratis:arc-spring-
 the Spring-facing surface of the other integrations: how autoconfiguration is structured, how
 optional dependencies are expressed, how configuration properties are named and documented, and how
 Spring bean lifetime interacts with Arc's coroutine model. Spring Boot 4.1.x is the **only** supported
-host integration baseline — see the boundary rule at the end of this file. Arc retains its published
-Jackson 2 (`com.fasterxml.jackson`) contract through Boot's `spring-boot-jackson2` compatibility
-module while Boot's application stack defaults to Jackson 3 (`tools.jackson`). That bridge is bounded;
-issue #150 owns the public Jackson 3 migration required before Spring Boot removes it. Framework-wide design principles
+host integration baseline — see the boundary rule at the end of this file. Arc uses Jackson 3.1.x
+(`tools.jackson`) for its implementation and published API. Jackson annotations intentionally remain
+under `com.fasterxml.jackson.annotation`, as required by Jackson 3 itself. Framework-wide design principles
 live in [framework.md](./framework.md); build wiring lives in [gradle.md](./gradle.md).
 
 ## Dependency direction is one-way
@@ -17,9 +16,9 @@ live in [framework.md](./framework.md); build wiring lives in [gradle.md](./grad
   `QueryPipeline`, `CommandExecutionScope`, `ServiceResolver`, `TenantIdResolver`,
   `AuthenticationHandler`, `IdentityDetailsProvider`) live in `Source`; the Spring adaptation of each
   lives here.
-- The starter's `build.gradle.kts` declares four `api` dependencies — `project(":Source")`,
-  `spring-boot`, `spring-boot-autoconfigure`, and the bounded `spring-boot-jackson2` compatibility
-  bridge. Everything else is deliberately `compileOnly`: `spring-boot-starter-webmvc`,
+- The starter's `build.gradle.kts` declares three `api` dependencies — `project(":Source")`,
+  `spring-boot`, and `spring-boot-autoconfigure`. Jackson 3 is exposed transitively by `Source`.
+  Everything else is deliberately `compileOnly`: `spring-boot-starter-webmvc`,
   `spring-boot-starter-websocket`, `spring-boot-starter-security`,
   `jakarta.validation:jakarta.validation-api`, and `spring-boot-configuration-processor`.
 - Do not promote a `compileOnly` dependency to `api`/`implementation` to make something compile. If
@@ -36,7 +35,7 @@ Know which layer you are editing:
 
 | Class | Guarded by | Owns |
 | --- | --- | --- |
-| `ArcAutoConfiguration` | none (host-neutral) | registries, pipelines, authentication, authorization, tenancy resolution, introspection, artifact modules, coroutine scope, Jackson 2 wiring |
+| `ArcAutoConfiguration` | none (host-neutral) | registries, pipelines, authentication, authorization, tenancy resolution, introspection, artifact modules, coroutine scope, Jackson 3 wiring |
 | `ArcCorrelationAutoConfiguration` | servlet application with `cratis.arc.correlation-enabled` enabled (the default) | host-wide correlation request wrapping, response headers, and servlet-thread MDC |
 | `ArcValidationAutoConfiguration` | `@AutoConfiguration(after = [ArcAutoConfiguration::class])`, `@ConditionalOnClass(name = ["jakarta.validation.Validator"])` | the Jakarta Bean Validation command and query filters |
 | `ArcWebAutoConfiguration` | `@ConditionalOnWebApplication(type = SERVLET)`, `@ConditionalOnClass(name = ["jakarta.servlet.Servlet", "org.springframework.web.servlet.DispatcherServlet"])` | servlet hosting: the authentication filter registration, observable-query transport, and the command/query handler mapping |
@@ -81,9 +80,9 @@ Each of the other integrations registers exactly one autoconfiguration in its ow
   `@Bean("arcJakartaBeanValidationCommandFilter")` with
   `@ConditionalOnMissingBean(name = ["arcJakartaBeanValidationCommandFilter"])` — when the declared
   return type is a type applications legitimately register many of (`CommandFilter`, `QueryFilter`,
-  `BeanPostProcessor`, `FilterRegistrationBean`, `SimpleUrlHandlerMapping`). The Jackson 2 defaults
-  bean retains the historical `arcJacksonCustomizer` name even though Boot 4 requires a
-  warning-free BeanPostProcessor instead of its deprecated compatibility customizer interface.
+  `JsonMapperBuilderCustomizer`, `FilterRegistrationBean`, `SimpleUrlHandlerMapping`). The Jackson
+  defaults bean retains the historical `arcJacksonCustomizer` name while using Boot 4's native,
+  non-deprecated Jackson 3 builder customizer.
   Getting this wrong silently disables Arc's own bean; a bean-backoff test is required.
 - **Collect application contributions with `ObjectProvider<T>.orderedStream()`**, so Spring `@Order`
   is the complete and documented precedence rule, as `arcCommandPipeline`, `arcQueryRenderers`, and
@@ -160,7 +159,7 @@ Each of the other integrations registers exactly one autoconfiguration in its ow
    file — an unregistered class is dead code.
 5. Test it with Spring Boot's context runners, which is the established convention here:
    `ApplicationContextRunner` for host-neutral wiring and `WebApplicationContextRunner` for servlet
-   wiring, composed with `Jackson2AutoConfiguration` (loaded by class name in tests to avoid compiling against Boot's deprecated bridge type), `ArcAutoConfiguration`, and the relevant web/security auto-configurations.
+   wiring, composed with Boot's native `JacksonAutoConfiguration`, `ArcAutoConfiguration`, and the relevant web/security auto-configurations.
    Cover at least: the default bean is present; an application `withBean(...)` replaces it
    (`assertSame`); property variants behave (`withPropertyValues("cratis.arc.tenancy.resolvers=subdomain", ...)`);
    and invalid configuration fails startup with the exact message
@@ -170,16 +169,14 @@ Each of the other integrations registers exactly one autoconfiguration in its ow
 
 ## Spring Boot 4.1.x is the only supported host baseline
 
-Spring Boot 4 defaults application MVC to Jackson 3, but Arc endpoints inject and write with Jackson
-2 directly. The starter therefore publishes `spring-boot-jackson2`, supplies `ArcJacksonModule`, and
-applies Arc's wire defaults to Jackson 2 mapper beans without referencing Boot's deprecated Jackson 2
-customizer API. Applications that want conventional MVC controllers to use the same Jackson 2 mapper
-select `spring.http.converters.preferred-json-mapper=jackson2`; Arc does not silently make that
-application-wide decision.
+Spring Boot 4 and Arc share one Jackson 3 mapper. Arc contributes `ArcJacksonModule` plus a native
+`JsonMapperBuilderCustomizer` named `arcJacksonCustomizer`, so generated Arc endpoints and
+conventional MVC controllers use the same naming, inclusion, temporal, enum, concept, and derived-type
+wire policy. Application-supplied mappers remain authoritative because Jackson 3 mappers are
+immutable; create an Arc-configured replacement with `ArcObjectMapper.configure(mapper)` when needed.
 
-The compatibility module is deprecated for removal in Spring Boot 4.3. Issue #150 owns the deliberate
-Jackson 3 public-API migration required before that baseline. Hold unverified Spring Boot minors at
-4.1.x rather than discovering bridge removal through a dependency update.
+Hold unverified Spring Boot minors at 4.1.x until their managed Jackson and coroutines versions are
+synchronized deliberately.
 
 `AGENTS.md`, `README.md`, and `Documentation/reference/parity.md` all state that Spring Boot is the
 only host, and the parity

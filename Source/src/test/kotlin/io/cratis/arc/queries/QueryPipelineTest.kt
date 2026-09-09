@@ -283,18 +283,18 @@ class QueryPipelineTest {
     @Test
     fun `request pageSize and response size retain distinct wire fields`() {
         val mapper = ArcObjectMapper.create()
-        val requestTree = mapper.valueToTree<com.fasterxml.jackson.databind.JsonNode>(
+        val requestTree = mapper.valueToTree<tools.jackson.databind.JsonNode>(
             QueryRequest(
                 name,
                 paging = QueryPaging(2, 25),
                 sorting = QuerySorting("createdAt", QuerySortDirection.DESCENDING)
             )
         )
-        val resultTree = mapper.valueToTree<com.fasterxml.jackson.databind.JsonNode>(
+        val resultTree = mapper.valueToTree<tools.jackson.databind.JsonNode>(
             QueryResult.success<List<Order>>(correlationId, emptyList(), PagingInfo(2, 25, 51))
         )
 
-        assertEquals(name.value, requestTree["queryName"].textValue())
+        assertEquals(name.value, requestTree["queryName"].stringValue())
         assertEquals(25, requestTree["paging"]["pageSize"].intValue())
         assertNull(requestTree["paging"]["size"])
         assertEquals(2, requestTree["sorting"]["direction"].intValue())

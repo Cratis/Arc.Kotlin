@@ -9,11 +9,9 @@ plugins {
     id("com.vanniktech.maven.publish")
 }
 
-// Compile against the versions Spring Boot 4.1.1 supplies to consuming applications. The
-// spring-boot-jackson2 bridge manages Jackson 2.21.5, and the Boot BOM manages coroutines 1.10.2.
-// Keeping Arc aligned prevents the compile/runtime binary skew that issue #135 exposed under Boot
-// 3.5, where Job.cancel() was compiled against a newer default-method layout than the host loaded.
-val jacksonVersion = "2.21.5"
+// Compile against the versions Spring Boot 4.1.1 supplies to consuming applications. Keeping Arc
+// aligned prevents the compile/runtime binary skew that issue #135 exposed under the previous host.
+val jacksonVersion = "3.1.5"
 val coroutinesVersion = "1.10.2"
 val jakartaValidationVersion = "3.1.1"
 val slf4jVersion = "2.0.19"
@@ -27,9 +25,8 @@ kotlin {
 dependencies {
     api("org.jetbrains.kotlin:kotlin-reflect:2.4.10")
     api("jakarta.validation:jakarta.validation-api:$jakartaValidationVersion")
-    api("com.fasterxml.jackson.core:jackson-databind:$jacksonVersion")
-    api("com.fasterxml.jackson.module:jackson-module-kotlin:$jacksonVersion")
-    api("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:$jacksonVersion")
+    api("tools.jackson.core:jackson-databind:$jacksonVersion")
+    api("tools.jackson.module:jackson-module-kotlin:$jacksonVersion")
     api("org.jetbrains.kotlinx:kotlinx-coroutines-core:$coroutinesVersion")
     api("org.slf4j:slf4j-api:$slf4jVersion")
 }

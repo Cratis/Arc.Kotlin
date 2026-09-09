@@ -3,7 +3,7 @@
 
 package io.cratis.arc.samples.kotlin.springboot
 
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.ObjectMapper
 import io.cratis.arc.artifacts.ArcArtifactModule
 import io.cratis.arc.springboot.ArcArtifactModules
 import java.util.ServiceLoader
@@ -71,7 +71,7 @@ public class KotlinSampleApplicationTests {
             .andExpect(jsonPath("$.validationResults", hasSize<Any>(0)))
             .andExpect(jsonPath("$.exceptionMessages", hasSize<Any>(0)))
             .andReturn()
-        val taskId = objectMapper.readTree(command.response.contentAsString).path("response").path("id").asText()
+        val taskId = objectMapper.readTree(command.response.contentAsString).path("response").path("id").asString()
         assertTrue(taskCreationResponseValueHandler.hasHandled(taskId))
     }
 
@@ -118,7 +118,7 @@ public class KotlinSampleApplicationTests {
             .andReturn()
 
         val taskIds = objectMapper.readTree(command.response.contentAsString).path("response")
-            .map { response -> response.path("id").asText() }
+            .values().map { response -> response.path("id").asString() }
         assertTrue(taskCreationResponseValueHandler.hasHandledBatch(taskIds))
         assertEquals(listOf("First batch task", "Second batch task"), repository.all().map(TaskView::title))
     }
@@ -172,7 +172,7 @@ public class KotlinSampleApplicationTests {
         val command = execute(post(CREATE_ROUTE).json("""{"title":"Read generated query"}"""))
             .andExpect(status().isOk)
             .andReturn()
-        val id = objectMapper.readTree(command.response.contentAsString).path("response").path("id").asText()
+        val id = objectMapper.readTree(command.response.contentAsString).path("response").path("id").asString()
 
         execute(get(BY_ID_ROUTE).queryParam("id", id))
             .andExpect(status().isOk)

@@ -5,10 +5,10 @@ package io.cratis.arc.json
 
 import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.annotation.JsonProperty
-import com.fasterxml.jackson.databind.DeserializationFeature
-import com.fasterxml.jackson.databind.JsonMappingException
-import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException
-import com.fasterxml.jackson.databind.json.JsonMapper
+import tools.jackson.databind.DeserializationFeature
+import tools.jackson.databind.DatabindException
+import tools.jackson.databind.exc.UnrecognizedPropertyException
+import tools.jackson.databind.json.JsonMapper
 import io.cratis.arc.polymorphism.ConcurrentDerivedTypeRegistry
 import io.cratis.arc.polymorphism.DerivedType
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -47,7 +47,7 @@ internal class ArcObjectMapperMultilevelDerivedTypeTest {
 
     @Test
     fun `middle cannot select itself merely because root registers it`() {
-        val exception = assertThrows(JsonMappingException::class.java) {
+        val exception = assertThrows(DatabindException::class.java) {
             mapper.readValue(middleJson(), Middle::class.java)
         }
 
@@ -74,7 +74,7 @@ internal class ArcObjectMapperMultilevelDerivedTypeTest {
         }
         val configured = ArcObjectMapper.create(explicit)
 
-        assertThrows(JsonMappingException::class.java) { configured.readValue(LEAF_JSON, Root::class.java) }
+        assertThrows(DatabindException::class.java) { configured.readValue(LEAF_JSON, Root::class.java) }
         assertLeaf(configured.readValue(LEAF_JSON, Middle::class.java))
     }
 
@@ -83,7 +83,7 @@ internal class ArcObjectMapperMultilevelDerivedTypeTest {
         "{\"_derivedTypeId\":true}", "{\"_derivedTypeId\":{}}", "{\"_derivedTypeId\":[]}",
         "{\"_derivedTypeId\":\"unknown\"}", "{\"_derivedTypeId\":\"sibling\"}"])
     fun `root rejects missing nontextual unknown and unrelated identifiers`(json: String) {
-        val exception = assertThrows(JsonMappingException::class.java) {
+        val exception = assertThrows(DatabindException::class.java) {
             mapper.readValue(childWithFields(json), Root::class.java)
         }
         assertIdentifierFailure(exception, json)
@@ -94,7 +94,7 @@ internal class ArcObjectMapperMultilevelDerivedTypeTest {
         "{\"_derivedTypeId\":true}", "{\"_derivedTypeId\":{}}", "{\"_derivedTypeId\":[]}",
         "{\"_derivedTypeId\":\"unknown\"}", "{\"_derivedTypeId\":\"sibling\"}"])
     fun `middle rejects missing nontextual unknown and unrelated identifiers`(json: String) {
-        val exception = assertThrows(JsonMappingException::class.java) {
+        val exception = assertThrows(DatabindException::class.java) {
             mapper.readValue(childWithFields(json), Middle::class.java)
         }
         assertIdentifierFailure(exception, json)
@@ -120,11 +120,11 @@ internal class ArcObjectMapperMultilevelDerivedTypeTest {
         "{\"_derivedTypeId\":\"unknown\"}", "{\"_derivedTypeId\":\"middle\"}",
         "{\"_derivedTypeId\":\"sibling\"}"])
     fun `resolved middle does not bypass the child allowlist`(child: String) {
-        val exception = assertThrows(JsonMappingException::class.java) {
+        val exception = assertThrows(DatabindException::class.java) {
             mapper.readValue(middleJson("\"child\":${childWithFields(child)}"), Root::class.java)
         }
 
-        assertEquals(listOf("child"), exception.path.map { it.fieldName })
+        assertEquals(listOf("child"), exception.path.map { it.propertyName })
         assertIdentifierFailure(exception, child)
     }
 
@@ -134,12 +134,12 @@ internal class ArcObjectMapperMultilevelDerivedTypeTest {
         "{\"_derivedTypeId\":\"unknown\"}", "{\"_derivedTypeId\":\"middle\"}",
         "{\"_derivedTypeId\":\"sibling\"}"])
     fun `resolved middle does not bypass the collection element allowlist`(child: String) {
-        val exception = assertThrows(JsonMappingException::class.java) {
+        val exception = assertThrows(DatabindException::class.java) {
             mapper.readValue(middleJson("\"children\":[$LEAF_JSON,${childWithFields(child)}]"), Root::class.java)
         }
 
         assertEquals(2, exception.path.size)
-        assertEquals("children", exception.path[0].fieldName)
+        assertEquals("children", exception.path[0].propertyName)
         assertEquals(1, exception.path[1].index)
         assertIdentifierFailure(exception, child)
     }
@@ -149,11 +149,11 @@ internal class ArcObjectMapperMultilevelDerivedTypeTest {
         val valid = middleJson("\"child\":$LEAF_JSON")
         assertLeaf(requireNotNull((mapper.readValue(valid, Root::class.java) as Middle).child))
 
-        val exception = assertThrows(JsonMappingException::class.java) {
+        val exception = assertThrows(DatabindException::class.java) {
             mapper.readValue(middleJson("\"child\":${middleJson()}"), Root::class.java)
         }
-        assertEquals("child", exception.path.single().fieldName)
-        assertThrows(JsonMappingException::class.java) { mapper.readValue(middleJson(), Middle::class.java) }
+        assertEquals("child", exception.path.single().propertyName)
+        assertThrows(DatabindException::class.java) { mapper.readValue(middleJson(), Middle::class.java) }
 
         assertLeaf(requireNotNull((mapper.readValue(valid, Root::class.java) as Middle).child))
     }
@@ -194,16 +194,16 @@ internal class ArcObjectMapperMultilevelDerivedTypeTest {
         val node = mapper.readTree(json)
 
         assertEquals(3, Regex("\"_derivedTypeId\"").findAll(json).count())
-        assertEquals("middle", node["_derivedTypeId"].textValue())
-        assertEquals("root-value", node["inherited"].textValue())
-        assertEquals("middle-value", node["middle_name"].textValue())
+        assertEquals("middle", node["_derivedTypeId"].stringValue())
+        assertEquals("root-value", node["inherited"].stringValue())
+        assertEquals("middle-value", node["middle_name"].stringValue())
         assertFalse(node.has("middle"))
         assertFalse(node.has("ignored"))
         listOf(node["child"], node["children"][0]).forEach { child ->
-            assertEquals("leaf", child["_derivedTypeId"].textValue())
-            assertEquals("leaf-root", child["inherited"].textValue())
-            assertEquals("leaf-middle", child["middle_name"].textValue())
-            assertEquals("leaf-value", child["leaf"].textValue())
+            assertEquals("leaf", child["_derivedTypeId"].stringValue())
+            assertEquals("leaf-root", child["inherited"].stringValue())
+            assertEquals("leaf-middle", child["middle_name"].stringValue())
+            assertEquals("leaf-value", child["leaf"].stringValue())
             assertFalse(child.has("ignored"))
         }
     }
@@ -227,10 +227,10 @@ internal class ArcObjectMapperMultilevelDerivedTypeTest {
         return """{"inherited":"child-root","middle_name":"child-middle"$suffix}"""
     }
 
-    private fun assertIdentifierFailure(exception: JsonMappingException, json: String) {
+    private fun assertIdentifierFailure(exception: DatabindException, json: String) {
         val identifier = mapper.readTree(json)["_derivedTypeId"]
-        val expected = if (identifier?.isTextual == true) {
-            "Unknown derived type identifier '${identifier.textValue()}'"
+        val expected = if (identifier?.isString == true) {
+            "Unknown derived type identifier '${identifier.stringValue()}'"
         } else {
             "Missing textual _derivedTypeId"
         }

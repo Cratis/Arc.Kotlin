@@ -125,4 +125,24 @@ Repository proxy verification has three distinct gates: deterministic generation
 
 Without the plugin, apply Kotlin/JVM and `com.google.devtools.ksp`, add `io.cratis:arc` to `implementation`, add `io.cratis:arc-ksp` to `ksp`, and set `arc.moduleName` in the KSP extension. Kotlin Spring applications also apply Kotlin's Spring plugin. Add the Arc Spring starter and `spring-boot-starter-webmvc` for HTTP hosting.
 
-Spring Boot 4 defaults conventional MVC controllers to Jackson 3. Arc endpoints keep using the Jackson 2 mapper supplied by the starter's compatibility bridge because Jackson 2 remains part of Arc's published API. Set `spring.http.converters.preferred-json-mapper=jackson2` when ordinary MVC controllers should use the same Arc naming, inclusion, temporal, and polymorphism policy. Arc does not select an application-wide MVC mapper implicitly.
+Spring Boot 4 and Arc use the same Jackson 3 mapper. The starter contributes Arc's module and builder customizer, so conventional MVC controllers and generated Arc endpoints share the same naming, inclusion, temporal, enum, concept, and polymorphism policy without an additional property. An application-supplied mapper remains authoritative; construct its Arc-configured replacement with `ArcObjectMapper.configure(mapper)` because Jackson 3 mappers are immutable.
+
+## Jackson 3 migration
+
+Arc's JSON API uses Jackson 3.1.x. Runtime types moved from `com.fasterxml.jackson` to `tools.jackson`, including `ObjectMapper`, `JsonNode`, modules, serializers, deserializers, and naming strategies. This is binary- and source-breaking for applications that called `ArcObjectMapper`, constructed `ChangeSetComputer` with a mapper, consumed introspection schemas, supplied an OpenAPI mapper, or referenced `ArcJacksonModule` directly. Replace those imports with their `tools.jackson` equivalents.
+
+Jackson annotations are the deliberate exception: Jackson 3 still uses `com.fasterxml.jackson.annotation`, so application model annotations do not change package. Separate Java-time modules are no longer required because Jackson 3 embeds Java-time support.
+
+`ArcObjectMapper.configure(mapper)` no longer mutates its argument. Jackson 3 mappers are immutable, so capture the configured copy:
+
+```kotlin
+val mapper = ArcObjectMapper.configure(JsonMapper.builder().build())
+```
+
+Java follows the same contract:
+
+```java
+ObjectMapper mapper = ArcObjectMapper.configure(JsonMapper.builder().build());
+```
+
+The mapper must be a JSON `JsonMapper`; Jackson 3 does not permit a generic mapper to be repurposed for another format.

@@ -5,8 +5,8 @@ package io.cratis.arc.json
 
 import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.annotation.JsonProperty
-import com.fasterxml.jackson.databind.JsonMappingException
-import com.fasterxml.jackson.databind.JsonNode
+import tools.jackson.databind.DatabindException
+import tools.jackson.databind.JsonNode
 import io.cratis.arc.concepts.ArcEnum
 import io.cratis.arc.concepts.ConceptAs
 import io.cratis.arc.polymorphism.ConcurrentDerivedTypeRegistry
@@ -35,7 +35,7 @@ class ArcObjectMapperTest {
 
     @Test
     fun `ordinary enums reject undefined integers`() {
-        assertThrows(JsonMappingException::class.java) {
+        assertThrows(DatabindException::class.java) {
             mapper.readValue("2", OrdinaryEnum::class.java)
         }
     }
@@ -66,8 +66,8 @@ class ArcObjectMapperTest {
         val json = derivedMapper.writeValueAsString(Cat("Milo", "server-only"))
         val tree = derivedMapper.readTree(json)
 
-        assertEquals("cat", tree["_derivedTypeId"].textValue())
-        assertEquals("Milo", tree["display_name"].textValue())
+        assertEquals("cat", tree["_derivedTypeId"].stringValue())
+        assertEquals("Milo", tree["display_name"].stringValue())
         assertFalse(tree.has("name"))
         assertFalse(tree.has("internalNote"))
         assertEquals(Cat("Milo"), derivedMapper.readValue(json, Animal::class.java))
@@ -83,8 +83,8 @@ class ArcObjectMapperTest {
         val json = mapper.writeValueAsString(value)
         val tree = mapper.readTree(json)
 
-        assertEquals("2025-02-03", tree["date"].textValue())
-        assertEquals("08:09:10.1234567", tree["time"].textValue())
+        assertEquals("2025-02-03", tree["date"].stringValue())
+        assertEquals("08:09:10.1234567", tree["time"].stringValue())
         assertEquals(value, mapper.readValue(json, DateAndTime::class.java))
     }
 
@@ -108,7 +108,7 @@ class ArcObjectMapperTest {
     @ParameterizedTest
     @ValueSource(strings = ["24:00:00", "03:60:05", "03:04:60"])
     fun `local time rejects values outside valid ranges`(time: String) {
-        assertThrows(JsonMappingException::class.java) {
+        assertThrows(DatabindException::class.java) {
             mapper.readValue("\"$time\"", LocalTime::class.java)
         }
     }
@@ -124,14 +124,14 @@ class ArcObjectMapperTest {
     fun `local time serialization rejects precision finer than one hundred nanoseconds`() {
         val time = LocalTime.of(3, 4, 5, 123_456_789)
 
-        assertThrows(JsonMappingException::class.java) {
+        assertThrows(DatabindException::class.java) {
             mapper.writeValueAsString(time)
         }
     }
 
     @Test
     fun `local time concepts inherit strict range validation`() {
-        assertThrows(JsonMappingException::class.java) {
+        assertThrows(DatabindException::class.java) {
             mapper.readValue("\"24:00:00\"", LocalTimeConcept::class.java)
         }
     }
@@ -151,7 +151,7 @@ class ArcObjectMapperTest {
     fun `empty arrays are retained and null values are omitted`() {
         val tree = mapper.valueToTree<JsonNode>(OptionalPayload())
 
-        assertEquals(setOf("values"), tree.fieldNames().asSequence().toSet())
+        assertEquals(setOf("values"), tree.propertyNames().asSequence().toSet())
         assertTrue(tree["values"].isArray)
         assertTrue(tree["values"].isEmpty)
         assertFalse(tree.has("optional"))
@@ -162,10 +162,10 @@ class ArcObjectMapperTest {
     fun `reserved string map keys are rejected on write and read`(key: String) {
         val value = StringMapPayload(mapOf(key to "unsafe"))
 
-        assertThrows(JsonMappingException::class.java) {
+        assertThrows(DatabindException::class.java) {
             mapper.writeValueAsString(value)
         }
-        assertThrows(JsonMappingException::class.java) {
+        assertThrows(DatabindException::class.java) {
             mapper.readValue("""{"values":{"$key":"unsafe"}}""", StringMapPayload::class.java)
         }
     }
@@ -186,9 +186,9 @@ class ArcObjectMapperTest {
         val tree = mapper.readTree(json)
         val roundTripped = mapper.readValue(json, NamedFloats::class.java)
 
-        assertEquals("NaN", tree["notANumber"].textValue())
-        assertEquals("Infinity", tree["positiveInfinity"].textValue())
-        assertEquals("-Infinity", tree["negativeInfinity"].textValue())
+        assertEquals("NaN", tree["notANumber"].stringValue())
+        assertEquals("Infinity", tree["positiveInfinity"].stringValue())
+        assertEquals("-Infinity", tree["negativeInfinity"].stringValue())
         assertTrue(roundTripped.notANumber.isNaN())
         assertEquals(Double.POSITIVE_INFINITY, roundTripped.positiveInfinity)
         assertEquals(Double.NEGATIVE_INFINITY, roundTripped.negativeInfinity)

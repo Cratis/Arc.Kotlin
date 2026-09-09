@@ -3,7 +3,8 @@
 
 package io.cratis.arc.conformance;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import io.cratis.arc.ExceptionDetailRedactor;
 import io.cratis.arc.artifacts.Command;
 import io.cratis.arc.artifacts.CommandKey;
@@ -381,8 +382,7 @@ public final class JavaConformance {
     public static Animal mapper() throws Exception {
         DerivedTypeRegistry registry = new ConcurrentDerivedTypeRegistry();
         registry.register(Animal.class, Cat.class);
-        ObjectMapper mapper = ArcObjectMapper.create(registry);
-        ArcObjectMapper.configure(mapper, registry);
+        ObjectMapper mapper = ArcObjectMapper.configure(JsonMapper.builder().build(), registry);
         String json = mapper.writeValueAsString(new Cat("Milo"));
         Animal animal = mapper.readValue(json, Animal.class);
         String converted = ArcCamelCase.convert("OrderId");

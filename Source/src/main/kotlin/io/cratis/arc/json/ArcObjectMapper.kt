@@ -4,15 +4,14 @@
 package io.cratis.arc.json
 
 import com.fasterxml.jackson.annotation.JsonInclude
-import com.fasterxml.jackson.core.json.JsonReadFeature
-import com.fasterxml.jackson.core.json.JsonWriteFeature
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.databind.SerializationFeature
-import com.fasterxml.jackson.databind.json.JsonMapper
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
-import com.fasterxml.jackson.module.kotlin.KotlinModule
 import io.cratis.arc.polymorphism.ConcurrentDerivedTypeRegistry
 import io.cratis.arc.polymorphism.DerivedTypeRegistry
+import tools.jackson.core.json.JsonReadFeature
+import tools.jackson.core.json.JsonWriteFeature
+import tools.jackson.databind.ObjectMapper
+import tools.jackson.databind.cfg.DateTimeFeature
+import tools.jackson.databind.json.JsonMapper
+import tools.jackson.module.kotlin.KotlinModule
 
 /** Creates and configures Jackson mappers with the single supported Arc wire configuration. */
 public object ArcObjectMapper {
@@ -23,27 +22,41 @@ public object ArcObjectMapper {
     /** Creates a mapper using a registry populated before polymorphic values are read. */
     @JvmStatic
     public fun create(derivedTypes: DerivedTypeRegistry): ObjectMapper =
-        configure(JsonMapper.builder().build(), derivedTypes)
+        configure(JsonMapper.builderWithJackson2Defaults(), derivedTypes)
 
-    /** Configures an existing mapper, allowing a host integration to apply exactly the same Arc configuration. */
+    /**
+     * Returns an Arc-configured copy of [objectMapper].
+     *
+     * Jackson 3 mappers are immutable, so the supplied mapper is never modified. It must be a JSON
+     * mapper: Jackson 3 no longer permits a generic mapper to be paired with another format.
+     */
     @JvmStatic
     public fun configure(objectMapper: ObjectMapper): ObjectMapper =
         configure(objectMapper, ConcurrentDerivedTypeRegistry())
 
-    /** Configures an existing mapper with an explicit derived-type registry. */
+    /** Returns an Arc-configured copy of [objectMapper] with an explicit derived-type registry. */
     @JvmStatic
     public fun configure(objectMapper: ObjectMapper, derivedTypes: DerivedTypeRegistry): ObjectMapper {
-        objectMapper.propertyNamingStrategy = ArcPropertyNamingStrategy()
-        objectMapper.setDefaultPropertyInclusion(JsonInclude.Include.NON_NULL)
-        objectMapper.enable(JsonReadFeature.ALLOW_NON_NUMERIC_NUMBERS.mappedFeature())
-        objectMapper.enable(JsonWriteFeature.WRITE_NAN_AS_STRINGS.mappedFeature())
-        objectMapper.disable(
-            SerializationFeature.WRITE_DATES_AS_TIMESTAMPS,
-            SerializationFeature.WRITE_DURATIONS_AS_TIMESTAMPS
-        )
-        objectMapper.registerModule(KotlinModule.Builder().build())
-        objectMapper.registerModule(JavaTimeModule())
-        objectMapper.registerModule(ArcJacksonModule(derivedTypes))
-        return objectMapper
+        require(objectMapper is JsonMapper) {
+            "Arc JSON configuration requires a tools.jackson.databind.json.JsonMapper."
+        }
+        return configure(objectMapper.rebuild(), derivedTypes)
     }
+
+    private fun configure(builder: JsonMapper.Builder, derivedTypes: DerivedTypeRegistry): ObjectMapper = builder
+        .propertyNamingStrategy(ArcPropertyNamingStrategy())
+        .changeDefaultPropertyInclusion { inclusion ->
+            inclusion
+                .withValueInclusion(JsonInclude.Include.NON_NULL)
+                .withContentInclusion(JsonInclude.Include.NON_NULL)
+        }
+        .enable(JsonReadFeature.ALLOW_NON_NUMERIC_NUMBERS)
+        .enable(JsonWriteFeature.WRITE_NAN_AS_STRINGS)
+        .disable(
+            DateTimeFeature.WRITE_DATES_AS_TIMESTAMPS,
+            DateTimeFeature.WRITE_DURATIONS_AS_TIMESTAMPS
+        )
+        .addModule(KotlinModule.Builder().build())
+        .addModule(ArcJacksonModule(derivedTypes))
+        .build()
 }

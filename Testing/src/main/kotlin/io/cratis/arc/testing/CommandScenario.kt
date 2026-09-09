@@ -3,7 +3,7 @@
 
 package io.cratis.arc.testing
 
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.ObjectMapper
 import io.cratis.arc.artifacts.ArcArtifactModule
 import io.cratis.arc.authorization.ArcPrincipal
 import io.cratis.arc.authorization.AuthorizationEvaluator

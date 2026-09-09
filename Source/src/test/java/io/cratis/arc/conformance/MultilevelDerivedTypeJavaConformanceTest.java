@@ -5,8 +5,8 @@ package io.cratis.arc.conformance;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.JsonMappingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.DatabindException;
+import tools.jackson.databind.ObjectMapper;
 import io.cratis.arc.json.ArcObjectMapper;
 import io.cratis.arc.polymorphism.ConcurrentDerivedTypeRegistry;
 import io.cratis.arc.polymorphism.DerivedType;
@@ -48,7 +48,7 @@ final class MultilevelDerivedTypeJavaConformanceTest {
 
     @Test
     void rootRegistrationDoesNotAllowMiddleToSelectItselfFromJava() {
-        assertThrows(JsonMappingException.class, () -> mapper.readValue(MIDDLE_JSON, Middle.class));
+        assertThrows(DatabindException.class, () -> mapper.readValue(MIDDLE_JSON, Middle.class));
     }
 
     @Test
@@ -77,10 +77,10 @@ final class MultilevelDerivedTypeJavaConformanceTest {
     void resolvedMiddleCannotBypassItsChildAllowlistFromJava() {
         var json = "{\"_derivedTypeId\":\"java-middle\",\"inherited\":\"root-value\","
             + "\"middle\":\"middle-value\",\"child\":" + MIDDLE_JSON + "}";
-        var exception = assertThrows(JsonMappingException.class, () -> mapper.readValue(json, Root.class));
+        var exception = assertThrows(DatabindException.class, () -> mapper.readValue(json, Root.class));
 
         assertEquals(1, exception.getPath().size());
-        assertEquals("child", exception.getPath().get(0).getFieldName());
+        assertEquals("child", exception.getPath().get(0).getPropertyName());
     }
 
     private static ConcurrentDerivedTypeRegistry registry() {

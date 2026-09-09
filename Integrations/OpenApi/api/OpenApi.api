@@ -6,7 +6,7 @@ public class io/cratis/arc/openapi/springboot/ArcOpenApiAutoConfiguration {
 public class io/cratis/arc/openapi/springboot/ArcOpenApiAutoConfiguration$GeneratedDocument {
 	public fun <init> ()V
 	public fun arcOpenApi (Lio/cratis/arc/openapi/springboot/ArcOpenApiDocument;)Lio/swagger/v3/oas/models/OpenAPI;
-	public fun arcOpenApiDocument (Lio/cratis/arc/springboot/ArcArtifactModules;Lio/cratis/arc/springboot/ArcProperties;Lcom/fasterxml/jackson/databind/ObjectMapper;Lorg/springframework/beans/factory/ObjectProvider;Lorg/springframework/beans/factory/ObjectProvider;)Lio/cratis/arc/openapi/springboot/ArcOpenApiDocument;
+	public fun arcOpenApiDocument (Lio/cratis/arc/springboot/ArcArtifactModules;Lio/cratis/arc/springboot/ArcProperties;Ltools/jackson/databind/ObjectMapper;Lorg/springframework/beans/factory/ObjectProvider;Lorg/springframework/beans/factory/ObjectProvider;)Lio/cratis/arc/openapi/springboot/ArcOpenApiDocument;
 }
 
 public final class io/cratis/arc/openapi/springboot/ArcOpenApiDocument {
@@ -27,8 +27,8 @@ public final class io/cratis/arc/openapi/springboot/ArcOpenApiGenerator {
 	public static final field QUERY_RESULT Ljava/lang/String;
 	public static final field VALIDATION_RESULT Ljava/lang/String;
 	public fun <init> ()V
-	public fun <init> (Lcom/fasterxml/jackson/databind/ObjectMapper;)V
-	public synthetic fun <init> (Lcom/fasterxml/jackson/databind/ObjectMapper;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ltools/jackson/databind/ObjectMapper;)V
+	public synthetic fun <init> (Ltools/jackson/databind/ObjectMapper;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun generate (Ljava/lang/Iterable;)Lio/cratis/arc/openapi/springboot/ArcOpenApiDocument;
 	public final fun generate (Ljava/lang/Iterable;Lio/cratis/arc/metadata/ApiEndpointOptions;)Lio/cratis/arc/openapi/springboot/ArcOpenApiDocument;
 	public final fun generate (Ljava/lang/Iterable;Lio/cratis/arc/metadata/ApiEndpointOptions;Z)Lio/cratis/arc/openapi/springboot/ArcOpenApiDocument;

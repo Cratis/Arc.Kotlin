@@ -3,9 +3,9 @@
 
 package io.cratis.arc.gradle
 
-import com.fasterxml.jackson.databind.JsonNode
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.databind.node.ObjectNode
+import tools.jackson.databind.JsonNode
+import tools.jackson.databind.ObjectMapper
+import tools.jackson.databind.node.ObjectNode
 import io.cratis.arc.artifacts.ArcArtifactManifest
 import io.cratis.arc.json.ArcObjectMapper
 import io.cratis.arc.metadata.CommandDescriptor
@@ -202,11 +202,11 @@ internal object ArcManifestDiscovery {
     private fun validateSummary(node: JsonNode, path: String, source: String) {
         val summary = node.get("summary") ?: return
         if (summary.isNull) return
-        if (!summary.isTextual) {
+        if (!summary.isString) {
             throw GradleException("Arc artifact manifest in $source must declare a textual summary at $path.")
         }
         try {
-            DocumentationSummaries.validate(summary.textValue(), path)
+            DocumentationSummaries.validate(summary.stringValue(), path)
         } catch (exception: IllegalArgumentException) {
             throw GradleException(
                 "Arc artifact manifest in $source has an unusable summary at $path: ${exception.message}",
@@ -238,14 +238,14 @@ internal object ArcManifestDiscovery {
         mapEntry: Boolean = false,
         requireNonNull: Boolean = false
     ) {
-        val kind = shape.path("kind").takeIf(JsonNode::isTextual)?.textValue()
+        val kind = shape.path("kind").takeIf(JsonNode::isString)?.stringValue()
             ?: throw GradleException("Arc artifact manifest in $source has no type-shape kind at $path.")
         if (requireNonNull && shape.path("nullable").asBoolean(false)) {
             throw GradleException("Arc artifact manifest in $source has a nullable container entry at $path.")
         }
         when (kind) {
             "VALUE" -> if (mapEntry) {
-                val typeName = shape.path("typeName").takeIf(JsonNode::isTextual)?.textValue()
+                val typeName = shape.path("typeName").takeIf(JsonNode::isString)?.stringValue()
                 if (typeName !in MAP_SAFE_PRIMITIVE_TYPE_NAMES) {
                     throw GradleException(
                         "Arc artifact manifest in $source has unsupported map value leaf '$typeName' at $path."
@@ -265,8 +265,8 @@ internal object ArcManifestDiscovery {
                     throw GradleException("Arc artifact manifest in $source uses a map in unsupported context $path.")
                 }
                 val key = shape.path("keyShape")
-                val keyType = key.path("typeName").takeIf(JsonNode::isTextual)?.textValue()
-                if (shape.path("keyCodec").asText() != "STRING" || key.path("kind").asText() != "VALUE" ||
+                val keyType = key.path("typeName").takeIf(JsonNode::isString)?.stringValue()
+                if (shape.path("keyCodec").asString() != "STRING" || key.path("kind").asString() != "VALUE" ||
                     key.path("nullable").asBoolean(false) || keyType !in MAP_STRING_TYPE_NAMES
                 ) {
                     throw GradleException(

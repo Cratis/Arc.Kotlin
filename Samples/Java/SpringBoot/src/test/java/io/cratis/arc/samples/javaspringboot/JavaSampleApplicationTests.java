@@ -16,7 +16,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import io.cratis.arc.artifacts.ArcArtifactModule;
 import io.cratis.arc.springboot.ArcArtifactModules;
 import java.util.ServiceLoader;
@@ -126,7 +126,7 @@ public class JavaSampleApplicationTests {
             post(CREATE_ROUTE).contentType(MediaType.APPLICATION_JSON).content("{\"title\":\"Read generated query\"}"))
             .andExpect(status().isOk())
             .andReturn();
-        var id = objectMapper.readTree(command.getResponse().getContentAsString()).path("response").path("id").asText();
+        var id = objectMapper.readTree(command.getResponse().getContentAsString()).path("response").path("id").asString();
 
         execute(get(BY_ID_ROUTE).queryParam("id", id))
             .andExpect(status().isOk())

@@ -3,9 +3,9 @@
 
 package io.cratis.arc.conformance;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JsonMappingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.DatabindException;
+import tools.jackson.databind.ObjectMapper;
 import io.cratis.arc.json.ArcObjectMapper;
 import io.cratis.arc.polymorphism.ConcurrentDerivedTypeRegistry;
 import io.cratis.arc.polymorphism.DerivedType;
@@ -27,7 +27,7 @@ final class FixedDerivedTypeBindingsJavaConformanceTest {
 
     @Test
     void incompatibleFixedBindingFailsDuringTypedJavaRead() {
-        var failure = assertThrows(JsonMappingException.class,
+        var failure = assertThrows(DatabindException.class,
             () -> mapper.readValue(STRING_JSON, new TypeReference<Base<Payload>>() {}));
         assertTrue(failure.getOriginalMessage().contains(FixedStringLeaf.class.getName()));
         assertTrue(failure.getOriginalMessage().contains(Payload.class.getName()));
@@ -36,7 +36,7 @@ final class FixedDerivedTypeBindingsJavaConformanceTest {
 
     @Test
     void javaFieldAccessDoesNotReceiveAnIncompatibleValue() {
-        assertThrows(JsonMappingException.class, () -> {
+        assertThrows(DatabindException.class, () -> {
             Base<Payload> result = mapper.readValue(STRING_JSON, new TypeReference<Base<Payload>>() {});
             // No unchecked consumer cast: before the fix, this ordinary read threw ClassCastException instead.
             Payload payload = result.payload;
@@ -46,21 +46,21 @@ final class FixedDerivedTypeBindingsJavaConformanceTest {
 
     @Test
     void nestedJavaPropertyRetainsItsRequestedBinding() {
-        var failure = assertThrows(JsonMappingException.class,
+        var failure = assertThrows(DatabindException.class,
             () -> mapper.readValue("{\"value\":" + STRING_JSON + "}", Envelope.class));
-        assertEquals("value", failure.getPath().get(0).getFieldName());
+        assertEquals("value", failure.getPath().get(0).getPropertyName());
     }
 
     @Test
     void javaListElementRetainsItsRequestedBinding() {
-        var failure = assertThrows(JsonMappingException.class,
+        var failure = assertThrows(DatabindException.class,
             () -> mapper.readValue("[" + STRING_JSON + "]", new TypeReference<List<Base<Payload>>>() {}));
         assertEquals(0, failure.getPath().get(0).getIndex());
     }
 
     @Test
     void nestedGenericBindingFailsBeforeJavaCollectionElementAccess() {
-        assertThrows(JsonMappingException.class, () -> {
+        assertThrows(DatabindException.class, () -> {
             Base<List<Payload>> result = mapper.readValue(LIST_JSON, new TypeReference<Base<List<Payload>>>() {});
             Payload payload = result.payload.get(0);
             assertEquals("text", payload.name());
@@ -114,12 +114,12 @@ final class FixedDerivedTypeBindingsJavaConformanceTest {
 
     @Test
     void incompatibleArrayComponentsFailDuringTypedJavaRead() {
-        var failure = assertThrows(JsonMappingException.class,
+        var failure = assertThrows(DatabindException.class,
             () -> mapper.readValue("{\"value\":" + ARRAY_JSON + "}",
                 new TypeReference<Holder<Integer, Payload>>() {}));
         assertTrue(failure.getOriginalMessage().contains(FixedArrayLeaf.class.getName()));
         assertTrue(failure.getOriginalMessage().contains(Payload.class.getName()));
-        assertEquals("value", failure.getPath().get(0).getFieldName());
+        assertEquals("value", failure.getPath().get(0).getPropertyName());
     }
 
     @Test
@@ -133,14 +133,14 @@ final class FixedDerivedTypeBindingsJavaConformanceTest {
 
     @Test
     void incompatibleGenericArrayComponentsFailBeyondRawErasure() {
-        var failure = assertThrows(JsonMappingException.class,
+        var failure = assertThrows(DatabindException.class,
             () -> mapper.readValue("{\"value\":" + LIST_ARRAY_JSON + "}",
                 new TypeReference<Holder<Integer, List<Payload>>>() {}));
         assertTrue(failure.getOriginalMessage().contains(FixedListArrayLeaf.class.getName()));
         assertTrue(failure.getOriginalMessage().contains("base<T>.content.content"));
         assertTrue(failure.getOriginalMessage().contains(Payload.class.getName()));
         assertTrue(failure.getOriginalMessage().contains(String.class.getName()));
-        assertEquals("value", failure.getPath().get(0).getFieldName());
+        assertEquals("value", failure.getPath().get(0).getPropertyName());
     }
 
     @Test

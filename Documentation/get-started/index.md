@@ -77,11 +77,10 @@ ksp {
 }
 ```
 
-Set the matching host route convention in `src/main/resources/application.properties`. The example package has two segments, so skipping both produces `/api/create-task`. Spring Boot 4 defaults conventional MVC controllers to Jackson 3; the second property selects the Jackson 2 mapper that Arc configures, so ordinary controllers and generated Arc endpoints share one wire policy:
+Set the matching host route convention in `src/main/resources/application.properties`. The example package has two segments, so skipping both produces `/api/create-task`:
 
 ```properties
 cratis.arc.endpoints.segments-to-skip-for-route=2
-spring.http.converters.preferred-json-mapper=jackson2
 ```
 
 ## Add the application model
