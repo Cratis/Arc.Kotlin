@@ -9,7 +9,7 @@ plugins {
     id("com.vanniktech.maven.publish")
 }
 
-val jacksonVersion = "2.18.2"
+val jacksonVersion = "2.22.2"
 
 // Do not raise this past 1.9.x while Spring Boot 3.5 is the supported host.
 //
@@ -27,7 +27,7 @@ val jacksonVersion = "2.18.2"
 // Kotlin sample as a real consumer, catches it. See issue #135.
 val coroutinesVersion = "1.9.0"
 val jakartaValidationVersion = "3.1.1"
-val slf4jVersion = "2.0.16"
+val slf4jVersion = "2.0.19"
 
 kotlin {
     compilerOptions {
