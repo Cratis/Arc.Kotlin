@@ -11,7 +11,7 @@ internal class ArcArtifactManifestTest {
     fun `new manifests use recursive type shape metadata format`() {
         val manifest = ArcArtifactManifest("tests")
 
-        assertEquals(5, ArcArtifactManifest.CURRENT_FORMAT_VERSION)
+        assertEquals(6, ArcArtifactManifest.CURRENT_FORMAT_VERSION)
         assertEquals(ArcArtifactManifest.CURRENT_FORMAT_VERSION, manifest.formatVersion)
     }
 }

@@ -118,7 +118,7 @@ public class DefaultIntrospectionService(
                 namespace,
                 EndpointRouteHelper.commandRoute(descriptor, endpointOptions, (commandCounts[namespace] ?: 0) > 1),
                 descriptor.typeName,
-                "",
+                descriptor.summary.orEmpty(),
                 objectSchema(descriptor.properties),
                 descriptor.authorization,
                 descriptor.properties
@@ -141,7 +141,7 @@ public class DefaultIntrospectionService(
                 EndpointRouteHelper.queryRoute(descriptor, endpointOptions, (queryCounts[namespace] ?: 0) > 1),
                 descriptor.fullyQualifiedName,
                 descriptor.declaringTypeName,
-                "",
+                descriptor.summary.orEmpty(),
                 argumentsSchema(parameters),
                 descriptor.authorization,
                 parameters,

@@ -21,7 +21,8 @@ internal data class CommandModel(
     val responseTypeName: String?,
     val responseIsEnumerable: Boolean,
     val responseValues: List<CommandResponseValueModel>,
-    val invocationKind: InvocationKind
+    val invocationKind: InvocationKind,
+    val summary: String? = null
 )
 
 /** Invocation facts are independent of provisional response classification and its reachable client graph. */
@@ -67,7 +68,8 @@ internal data class QueryModel(
     val supportsSorting: Boolean,
     val treatWarningsAsErrors: Boolean,
     val invocationKind: QueryInvocationKind,
-    val adaptsSpringDataPage: Boolean
+    val adaptsSpringDataPage: Boolean,
+    val summary: String? = null
 ) {
     val fullyQualifiedName: String = "$declaringTypeName.$methodName"
 }
@@ -85,7 +87,8 @@ internal data class QueryParameterModel(
     val isEnumerable: Boolean,
     val elementTypeName: String?,
     val validationRules: List<ValidationRuleModel>,
-    val validateRecursively: Boolean
+    val validateRecursively: Boolean,
+    val summary: String? = null
 ) {
     val isFromServices: Boolean get() = source == QueryParameterSource.SERVICE
 }
@@ -100,7 +103,8 @@ internal data class PropertyModel(
     val shape: TypeShapeDescriptor,
     val validationRules: List<ValidationRuleModel>,
     val validateRecursively: Boolean,
-    val derivatives: List<String> = emptyList()
+    val derivatives: List<String> = emptyList(),
+    val summary: String? = null
 )
 
 internal data class ValidationRuleModel(
@@ -115,14 +119,16 @@ internal data class TypeModel(
     val location: List<String>,
     val properties: List<PropertyModel>,
     val baseTypeName: String? = null,
-    val derivedTypeId: String? = null
+    val derivedTypeId: String? = null,
+    val summary: String? = null
 )
 
 internal data class InterfaceModel(
     val name: String,
     val fullyQualifiedName: String,
     val location: List<String>,
-    val properties: List<PropertyModel>
+    val properties: List<PropertyModel>,
+    val summary: String? = null
 )
 
 internal data class DerivedTypeRegistrationModel(
@@ -135,7 +141,8 @@ internal data class EnumModel(
     val fullyQualifiedName: String,
     val location: List<String>,
     val members: List<EnumMemberModel>,
-    val isFlags: Boolean
+    val isFlags: Boolean,
+    val summary: String? = null
 )
 
 internal data class EnumMemberModel(

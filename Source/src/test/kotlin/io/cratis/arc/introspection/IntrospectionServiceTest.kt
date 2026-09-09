@@ -152,6 +152,77 @@ internal class IntrospectionServiceTest {
         }
     }
 
+    @Test
+    fun `introspection exposes the artifact source documentation summary or an empty string`() {
+        val commands = ConcurrentCommandHandlerRegistry()
+        val queries = ConcurrentQueryPerformerRegistry()
+        commands.register(
+            object : CommandHandler {
+                override val commandType: Class<*> = ACommand::class.java
+                override val metadata = CommandDescriptor(
+                    "ACommand",
+                    ACommand::class.java.name,
+                    listOf(PropertyDescriptor("value", "kotlin.String")),
+                    RouteOptions(),
+                    listOf("io", "example"),
+                    AuthorizationMetadata(),
+                    null,
+                    false,
+                    null,
+                    false,
+                    emptyList(),
+                    "Documented command."
+                )
+                override suspend fun invoke(context: CommandContext): Any? = null
+            }
+        )
+        commands.register(command(ZCommand::class.java, "ZCommand"))
+        queries.register(
+            object : QueryPerformer {
+                override val descriptor = QueryDescriptor(
+                    "documented",
+                    "io.example.Model",
+                    TypeShapeDescriptor.value("kotlin.String"),
+                    listOf(
+                        ParameterDescriptor(
+                            "name",
+                            TypeShapeDescriptor.value("kotlin.String"),
+                            QueryParameterSource.CLIENT,
+                            false,
+                            emptyList(),
+                            false,
+                            "Documented client argument."
+                        )
+                    ),
+                    RouteOptions(),
+                    "io.example.Model.documented",
+                    listOf("io", "example"),
+                    AuthorizationMetadata(),
+                    null,
+                    io.cratis.arc.queries.QueryHttpMethodType.AUTO,
+                    QueryTransportType.REQUEST_RESPONSE,
+                    false,
+                    false,
+                    false,
+                    "Documented query."
+                )
+                override val fullyQualifiedName = FullyQualifiedQueryName("io.example.Model.documented")
+                override suspend fun perform(context: QueryContext): Any? = null
+            }
+        )
+        queries.register(query("io.example.Model.undocumented"))
+        val service = DefaultIntrospectionService(commands, queries)
+
+        assertEquals(
+            listOf("Documented command." to "ACommand", "" to "ZCommand"),
+            service.commands.map { metadata -> metadata.documentationSummary to metadata.name }
+        )
+        val documented = service.queries.single { metadata -> metadata.name == "documented" }
+        assertEquals("Documented query.", documented.documentationSummary)
+        assertEquals(listOf("Documented client argument."), documented.parameters.map { it.summary })
+        assertEquals("", service.queries.single { metadata -> metadata.name == "undocumented" }.documentationSummary)
+    }
+
     private fun command(
         type: Class<*>,
         name: String,
