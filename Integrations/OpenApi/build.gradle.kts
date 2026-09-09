@@ -8,7 +8,7 @@ plugins {
     id("com.vanniktech.maven.publish")
 }
 
-val springBootVersion = "3.5.3"
+val springBootVersion = "3.5.16"
 val swaggerModelsVersion = "2.2.55"
 
 dependencies {
