@@ -3,8 +3,11 @@
 This file governs `Integrations/SpringBoot` (published as `io.cratis:arc-spring-boot-starter`) and
 the Spring-facing surface of the other integrations: how autoconfiguration is structured, how
 optional dependencies are expressed, how configuration properties are named and documented, and how
-Spring bean lifetime interacts with Arc's coroutine model. Spring Boot is the **only** supported
-host integration — see the boundary rule at the end of this file. Framework-wide design principles
+Spring bean lifetime interacts with Arc's coroutine model. Spring Boot 3.5.x is the **only** supported
+host integration baseline — see the boundary rule at the end of this file. Spring Boot 4 is not a
+routine dependency update: it replaces Jackson 2 (`com.fasterxml.jackson`) with Jackson 3
+(`tools.jackson`) while Arc exposes Jackson 2 types in its published API. Hold it until issue #138
+deliberately migrates that breaking surface. Framework-wide design principles
 live in [framework.md](./framework.md); build wiring lives in [gradle.md](./gradle.md).
 
 ## Dependency direction is one-way
@@ -161,9 +164,17 @@ Each of the other integrations registers exactly one autoconfiguration in its ow
 6. Update the `.api` baseline if a public type or bean method signature changed, then
    `Documentation/reference/configuration.md` and the relevant guide.
 
-## Spring Boot is the only supported host
+## Spring Boot 3.5.x is the only supported host baseline
 
-`AGENTS.md`, `README.md`, and `Documentation/reference/parity.md` all state this, and the parity
+Spring Boot 4 is intentionally unsupported until issue #138 migrates Arc's public JSON contract from
+Jackson 2 to Jackson 3. Do not merge a Spring Boot 4 Dependabot PR or locally override the version to
+make it compile: `Source` publishes Jackson 2 as an `api` dependency and exposes its `JsonNode` in
+binary signatures, so the move requires a reviewed API baseline change and a `major` release. The
+modularized Spring Boot 4 test starters and relocated Jackson autoconfiguration are part of that same
+migration, not independent dependency fixes.
+
+`AGENTS.md`, `README.md`, and `Documentation/reference/parity.md` all state that Spring Boot is the
+only host, and the parity
 matrix lists **Non-Spring hosting** as *Not planned*: "Spring Boot is the only supported host
 integration; Core remains host-independent." Do not add Ktor, Micronaut, Quarkus, a raw servlet
 container, or a Spring WebFlux host, and do not add abstractions whose only purpose is to make a

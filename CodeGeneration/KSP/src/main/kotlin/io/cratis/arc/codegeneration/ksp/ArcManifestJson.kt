@@ -54,7 +54,17 @@ internal object ArcManifestJson {
     @JsonPropertyOrder("ruleName", "arguments", "message")
     private abstract class ValidationRuleMixin
 
-    @JsonPropertyOrder("name", "fullyQualifiedName", "location", "members", "isFlags", "allFlagsExpression")
+    // EnumDescriptor declares summary before allFlagsExpression, and this writer must reproduce
+    // ArcObjectMapper's output byte for byte. See GeneratedArtifactManifestTest.
+    @JsonPropertyOrder(
+        "name",
+        "fullyQualifiedName",
+        "location",
+        "members",
+        "isFlags",
+        "summary",
+        "allFlagsExpression"
+    )
     private abstract class EnumMixin {
         @JsonProperty("isFlags")
         abstract fun isFlags(): Boolean

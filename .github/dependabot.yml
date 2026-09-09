@@ -23,6 +23,13 @@ updates:
       # gate catches it. Revisit when the supported Spring Boot manages 1.10 or later. See #135.
       - dependency-name: "org.jetbrains.kotlinx:kotlinx-coroutines-core"
         versions: [">=1.10.0"]
+      # Spring Boot 4 switches its managed JSON stack from Jackson 2 (com.fasterxml.jackson) to
+      # Jackson 3 (tools.jackson), while Arc publishes Jackson 2 as an api dependency and exposes
+      # JsonNode in binary signatures. This is a planned major migration, not an update. See #138.
+      - dependency-name: "springBootVersion"
+        versions: [">=4.0.0"]
+      - dependency-name: "org.springframework.boot"
+        versions: [">=4.0.0"]
     groups:
       kotlin-ksp-toolchain:
         # PR #73 confirms Dependabot's names for kotlin("jvm") and kotlin("plugin.spring").
