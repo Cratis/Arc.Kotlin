@@ -23,6 +23,12 @@
   ],
   "properties": [
     {
+      "name": "cratis.arc.correlation-enabled",
+      "type": "java.lang.Boolean",
+      "defaultValue": true,
+      "description": "Whether the host-wide correlation filter is registered for every servlet route."
+    },
+    {
       "name": "cratis.arc.correlation-header",
       "type": "java.lang.String",
       "defaultValue": "X-Correlation-ID",

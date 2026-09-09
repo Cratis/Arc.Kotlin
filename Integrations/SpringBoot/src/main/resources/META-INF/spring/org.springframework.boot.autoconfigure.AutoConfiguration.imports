@@ -1,4 +1,5 @@
 io.cratis.arc.springboot.ArcAutoConfiguration
+io.cratis.arc.springboot.ArcCorrelationAutoConfiguration
 io.cratis.arc.springboot.ArcValidationAutoConfiguration
 io.cratis.arc.springboot.ArcWebAutoConfiguration
 io.cratis.arc.springboot.ArcObservableQueryWebSocketConfiguration
