@@ -141,7 +141,7 @@ internal class ArcObservedComponentsTests {
                 override suspend fun open(
                     request: QueryRequest,
                     options: QueryExecutionOptions,
-                    transferMode: ObservableQueryTransferMode,
+                    transferMode: ObservableQueryTransferMode?,
                     keyExtractor: ((Any) -> Any?)?
                 ): ObservableQueryOpenResult = ObservableQueryOpenResult.Stream(
                     flowOf(
@@ -180,7 +180,7 @@ internal class ArcObservedComponentsTests {
                 override suspend fun open(
                     request: QueryRequest,
                     options: QueryExecutionOptions,
-                    transferMode: ObservableQueryTransferMode,
+                    transferMode: ObservableQueryTransferMode?,
                     keyExtractor: ((Any) -> Any?)?
                 ): ObservableQueryOpenResult = ObservableQueryOpenResult.Stream(
                     flow<QueryResult<*>> { awaitCancellation() }

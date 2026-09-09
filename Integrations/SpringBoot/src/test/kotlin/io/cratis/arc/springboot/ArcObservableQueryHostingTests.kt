@@ -118,13 +118,22 @@ internal class ArcObservableQueryHostingTests {
     }
 
     @Test
-    fun `observable HTTP snapshot supports accepted and bounded first result wait`() {
+    fun `observable HTTP snapshot serves a current value and accepts a source without one`() {
         val pending = http.send(
-            HttpRequest.newBuilder(httpUri(OBSERVABLE_ROUTE)).GET().build(),
+            HttpRequest.newBuilder(httpUri(DEFAULTED_ROUTE)).GET().build(),
             HttpResponse.BodyHandlers.ofString()
         )
         assertEquals(202, pending.statusCode())
         assertFalse(objectMapper.readTree(pending.body()).path("isReady").booleanValue())
+
+        val immediate = http.send(
+            HttpRequest.newBuilder(httpUri(OBSERVABLE_ROUTE)).GET().build(),
+            HttpResponse.BodyHandlers.ofString()
+        )
+        assertEquals(200, immediate.statusCode())
+        val immediateEnvelope = objectMapper.readTree(immediate.body())
+        assertTrue(immediateEnvelope.path("isReady").booleanValue())
+        assertEquals("one", immediateEnvelope.path("data").path(0).path("value").textValue())
 
         val correlationId = "168e3990-d5c9-4c64-a725-8d672efa28b3"
         val ready = http.send(
@@ -269,6 +278,28 @@ internal class ArcObservableQueryHostingTests {
     }
 
     @Test
+    fun `an omitted hub transfer mode keeps the legacy snapshot and change set`() {
+        val socket = openSocket(OBSERVABLE_QUERY_WS_ROUTE)
+        socket.awaitType("Connected")
+
+        socket.send("""{"type":"Subscribe","queryId":"q-legacy","revision":1,"payload":{"queryName":"$OBSERVABLE_NAME"}}""")
+        val first = socket.awaitQuery("q-legacy").path("payload")
+        assertEquals("one", first.path("data").path(0).path("value").textValue())
+        assertEquals("one", first.path("changeSet").path("added").path(0).path("value").textValue())
+
+        ObservableFixtureModule.items.value = listOf(Item(1, "two"), Item(2, "added"))
+        val second = socket.awaitQuery("q-legacy").path("payload")
+        assertEquals("two", second.path("data").path(0).path("value").textValue())
+        assertEquals("added", second.path("changeSet").path("added").path(0).path("value").textValue())
+        assertEquals("two", second.path("changeSet").path("replaced").path(0).path("value").textValue())
+
+        socket.send(subscribe("q-full", 1, OBSERVABLE_NAME, "full"))
+        val full = socket.awaitQuery("q-full").path("payload")
+        assertEquals("two", full.path("data").path(0).path("value").textValue())
+        assertTrue(full.path("changeSet").isMissingNode || full.path("changeSet").isNull, full.toString())
+    }
+
+    @Test
     fun `multiplexed transport captures optional credentials and authorizes each subscription`() {
         val anonymous = openSocket(OBSERVABLE_QUERY_WS_ROUTE)
         anonymous.awaitType("Connected")
@@ -363,6 +394,52 @@ internal class ArcObservableQueryHostingTests {
         assertEquals(200, removed.statusCode())
     }
 
+    @Test
+    fun `a transfer mode the server does not know serves the subscription instead of refusing it`() {
+        val socket = openSocket(OBSERVABLE_QUERY_WS_ROUTE)
+        socket.awaitType("Connected")
+
+        socket.send(subscribe("q-unknown-mode", 1, OBSERVABLE_NAME, "compact"))
+        val served = socket.awaitQueryWithin("q-unknown-mode").path("payload")
+        assertEquals("one", served.path("data").path(0).path("value").textValue())
+
+        socket.send(subscribe("q-cased-mode", 2, OBSERVABLE_NAME, "FULL"))
+        val cased = socket.awaitQueryWithin("q-cased-mode").path("payload")
+        assertEquals("one", cased.path("data").path(0).path("value").textValue())
+        assertTrue(cased.path("changeSet").isMissingNode || cased.path("changeSet").isNull, cased.toString())
+    }
+
+    @Test
+    fun `an SSE subscription naming a transfer mode the server does not know is accepted`() {
+        val sse = openSse(OBSERVABLE_QUERY_SSE_ROUTE)
+        val reader = BufferedReader(sse.body().reader())
+        val connectionId = readSseMessage(reader).path("payload").textValue()
+
+        val accepted = postJson(
+            OBSERVABLE_QUERY_SSE_SUBSCRIBE_ROUTE,
+            """{"connectionId":"$connectionId","queryId":"q-sse-unknown-mode","revision":1,""" +
+                """"request":{"queryName":"$OBSERVABLE_NAME","transferMode":"compact"}}"""
+        )
+        assertEquals(200, accepted.statusCode(), accepted.body())
+        val result = generateSequence { readSseMessage(reader) }
+            .take(HEARTBEAT_BOUNDED_MESSAGES)
+            .first { it.path("type").textValue() == "QueryResult" }
+        assertEquals("q-sse-unknown-mode", result.path("queryId").textValue())
+        assertEquals("one", result.path("payload").path("data").path(0).path("value").textValue())
+    }
+
+    /**
+     * Awaits a result for one subscription without waiting forever.
+     *
+     * The connection heartbeats every 200ms in this fixture, so a subscription that is never served keeps the
+     * stream alive with `Ping` frames instead of timing out. Bounding the frames read turns a refused
+     * subscription into a failure rather than a hang.
+     */
+    private fun TestSocket.awaitQueryWithin(queryId: String): JsonNode =
+        generateSequence(::awaitJson).take(HEARTBEAT_BOUNDED_MESSAGES).first {
+            it.path("type").textValue() == "QueryResult" && it.path("queryId").textValue() == queryId
+        }
+
     private fun openSocket(
         path: String,
         authorization: String? = null,
@@ -436,6 +513,7 @@ internal class ArcObservableQueryHostingTests {
     }
 
     private companion object {
+        const val HEARTBEAT_BOUNDED_MESSAGES = 40
         const val DEFAULTED_NAME = "io.cratis.arc.springboot.ObservableFixture.defaulted"
         const val DEFAULTED_ROUTE = "/api/fixtures/observable-defaulted"
         const val OBSERVABLE_ROUTE = "/api/fixtures/observable-items"

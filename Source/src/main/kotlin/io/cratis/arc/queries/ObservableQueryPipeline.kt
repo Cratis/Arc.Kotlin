@@ -9,25 +9,44 @@ import io.cratis.arc.results.ValidationResult
 import io.cratis.arc.results.ValidationResultSeverity
 import java.util.concurrent.CancellationException
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.take
 
 /** Result of opening an observable query. */
 public sealed interface ObservableQueryOpenResult {
     /** Query filters or performer creation rejected the subscription. */
     public class Failure(public val result: QueryResult<*>) : ObservableQueryOpenResult
 
-    /** A controlled cold stream of query results. */
-    public class Stream(public val results: Flow<QueryResult<*>>) : ObservableQueryOpenResult
+    /**
+     * A controlled cold stream of query results.
+     *
+     * @property results The cold stream of every result the subscription produces.
+     * @property snapshot A single-result stream of the value the source already holds, or `null` when the
+     * source has no current value and a caller must wait for the first one. It never waits for a new value,
+     * and completes without a result when an emission guard withholds the current one.
+     */
+    public class Stream @JvmOverloads constructor(
+        public val results: Flow<QueryResult<*>>,
+        public val snapshot: Flow<QueryResult<*>>? = null
+    ) : ObservableQueryOpenResult
 }
 
 /** Host-neutral observable-query execution pipeline. */
 public interface ObservableQueryPipeline {
-    /** Opens an observable query using only explicit request context. */
+    /**
+     * Opens an observable query using only explicit request context.
+     *
+     * Pass `null` as the transfer mode when a subscriber did not ask for one. That selects the legacy
+     * behavior: every emission carries the complete snapshot and a change set describing what moved since
+     * the previous delivered one. Transports that do not let a subscriber express a mode keep the
+     * [ObservableQueryTransferMode.FULL] default.
+     */
     public suspend fun open(
         request: QueryRequest,
         options: QueryExecutionOptions,
-        transferMode: ObservableQueryTransferMode = ObservableQueryTransferMode.FULL,
+        transferMode: ObservableQueryTransferMode? = ObservableQueryTransferMode.FULL,
         keyExtractor: ((Any) -> Any?)? = null
     ): ObservableQueryOpenResult
 }
@@ -46,7 +65,7 @@ public class DefaultObservableQueryPipeline @JvmOverloads constructor(
     override suspend fun open(
         request: QueryRequest,
         options: QueryExecutionOptions,
-        transferMode: ObservableQueryTransferMode,
+        transferMode: ObservableQueryTransferMode?,
         keyExtractor: ((Any) -> Any?)?
     ): ObservableQueryOpenResult {
         val performer = performers.find(request.queryName)
@@ -88,13 +107,16 @@ public class DefaultObservableQueryPipeline @JvmOverloads constructor(
         }
 
         val paging = PagingInfo(request.paging.page, request.paging.pageSize, 0)
-        val results = flow<QueryResult<*>> {
+        fun render(source: Flow<*>): Flow<QueryResult<*>> = flow<QueryResult<*>> {
             var previous: List<*>? = null
-            var isFirstEmission = true
+            var hasDeliveredEmission = false
             try {
-                upstream.collect { value ->
+                source.collect { value ->
                     val wrapped = wrapEmission(filterResult, value, context, paging)
                         .filterValidation(options.allowedValidationSeverity)
+                    // First-delivery status belongs to the emission the subscriber actually receives. A guard that
+                    // withholds an emission must therefore leave it intact, so the next delivered emission is still
+                    // announced as the first one and the delta baseline below still starts from what was delivered.
                     val verdict = if (emissionGuards.hasGuards) {
                         emissionGuards.guard(ObservableQueryEmissionContext(
                             request.queryName,
@@ -104,13 +126,12 @@ public class DefaultObservableQueryPipeline @JvmOverloads constructor(
                             options.tenantNamespace,
                             options.correlationId,
                             options.serviceResolver,
-                            isFirstEmission,
+                            !hasDeliveredEmission,
                             wrapped.data
                         ))
                     } else {
                         ObservableQueryEmissionVerdict.ALLOW
                     }
-                    isFirstEmission = false
                     when (verdict) {
                         ObservableQueryEmissionVerdict.SUPPRESS -> return@collect
                         ObservableQueryEmissionVerdict.DENY_AND_TERMINATE -> {
@@ -120,13 +141,24 @@ public class DefaultObservableQueryPipeline @JvmOverloads constructor(
                         ObservableQueryEmissionVerdict.ALLOW -> Unit
                     }
                     val current = wrapped.data as? List<*>
-                    if (transferMode == ObservableQueryTransferMode.DELTA && previous != null && current != null) {
-                        val changeSet = changeSets.compute(previous, current, keyExtractor)
-                        if (changeSet != null) emit(wrapped.copyPayload(null, resultChangeSet = changeSet)) else emit(wrapped)
-                    } else {
-                        emit(wrapped)
+                    val changeSet = when {
+                        current == null -> null
+                        // Delta withholds the change set on the first emission, which carries the full snapshot.
+                        transferMode == ObservableQueryTransferMode.DELTA -> previous?.let {
+                            changeSets.compute(it, current, keyExtractor)
+                        }
+                        // An omitted mode is the legacy contract: snapshot and change set on every emission.
+                        transferMode == null -> changeSets.compute(previous, current, keyExtractor)
+                        else -> null
+                    }
+                    when {
+                        changeSet == null -> emit(wrapped)
+                        transferMode == ObservableQueryTransferMode.DELTA ->
+                            emit(wrapped.copyPayload(null, resultChangeSet = changeSet))
+                        else -> emit(wrapped.copyPayload(wrapped.data, resultChangeSet = changeSet))
                     }
                     if (current != null) previous = java.util.Collections.unmodifiableList(ArrayList(current))
+                    hasDeliveredEmission = true
                 }
             } catch (_: ObservableQueryTerminatedException) {
                 // Guard denial is a normal terminal outcome already represented by the unauthorized result.
@@ -135,7 +167,14 @@ public class DefaultObservableQueryPipeline @JvmOverloads constructor(
             if (exception is CancellationException) throw exception
             emit(QueryResult.exception<Any?>(options.correlationId, exception))
         }
-        return ObservableQueryOpenResult.Stream(results)
+
+        // A StateFlow already holds a value, so a caller wanting an immediate snapshot can be answered without
+        // waiting for anything. Taking one element runs that value through the same rendering, interception and
+        // guard pipeline a subscription uses, and completes with no result when a guard withholds it.
+        return ObservableQueryOpenResult.Stream(
+            render(upstream),
+            (upstream as? StateFlow<*>)?.let { source -> render(source.take(1)) }
+        )
     }
 
     private suspend fun executeFilters(context: QueryContext): QueryResult<Any?> {

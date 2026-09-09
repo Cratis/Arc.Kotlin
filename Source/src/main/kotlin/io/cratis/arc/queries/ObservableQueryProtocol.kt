@@ -21,7 +21,14 @@ public enum class ObservableQueryHubMessageType {
     Connected
 }
 
-/** Snapshot transfer behavior requested by an observable-query subscriber. */
+/**
+ * Snapshot transfer behavior requested by an observable-query subscriber.
+ *
+ * The mode is a preference about how much of each snapshot travels, not part of what the subscription means, so
+ * a subscriber that expresses nothing this version understands is still served. On the wire the value is matched
+ * case-insensitively, and a value outside [DELTA] and [FULL] reads as absent rather than failing the
+ * subscription.
+ */
 public enum class ObservableQueryTransferMode(@get:JsonValue public val wireValue: String) {
     DELTA("delta"),
     FULL("full")
@@ -56,7 +63,13 @@ public class ObservableQueryHubMessage @JvmOverloads constructor(
     }
 }
 
-/** Payload of an observable-query subscribe message. */
+/**
+ * Payload of an observable-query subscribe message.
+ *
+ * The transfer mode is optional, and a value outside the known [ObservableQueryTransferMode] wire values reads
+ * as absent rather than refusing the subscription, so a subscriber asking for a mode this version does not know
+ * is served exactly as one that asked for nothing.
+ */
 public class ObservableQuerySubscriptionRequest @JvmOverloads constructor(
     public val queryName: String,
     arguments: Map<String, String?>? = null,

@@ -13,6 +13,8 @@ import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
@@ -51,6 +53,38 @@ internal class ObservableQueryCoreTest {
     }
 
     @Test
+    fun `an omitted transfer mode keeps the legacy snapshot and change set`() = runBlocking {
+        val registry = ConcurrentQueryPerformerRegistry()
+        registry.register(performer(flowOf(listOf(Item(1, "one")), listOf(Item(1, "two"), Item(2, "two")))))
+        val opened = DefaultObservableQueryPipeline(registry).open(request(), options(), null)
+        val emissions = (opened as ObservableQueryOpenResult.Stream).results.toList()
+
+        assertEquals(listOf(Item(1, "one")), emissions[0].data)
+        assertEquals(listOf(Item(1, "one")), emissions[0].changeSet!!.added)
+        assertEquals(emptyList<Item>(), emissions[0].changeSet!!.replaced)
+        assertEquals(emptyList<Item>(), emissions[0].changeSet!!.removed)
+
+        assertEquals(listOf(Item(1, "two"), Item(2, "two")), emissions[1].data)
+        assertEquals(listOf(Item(2, "two")), emissions[1].changeSet!!.added)
+        assertEquals(listOf(Item(1, "two")), emissions[1].changeSet!!.replaced)
+        assertEquals(emptyList<Item>(), emissions[1].changeSet!!.removed)
+    }
+
+    @Test
+    fun `an explicit full transfer mode never sends a change set`() = runBlocking {
+        val registry = ConcurrentQueryPerformerRegistry()
+        registry.register(performer(flowOf(listOf(Item(1, "one")), listOf(Item(1, "two"), Item(2, "two")))))
+        val opened = DefaultObservableQueryPipeline(registry)
+            .open(request(), options(), ObservableQueryTransferMode.FULL)
+        val emissions = (opened as ObservableQueryOpenResult.Stream).results.toList()
+
+        assertEquals(listOf(Item(1, "one")), emissions[0].data)
+        assertNull(emissions[0].changeSet)
+        assertEquals(listOf(Item(1, "two"), Item(2, "two")), emissions[1].data)
+        assertNull(emissions[1].changeSet)
+    }
+
+    @Test
     fun `missing stable identity falls back to full snapshot`() = runBlocking {
         val registry = ConcurrentQueryPerformerRegistry()
         registry.register(performer(flowOf(listOf(NoId("one")), listOf(NoId("two")))))
@@ -58,6 +92,83 @@ internal class ObservableQueryCoreTest {
         val emissions = (opened as ObservableQueryOpenResult.Stream).results.toList()
         assertEquals(listOf(NoId("two")), emissions[1].data)
         assertNull(emissions[1].changeSet)
+    }
+
+    @Test
+    fun `suppressed emissions do not consume first-delivery status`() = runBlocking {
+        val observed = mutableListOf<Boolean>()
+        val registry = ConcurrentQueryPerformerRegistry()
+        registry.register(performer(flowOf(listOf(Item(1, "one")), listOf(Item(2, "two")), listOf(Item(3, "three")))))
+        val guard = BlockingObservableQueryEmissionGuard { context ->
+            observed.add(context.isFirstEmission)
+            if ((context.data as List<*>).first() == Item(3, "three")) {
+                ObservableQueryEmissionVerdict.ALLOW
+            } else {
+                ObservableQueryEmissionVerdict.SUPPRESS
+            }
+        }
+        val pipeline = DefaultObservableQueryPipeline(
+            registry,
+            emissionGuards = DefaultObservableQueryEmissionGuards(listOf(guard))
+        )
+        val opened = pipeline.open(request(), options(), ObservableQueryTransferMode.DELTA)
+        val emissions = (opened as ObservableQueryOpenResult.Stream).results.toList()
+
+        assertEquals(listOf(true, true, true), observed)
+        assertEquals(1, emissions.size)
+        assertEquals(listOf(Item(3, "three")), emissions[0].data)
+        assertNull(emissions[0].changeSet)
+    }
+
+    @Test
+    fun `first delivered emission consumes first-delivery status`() = runBlocking {
+        val observed = mutableListOf<Boolean>()
+        val registry = ConcurrentQueryPerformerRegistry()
+        registry.register(performer(flowOf(listOf(Item(1, "one")), listOf(Item(1, "two")))))
+        val guard = BlockingObservableQueryEmissionGuard { context ->
+            observed.add(context.isFirstEmission)
+            ObservableQueryEmissionVerdict.ALLOW
+        }
+        val pipeline = DefaultObservableQueryPipeline(
+            registry,
+            emissionGuards = DefaultObservableQueryEmissionGuards(listOf(guard))
+        )
+        val opened = pipeline.open(request(), options(), ObservableQueryTransferMode.DELTA)
+        val emissions = (opened as ObservableQueryOpenResult.Stream).results.toList()
+
+        assertEquals(listOf(true, false), observed)
+        assertEquals(2, emissions.size)
+        assertEquals(listOf(Item(1, "two")), emissions[1].changeSet!!.replaced)
+    }
+
+    @Test
+    fun `a state flow source carries an immediate snapshot and a cold flow does not`() = runBlocking {
+        val stateful = ConcurrentQueryPerformerRegistry()
+        stateful.register(performer(MutableStateFlow(listOf(Item(1, "one")))))
+        val opened = DefaultObservableQueryPipeline(stateful).open(request(), options()) as ObservableQueryOpenResult.Stream
+        val snapshot = requireNotNull(opened.snapshot).toList()
+        assertEquals(1, snapshot.size)
+        assertEquals(listOf(Item(1, "one")), snapshot[0].data)
+        assertTrue(snapshot[0].isReady)
+
+        val cold = ConcurrentQueryPerformerRegistry()
+        cold.register(performer(flowOf(listOf(Item(1, "one")))))
+        val coldOpened = DefaultObservableQueryPipeline(cold).open(request(), options()) as ObservableQueryOpenResult.Stream
+        assertNull(coldOpened.snapshot)
+    }
+
+    @Test
+    fun `a withheld current value leaves the snapshot empty`() = runBlocking {
+        val registry = ConcurrentQueryPerformerRegistry()
+        registry.register(performer(MutableStateFlow(listOf(Item(1, "one")))))
+        val pipeline = DefaultObservableQueryPipeline(
+            registry,
+            emissionGuards = DefaultObservableQueryEmissionGuards(
+                listOf(BlockingObservableQueryEmissionGuard { ObservableQueryEmissionVerdict.SUPPRESS })
+            )
+        )
+        val opened = pipeline.open(request(), options()) as ObservableQueryOpenResult.Stream
+        assertNull(requireNotNull(opened.snapshot).firstOrNull())
     }
 
     @Test

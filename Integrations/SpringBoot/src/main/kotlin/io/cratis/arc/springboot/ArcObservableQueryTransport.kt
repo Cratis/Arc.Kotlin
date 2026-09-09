@@ -54,6 +54,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import org.slf4j.LoggerFactory
@@ -298,7 +299,14 @@ public class ArcObservableQueryTransport internal constructor(
                     is ObservableQueryOpenResult.Stream -> {
                         val wait = request.getParameter(WAIT_FOR_FIRST)?.toBooleanStrictOrNull() == true
                         if (!wait) {
-                            writeResult(response, QueryResult.notReady<Any?>(correlationId), HttpServletResponse.SC_ACCEPTED)
+                            // A source that already holds a value answers the snapshot straight away. Only a
+                            // source with nothing to show yet is reported as not ready.
+                            val current = opened.snapshot?.firstOrNull()
+                            if (current != null) {
+                                writeResult(response, current)
+                            } else {
+                                writeResult(response, QueryResult.notReady<Any?>(correlationId), HttpServletResponse.SC_ACCEPTED)
+                            }
                         } else {
                             val timeout = requestedSnapshotTimeout(request)
                             try {
@@ -538,11 +546,9 @@ public class ArcObservableQueryTransport internal constructor(
                 ),
                 identity.correlationId
             )
-            when (val opened = pipeline.open(
-                captured.request,
-                captured.options,
-                request.transferMode ?: ObservableQueryTransferMode.FULL
-            )) {
+            // An omitted transfer mode is not "full": it selects the legacy snapshot-plus-change-set behavior,
+            // which the pipeline expresses as a null mode.
+            when (val opened = pipeline.open(captured.request, captured.options, request.transferMode)) {
                 is ObservableQueryOpenResult.Failure -> {
                     if (!opened.result.isAuthorized) {
                         connection.send(unauthorized(queryId, operation.revision))
