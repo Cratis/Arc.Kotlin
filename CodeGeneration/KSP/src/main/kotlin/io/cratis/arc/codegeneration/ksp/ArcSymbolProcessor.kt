@@ -178,7 +178,7 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
     private fun processCommand(symbol: KSAnnotated, resolver: Resolver) {
         val command = symbol as? KSClassDeclaration
         if (command == null) {
-            logger.error("@$COMMAND_SIMPLE_NAME can only be applied to a class.", symbol)
+            logger.error(ArcDiagnostic.COMMAND_SHAPE, "@$COMMAND_SIMPLE_NAME can only be applied to a class.", symbol)
             return
         }
         val qualifiedName = command.qualifiedName?.asString()
@@ -191,14 +191,14 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
                 }
             }
         } else {
-            logger.error("@$COMMAND_SIMPLE_NAME classes must not be local.", command)
+            logger.error(ArcDiagnostic.COMMAND_SHAPE, "@$COMMAND_SIMPLE_NAME classes must not be local.", command)
         }
     }
 
     private fun processReadModel(symbol: KSAnnotated, resolver: Resolver) {
         val readModel = symbol as? KSClassDeclaration
         if (readModel == null) {
-            logger.error("@$READ_MODEL_SIMPLE_NAME can only be applied to a class.", symbol)
+            logger.error(ArcDiagnostic.READ_MODEL_SHAPE, "@$READ_MODEL_SIMPLE_NAME can only be applied to a class.", symbol)
             return
         }
         val qualifiedName = readModel.qualifiedName?.asString()
@@ -208,7 +208,7 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
                 metadataCollector.collectDeclaration(readModel, qualifiedName)
             }
         } else {
-            logger.error("@$READ_MODEL_SIMPLE_NAME classes must not be local.", readModel)
+            logger.error(ArcDiagnostic.READ_MODEL_SHAPE, "@$READ_MODEL_SIMPLE_NAME classes must not be local.", readModel)
         }
     }
 
@@ -248,7 +248,7 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
     private fun buildCommandModel(command: KSClassDeclaration, resolver: Resolver): CommandModel? {
         val qualifiedName = command.qualifiedName?.asString()
         if (qualifiedName == null) {
-            logger.error("@$COMMAND_SIMPLE_NAME classes must not be local.", command)
+            logger.error(ArcDiagnostic.COMMAND_SHAPE, "@$COMMAND_SIMPLE_NAME classes must not be local.", command)
             return null
         }
         if (command.parentDeclaration != null) {
@@ -345,7 +345,7 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
         val authorization = buildAuthorization(command, handler, qualifiedName, "Command") ?: return null
         val containingFile = command.containingFile
         if (containingFile == null) {
-            logger.error("Command '$qualifiedName' does not have a resolvable source file.", command)
+            logger.error(ArcDiagnostic.COMMAND_SHAPE, "Command '$qualifiedName' does not have a resolvable source file.", command)
             return null
         }
 

@@ -117,7 +117,7 @@ internal class ArcSymbolProcessorRoundDiagnosticsCompilationTest {
     }
 
     @Test
-    fun `late blank and duplicate derived ids retain proxy codes and declaration sites`() {
+    fun `late blank and duplicate derived ids keep their codes and declaration sites`() {
         listOf("", "same").forEach { id ->
             val observation = Observation()
             val provider = object : SymbolProcessorProvider {
@@ -149,7 +149,9 @@ internal class ArcSymbolProcessorRoundDiagnosticsCompilationTest {
             val result = compilation.compile()
             assertEquals(KotlinCompilation.ExitCode.COMPILATION_ERROR, result.exitCode, result.messages)
             assertFalse("ARCKSP9999" in result.messages, result.messages)
-            val diagnostic = observation.diagnostics.single { "[ARCKSP0300]" in it.message }
+            // A blank id is its own diagnostic (ARCKSP0303); a duplicate id remains a proxy-shape diagnostic.
+            val expectedCode = if (id.isEmpty()) "[ARCKSP0303]" else "[ARCKSP0300]"
+            val diagnostic = observation.diagnostics.single { expectedCode in it.message }
             assertEquals(if (id.isEmpty()) "LateLeaf" else "EarlyLeaf", diagnostic.name)
             assertEquals(3, diagnostic.line)
             assertEquals("finish", diagnostic.phase)

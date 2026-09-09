@@ -127,7 +127,7 @@ on the bracketed code. The ranges in use today:
 | `ARCKSP0001` | KSP configuration |
 | `ARCKSP0100`–`ARCKSP0109` | Commands, handlers, `provide`, keys, authorization, responses |
 | `ARCKSP0200`–`ARCKSP0210` | Read models, queries, routes, infrastructure parameters, defaults |
-| `ARCKSP0300`–`ARCKSP0302` | Generated proxy shapes, Jakarta validation metadata, enum wire values |
+| `ARCKSP0300`–`ARCKSP0304` | Generated proxy shapes, Jakarta validation metadata, enum wire values, derived types |
 | `ARCKSP0400` | Java/Kotlin interoperability warning |
 | `ARCKSP9999` | Unclassified |
 
