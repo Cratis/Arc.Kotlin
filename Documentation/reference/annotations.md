@@ -48,6 +48,10 @@ All three are Jakarta constraints, work from Kotlin and Java, and remain in gene
 | `@Flags` | Class | Marks an enum as a bit field. Generated TypeScript gains an `all<Name>` constant combining every nonzero member. Nothing about JVM serialization changes. |
 | `@ArcEnumValue(value)` | Field | Declares an enum member's integer wire value where KSP cannot prove it from a single integer-literal constructor argument. |
 
+The annotation alone does not make a value readable again. Resolving an identifier back to a class is the job of `DerivedTypeRegistry`, and Arc never scans the classpath to fill it, so a base type's concrete types must be registered before it is first deserialized.
+
+Serialization refuses a value whose base type is registered while the value's own type is not, and names both types. Such a value would otherwise be written with an identifier nothing can resolve and could never be read back. A type whose base type has no registrations at all is still written with its identifier, so a model that only travels to a client keeps working without a registry.
+
 Arc writes an enum as an integer: the result of `value()` when the enum implements `ArcEnum`, and the ordinal otherwise. Reading accepts that integer or the member name matched case-insensitively, and rejects anything else.
 
 ### Polymorphic property declarations

@@ -77,7 +77,7 @@ public class ArcJacksonModule @JvmOverloads constructor(
         context.addSerializers(ArcSerializers)
         context.addDeserializers(ArcDeserializers)
         context.addBeanDeserializerModifier(ArcDerivedTypeDeserializerModifier(registry))
-        context.addBeanSerializerModifier(ArcDerivedTypeSerializerModifier)
+        context.addBeanSerializerModifier(ArcDerivedTypeSerializerModifier(registry))
     }
 }
 
@@ -377,7 +377,7 @@ private class FixedDerivedTypeBindingCompatibility {
     }
 }
 
-private object ArcDerivedTypeSerializerModifier : BeanSerializerModifier() {
+private class ArcDerivedTypeSerializerModifier(private val registry: DerivedTypeRegistry) : BeanSerializerModifier() {
     override fun modifySerializer(
         config: SerializationConfig,
         beanDesc: BeanDescription,
@@ -385,15 +385,17 @@ private object ArcDerivedTypeSerializerModifier : BeanSerializerModifier() {
     ): JsonSerializer<*> {
         val derivedType = beanDesc.beanClass.getAnnotation(DerivedType::class.java) ?: return serializer
         @Suppress("UNCHECKED_CAST")
-        return ArcDerivedTypeSerializer(serializer as JsonSerializer<Any>, derivedType.id)
+        return ArcDerivedTypeSerializer(serializer as JsonSerializer<Any>, derivedType.id, registry)
     }
 }
 
 private class ArcDerivedTypeSerializer(
     private val delegate: JsonSerializer<Any>,
-    private val id: String
+    private val id: String,
+    private val registry: DerivedTypeRegistry
 ) : JsonSerializer<Any>() {
     override fun serialize(value: Any, generator: JsonGenerator, serializers: SerializerProvider) {
+        rejectUnregisteredDerivative(value, generator)
         val buffer = TokenBuffer(generator.codec, false)
         delegate.serialize(value, buffer, serializers)
         val parser = buffer.asParser(generator.codec)
@@ -411,6 +413,35 @@ private class ArcDerivedTypeSerializer(
         typeSerializer: TypeSerializer
     ) {
         serialize(value, generator, serializers)
+    }
+
+    /**
+     * Refuses a value whose hierarchy Arc resolves but whose own registration is missing.
+     *
+     * Writing `_derivedTypeId` for such a value produces JSON that [ArcDerivedTypeDeserializer] rejects, so the value
+     * would only travel one way. A hierarchy with no registrations at all is left alone: that is how an unconfigured
+     * registry looks, and refusing it would remove serialization that works today.
+     *
+     * A type that is itself a registered base is skipped for its own hierarchy. In a multilevel hierarchy the same
+     * class is both a derivative of the type above it and the base of the type below, and a class is never registered
+     * as its own derivative, so comparing it against itself would reject a correctly registered value.
+     */
+    private fun rejectUnregisteredDerivative(value: Any, generator: JsonGenerator) {
+        val missing = registry.registeredBaseTypes()
+            .filter { baseType ->
+                baseType != value.javaClass &&
+                    baseType.isAssignableFrom(value.javaClass) &&
+                    registry.idFor(baseType, value.javaClass) == null
+            }
+            .map(Class<*>::getName)
+            .sorted()
+        if (missing.isEmpty()) return
+
+        throw JsonMappingException.from(
+            generator,
+            "${value.javaClass.name} carries @DerivedType(\"$id\") but is not registered for " +
+                "${missing.joinToString()}; register it so the value can be read back"
+        )
     }
 }
 
