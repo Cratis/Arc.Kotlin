@@ -181,6 +181,21 @@ fix, re-run the gate that failed rather than arguing to green. Diagnose unrelate
 ## 10. Merge with a real merge commit
 
 Confirm current merge settings read-only; do not rely on a recorded API sample.
+
+If the merge touches a `publish.yml` trigger path (`Source`, KSP, GradlePlugin, Integrations,
+Testing, root build/settings files, or `gradle/`), first run:
+
+```bash
+gh run list --workflow publish.yml --limit 1
+```
+
+The latest run must be completed before the merge. After the merge, wait for its new publish run to
+complete before merging another pull request that touches those paths. Do this for `no-release` too:
+its verification occupies the same concurrency group. GitHub keeps only one pending run in a group,
+so a newer pending run can cancel an older one despite `cancel-in-progress: false`; issue #133 records
+the observed dropped release. This procedure is the serialization mechanism — the workflow's
+concurrency block is not a FIFO queue.
+
 **PR-only stops before this step.** Require separate explicit authorization for
 the exact PR/head, merge, and declared publication effects, and passing required
 checks. Only then use a true merge commit:
