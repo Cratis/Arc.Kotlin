@@ -8,7 +8,7 @@ plugins {
 }
 
 val kspVersion = "2.3.11"
-val springDataVersion = "3.5.1"
+val springDataVersion = "4.1.1"
 
 dependencies {
     implementation(project(":Source"))
