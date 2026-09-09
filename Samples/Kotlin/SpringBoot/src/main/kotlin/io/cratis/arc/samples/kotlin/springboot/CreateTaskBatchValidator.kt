@@ -6,7 +6,6 @@ package io.cratis.arc.samples.kotlin.springboot
 import io.cratis.arc.commands.CommandContext
 import io.cratis.arc.commands.CommandValidator
 import io.cratis.arc.results.ValidationResult
-import io.cratis.arc.results.ValidationResultSeverity
 import org.springframework.stereotype.Component
 
 /** Validates bounded task-batch creation requests through Arc's public validation seam. */
@@ -26,6 +25,5 @@ public class CreateTaskBatchValidator : CommandValidator<CreateTaskBatch> {
         else -> emptyList()
     }
 
-    private fun error(message: String): ValidationResult =
-        ValidationResult(ValidationResultSeverity.Error, message, listOf("titles"))
+    private fun error(message: String): ValidationResult = ValidationResult.error(message, listOf("titles"))
 }

@@ -26,6 +26,8 @@ result.shouldSucceed().shouldHaveResponse(TaskCreated::class.java)
 
 Select queries with `FullyQualifiedQueryName` and use `QueryScenario<T>`. Add services, validators, policies, filters, renderers, read-model interceptors, a principal, tenant, correlation ID, paging, or sorting through scenario methods. Use `ObservableQueryScenario<T>` to collect an explicitly bounded emission count with a timeout and to add per-emission guards. Disable serialization round trips only when the test intentionally bypasses the wire boundary.
 
+Command and query results carry matching positive and negative assertions, so a test can pin which stage rejected an operation instead of only that it failed. `shouldBeAuthorized` and `shouldBeUnauthorized` cover authorization, `shouldBeValid` and `shouldBeInvalid` cover validation feedback, and `shouldHaveErrors` and `shouldHaveNoErrors` cover retained exception messages. Chaining `shouldBeAuthorized().shouldBeInvalid()` states that authorization passed and validation rejected the command, which `shouldFail` alone does not.
+
 To exercise the same host-neutral tenancy contract an integration uses, provide both the resolver and explicit request context. The resolved tenant ID is also used as the namespace unless a namespace is supplied:
 
 ```kotlin

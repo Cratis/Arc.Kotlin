@@ -6,7 +6,6 @@ package io.cratis.arc.samples.javaspringboot;
 import io.cratis.arc.commands.CommandContext;
 import io.cratis.arc.java.BlockingCommandValidator;
 import io.cratis.arc.results.ValidationResult;
-import io.cratis.arc.results.ValidationResultSeverity;
 import java.util.List;
 
 /** Validates task creation requests through Arc's public validation seam. */
@@ -21,14 +20,10 @@ public final class CreateTaskValidator implements BlockingCommandValidator<Creat
     @Override
     public List<ValidationResult> validate(CreateTask command, CommandContext context) {
         if (command.title() == null || command.title().isBlank()) {
-            return List.of(new ValidationResult(
-                ValidationResultSeverity.Error,
-                "A task title is required.",
-                List.of("title")));
+            return List.of(ValidationResult.error("A task title is required.", List.of("title")));
         }
         if (command.title().length() > MAXIMUM_TITLE_LENGTH) {
-            return List.of(new ValidationResult(
-                ValidationResultSeverity.Error,
+            return List.of(ValidationResult.error(
                 "A task title cannot exceed " + MAXIMUM_TITLE_LENGTH + " characters.",
                 List.of("title")));
         }
