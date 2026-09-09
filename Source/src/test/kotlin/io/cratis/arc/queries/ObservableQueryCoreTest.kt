@@ -61,6 +61,53 @@ internal class ObservableQueryCoreTest {
     }
 
     @Test
+    fun `suppressed emissions do not consume first-delivery status`() = runBlocking {
+        val observed = mutableListOf<Boolean>()
+        val registry = ConcurrentQueryPerformerRegistry()
+        registry.register(performer(flowOf(listOf(Item(1, "one")), listOf(Item(2, "two")), listOf(Item(3, "three")))))
+        val guard = BlockingObservableQueryEmissionGuard { context ->
+            observed.add(context.isFirstEmission)
+            if ((context.data as List<*>).first() == Item(3, "three")) {
+                ObservableQueryEmissionVerdict.ALLOW
+            } else {
+                ObservableQueryEmissionVerdict.SUPPRESS
+            }
+        }
+        val pipeline = DefaultObservableQueryPipeline(
+            registry,
+            emissionGuards = DefaultObservableQueryEmissionGuards(listOf(guard))
+        )
+        val opened = pipeline.open(request(), options(), ObservableQueryTransferMode.DELTA)
+        val emissions = (opened as ObservableQueryOpenResult.Stream).results.toList()
+
+        assertEquals(listOf(true, true, true), observed)
+        assertEquals(1, emissions.size)
+        assertEquals(listOf(Item(3, "three")), emissions[0].data)
+        assertNull(emissions[0].changeSet)
+    }
+
+    @Test
+    fun `first delivered emission consumes first-delivery status`() = runBlocking {
+        val observed = mutableListOf<Boolean>()
+        val registry = ConcurrentQueryPerformerRegistry()
+        registry.register(performer(flowOf(listOf(Item(1, "one")), listOf(Item(1, "two")))))
+        val guard = BlockingObservableQueryEmissionGuard { context ->
+            observed.add(context.isFirstEmission)
+            ObservableQueryEmissionVerdict.ALLOW
+        }
+        val pipeline = DefaultObservableQueryPipeline(
+            registry,
+            emissionGuards = DefaultObservableQueryEmissionGuards(listOf(guard))
+        )
+        val opened = pipeline.open(request(), options(), ObservableQueryTransferMode.DELTA)
+        val emissions = (opened as ObservableQueryOpenResult.Stream).results.toList()
+
+        assertEquals(listOf(true, false), observed)
+        assertEquals(2, emissions.size)
+        assertEquals(listOf(Item(1, "two")), emissions[1].changeSet!!.replaced)
+    }
+
+    @Test
     fun `opening runs rejection filter once`() = runBlocking {
         var calls = 0
         val registry = ConcurrentQueryPerformerRegistry()
