@@ -12,7 +12,7 @@ import io.cratis.arc.queries.QueryPerformer
 import io.cratis.arc.queries.QueryPerformerRegistry
 import io.cratis.arc.queries.QueryTransportType
 import java.nio.charset.StandardCharsets
-import java.util.UUID
+import io.cratis.arc.correlation.CorrelationIdResolver
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -109,10 +109,9 @@ private class ArcObservableHandshakeInterceptor(
         attributes: MutableMap<String, Any>
     ): Boolean {
         val servletRequest = (request as? ServletServerHttpRequest)?.servletRequest ?: return false
-        val correlationId = servletRequest.getHeader(properties.correlationHeader)
-            ?.trim()
-            ?.let { value -> runCatching { UUID.fromString(value) }.getOrNull() }
-            ?: UUID.randomUUID()
+        val correlationId = CorrelationIdResolver.resolveOrCreate(
+            servletRequest.getHeader(properties.correlationHeader)
+        )
         response.headers.set(properties.correlationHeader, correlationId.toString())
         val lease = transport.tryReserveConnection() ?: run {
             response.setStatusCode(HttpStatus.SERVICE_UNAVAILABLE)
