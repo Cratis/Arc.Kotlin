@@ -14,7 +14,8 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
-import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
+import org.springframework.boot.security.autoconfigure.web.servlet.ServletWebSecurityAutoConfiguration;
+import org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Bean;
@@ -79,7 +80,7 @@ final class ArcCorrelationJavaTest {
 
     /** Application hosting a Java controller Arc does not know about. */
     @SpringBootConfiguration
-    @EnableAutoConfiguration(exclude = SecurityAutoConfiguration.class)
+    @EnableAutoConfiguration(exclude = {ServletWebSecurityAutoConfiguration.class, UserDetailsServiceAutoConfiguration.class})
     public static class Application {
         /** Registers the plain Java controller. */
         @Bean

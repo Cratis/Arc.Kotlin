@@ -48,7 +48,8 @@ import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.SpringBootConfiguration
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration
-import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration
+import org.springframework.boot.security.autoconfigure.web.servlet.ServletWebSecurityAutoConfiguration
+import org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.web.server.LocalServerPort
 import org.springframework.context.annotation.Bean
@@ -497,7 +498,7 @@ internal class ArcObservableQueryHostingTests {
     private fun wsUri(path: String) = URI.create("ws://127.0.0.1:$port$path")
 
     @SpringBootConfiguration
-    @EnableAutoConfiguration(exclude = [SecurityAutoConfiguration::class])
+    @EnableAutoConfiguration(exclude = [ServletWebSecurityAutoConfiguration::class, UserDetailsServiceAutoConfiguration::class])
     class Application {
         @Bean
         fun observableFixtureModule(): ArcArtifactModule = ObservableFixtureModule()

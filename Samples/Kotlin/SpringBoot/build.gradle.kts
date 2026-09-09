@@ -26,13 +26,14 @@ val arcProxyDirectory = layout.buildDirectory.dir("generated/arc-proxies")
 
 dependencies {
     implementation(project(":Integrations:SpringBoot"))
-    implementation("org.springframework.boot:spring-boot-starter-web")
+    implementation("org.springframework.boot:spring-boot-starter-webmvc")
     implementation("org.springframework:spring-websocket")
     implementation(kotlin("reflect"))
     ksp(project(":CodeGeneration:KSP"))
     arcProxyGenerator(project(":GradlePlugin"))
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
 }
 
 ksp {

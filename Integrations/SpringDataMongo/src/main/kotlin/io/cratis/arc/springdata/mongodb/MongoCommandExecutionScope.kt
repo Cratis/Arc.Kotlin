@@ -28,7 +28,7 @@ public class MongoCommandExecutionScope(
 
     override fun begin(context: CommandContext) {
         val definition = DefaultTransactionDefinition(TransactionDefinition.PROPAGATION_REQUIRED).apply {
-            name = "Arc command ${context.commandType.name}"
+            setName("Arc command ${context.commandType.name}")
         }
         val state = TransactionState(transactionManager.getTransaction(definition), Thread.currentThread().id)
         val previous = transactions.putIfAbsent(ExecutionKey(context), state)

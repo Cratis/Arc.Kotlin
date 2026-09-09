@@ -21,8 +21,9 @@ import org.junit.jupiter.params.provider.ValueSource
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.SpringBootConfiguration
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration
-import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
+import org.springframework.boot.security.autoconfigure.web.servlet.ServletWebSecurityAutoConfiguration
+import org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.context.annotation.Bean
 import org.springframework.http.MediaType
@@ -125,7 +126,7 @@ internal class ArcMultilevelDerivedTypeHostingTests {
         """{"value":{"_derivedTypeId":"middle","inherited":"root-value","middle":"middle-value","child":$child}}"""
 
     @SpringBootConfiguration
-    @EnableAutoConfiguration(exclude = [SecurityAutoConfiguration::class])
+    @EnableAutoConfiguration(exclude = [ServletWebSecurityAutoConfiguration::class, UserDetailsServiceAutoConfiguration::class])
     class Application {
         @Bean
         fun multilevelInvocations(): AtomicInteger = AtomicInteger()

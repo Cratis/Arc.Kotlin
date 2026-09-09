@@ -3,10 +3,6 @@
 
 package io.cratis.arc.springboot
 
-import com.fasterxml.jackson.annotation.JsonInclude
-import com.fasterxml.jackson.core.json.JsonReadFeature
-import com.fasterxml.jackson.core.json.JsonWriteFeature
-import com.fasterxml.jackson.databind.SerializationFeature
 import io.cratis.arc.artifacts.ArcArtifactModuleRegistry
 import io.cratis.arc.authentication.AsyncAuthentication
 import io.cratis.arc.authentication.AsyncAuthenticationHandler
@@ -34,7 +30,6 @@ import io.cratis.arc.commands.ServiceResolver
 import io.cratis.arc.json.ArcJacksonModule
 import io.cratis.arc.introspection.DefaultIntrospectionService
 import io.cratis.arc.introspection.IntrospectionService
-import io.cratis.arc.json.ArcPropertyNamingStrategy
 import io.cratis.arc.polymorphism.ConcurrentDerivedTypeRegistry
 import io.cratis.arc.polymorphism.DerivedTypeRegistrar
 import io.cratis.arc.polymorphism.DerivedTypeRegistry
@@ -67,15 +62,17 @@ import io.cratis.arc.tenancy.TenantIdResolver
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
-import org.springframework.boot.autoconfigure.jackson.Jackson2ObjectMapperBuilderCustomizer
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.ApplicationContext
 import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.Import
 
 /** Host-neutral Arc runtime wiring shared by web and non-web Spring Boot applications. */
 @AutoConfiguration
 @EnableConfigurationProperties(ArcProperties::class)
+@Import(ArcJackson2ObjectMapperConfiguration::class)
 public class ArcAutoConfiguration {
+
     /** Resolves tenants from the configured strategy chain unless the application supplies an override. */
     @Bean
     @ConditionalOnMissingBean(TenantIdResolver::class)
@@ -321,19 +318,4 @@ public class ArcAutoConfiguration {
     @ConditionalOnMissingBean
     public fun arcJacksonModule(derivedTypes: DerivedTypeRegistry): ArcJacksonModule = ArcJacksonModule(derivedTypes)
 
-    /** Applies Arc's wire defaults to an application mapper without replacing that mapper. */
-    @Bean
-    @ConditionalOnMissingBean(name = ["arcJacksonCustomizer"])
-    public fun arcJacksonCustomizer(): Jackson2ObjectMapperBuilderCustomizer = Jackson2ObjectMapperBuilderCustomizer { builder ->
-        builder.propertyNamingStrategy(ArcPropertyNamingStrategy())
-        builder.serializationInclusion(JsonInclude.Include.NON_NULL)
-        builder.featuresToEnable(
-            JsonReadFeature.ALLOW_NON_NUMERIC_NUMBERS.mappedFeature(),
-            JsonWriteFeature.WRITE_NAN_AS_STRINGS.mappedFeature()
-        )
-        builder.featuresToDisable(
-            SerializationFeature.WRITE_DATES_AS_TIMESTAMPS,
-            SerializationFeature.WRITE_DURATIONS_AS_TIMESTAMPS
-        )
-    }
 }

@@ -9,23 +9,12 @@ plugins {
     id("com.vanniktech.maven.publish")
 }
 
-val jacksonVersion = "2.22.2"
-
-// Do not raise this past 1.9.x while Spring Boot 3.5 is the supported host.
-//
-// Spring Boot's dependency management pins kotlinx-coroutines to the version in its BOM — 1.8.1 for
-// Spring Boot 3.5.3 — and that pin wins in any consuming application, downgrading whatever Arc
-// declares here. Arc's call sites still compile against the version below, so the two must stay
-// binary compatible.
-//
-// They stop being compatible at 1.10. Coroutines moved its default-argument bridges onto the
-// interfaces themselves, so `job.cancel()` compiled against 1.11.0 emits
-// `invokestatic kotlinx/coroutines/Job.cancel$default`, while 1.8.1 only has it on
-// `Job$DefaultImpls`. The result is NoSuchMethodError at runtime in a real Spring Boot application —
-// the multiplexed observable WebSocket hub dies in HubSocketConnection.close and the subscription
-// never delivers. No JVM test sees it; only :ContractTests:typeScriptRuntimeTest, which boots the
-// Kotlin sample as a real consumer, catches it. See issue #135.
-val coroutinesVersion = "1.9.0"
+// Compile against the versions Spring Boot 4.1.1 supplies to consuming applications. The
+// spring-boot-jackson2 bridge manages Jackson 2.21.5, and the Boot BOM manages coroutines 1.10.2.
+// Keeping Arc aligned prevents the compile/runtime binary skew that issue #135 exposed under Boot
+// 3.5, where Job.cancel() was compiled against a newer default-method layout than the host loaded.
+val jacksonVersion = "2.21.5"
+val coroutinesVersion = "1.10.2"
 val jakartaValidationVersion = "3.1.1"
 val slf4jVersion = "2.0.19"
 
