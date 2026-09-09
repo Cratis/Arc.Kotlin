@@ -55,13 +55,44 @@ internal enum class ArcDiagnostic(
     }
 }
 
-internal class ArcDiagnosticReporter(private val logger: KSPLogger) {
+/** Buffered reporters retain only replacement-only terminal-round sites, never symbols from an earlier round. */
+internal class ArcDiagnosticReporter(private val logger: KSPLogger, private val buffered: Boolean = false) {
+    private data class Message(val text: String, val node: KSNode?, val warning: Boolean)
+
+    private val pending = linkedMapOf<String, Message>()
+    private val published = mutableSetOf<String>()
+    var hasErrors: Boolean = false
+        private set
+
+    fun beginRound() {
+        pending.clear()
+        hasErrors = false
+    }
+
+    fun flush() {
+        pending.forEach { (key, message) -> publish(key, message) }
+        pending.clear()
+    }
+
+    private fun report(diagnostic: ArcDiagnostic, message: String, node: KSNode?, warning: Boolean) {
+        if (!warning) hasErrors = true
+        val text = "[${diagnostic.code}] $message"
+        val key = "$warning:${node?.location}:$text"
+        val entry = Message(text, node, warning)
+        if (buffered) pending.putIfAbsent(key, entry) else publish(key, entry)
+    }
+
+    private fun publish(key: String, message: Message) {
+        if (!published.add(key)) return
+        if (message.warning) logger.warn(message.text, message.node) else logger.error(message.text, message.node)
+    }
+
     fun error(message: String, node: KSNode? = null) {
         error(classify(message), message, node)
     }
 
     fun error(diagnostic: ArcDiagnostic, message: String, node: KSNode? = null) {
-        logger.error("[${diagnostic.code}] $message", node)
+        report(diagnostic, message, node, warning = false)
     }
 
     fun warn(message: String, node: KSNode? = null) {
@@ -69,7 +100,7 @@ internal class ArcDiagnosticReporter(private val logger: KSPLogger) {
     }
 
     fun warn(diagnostic: ArcDiagnostic, message: String, node: KSNode? = null) {
-        logger.warn("[${diagnostic.code}] $message", node)
+        report(diagnostic, message, node, warning = true)
     }
 
     private fun classify(message: String): ArcDiagnostic = when {

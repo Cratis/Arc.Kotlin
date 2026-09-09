@@ -48,7 +48,7 @@ internal class ArcSymbolProcessorRoundDependenciesTest {
                         fileName: String,
                         extensionName: String
                     ): OutputStream {
-                        if (fileName == "RoundDependenciesArcArtifactModule") {
+                        if (fileName in setOf("RoundDependenciesArcArtifactModule", "RoundDependenciesArcArtifactMetadata")) {
                             aggregateDependencies[fileName] = dependencies
                         }
                         return environment.codeGenerator.createNewFile(dependencies, packageName, fileName, extensionName)
@@ -104,12 +104,14 @@ internal class ArcSymbolProcessorRoundDependenciesTest {
         assertEquals(
             setOf(
                 "RoundDependenciesArcArtifactModule",
+                "RoundDependenciesArcArtifactMetadata",
                 "META-INF/services/io.cratis.arc.artifacts.ArcArtifactModule",
                 "META-INF/cratis/arc/RoundDependencies.json"
             ),
             aggregateDependencies.keys
         )
         aggregateDependencies.values.forEach { dependencies ->
+            assertSame(aggregateDependencies.getValue("RoundDependenciesArcArtifactModule"), dependencies)
             assertTrue(dependencies.aggregating)
             assertFalse(dependencies.isAllSources)
             assertEquals(rounds.last().size, dependencies.originatingFiles.size)

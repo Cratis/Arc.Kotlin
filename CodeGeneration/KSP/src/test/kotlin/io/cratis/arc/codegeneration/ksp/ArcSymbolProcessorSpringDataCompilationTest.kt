@@ -10,6 +10,8 @@ import com.tschuchort.compiletesting.kspProcessorOptions
 import com.tschuchort.compiletesting.kspWithCompilation
 import com.tschuchort.compiletesting.symbolProcessorProviders
 import com.tschuchort.compiletesting.useKsp2
+import io.cratis.arc.artifacts.ArcArtifactModule
+import io.cratis.arc.metadata.QueryParameterSource
 import java.io.File
 import java.nio.file.Files
 import kotlin.io.path.extension
@@ -30,7 +32,6 @@ internal class ArcSymbolProcessorSpringDataCompilationTest {
         val generated = generatedQuerySources(directory)
         assertEquals(3, generated.size)
         val combined = generated.values.joinToString("\n")
-        assertTrue("source = io.cratis.arc.metadata.QueryParameterSource.HOST_ADAPTER" in combined)
         assertTrue("org.springframework.data.domain.Pageable.unpaged(" in combined)
         assertTrue("org.springframework.data.domain.PageRequest.of(" in combined)
         assertTrue("org.springframework.data.domain.Sort.unsorted()" in combined)
@@ -39,9 +40,33 @@ internal class ArcSymbolProcessorSpringDataCompilationTest {
         assertTrue("_page.content" in combined)
         assertTrue("_page.totalElements" in combined)
         assertTrue(generated.values.any { source -> ".await()).let { _page ->" in source })
-        generated.values.forEach { source ->
-            assertEquals(1, source.split("supportsPaging = true").size - 1, source)
-            assertEquals(1, source.split("supportsSorting = true").size - 1, source)
+        val kotlinParameters = mapOf(
+            "label" to QueryParameterSource.CLIENT,
+            "pageable" to QueryParameterSource.HOST_ADAPTER,
+            "request" to QueryParameterSource.QUERY_REQUEST,
+            "sort" to QueryParameterSource.HOST_ADAPTER
+        )
+        val expectedParameters = mapOf(
+            "springdata.fixtures.KotlinSpringDataReadModel.direct" to kotlinParameters,
+            "springdata.fixtures.KotlinSpringDataReadModel.suspended" to kotlinParameters,
+            "springdata.fixtures.JavaSpringDataReadModel.asynchronous" to mapOf(
+                "pageable" to QueryParameterSource.HOST_ADAPTER,
+                "label" to QueryParameterSource.CLIENT,
+                "sort" to QueryParameterSource.HOST_ADAPTER
+            )
+        )
+        val module = result.classLoader.loadClass("io.cratis.arc.generated.SpringDataQueriesArcArtifactModule")
+            .getConstructor().newInstance() as ArcArtifactModule
+        assertEquals(3, module.queryPerformers.size)
+        assertEquals(expectedParameters.keys, module.queryPerformers.map { it.descriptor.fullyQualifiedName }.toSet())
+        assertEquals(expectedParameters.keys.map { "${queryPerformerClassName(it)}.kt" }.toSet(), generated.keys)
+        module.queryPerformers.forEach { performer ->
+            val descriptor = performer.descriptor
+            val queryName = descriptor.fullyQualifiedName
+            assertEquals("io.cratis.arc.generated.queries.${queryPerformerClassName(queryName)}", performer.javaClass.name)
+            assertEquals(expectedParameters.getValue(queryName), descriptor.parameters.associate { it.name to it.source })
+            assertTrue(descriptor.supportsPaging, queryName)
+            assertTrue(descriptor.supportsSorting, queryName)
         }
         listOf("JpaQueryPageAdapter", "MongoQueryPageAdapter", "ThreadLocal", "serviceResolver.require").forEach { forbidden ->
             assertFalse(forbidden in combined, "Generated Spring Data performers must not contain '$forbidden':\n$combined")

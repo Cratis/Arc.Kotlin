@@ -22,8 +22,9 @@ The whole processor lives under
 | File | Responsibility |
 | --- | --- |
 | `ArcSymbolProcessorProvider.kt` | The only published type; it is the entire `.api` baseline |
-| `ArcSymbolProcessor.kt` | Discovery, validation, rendering, and `generateModule` |
-| `MetadataCollector.kt` | Types, interfaces, enums, and concepts gathered for the manifest |
+| `ArcSymbolProcessor.kt` | Round discovery, invocation generation, final metadata factories, validation, and module generation |
+| `MetadataCollector.kt` | Current-round reachable type/interface/enum/concept graph |
+| `ArcManifestJson.kt` | Reflection-independent, runtime-byte-equivalent manifest serialization |
 | `ValidationMetadataExtractor.kt` | Jakarta constraint translation |
 | `EnumValueParser.kt`, `JavaRecordParser.kt`, `Naming.kt` | Focused helpers |
 | `ArcDiagnostics.kt` | The stable `ARCKSP` catalog and the reporter |
@@ -35,9 +36,15 @@ Constants that define the contract are in the `private companion object` at the 
 `provide`, the infrastructure parameter types, and the reserved query parameter names
 `page`, `pagesize`, `sortby`, `sortdirection`. Read them rather than assuming.
 
-`finish()` emits nothing unless `arc.moduleName` is configured and at least one command or
-query was found. When it does emit, it writes three things:
+Handlers and performers are emitted during processing with explicit descriptor types. Their
+factories are finalized after source discovery; do not freeze response classification or property
+derivatives into early invokers. Rebuild metadata from stable discovered names with the current
+resolver, and retain genuine deferrals.
 
+`finish()` flushes final diagnostics even when no artifact is emitted. For a valid, resolved snapshot
+with a configured module name and at least one command or query, it writes four aggregate outputs:
+
+- the internal `<ModuleName>ArcArtifactMetadata` helper, returning fresh descriptors;
 - the generated artifact module class in the generated package;
 - `META-INF/services/io.cratis.arc.artifacts.ArcArtifactModule`;
 - `META-INF/cratis/arc/<moduleName>.json`, the manifest.

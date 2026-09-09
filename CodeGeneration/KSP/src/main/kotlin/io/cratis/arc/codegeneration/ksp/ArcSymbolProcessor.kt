@@ -52,43 +52,83 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
     private val logger = ArcDiagnosticReporter(environment.logger)
     private val configuredModuleName = environment.options[MODULE_NAME_OPTION]
     private val moduleName = validateModuleName(configuredModuleName)
-    private val metadataCollector = MetadataCollector(logger)
-    private val processedCommands = mutableSetOf<String>()
-    private val processedReadModels = mutableSetOf<String>()
+    private val graphLogger = ArcDiagnosticReporter(environment.logger, buffered = true)
+    private var metadataCollector = MetadataCollector(graphLogger)
+    private val commandNames = sortedSetOf<String>()
+    private val readModelNames = sortedSetOf<String>()
+    private val derivedTypeNames = sortedSetOf<String>()
+    private val responseHandlerNames = sortedSetOf<String>()
+    private val emittedCommands = mutableSetOf<String>()
+    private val emittedQueries = mutableSetOf<String>()
     private val inspectedCommandLikeTypes = mutableSetOf<String>()
-    private val queryNames = mutableMapOf<String, KSFunctionDeclaration>()
-    private val explicitQueryRoutes = mutableMapOf<String, KSFunctionDeclaration>()
+    private val queryNames = mutableSetOf<String>()
+    private val explicitQueryRoutes = mutableSetOf<String>()
     private val declarativeHandledResponseTypes = sortedSetOf<String>()
-    private val processedDeclarativeResponseHandlers = mutableSetOf<String>()
+    private val handledTypeContributions = mutableMapOf<String, List<String>>()
     private val commands = mutableListOf<CommandModel>()
     private val queries = mutableListOf<QueryModel>()
     private var configurationReported = false
     private var moduleGenerated = false
     private var latestRoundFiles: List<KSFile> = emptyList()
+    private var hasDeferredInputs = false
 
     override fun process(resolver: Resolver): List<KSAnnotated> {
+        // KSP 2.3.9/2.3.11 call finish/onError before clearing terminal-round caches. Discard all previous sites
+        // at entry, including on error rounds. Only this round's real diagnostic nodes and dependency files survive.
+        graphLogger.beginRound()
+        latestRoundFiles = emptyList()
+        commands.clear()
+        queries.clear()
+        queryNames.clear()
+        explicitQueryRoutes.clear()
+        metadataCollector = MetadataCollector(graphLogger)
+        hasDeferredInputs = false
         latestRoundFiles = resolver.getAllFiles().toList()
-        metadataCollector.useResolver(resolver)
-        reportInvalidConfiguration()
-        val responseHandlerDeferred = discoverDeclarativeHandledResponseTypes(resolver)
-        inspectCommandLikeTypes(resolver)
-        val commandSymbols = resolver.getSymbolsWithAnnotation(COMMAND_ANNOTATION).toList()
-        val readModelSymbols = resolver.getSymbolsWithAnnotation(READ_MODEL_ANNOTATION).toList()
-        val deferred = (commandSymbols + readModelSymbols + responseHandlerDeferred)
-            .filterNot(KSAnnotated::validate)
-            .distinct()
+        val deferred = mutableListOf<KSAnnotated>()
+        try {
+            reportInvalidConfiguration()
+            deferred += discoverDeclarativeHandledResponseTypes(resolver)
+            inspectCommandLikeTypes(resolver)
+            val commandSymbols = discoverRoots(resolver, COMMAND_ANNOTATION, commandNames)
+            val readModelSymbols = discoverRoots(resolver, READ_MODEL_ANNOTATION, readModelNames)
+            derivedTypeNames += resolver.getSymbolsWithAnnotation("io.cratis.arc.polymorphism.DerivedType")
+                .filterIsInstance<KSClassDeclaration>().mapNotNull { it.qualifiedName?.asString() }
+            metadataCollector.useResolver(resolver, derivedTypeNames)
+            deferred += (commandSymbols + readModelSymbols).filterNot(KSAnnotated::validate)
+            commandSymbols.filter(KSAnnotated::validate).forEach { processCommand(it, resolver) }
+            readModelSymbols.filter(KSAnnotated::validate).forEach { processReadModel(it, resolver) }
+            hasDeferredInputs = hasDeferredInputs || deferred.isNotEmpty()
+            return deferred.distinct()
+        } finally {
+            metadataCollector.releaseSymbols()
+        }
+    }
 
-        commandSymbols.filter(KSAnnotated::validate).forEach { symbol -> processCommand(symbol, resolver) }
-        readModelSymbols.filter(KSAnnotated::validate).forEach { symbol -> processReadModel(symbol, resolver) }
-        return deferred
+    private fun discoverRoots(resolver: Resolver, annotation: String, names: MutableSet<String>): List<KSAnnotated> {
+        val discovered = resolver.getSymbolsWithAnnotation(annotation).toList()
+        names += discovered.filterIsInstance<KSClassDeclaration>().mapNotNull { it.qualifiedName?.asString() }
+        val resolved = names.mapNotNull { name ->
+            resolver.getClassDeclarationByName(resolver.getKSNameFromString(name)).also {
+                if (it == null) hasDeferredInputs = true
+            }
+        }
+        return resolved + discovered.filter { it !is KSClassDeclaration || it.qualifiedName == null }
     }
 
     override fun finish() {
+        graphLogger.flush()
         val configuredName = moduleName
-        if (!moduleGenerated && configuredName != null && (commands.isNotEmpty() || queries.isNotEmpty())) {
+        if (!logger.hasErrors && !graphLogger.hasErrors && !hasDeferredInputs && !moduleGenerated &&
+            configuredName != null && (commands.isNotEmpty() || queries.isNotEmpty())) {
             generateModule(configuredName)
             moduleGenerated = true
         }
+        latestRoundFiles = emptyList()
+    }
+
+    override fun onError() {
+        graphLogger.flush()
+        latestRoundFiles = emptyList()
     }
 
     private fun inspectCommandLikeTypes(resolver: Resolver) {
@@ -142,14 +182,15 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
             return
         }
         val qualifiedName = command.qualifiedName?.asString()
-        if (qualifiedName != null && processedCommands.add(qualifiedName)) {
+        if (qualifiedName != null) {
             buildCommandModel(command, resolver)?.let { model ->
                 if (metadataCollector.collectDeclaration(command, qualifiedName, command, model.properties)) {
-                    commands.add(model)
-                    generateHandler(model)
+                    // Concepts contribute scalar metadata, not a TypeModel with enriched properties.
+                    commands.add(if (metadataCollector.isConcept(qualifiedName)) model else
+                        model.copy(properties = requireNotNull(metadataCollector.propertiesFor(qualifiedName))))
                 }
             }
-        } else if (qualifiedName == null) {
+        } else {
             logger.error("@$COMMAND_SIMPLE_NAME classes must not be local.", command)
         }
     }
@@ -161,39 +202,32 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
             return
         }
         val qualifiedName = readModel.qualifiedName?.asString()
-        if (qualifiedName != null && processedReadModels.add(qualifiedName)) {
-            if (validateReadModelShape(readModel, qualifiedName) &&
-                metadataCollector.collectDeclaration(readModel, qualifiedName)) {
-                buildQueryModels(readModel, resolver).forEach { model ->
-                    if (registerQuery(model)) {
-                        queries.add(model)
-                        generatePerformer(model)
-                    }
-                }
+        if (qualifiedName != null) {
+            if (validateReadModelShape(readModel, qualifiedName)) {
+                queries += buildQueryModels(readModel, resolver)
+                metadataCollector.collectDeclaration(readModel, qualifiedName)
             }
-        } else if (qualifiedName == null) {
+        } else {
             logger.error("@$READ_MODEL_SIMPLE_NAME classes must not be local.", readModel)
         }
     }
 
-    private fun registerQuery(model: QueryModel): Boolean {
-        val previousName = queryNames.putIfAbsent(model.fullyQualifiedName, model.source)
-        if (previousName != null) {
+    private fun registerQuery(model: QueryModel, source: KSFunctionDeclaration): Boolean {
+        if (!queryNames.add(model.fullyQualifiedName)) {
             logger.error(
                 ArcDiagnostic.DUPLICATE_QUERY,
                 "Duplicate fully qualified query name '${model.fullyQualifiedName}' is generated by more than one function.",
-                model.source
+                source
             )
             return false
         }
         val explicitPath = model.explicitPath ?: return true
         val normalizedPath = "/" + explicitPath.trim().trim('/').replace(Regex("/+"), "/")
-        val previousRoute = explicitQueryRoutes.putIfAbsent(normalizedPath, model.source)
-        if (previousRoute != null) {
+        if (!explicitQueryRoutes.add(normalizedPath)) {
             logger.error(
                 ArcDiagnostic.ROUTE,
                 "Explicit query route '$normalizedPath' is generated by more than one query; @Path values must be unique.",
-                model.source
+                source
             )
             return false
         }
@@ -271,7 +305,6 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
 
         val parameters = buildMethodParameters(qualifiedName, handler, HANDLER_NAME) ?: return null
         val invocationKind = determineInvocationKind(qualifiedName, handler, resolver, HANDLER_NAME) ?: return null
-        val response = determineCommandResponse(qualifiedName, handler, resolver) ?: return null
         val namedProvides = command.getDeclaredFunctions().filter { it.simpleName.asString() == PROVIDE_NAME }.toList()
         if (namedProvides.size > 1) {
             logger.error("Command '$qualifiedName' has overloaded '$PROVIDE_NAME' functions; at most one is supported.", command)
@@ -316,6 +349,18 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
             return null
         }
 
+        // Validate unconditional response restrictions without traversing a provisional CLIENT-only graph.
+        determineCommandResponse(qualifiedName, handler, resolver, collectClientGraph = false) ?: return null
+        if (moduleName != null && emittedCommands.add(qualifiedName)) {
+            generateHandler(
+                CommandInvocationModel(
+                    qualifiedName, commandHandlerClassName(qualifiedName), parameters, provide,
+                    commandKey?.name, commandKey != null && isParsedJavaRecord(command), invocationKind
+                ),
+                containingFile
+            )
+        }
+        val response = determineCommandResponse(qualifiedName, handler, resolver) ?: return null
         return CommandModel(
             qualifiedName = qualifiedName,
             simpleName = command.simpleName.asString(),
@@ -331,8 +376,7 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
             responseTypeName = response.typeName,
             responseIsEnumerable = response.isEnumerable,
             responseValues = response.values,
-            invocationKind = invocationKind,
-            containingFile = containingFile
+            invocationKind = invocationKind
         )
     }
 
@@ -537,7 +581,8 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
     private fun determineCommandResponse(
         commandName: String,
         handler: KSFunctionDeclaration,
-        resolver: Resolver
+        resolver: Resolver,
+        collectClientGraph: Boolean = true
     ): CommandResponseModel? {
         var responseType = handler.returnType?.resolve()
         if (responseType == null || responseType.isError) {
@@ -560,11 +605,11 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
             return null
         }
 
-        val values = classifyCommandResponseType(responseType, commandName, handler) ?: return null
+        val values = classifyCommandResponseType(responseType, commandName, handler, collectClientGraph) ?: return null
         val clientValues = values.filter { value -> value.disposition == CommandResponseValueDisposition.CLIENT }
-        if (clientValues.size > 1) {
+        if (collectClientGraph && clientValues.size > 1) {
             val conflictingTypes = clientValues.joinToString(", ") { value -> "'${value.typeName}'" }
-            logger.error(
+            graphLogger.error(
                 ArcDiagnostic.AMBIGUOUS_COMMAND_RESPONSE,
                 "Handler '$commandName.$HANDLER_NAME' has ambiguous command response values in declaration order: " +
                     "$conflictingTypes.",
@@ -578,7 +623,8 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
     private fun classifyCommandResponseType(
         responseType: KSType,
         commandName: String,
-        handler: KSFunctionDeclaration
+        handler: KSFunctionDeclaration,
+        collectClientGraph: Boolean
     ): List<CommandResponseValueModel>? {
         if (responseType.isError || responseType.declaration is KSTypeParameter) {
             logger.error("Handler '$commandName.$HANDLER_NAME' has an unresolvable or generic response type.", handler)
@@ -594,22 +640,22 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
         if (responseName == COMMAND_RESULT_TYPE) {
             val response = resolveResponseTypeArguments(responseType, 1, commandName, handler)?.singleOrNull()
                 ?: return null
-            return classifyCommandResponseType(response, commandName, handler)
+            return classifyCommandResponseType(response, commandName, handler, collectClientGraph)
         }
 
         val aggregateSize = AGGREGATE_TYPE_ARITIES[responseName]
         if (aggregateSize != null) {
             val members = resolveResponseTypeArguments(responseType, aggregateSize, commandName, handler) ?: return null
             return members.flatMap { member ->
-                classifyCommandResponseType(member, commandName, handler) ?: return null
+                classifyCommandResponseType(member, commandName, handler, collectClientGraph) ?: return null
             }
         }
         if (responseName == ARC_ONE_OF_TYPE) {
             val member = resolveResponseTypeArguments(responseType, 1, commandName, handler)?.singleOrNull() ?: return null
-            return classifyCommandResponseType(member, commandName, handler)
+            return classifyCommandResponseType(member, commandName, handler, collectClientGraph)
         }
         if (responseName in COLLECTION_TYPE_NAMES || responseName == ARRAY_TYPE) {
-            return classifyCollectionResponseLeaf(responseType, commandName, handler)?.let(::listOf)
+            return classifyCollectionResponseLeaf(responseType, commandName, handler, collectClientGraph)?.let(::listOf)
         }
 
         val disposition = if (isHandledResponseLeaf(responseType)) {
@@ -617,7 +663,7 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
         } else {
             CommandResponseValueDisposition.CLIENT
         }
-        if (disposition == CommandResponseValueDisposition.CLIENT) {
+        if (collectClientGraph && disposition == CommandResponseValueDisposition.CLIENT) {
             val identity = "$commandName.$HANDLER_NAME response"
             val shape = metadataCollector.describe(responseType, identity, handler) ?: return null
             if (!metadataCollector.collect(shape, identity, handler)) return null
@@ -644,7 +690,8 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
     private fun classifyCollectionResponseLeaf(
         responseType: KSType,
         commandName: String,
-        handler: KSFunctionDeclaration
+        handler: KSFunctionDeclaration,
+        collectClientGraph: Boolean
     ): CommandResponseValueModel? {
         val element = resolveResponseTypeArguments(responseType, 1, commandName, handler)?.singleOrNull() ?: return null
         if (element.isError || element.declaration is KSTypeParameter) {
@@ -673,7 +720,7 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
         } else {
             CommandResponseValueDisposition.CLIENT
         }
-        if (disposition == CommandResponseValueDisposition.CLIENT) {
+        if (collectClientGraph && disposition == CommandResponseValueDisposition.CLIENT) {
             val identity = "$commandName.$HANDLER_NAME response"
             val shape = metadataCollector.describe(responseType, identity, handler) ?: return null
             if (!metadataCollector.collect(shape, identity, handler)) return null
@@ -720,8 +767,14 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
     private fun discoverDeclarativeHandledResponseTypes(resolver: Resolver): List<KSAnnotated> {
         // KSP exposes annotated source declarations here, but not arbitrary dependency declarations. Classpath scanning
         // would be nondeterministic, so dependency contracts are used only if a future KSP resolver exposes them.
-        val symbols = resolver.getSymbolsWithAnnotation(HANDLES_COMMAND_RESPONSE_VALUES_ANNOTATION, inDepth = true)
+        val discovered = resolver.getSymbolsWithAnnotation(HANDLES_COMMAND_RESPONSE_VALUES_ANNOTATION, inDepth = true)
             .toList()
+        responseHandlerNames += discovered.filterIsInstance<KSClassDeclaration>().mapNotNull { it.qualifiedName?.asString() }
+        val symbols = responseHandlerNames.mapNotNull { name ->
+            resolver.getClassDeclarationByName(resolver.getKSNameFromString(name)).also {
+                if (it == null) hasDeferredInputs = true
+            }
+        } + discovered.filter { it !is KSClassDeclaration || it.qualifiedName == null }
         val deferred = symbols.filterNot(KSAnnotated::validate).toMutableList()
         symbols.filter(KSAnnotated::validate)
             .filterIsInstance<KSClassDeclaration>()
@@ -744,7 +797,6 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
                     deferred.add(declaration)
                     return@forEach
                 }
-                if (!processedDeclarativeResponseHandlers.add(qualifiedName)) return@forEach
                 if (!isSupportedResponseValueHandler(declaration)) {
                     logger.error(
                         ArcDiagnostic.COMMAND_HANDLER,
@@ -767,8 +819,10 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
                     )
                     return@forEach
                 }
-                declarativeHandledResponseTypes.addAll(handledTypes)
+                handledTypeContributions[qualifiedName] = handledTypes
             }
+        declarativeHandledResponseTypes.clear()
+        declarativeHandledResponseTypes += handledTypeContributions.values.flatten()
         return deferred
     }
 
@@ -917,7 +971,11 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
         }
 
         return functions.filter { function -> function.simpleName.asString() !in overloadedNames }
-            .mapNotNull { function -> buildQueryModel(readModel, function, resolver, containingFile) }
+            .mapNotNull { function ->
+                buildQueryModel(readModel, function, resolver)?.takeIf { registerQuery(it, function) }?.also { model ->
+                    if (moduleName != null && emittedQueries.add(model.fullyQualifiedName)) generatePerformer(model, containingFile)
+                }
+            }
     }
 
     private fun kotlinQueryFunctions(
@@ -1023,8 +1081,7 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
     private fun buildQueryModel(
         readModel: KSClassDeclaration,
         function: KSFunctionDeclaration,
-        resolver: Resolver,
-        containingFile: com.google.devtools.ksp.symbol.KSFile
+        resolver: Resolver
     ): QueryModel? {
         val declaringTypeName = requireNotNull(readModel.qualifiedName).asString()
         val methodName = function.simpleName.asString()
@@ -1148,9 +1205,7 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
             treatWarningsAsErrors = readModel.hasAnnotation(TREAT_WARNINGS_AS_ERRORS_ANNOTATION) ||
                 function.hasAnnotation(TREAT_WARNINGS_AS_ERRORS_ANNOTATION),
             invocationKind = returnShape.invocationKind,
-            adaptsSpringDataPage = returnShape.adaptsSpringDataPage,
-            containingFile = containingFile,
-            source = function
+            adaptsSpringDataPage = returnShape.adaptsSpringDataPage
         )
     }
 
@@ -1615,14 +1670,14 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
         val adaptsSpringDataPage: Boolean
     )
 
-    private fun generateHandler(command: CommandModel) {
-        val dependencies = Dependencies(aggregating = false, command.containingFile)
+    private fun generateHandler(command: CommandInvocationModel, containingFile: KSFile) {
+        val dependencies = Dependencies(aggregating = false, containingFile)
         codeGenerator.createNewFile(dependencies, GENERATED_COMMANDS_PACKAGE, command.handlerClassName).bufferedWriter().use {
             writer -> writer.write(renderHandler(command))
         }
     }
 
-    private fun renderHandler(command: CommandModel): String {
+    private fun renderHandler(command: CommandInvocationModel): String {
         val commandType = renderQualifiedName(command.qualifiedName)
         fun invocation(methodName: String, parameters: List<HandlerParameterModel>): String {
             val arguments = parameters.joinToString(",\n") { parameter ->
@@ -1678,17 +1733,30 @@ $resolver        $body
     }
 """
         }.orEmpty()
-        val properties = if (command.properties.isEmpty()) {
-            "emptyList()"
-        } else {
-            command.properties.joinToString(",\n", "listOf(\n", "\n        )") { property ->
-                "            io.cratis.arc.metadata.PropertyDescriptor(" +
-                    "name = ${quote(property.name)}, shape = ${renderTypeShape(property.shape)}, " +
-                    "isCommandKey = ${property.isCommandKey}, " +
-                    "validationRules = ${renderValidationRules(property.validationRules)}, " +
-                    "validateRecursively = ${property.validateRecursively})"
-            }
-        }
+        return """// Copyright (c) Cratis. All rights reserved.
+// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+package $GENERATED_COMMANDS_PACKAGE
+
+import io.cratis.arc.commands.await
+
+/** Generated reflection-free command handler for [${command.qualifiedName}]. */
+public class ${command.handlerClassName} : io.cratis.arc.commands.CommandHandler {
+    override val commandType: java.lang.Class<*> = $commandType::class.java
+
+    override val metadata: io.cratis.arc.metadata.CommandDescriptor =
+        $GENERATED_PACKAGE.${moduleName}ArcArtifactMetadata.create${command.handlerClassName}()
+$keyResolution$preparation
+    override suspend fun invoke(context: io.cratis.arc.commands.CommandContext): kotlin.Any? {
+        val command = context.command as $commandType
+        $invocationBody
+    }
+}
+"""
+    }
+
+    private fun renderCommandDescriptor(command: CommandModel): String {
+        val properties = renderProperties(command.properties)
         val location = command.qualifiedName.substringBeforeLast('.', "")
             .split('.')
             .filter(String::isNotBlank)
@@ -1707,18 +1775,7 @@ $resolver        $body
             }
         }
 
-        return """// Copyright (c) Cratis. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-package $GENERATED_COMMANDS_PACKAGE
-
-import io.cratis.arc.commands.await
-
-/** Generated reflection-free command handler for [${command.qualifiedName}]. */
-public class ${command.handlerClassName} : io.cratis.arc.commands.CommandHandler {
-    override val commandType: java.lang.Class<*> = $commandType::class.java
-
-    override val metadata: io.cratis.arc.metadata.CommandDescriptor = io.cratis.arc.metadata.CommandDescriptor(
+        return """io.cratis.arc.metadata.CommandDescriptor(
         name = ${quote(command.simpleName)},
         typeName = ${quote(command.qualifiedName)},
         properties = $properties,
@@ -1733,18 +1790,11 @@ public class ${command.handlerClassName} : io.cratis.arc.commands.CommandHandler
         responseTypeName = $responseTypeName,
         responseIsEnumerable = ${command.responseIsEnumerable},
         responseValues = $responseValues
-    )
-$keyResolution$preparation
-    override suspend fun invoke(context: io.cratis.arc.commands.CommandContext): kotlin.Any? {
-        val command = context.command as $commandType
-        $invocationBody
-    }
-}
-"""
+    )"""
     }
 
-    private fun generatePerformer(query: QueryModel) {
-        val dependencies = Dependencies(aggregating = false, query.containingFile)
+    private fun generatePerformer(query: QueryModel, containingFile: KSFile) {
+        val dependencies = Dependencies(aggregating = false, containingFile)
         codeGenerator.createNewFile(dependencies, GENERATED_QUERIES_PACKAGE, query.performerClassName).bufferedWriter().use {
             writer -> writer.write(renderPerformer(query))
         }
@@ -1914,6 +1964,33 @@ $branches
             else -> error("Unreachable default query argument mask")
         }"""
         }
+        return """// Copyright (c) Cratis. All rights reserved.
+// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+package $GENERATED_QUERIES_PACKAGE
+
+import io.cratis.arc.commands.await
+import io.cratis.arc.commands.require
+import io.cratis.arc.queries.asKotlinFlow
+
+/** Generated reflection-free query performer for [${query.fullyQualifiedName}]. */
+public class ${query.performerClassName} : io.cratis.arc.queries.QueryPerformer {
+    override val fullyQualifiedName: io.cratis.arc.queries.FullyQualifiedQueryName =
+        io.cratis.arc.queries.FullyQualifiedQueryName(${quote(query.fullyQualifiedName)})
+
+    override val descriptor: io.cratis.arc.metadata.QueryDescriptor =
+        $GENERATED_PACKAGE.${moduleName}ArcArtifactMetadata.create${query.performerClassName}()
+
+    @Suppress("UNCHECKED_CAST")
+    override suspend fun perform(context: io.cratis.arc.queries.QueryContext): kotlin.Any? {
+$performerBindings
+        $invocationBody
+    }
+}
+"""
+    }
+
+    private fun renderQueryDescriptor(query: QueryModel): String {
         val parameters = if (query.parameters.isEmpty()) {
             "emptyList()"
         } else {
@@ -1935,21 +2012,7 @@ $branches
         val policy = query.authorization.policy?.let(::quote) ?: "null"
         val explicitPath = query.explicitPath?.let(::quote) ?: "null"
 
-        return """// Copyright (c) Cratis. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-package $GENERATED_QUERIES_PACKAGE
-
-import io.cratis.arc.commands.await
-import io.cratis.arc.commands.require
-import io.cratis.arc.queries.asKotlinFlow
-
-/** Generated reflection-free query performer for [${query.fullyQualifiedName}]. */
-public class ${query.performerClassName} : io.cratis.arc.queries.QueryPerformer {
-    override val fullyQualifiedName: io.cratis.arc.queries.FullyQualifiedQueryName =
-        io.cratis.arc.queries.FullyQualifiedQueryName(${quote(query.fullyQualifiedName)})
-
-    override val descriptor: io.cratis.arc.metadata.QueryDescriptor = io.cratis.arc.metadata.QueryDescriptor(
+        return """io.cratis.arc.metadata.QueryDescriptor(
         name = ${quote(query.methodName)},
         declaringTypeName = ${quote(query.declaringTypeName)},
         returnTypeName = ${quote(query.returnTypeName)},
@@ -1973,15 +2036,36 @@ public class ${query.performerClassName} : io.cratis.arc.queries.QueryPerformer 
         supportsPaging = ${query.supportsPaging},
         supportsSorting = ${query.supportsSorting},
         treatWarningsAsErrors = ${query.treatWarningsAsErrors}
-    )
-
-    @Suppress("UNCHECKED_CAST")
-    override suspend fun perform(context: io.cratis.arc.queries.QueryContext): kotlin.Any? {
-$performerBindings
-        $invocationBody
+    )"""
     }
+
+    private fun generateMetadataFactories(
+        moduleName: String,
+        commands: List<CommandModel>,
+        queries: List<QueryModel>,
+        dependencies: Dependencies
+    ) {
+        val factories = commands.map { command ->
+            "    fun create${command.handlerClassName}(): io.cratis.arc.metadata.CommandDescriptor = " +
+                renderCommandDescriptor(command)
+        } + queries.map { query ->
+            "    fun create${query.performerClassName}(): io.cratis.arc.metadata.QueryDescriptor = " +
+                renderQueryDescriptor(query)
+        }
+        val className = "${moduleName}ArcArtifactMetadata"
+        val source = """// Copyright (c) Cratis. All rights reserved.
+// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+package $GENERATED_PACKAGE
+
+/** Creates fresh descriptors without constructing a module or an invoker. */
+internal object $className {
+${factories.joinToString("\n\n")}
 }
 """
+        codeGenerator.createNewFile(dependencies, GENERATED_PACKAGE, className).bufferedWriter().use { writer ->
+            writer.write(source)
+        }
     }
 
     private fun generateModule(moduleName: String) {
@@ -1994,6 +2078,7 @@ $performerBindings
         // ALL_FILES can retain invalid first-round KSFiles in KSP2. The terminal round's files remain valid in finish.
         // Preserve all current source associations and the aggregating wildcard, including later generated artifacts.
         val dependencies = Dependencies(aggregating = true, *latestRoundFiles.toTypedArray())
+        generateMetadataFactories(moduleName, sortedCommands, sortedQueries, dependencies)
         val className = moduleClassName(moduleName)
         val handlers = renderModuleArtifacts(
             sortedCommands.map { command -> "$GENERATED_COMMANDS_PACKAGE.${command.handlerClassName}()" }

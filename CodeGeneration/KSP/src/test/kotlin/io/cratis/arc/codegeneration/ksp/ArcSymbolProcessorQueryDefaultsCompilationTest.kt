@@ -10,6 +10,8 @@ import com.tschuchort.compiletesting.kspProcessorOptions
 import com.tschuchort.compiletesting.kspWithCompilation
 import com.tschuchort.compiletesting.symbolProcessorProviders
 import com.tschuchort.compiletesting.useKsp2
+import io.cratis.arc.artifacts.ArcArtifactModule
+import io.cratis.arc.queries.QueryHttpMethodType
 import java.io.File
 import java.nio.file.Files
 import kotlin.io.path.extension
@@ -42,9 +44,45 @@ internal class ArcSymbolProcessorQueryDefaultsCompilationTest {
                 )
         )
 
-        val direct = firstSources.values.single { source -> "name = \"direct\"" in source }
-        val suspended = firstSources.values.single { source -> "name = \"suspended\"" in source }
-        val observable = firstSources.values.single { source -> "name = \"observable\"" in source }
+        val helperPath = "ksp/sources/kotlin/io/cratis/arc/generated/QueryDefaultsArcArtifactMetadata.kt"
+        assertTrue(
+            firstDirectory.resolve(helperPath).readBytes().contentEquals(secondDirectory.resolve(helperPath).readBytes()),
+            "The final metadata helper must be byte-identical across compilations"
+        )
+        val queryType = "defaults.fixtures.DefaultsReadModel"
+        val direct = firstSources.getValue("${queryPerformerClassName("$queryType.direct")}.kt")
+        val suspended = firstSources.getValue("${queryPerformerClassName("$queryType.suspended")}.kt")
+        val observable = firstSources.getValue("${queryPerformerClassName("$queryType.observable")}.kt")
+        val module = first.classLoader.loadClass("io.cratis.arc.generated.QueryDefaultsArcArtifactModule")
+            .getConstructor().newInstance() as ArcArtifactModule
+        assertEquals(3, module.queryPerformers.size)
+        val descriptors = module.queryPerformers.associate { performer ->
+            val descriptor = performer.descriptor
+            assertEquals(
+                "io.cratis.arc.generated.queries.${queryPerformerClassName(descriptor.fullyQualifiedName)}",
+                performer.javaClass.name
+            )
+            descriptor.fullyQualifiedName to descriptor
+        }
+        assertEquals(setOf("$queryType.direct", "$queryType.suspended", "$queryType.observable"), descriptors.keys)
+        assertEquals(
+            mapOf(
+                "required" to false, "prefix" to true, "request" to false, "suffix" to true,
+                "dependency" to false, "count" to true, "context" to false
+            ),
+            descriptors.getValue("$queryType.direct").parameters.associate { it.name to it.hasDefault }
+        )
+        assertEquals(
+            mapOf("request" to false, "label" to true, "context" to false),
+            descriptors.getValue("$queryType.suspended").parameters.associate { it.name to it.hasDefault }
+        )
+        assertEquals(
+            mapOf("context" to false, "label" to true, "request" to false),
+            descriptors.getValue("$queryType.observable").parameters.associate { it.name to it.hasDefault }
+        )
+        assertEquals(QueryHttpMethodType.GET, descriptors.getValue("$queryType.direct").queryHttpMethod)
+        assertEquals(QueryHttpMethodType.QUERY, descriptors.getValue("$queryType.suspended").queryHttpMethod)
+        assertEquals(QueryHttpMethodType.QUERY, descriptors.getValue("$queryType.observable").queryHttpMethod)
 
         assertEquals(8, branchCount(direct))
         assertEquals(2, branchCount(suspended))
@@ -59,10 +97,6 @@ internal class ArcSymbolProcessorQueryDefaultsCompilationTest {
         assertTrue("prefix = _resolveArgument1()" in direct)
         assertTrue("suffix = _resolveArgument3()" in direct)
         assertTrue("count = _resolveArgument5()" in direct)
-        assertTrue("hasDefault = true" in direct)
-        assertTrue("QueryHttpMethodType.GET" in direct)
-        assertTrue("QueryHttpMethodType.QUERY" in suspended)
-        assertTrue("QueryHttpMethodType.QUERY" in observable)
         listOf("callBy", "java.lang.reflect", "kotlin.reflect", "\$default", "prefix-default", "-suffix").forEach { forbidden ->
             assertFalse(forbidden in direct, "Generated performer must not contain '$forbidden':\n$direct")
         }

@@ -58,6 +58,8 @@ A concrete leaf remains legal, as does ordinary inheritance without annotated de
 
 This authoring restriction prevents a concrete base instance from writing JSON without `_derivedTypeId` that a registered polymorphic base requires on read. It is a property-use check, not a guarantee for every runtime registry configuration: changing a declaration to an interface or abstract base does not validate arbitrary multilevel registrations. Root read-model types are not rejected solely for being concrete polymorphic bases. KSP checks source descendants, including those generated in later processing rounds and source descendants of dependency bases; binary-only descendants or manually registered types not visible to KSP are outside this check. Verify those runtime configurations separately.
 
+Source-visible derived leaves generated in later KSP rounds are included in the reachable metadata graph even when they are not commands or read models themselves. Arc refreshes existing interface-property derivative associations with that graph, allowing generated proxies to include the leaf model and its discriminator mapping. An unrelated annotated hierarchy is not included merely because it has `@DerivedType` annotations.
+
 ### Runtime derived-type dispatch
 
 Populate the `DerivedTypeRegistry` before reading registered base types with `ArcObjectMapper`. On Arc's ordinary discriminator path, runtime dispatch resolves `_derivedTypeId` only within the declared base type's registrations; it does not infer self registrations, search other bases, or follow a transitive chain of identifiers. On that path, a non-null value must be an object with a textual, known identifier whose registered target is assignable to that base. Explicit JSON `null` remains `null`.

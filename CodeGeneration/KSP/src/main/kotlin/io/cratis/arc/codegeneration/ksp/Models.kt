@@ -3,7 +3,6 @@
 
 package io.cratis.arc.codegeneration.ksp
 
-import com.google.devtools.ksp.symbol.KSFile
 import io.cratis.arc.metadata.CommandResponseValueDisposition
 import io.cratis.arc.metadata.QueryParameterSource
 import io.cratis.arc.metadata.TypeShapeDescriptor
@@ -22,8 +21,18 @@ internal data class CommandModel(
     val responseTypeName: String?,
     val responseIsEnumerable: Boolean,
     val responseValues: List<CommandResponseValueModel>,
-    val invocationKind: InvocationKind,
-    val containingFile: KSFile
+    val invocationKind: InvocationKind
+)
+
+/** Invocation facts are independent of provisional response classification and its reachable client graph. */
+internal data class CommandInvocationModel(
+    val qualifiedName: String,
+    val handlerClassName: String,
+    val parameters: List<HandlerParameterModel>,
+    val provide: ProvideModel?,
+    val commandKeyPropertyName: String?,
+    val commandKeyUsesFunction: Boolean,
+    val invocationKind: InvocationKind
 )
 
 internal data class HandlerParameterModel(
@@ -58,9 +67,7 @@ internal data class QueryModel(
     val supportsSorting: Boolean,
     val treatWarningsAsErrors: Boolean,
     val invocationKind: QueryInvocationKind,
-    val adaptsSpringDataPage: Boolean,
-    val containingFile: KSFile,
-    val source: com.google.devtools.ksp.symbol.KSFunctionDeclaration
+    val adaptsSpringDataPage: Boolean
 ) {
     val fullyQualifiedName: String = "$declaringTypeName.$methodName"
 }

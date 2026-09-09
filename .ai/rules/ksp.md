@@ -26,15 +26,20 @@ plugin's `cratisArc.moduleName`, which forwards it.
 
 ## What the processor reads
 
-`process(resolver)` does four things per round:
+`process(resolver)` replaces its metadata graph and provisional diagnostics each round:
 
-1. `reportInvalidConfiguration()` — a missing or invalid `arc.moduleName`.
-2. `discoverDeclarativeHandledResponseTypes(resolver)` — types marked with
-   `@HandlesCommandResponseValues`.
-3. `inspectCommandLikeTypes(resolver)` — every top-level class in the round, looking for a
-   command-shaped type that is missing `@Command`, and for external handlers that accept a command.
-4. `resolver.getSymbolsWithAnnotation(...)` for `@Command` and `@ReadModel`, deferring symbols that
-   fail `validate()`.
+1. Validate configuration and inspect command-like types with the existing diagnostics.
+2. Accumulate stable command, read-model, derivative, and source-visible response-handler names;
+   resolve them through the current resolver rather than retaining earlier-round semantic symbols.
+3. Emit each valid invocation implementation once, while rebuilding response classification and the
+   reachable metadata graph against the current discoveries. Handled-only response graphs are not
+   retained unless another retained root reaches them.
+4. Keep genuine unresolved symbols deferred, including explicit handler-annotation deferrals; do not
+   discard a reported deferral merely because a second declaration-level `validate()` succeeds.
+
+Command properties, type/interface properties, query descriptors, factories, and the manifest must
+use the same reconstructed metadata. Concepts are a distinct successful collection category and do
+not require an ordinary `TypeModel`. Do not repair only one cached list or the manifest.
 
 Verified annotation fully-qualified names the processor reacts to:
 
@@ -58,20 +63,31 @@ Jakarta validation constraints on command properties and query parameters are re
 
 ## What the processor generates
 
-`finish()` calls `generateModule(moduleName)` once, and only when a valid module name is configured
-and at least one command or query was found. It emits four kinds of output:
+Invocation implementations are emitted during processing. `finish()` flushes the final metadata
+diagnostics and emits aggregate outputs once, only for a valid, resolved snapshot with a valid
+module name and at least one command or query. The output consists of:
 
 - One command handler per command, in `io.cratis.arc.generated.commands`, named
   `<Simple>ArcCommandHandler_<12 hex>` where the suffix is the first six bytes of the SHA-256 of the
   command's fully qualified name.
 - One query performer per query, in `io.cratis.arc.generated.queries`, named
   `<method>ArcQueryPerformer_<12 hex>` over the fully qualified query name.
+- One internal `io.cratis.arc.generated.<ModuleName>ArcArtifactMetadata` helper, whose factories
+  construct fresh command/query descriptors. Invokers keep explicit descriptor types and public
+  no-argument constructors; their metadata is stable per instance, not a shared singleton.
 - One module class `io.cratis.arc.generated.<ModuleName>ArcArtifactModule` extending
   `io.cratis.arc.artifacts.ArcArtifactModule`, listing handlers, performers, types, enums,
   interfaces, and concepts — plus a
   `META-INF/services/io.cratis.arc.artifacts.ArcArtifactModule` entry so it is discoverable through
   `ServiceLoader`.
 - One manifest resource at `META-INF/cratis/arc/<moduleName>.json`.
+
+The helper, module, service entry, and manifest share explicit aggregating dependencies on the
+terminal round's files. Replace that file snapshot every round; `Dependencies.ALL_FILES` can retain
+invalid first-round source objects in KSP2. Keep per-invoker source associations and do not emit
+placeholder files to force stabilization rounds. Provisional diagnostic nodes are likewise replaced
+every round and published only through valid terminal callbacks; lifecycle changes require native
+KSP error-location and incremental checks, not just embedded compilation tests.
 
 Names are content-addressed and every collection is sorted before rendering (commands by qualified
 name, queries by fully qualified name, types/interfaces/enums/concepts by fully qualified name).

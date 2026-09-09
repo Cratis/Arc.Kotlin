@@ -30,7 +30,8 @@ internal class MetadataCollector(private val logger: ArcDiagnosticReporter) {
     private val collectedInterfaces = linkedMapOf<String, InterfaceModel>()
     private val collectedEnums = linkedMapOf<String, EnumModel>()
     private val collectedConcepts = linkedMapOf<String, ConceptModel>()
-    private val visiting = mutableSetOf<String>()
+    private enum class Visit { ACTIVE, COMPLETED, INVALID }
+    private val visits = mutableMapOf<String, Visit>()
     private var resolver: Resolver? = null
     private var derivedDeclarations: List<KSClassDeclaration> = emptyList()
     private val reportedDuplicateDerivedIds = mutableSetOf<String>()
@@ -44,20 +45,34 @@ internal class MetadataCollector(private val logger: ArcDiagnosticReporter) {
     val enums: List<EnumModel> get() = collectedEnums.values.sortedBy(EnumModel::fullyQualifiedName)
     val concepts: List<ConceptModel> get() = collectedConcepts.values.sortedBy(ConceptModel::fullyQualifiedName)
 
-    fun useResolver(resolver: Resolver) {
+    fun useResolver(resolver: Resolver, derivedTypeNames: Set<String> = emptySet()) {
         this.resolver = resolver
-        derivedDeclarations = resolver.getSymbolsWithAnnotation(DERIVED_TYPE_ANNOTATION)
+        collectedTypes.clear()
+        collectedInterfaces.clear()
+        collectedEnums.clear()
+        collectedConcepts.clear()
+        visits.clear()
+        propertyDerivedTypeNames += derivedTypeNames
+        propertyDerivedTypeNames += resolver.getSymbolsWithAnnotation(DERIVED_TYPE_ANNOTATION)
             .filterIsInstance<KSClassDeclaration>()
-            .filter { declaration -> declaration.qualifiedName != null }
-            .sortedBy { declaration -> declaration.qualifiedName!!.asString() }
-            .toList()
-        propertyDerivedTypeNames += derivedDeclarations.mapNotNull { declaration -> declaration.qualifiedName?.asString() }
+            .mapNotNull { declaration -> declaration.qualifiedName?.asString() }
+        derivedDeclarations = propertyDerivedTypeNames.sorted().mapNotNull(::resolveNamedDeclaration)
         for (use in concretePropertyUses) {
             val owner = resolveNamedDeclaration(use.ownerName) ?: continue
             val base = resolveNamedDeclaration(use.baseName) ?: continue
             validateConcretePropertyUse(use, base, propertyUseNode(owner, use.propertyName))
         }
     }
+
+    /** Drop semantic round state before returning to KSP; only plain graph values survive for rendering. */
+    fun releaseSymbols() {
+        resolver = null
+        derivedDeclarations = emptyList()
+    }
+
+    fun propertiesFor(typeName: String): List<PropertyModel>? = collectedTypes[typeName]?.properties
+
+    fun isConcept(typeName: String): Boolean = collectedConcepts.containsKey(typeName)
 
     fun describeProperties(declaration: KSClassDeclaration, identity: String): List<PropertyModel>? {
         val declarations = declaration.getDeclaredProperties().associateBy { property -> property.simpleName.asString() }
@@ -365,6 +380,24 @@ internal class MetadataCollector(private val logger: ArcDiagnosticReporter) {
         node: KSNode = declaration,
         knownProperties: List<PropertyModel>? = null
     ): Boolean {
+        val name = declaration.qualifiedName?.asString()
+        when (visits[name]) {
+            Visit.ACTIVE, Visit.COMPLETED -> return true
+            Visit.INVALID -> return false
+            null -> Unit
+        }
+        if (name != null) visits[name] = Visit.ACTIVE
+        val valid = collectUnvisitedDeclaration(declaration, identity, node, knownProperties)
+        if (name != null) visits[name] = if (valid) Visit.COMPLETED else Visit.INVALID
+        return valid
+    }
+
+    private fun collectUnvisitedDeclaration(
+        declaration: KSClassDeclaration,
+        identity: String,
+        node: KSNode,
+        knownProperties: List<PropertyModel>?
+    ): Boolean {
         val qualifiedName = declaration.qualifiedName?.asString()
         if (qualifiedName == null || declaration.parentDeclaration != null) {
             logger.error("'$identity' uses an unsupported local or nested model type.", node)
@@ -386,10 +419,6 @@ internal class MetadataCollector(private val logger: ArcDiagnosticReporter) {
             logger.error("'$identity' uses unsupported model declaration '$qualifiedName'.", node)
             return false
         }
-        if (qualifiedName in collectedTypes || qualifiedName in collectedInterfaces || !visiting.add(qualifiedName)) {
-            return true
-        }
-
         val superDeclarations = declaration.superTypes.map { reference -> reference.resolve() }
             .filterNot(KSType::isError)
             .mapNotNull { type -> type.declaration as? KSClassDeclaration }
@@ -397,28 +426,22 @@ internal class MetadataCollector(private val logger: ArcDiagnosticReporter) {
             .toList()
         if (superDeclarations.any { candidate -> candidate.typeParameters.isNotEmpty() }) {
             logger.error("'$identity' uses an unsupported generic base type from '$qualifiedName'.", node)
-            visiting.remove(qualifiedName)
             return false
         }
         val baseTypeName = superDeclarations.firstOrNull { candidate -> candidate.classKind == ClassKind.CLASS }
             ?.qualifiedName?.asString()
         val derivedTypeId = declaration.derivedTypeId()
         if (declaration.hasAnnotation(DERIVED_TYPE_ANNOTATION) && derivedTypeId.isNullOrBlank()) {
-            logger.error("Derived type '$qualifiedName' must declare a nonblank @DerivedType id.", declaration)
-            visiting.remove(qualifiedName)
+            logger.error(ArcDiagnostic.PROXY_SHAPE, "Derived type '$qualifiedName' must declare a nonblank @DerivedType id.", declaration)
             return false
         }
         if (declaration.classKind == ClassKind.INTERFACE && derivedTypeId != null) {
-            logger.error("Interface '$qualifiedName' cannot carry @DerivedType; annotate concrete implementations.", declaration)
-            visiting.remove(qualifiedName)
+            logger.error(ArcDiagnostic.PROXY_SHAPE, "Interface '$qualifiedName' cannot carry @DerivedType; annotate concrete implementations.", declaration)
             return false
         }
 
         val describedProperties = knownProperties ?: describeProperties(declaration, qualifiedName)
-        if (describedProperties == null) {
-            visiting.remove(qualifiedName)
-            return false
-        }
+        if (describedProperties == null) return false
         val properties = describedProperties.map { property ->
             val propertyDeclaration = if (property.shape.kind == TypeShapeKind.MAP) null else
                 resolveNamedDeclaration(property.elementTypeName ?: property.typeName)
@@ -487,7 +510,6 @@ internal class MetadataCollector(private val logger: ArcDiagnosticReporter) {
             if (!collectDeclaration(derivative, "$qualifiedName derivative $derivativeName", derivative)) valid = false
         }
 
-        visiting.remove(qualifiedName)
         if (!valid) {
             collectedTypes.remove(qualifiedName)
             collectedInterfaces.remove(qualifiedName)
