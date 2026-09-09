@@ -13,6 +13,8 @@ import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
@@ -105,6 +107,36 @@ internal class ObservableQueryCoreTest {
         assertEquals(listOf(true, false), observed)
         assertEquals(2, emissions.size)
         assertEquals(listOf(Item(1, "two")), emissions[1].changeSet!!.replaced)
+    }
+
+    @Test
+    fun `a state flow source carries an immediate snapshot and a cold flow does not`() = runBlocking {
+        val stateful = ConcurrentQueryPerformerRegistry()
+        stateful.register(performer(MutableStateFlow(listOf(Item(1, "one")))))
+        val opened = DefaultObservableQueryPipeline(stateful).open(request(), options()) as ObservableQueryOpenResult.Stream
+        val snapshot = requireNotNull(opened.snapshot).toList()
+        assertEquals(1, snapshot.size)
+        assertEquals(listOf(Item(1, "one")), snapshot[0].data)
+        assertTrue(snapshot[0].isReady)
+
+        val cold = ConcurrentQueryPerformerRegistry()
+        cold.register(performer(flowOf(listOf(Item(1, "one")))))
+        val coldOpened = DefaultObservableQueryPipeline(cold).open(request(), options()) as ObservableQueryOpenResult.Stream
+        assertNull(coldOpened.snapshot)
+    }
+
+    @Test
+    fun `a withheld current value leaves the snapshot empty`() = runBlocking {
+        val registry = ConcurrentQueryPerformerRegistry()
+        registry.register(performer(MutableStateFlow(listOf(Item(1, "one")))))
+        val pipeline = DefaultObservableQueryPipeline(
+            registry,
+            emissionGuards = DefaultObservableQueryEmissionGuards(
+                listOf(BlockingObservableQueryEmissionGuard { ObservableQueryEmissionVerdict.SUPPRESS })
+            )
+        )
+        val opened = pipeline.open(request(), options()) as ObservableQueryOpenResult.Stream
+        assertNull(requireNotNull(opened.snapshot).firstOrNull())
     }
 
     @Test

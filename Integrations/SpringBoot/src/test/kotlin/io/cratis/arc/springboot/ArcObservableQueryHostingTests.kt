@@ -118,13 +118,22 @@ internal class ArcObservableQueryHostingTests {
     }
 
     @Test
-    fun `observable HTTP snapshot supports accepted and bounded first result wait`() {
+    fun `observable HTTP snapshot serves a current value and accepts a source without one`() {
         val pending = http.send(
-            HttpRequest.newBuilder(httpUri(OBSERVABLE_ROUTE)).GET().build(),
+            HttpRequest.newBuilder(httpUri(DEFAULTED_ROUTE)).GET().build(),
             HttpResponse.BodyHandlers.ofString()
         )
         assertEquals(202, pending.statusCode())
         assertFalse(objectMapper.readTree(pending.body()).path("isReady").booleanValue())
+
+        val immediate = http.send(
+            HttpRequest.newBuilder(httpUri(OBSERVABLE_ROUTE)).GET().build(),
+            HttpResponse.BodyHandlers.ofString()
+        )
+        assertEquals(200, immediate.statusCode())
+        val immediateEnvelope = objectMapper.readTree(immediate.body())
+        assertTrue(immediateEnvelope.path("isReady").booleanValue())
+        assertEquals("one", immediateEnvelope.path("data").path(0).path("value").textValue())
 
         val correlationId = "168e3990-d5c9-4c64-a725-8d672efa28b3"
         val ready = http.send(

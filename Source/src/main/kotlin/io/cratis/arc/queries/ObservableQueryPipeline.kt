@@ -9,16 +9,28 @@ import io.cratis.arc.results.ValidationResult
 import io.cratis.arc.results.ValidationResultSeverity
 import java.util.concurrent.CancellationException
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.take
 
 /** Result of opening an observable query. */
 public sealed interface ObservableQueryOpenResult {
     /** Query filters or performer creation rejected the subscription. */
     public class Failure(public val result: QueryResult<*>) : ObservableQueryOpenResult
 
-    /** A controlled cold stream of query results. */
-    public class Stream(public val results: Flow<QueryResult<*>>) : ObservableQueryOpenResult
+    /**
+     * A controlled cold stream of query results.
+     *
+     * @property results The cold stream of every result the subscription produces.
+     * @property snapshot A single-result stream of the value the source already holds, or `null` when the
+     * source has no current value and a caller must wait for the first one. It never waits for a new value,
+     * and completes without a result when an emission guard withholds the current one.
+     */
+    public class Stream @JvmOverloads constructor(
+        public val results: Flow<QueryResult<*>>,
+        public val snapshot: Flow<QueryResult<*>>? = null
+    ) : ObservableQueryOpenResult
 }
 
 /** Host-neutral observable-query execution pipeline. */
@@ -88,11 +100,11 @@ public class DefaultObservableQueryPipeline @JvmOverloads constructor(
         }
 
         val paging = PagingInfo(request.paging.page, request.paging.pageSize, 0)
-        val results = flow<QueryResult<*>> {
+        fun render(source: Flow<*>): Flow<QueryResult<*>> = flow<QueryResult<*>> {
             var previous: List<*>? = null
             var hasDeliveredEmission = false
             try {
-                upstream.collect { value ->
+                source.collect { value ->
                     val wrapped = wrapEmission(filterResult, value, context, paging)
                         .filterValidation(options.allowedValidationSeverity)
                     // First-delivery status belongs to the emission the subscriber actually receives. A guard that
@@ -138,7 +150,14 @@ public class DefaultObservableQueryPipeline @JvmOverloads constructor(
             if (exception is CancellationException) throw exception
             emit(QueryResult.exception<Any?>(options.correlationId, exception))
         }
-        return ObservableQueryOpenResult.Stream(results)
+
+        // A StateFlow already holds a value, so a caller wanting an immediate snapshot can be answered without
+        // waiting for anything. Taking one element runs that value through the same rendering, interception and
+        // guard pipeline a subscription uses, and completes with no result when a guard withholds it.
+        return ObservableQueryOpenResult.Stream(
+            render(upstream),
+            (upstream as? StateFlow<*>)?.let { source -> render(source.take(1)) }
+        )
     }
 
     private suspend fun executeFilters(context: QueryContext): QueryResult<Any?> {

@@ -59,7 +59,7 @@ Arc accepts and emits `LocalTime` values with up to seven fractional digits for 
 
 The same generated query route supports three direct transports:
 
-- HTTP GET or enabled RFC QUERY returns `202` with a not-ready `QueryResult` unless `waitForFirstResult=true` is supplied. `waitForFirstResultTimeout=<seconds>` can shorten the configured wait limit. Observable QUERY uses the standard `{arguments,paging,sorting}` body and `Cache-Control: no-store`; disabling QUERY returns 405 with `Allow: GET`.
+- HTTP GET or enabled RFC QUERY returns `200` with the current value when the query returns a `StateFlow`, because that source already holds one. A cold `Flow` or JDK `Flow.Publisher` has nothing to serve yet and returns `202` with a not-ready `QueryResult` unless `waitForFirstResult=true` is supplied. `waitForFirstResultTimeout=<seconds>` can shorten the configured wait limit. Observable QUERY uses the standard `{arguments,paging,sorting}` body and `Cache-Control: no-store`; disabling QUERY returns 405 with `Allow: GET`.
 - SSE is selected with `Accept: text/event-stream` and sends each result as exactly `data: {QueryResult}\n\n`.
 - WebSocket is selected by upgrading the query route. Data frames use `{ "type": "Data", "data": {QueryResult} }`; `Ping` and `Pong` frames carry millisecond timestamps.
 

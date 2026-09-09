@@ -69,7 +69,7 @@ A command body is handed straight to the injected `ObjectMapper`. The Spring Boo
 
 ## Observable query transport
 
-Without `waitForFirstResult=true`, an observable query HTTP snapshot returns a not-ready `QueryResult` with 202. With it, the host waits up to the smaller of `waitForFirstResultTimeout=<seconds>`, the configured observable wait limit, and the request timeout. When enabled, RFC QUERY is registered on the same observable route, consumes the standard body, and returns `Cache-Control: no-store`; when disabled it returns 405 with `Allow: GET`. SSE and WebSocket upgrades remain GET-only.
+An observable query HTTP snapshot returns 200 with the current value when the query returns a `StateFlow`, which already holds one. A query that returns a cold `Flow` or a JDK `Flow.Publisher` has no value to serve yet, so without `waitForFirstResult=true` it returns a not-ready `QueryResult` with 202. With `waitForFirstResult=true`, the host waits for the first result up to the smaller of `waitForFirstResultTimeout=<seconds>`, the configured observable wait limit, and the request timeout. When enabled, RFC QUERY is registered on the same observable route, consumes the standard body, and returns `Cache-Control: no-store`; when disabled it returns 405 with `Allow: GET`. SSE and WebSocket upgrades remain GET-only.
 
 Direct SSE writes exactly `data: {QueryResult}\n\n`. Direct WebSocket data uses a `Data` frame with the `QueryResult` in `data`; `Ping` and `Pong` carry `timestamp`.
 
