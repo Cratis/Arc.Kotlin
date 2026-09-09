@@ -18,7 +18,7 @@ description: Exact Arc servlet routes, methods, headers, envelopes, statuses, id
 | `/.cratis/queries/sse/unsubscribe` | `POST` | Cancels a subscription or records its revision tombstone. |
 | `/.cratis/commands` | `GET` | Anonymous deterministic command introspection metadata. |
 | `/.cratis/queries` | `GET` | Anonymous deterministic query introspection metadata. |
-| `/.cratis/queries/health` | `GET`, `QUERY` | Current physical observable connection and subscription health. |
+| `/.cratis/queries/health` | `GET`, `QUERY` | Current physical observable connection and subscription health. Requires an authenticated caller when authentication handlers are registered. |
 | `/.cratis/me` | `GET` | Registered only with exactly one identity details provider. |
 | `/.cratis/identity-details/schema` | `GET` | Always registered; returns `{}` without a provider. |
 | `/.cratis/users` | `GET` | Anonymous development-user discovery; returns an ordered, principal-ID-deduplicated array or `[]`. |
@@ -87,7 +87,9 @@ When `tenancy.required=true`, unresolved requests return 400 (or a failed WebSoc
 
 ## Authentication and introspection
 
-When `AuthenticationHandler` or Java `AsyncAuthenticationHandler` beans are registered, Arc authenticates protected Arc routes before dispatch. Handlers execute in Spring order. An authenticated result supplies the request principal, anonymous results allow later handlers to try, and failed results are aggregated internally but exposed only as the generic 401 response. `@AllowAnonymous` artifacts may proceed without an authenticated result. Introspection, users, tenants, and identity schema routes are literal anonymous endpoints.
+When `AuthenticationHandler` or Java `AsyncAuthenticationHandler` beans are registered, Arc authenticates protected Arc routes before dispatch. Handlers execute in Spring order, and the first handler that recognizes the request decides the outcome. An authenticated result supplies the request principal. A failed result is terminal: the chain stops at that handler, no later handler runs, and a later handler can never override the rejection with a success. The failure is exposed only as the generic 401 response. An anonymous result means the handler did not recognize the request and lets later handlers try; anonymous is the final outcome only when no handler recognized the request at all. `@AllowAnonymous` artifacts may proceed without an authenticated result. Introspection, users, tenants, and identity schema routes are literal anonymous endpoints.
+
+`/.cratis/me` and both methods of `/.cratis/queries/health` require an authenticated result, because the query health snapshot reports connection and subscription identifiers, remote IP addresses, user agents, and user identities.
 
 `/.cratis/commands` returns route, type, documentation, payload schema, authorization, properties, and validation metadata. `/.cratis/queries` additionally returns the fully qualified query name, argument schema, transport, paging support, and HTTP preference. Query parameter metadata reports `hasDefault`, and the argument schema excludes defaulted parameters from `required`; neither endpoint exposes a Kotlin default expression or an invented value. UUID and supported textual terminal `java.time` values (`LocalDate`, `LocalTime`, `LocalDateTime`, `Instant`, `OffsetDateTime`, `ZonedDateTime`, `OffsetTime`, `Duration`, and `Period`) appear as scalar `string` schemas, including collection elements, rather than object schemas. Registry-version caches refresh only when generated artifact registries change.
 

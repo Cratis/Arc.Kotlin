@@ -587,6 +587,7 @@ private class ArcCommandHttpRequestHandler(
             } else {
                 null
             }
+            logger.debug("Arc command request body could not be read. correlationId={}", correlationId, exception)
             return CapturedCommandRequest.Completed(
                 correlationId,
                 CommandResult.malformed(correlationId),
