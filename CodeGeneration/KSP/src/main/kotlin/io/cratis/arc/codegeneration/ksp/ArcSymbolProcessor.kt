@@ -16,6 +16,7 @@ import com.google.devtools.ksp.symbol.KSAnnotated
 import com.google.devtools.ksp.symbol.KSAnnotation
 import com.google.devtools.ksp.symbol.KSClassDeclaration
 import com.google.devtools.ksp.symbol.KSDeclaration
+import com.google.devtools.ksp.symbol.KSFile
 import com.google.devtools.ksp.symbol.KSFunctionDeclaration
 import com.google.devtools.ksp.symbol.KSType
 import com.google.devtools.ksp.symbol.KSTypeParameter
@@ -25,7 +26,6 @@ import com.google.devtools.ksp.symbol.Origin
 import com.google.devtools.ksp.symbol.Variance
 import com.google.devtools.ksp.validate
 import io.cratis.arc.artifacts.ArcArtifactManifest
-import io.cratis.arc.json.ArcObjectMapper
 import io.cratis.arc.metadata.AuthorizationMetadata
 import io.cratis.arc.metadata.CommandDescriptor
 import io.cratis.arc.metadata.CommandResponseValueDescriptor
@@ -64,8 +64,10 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
     private val queries = mutableListOf<QueryModel>()
     private var configurationReported = false
     private var moduleGenerated = false
+    private var latestRoundFiles: List<KSFile> = emptyList()
 
     override fun process(resolver: Resolver): List<KSAnnotated> {
+        latestRoundFiles = resolver.getAllFiles().toList()
         metadataCollector.useResolver(resolver)
         reportInvalidConfiguration()
         val responseHandlerDeferred = discoverDeclarativeHandledResponseTypes(resolver)
@@ -1989,7 +1991,9 @@ $performerBindings
         val sortedInterfaces = metadataCollector.interfaces
         val sortedEnums = metadataCollector.enums
         val sortedConcepts = metadataCollector.concepts
-        val dependencies = Dependencies.ALL_FILES
+        // ALL_FILES can retain invalid first-round KSFiles in KSP2. The terminal round's files remain valid in finish.
+        // Preserve all current source associations and the aggregating wildcard, including later generated artifacts.
+        val dependencies = Dependencies(aggregating = true, *latestRoundFiles.toTypedArray())
         val className = moduleClassName(moduleName)
         val handlers = renderModuleArtifacts(
             sortedCommands.map { command -> "$GENERATED_COMMANDS_PACKAGE.${command.handlerClassName}()" }
@@ -2035,7 +2039,7 @@ public class $className : io.cratis.arc.artifacts.ArcArtifactModule(
             sortedEnums,
             sortedConcepts
         )
-        val manifestJson = ArcObjectMapper.create().writeValueAsString(manifest) + "\n"
+        val manifestJson = ArcManifestJson.serialize(manifest)
         codeGenerator.createNewFileByPath(
             dependencies,
             "META-INF/cratis/arc/$moduleName.json",

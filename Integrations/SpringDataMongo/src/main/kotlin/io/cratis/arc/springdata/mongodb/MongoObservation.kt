@@ -122,14 +122,20 @@ public class SpringDataMongoChangeStreamSource(
         collectionName: String,
         tenantId: String?
     ): MongoChange? {
-        val mapped = when (operationType) {
-            OperationType.INSERT -> MongoChangeOperation.INSERT
-            OperationType.UPDATE -> MongoChangeOperation.UPDATE
-            OperationType.REPLACE -> MongoChangeOperation.REPLACE
-            OperationType.DELETE -> MongoChangeOperation.DELETE
-            OperationType.INVALIDATE -> MongoChangeOperation.INVALIDATE
-            else -> null
-        } ?: return null
+        val operation = operationType
+        val mapped = if (operation == OperationType.INSERT) {
+            MongoChangeOperation.INSERT
+        } else if (operation == OperationType.UPDATE) {
+            MongoChangeOperation.UPDATE
+        } else if (operation == OperationType.REPLACE) {
+            MongoChangeOperation.REPLACE
+        } else if (operation == OperationType.DELETE) {
+            MongoChangeOperation.DELETE
+        } else if (operation == OperationType.INVALIDATE) {
+            MongoChangeOperation.INVALIDATE
+        } else {
+            return null
+        }
         return MongoChange(mapped, collectionName, tenantId, documentKey, resumeToken)
     }
 }

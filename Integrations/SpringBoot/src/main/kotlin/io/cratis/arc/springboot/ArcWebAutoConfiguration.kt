@@ -631,13 +631,13 @@ private class ArcCommandHttpRequestHandler(
             ?: asyncManager.concurrentResultContext?.firstOrNull() as? UUID
             ?: parseCorrelationId(request.getHeader(properties.correlationHeader))
         asyncManager.clearConcurrentResult()
-        val hostedResult = when (concurrentResult) {
-            is HostedCommandResult -> concurrentResult
-            is Throwable -> HostedCommandResult(CommandResult.exception(correlationId, concurrentResult), concurrentResult)
-            else -> {
-                val exception = IllegalStateException("Spring MVC returned an unexpected Arc command result.")
-                HostedCommandResult(CommandResult.exception(correlationId, exception), exception)
-            }
+        val hostedResult = if (concurrentResult is HostedCommandResult) {
+            concurrentResult
+        } else if (concurrentResult is Throwable) {
+            HostedCommandResult(CommandResult.exception(correlationId, concurrentResult), concurrentResult)
+        } else {
+            val exception = IllegalStateException("Spring MVC returned an unexpected Arc command result.")
+            HostedCommandResult(CommandResult.exception(correlationId, exception), exception)
         }
         prepareResponse(response, hostedResult.result.correlationId)
         writeResult(

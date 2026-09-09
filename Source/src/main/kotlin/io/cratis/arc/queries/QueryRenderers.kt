@@ -97,8 +97,7 @@ public class DefaultQueryRenderers(renderers: Iterable<QueryRendererFor<*>> = em
 public class QueryableQueryRenderer : BlockingQueryRendererFor<Iterable<*>> {
     private val propertyAccessors = ConcurrentHashMap<PropertyKey, KProperty1<Any, *>>()
 
-    @Suppress("UNCHECKED_CAST")
-    override fun queryType(): Class<Iterable<*>> = Iterable::class.java as Class<Iterable<*>>
+    override fun queryType(): Class<Iterable<*>> = Iterable::class.java
 
     override fun renderBlocking(
         query: Iterable<*>,

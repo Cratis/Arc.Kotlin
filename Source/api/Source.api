@@ -811,6 +811,7 @@ public final class io/cratis/arc/java/AsyncCommandHandler$DefaultImpls {
 
 public final class io/cratis/arc/java/AsyncCommandHandlerAdapter : io/cratis/arc/commands/CommandHandler {
 	public fun <init> (Lio/cratis/arc/java/AsyncCommandHandler;)V
+	public fun getAllowsAnonymous ()Z
 	public fun getCommandType ()Ljava/lang/Class;
 	public fun getMetadata ()Lio/cratis/arc/metadata/CommandDescriptor;
 	public fun invoke (Lio/cratis/arc/commands/CommandContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
@@ -876,8 +877,11 @@ public abstract interface class io/cratis/arc/java/AsyncQueryPerformer {
 
 public final class io/cratis/arc/java/AsyncQueryPerformerAdapter : io/cratis/arc/queries/QueryPerformer {
 	public fun <init> (Lio/cratis/arc/java/AsyncQueryPerformer;)V
+	public fun getAllowsAnonymous ()Z
 	public fun getDescriptor ()Lio/cratis/arc/metadata/QueryDescriptor;
 	public fun getFullyQualifiedName ()Lio/cratis/arc/queries/FullyQualifiedQueryName;
+	public fun getSupportsPaging ()Z
+	public fun getSupportsSorting ()Z
 	public fun perform (Lio/cratis/arc/queries/QueryContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
 
@@ -952,6 +956,7 @@ public final class io/cratis/arc/java/BlockingCommandHandler$DefaultImpls {
 
 public final class io/cratis/arc/java/BlockingCommandHandlerAdapter : io/cratis/arc/commands/CommandHandler {
 	public fun <init> (Lio/cratis/arc/java/BlockingCommandHandler;)V
+	public fun getAllowsAnonymous ()Z
 	public fun getCommandType ()Ljava/lang/Class;
 	public fun getMetadata ()Lio/cratis/arc/metadata/CommandDescriptor;
 	public fun invoke (Lio/cratis/arc/commands/CommandContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
@@ -998,8 +1003,11 @@ public abstract interface class io/cratis/arc/java/BlockingQueryPerformer {
 
 public final class io/cratis/arc/java/BlockingQueryPerformerAdapter : io/cratis/arc/queries/QueryPerformer {
 	public fun <init> (Lio/cratis/arc/java/BlockingQueryPerformer;)V
+	public fun getAllowsAnonymous ()Z
 	public fun getDescriptor ()Lio/cratis/arc/metadata/QueryDescriptor;
 	public fun getFullyQualifiedName ()Lio/cratis/arc/queries/FullyQualifiedQueryName;
+	public fun getSupportsPaging ()Z
+	public fun getSupportsSorting ()Z
 	public fun perform (Lio/cratis/arc/queries/QueryContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
 
@@ -2146,7 +2154,10 @@ public abstract interface class io/cratis/arc/queries/QueryValidator {
 
 public final class io/cratis/arc/queries/QueryableQueryRenderer : io/cratis/arc/queries/BlockingQueryRendererFor {
 	public fun <init> ()V
+	public fun order ()I
 	public fun queryType ()Ljava/lang/Class;
+	public fun render (Ljava/lang/Iterable;Lio/cratis/arc/queries/QueryRendererResult;Lio/cratis/arc/queries/QueryContext;)Ljava/util/concurrent/CompletionStage;
+	public synthetic fun render (Ljava/lang/Object;Lio/cratis/arc/queries/QueryRendererResult;Lio/cratis/arc/queries/QueryContext;)Ljava/util/concurrent/CompletionStage;
 	public fun renderBlocking (Ljava/lang/Iterable;Lio/cratis/arc/queries/QueryRendererResult;Lio/cratis/arc/queries/QueryContext;)Lio/cratis/arc/queries/QueryRendererResult;
 	public synthetic fun renderBlocking (Ljava/lang/Object;Lio/cratis/arc/queries/QueryRendererResult;Lio/cratis/arc/queries/QueryContext;)Lio/cratis/arc/queries/QueryRendererResult;
 }

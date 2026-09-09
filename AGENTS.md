@@ -18,7 +18,7 @@ If a rule file ever disagrees with this file, this file wins and the rule file i
 
 ## Platform and compatibility
 
-- Target JDK 17 and Gradle 8.13.
+- Target JDK 17 and Gradle 8.14.4.
 - Kotlin is the implementation language; Java is a first-class consumer language. Keep public APIs straightforward from Java, avoid Kotlin-only call patterns at public boundaries, and verify important APIs from both languages.
 - Spring Boot is the only supported host integration. Do not introduce Ktor or another host framework.
 - Use Jackson for JSON. Do not introduce Gson.

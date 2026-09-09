@@ -8,7 +8,7 @@ build-level depth behind that contract. When the two disagree, `AGENTS.md` wins.
 
 ## Running Gradle here
 
-- Always use the wrapper: `./gradlew`. It is pinned to Gradle 8.13 with a `distributionSha256Sum` in
+- Always use the wrapper: `./gradlew`. It is pinned to Gradle 8.14.4 with a `distributionSha256Sum` in
   `gradle/wrapper/gradle-wrapper.properties`, and CI validates it with
   `gradle/actions/wrapper-validation`.
 - A **JDK 17 toolchain must be resolvable** before any Gradle invocation. If `java` is not on `PATH`,
@@ -93,7 +93,7 @@ coordinates and POM, KSP arguments, and any module-specific verification task.
 3. Declare dependencies with the narrowest scope that works, using `project(":...")` for internal
    modules. Respect the dependency direction in `AGENTS.md`.
 4. If the module is published, add the `com.vanniktech.maven.publish` plugin, a `mavenPublishing`
-   block with `publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL)`, `signAllPublications()`,
+   block with `publishToMavenCentral()`, `signAllPublications()`,
    `coordinates("io.cratis", "<artifact>", version.toString())`, and the same POM shape as the
    sibling modules (name, description, MIT license, `cratis` developer, SCM URLs).
 5. If the module is published, it needs a checked-in `.api` baseline — generate it once with

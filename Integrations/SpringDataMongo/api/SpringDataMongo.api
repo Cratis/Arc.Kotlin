@@ -135,6 +135,7 @@ public final class io/cratis/arc/springdata/mongodb/MongoReadModelForCommandReso
 	public synthetic fun <init> (Lorg/springframework/data/mongodb/core/mapping/MongoMappingContext;Lio/cratis/arc/springdata/mongodb/TenantAwareMongoOperationsResolver;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun ownership ()Lio/cratis/arc/queries/ReadModelForCommandOwnership;
 	public fun readModelTypes ()Ljava/util/Set;
+	public fun resolve (Ljava/lang/Class;Lio/cratis/arc/commands/CommandContext;Ljava/lang/Object;)Ljava/util/concurrent/CompletionStage;
 	public fun resolveBlocking (Ljava/lang/Class;Lio/cratis/arc/commands/CommandContext;Ljava/lang/Object;)Ljava/lang/Object;
 }
 

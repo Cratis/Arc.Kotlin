@@ -12,6 +12,9 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.Arguments
+import org.junit.jupiter.params.provider.MethodSource
 import org.mockito.Mockito.never
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
@@ -106,15 +109,45 @@ internal class JpaPersistenceUnitTests {
         verify(store.entityManager).find(EmbeddedReadModel::class.java, key)
     }
 
-    @Test
-    fun `provider accepts a boxed key for a primitive metamodel identifier type`() {
-        val store = mockJpaStore(JpaMapping(NumericReadModel::class.java, Int::class.javaPrimitiveType!!))
+    @ParameterizedTest
+    @MethodSource("identifierTypes")
+    fun `provider validates exact boxed keys for primitive and boxed metamodel identifiers`(
+        identifierType: Class<*>,
+        key: Any
+    ) {
+        val store = mockJpaStore(JpaMapping(ScalarReadModel::class.java, identifierType))
         val unit = JpaPersistenceUnit.fixed(store.entityManagerFactory)
         val provider = JpaReadModelForCommandResolver(FixedJpaPersistenceUnitResolver(unit))
-        val expected = NumericReadModel(42)
-        `when`(store.entityManager.find(NumericReadModel::class.java, 42)).thenReturn(expected)
+        val expected = ScalarReadModel(key)
+        `when`(store.entityManager.find(ScalarReadModel::class.java, key)).thenReturn(expected)
 
-        assertSame(expected, provider.resolveBlocking(NumericReadModel::class.java, commandContext(key = 42), 42))
+        assertSame(expected, provider.resolveBlocking(ScalarReadModel::class.java, commandContext(key = key), key))
+        verify(store.entityManager).find(ScalarReadModel::class.java, key)
+        val wrongKey: Any = if (key is Int) 42L else 42
+        val failure = assertThrows(IllegalArgumentException::class.java) {
+            provider.resolveBlocking(ScalarReadModel::class.java, commandContext(key = wrongKey), wrongKey)
+        }
+        assertEquals(
+            "Command key for '${ScalarReadModel::class.java.name}' must be an instance of '${key.javaClass.name}', " +
+                "but was '${wrongKey.javaClass.name}'.",
+            failure.message
+        )
+        verify(store.entityManager, never()).find(ScalarReadModel::class.java, wrongKey)
+    }
+
+    @Test
+    fun `void identifier types still reject an ordinary key before storage lookup`() {
+        listOf(java.lang.Void.TYPE, java.lang.Void::class.java).forEach { identifierType ->
+            val store = mockJpaStore(JpaMapping(ScalarReadModel::class.java, identifierType))
+            val provider = JpaReadModelForCommandResolver(
+                FixedJpaPersistenceUnitResolver(JpaPersistenceUnit.fixed(store.entityManagerFactory))
+            )
+
+            assertThrows(IllegalArgumentException::class.java) {
+                provider.resolveBlocking(ScalarReadModel::class.java, commandContext(), "task-1")
+            }
+            verify(store.entityManager, never()).find(ScalarReadModel::class.java, "task-1")
+        }
     }
 
     @Test
@@ -223,7 +256,16 @@ internal class JpaPersistenceUnitTests {
     private class EmbeddedReadModel(val id: CompositeKey)
 
     @ReadModel
-    private class NumericReadModel(val id: Int)
+    private class ScalarReadModel(val id: Any)
 
     private data class CompositeKey(val left: String, val right: Int) : Serializable
+
+    companion object {
+        @JvmStatic
+        fun identifierTypes(): List<Arguments> = listOf(true, 42.toByte(), 'x', 42.toShort(), 42, 42L, 42f, 42.0)
+            .flatMap { key ->
+                listOf(checkNotNull(key.javaClass.kotlin.javaPrimitiveType), key.javaClass)
+                    .map { identifierType -> Arguments.of(identifierType, key) }
+            }
+    }
 }

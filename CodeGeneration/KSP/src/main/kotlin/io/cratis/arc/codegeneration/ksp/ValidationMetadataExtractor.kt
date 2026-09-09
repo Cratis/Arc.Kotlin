@@ -216,8 +216,8 @@ internal class ValidationMetadataExtractor(private val logger: ArcDiagnosticRepo
             }
         }
         if (numericLower != null && numericUpper != null) {
-            val comparison = numericLower!!.value.compareTo(numericUpper!!.value)
-            if (comparison > 0 || comparison == 0 && (!numericLower!!.inclusive || !numericUpper!!.inclusive)) {
+            val comparison = numericLower.value.compareTo(numericUpper.value)
+            if (comparison > 0 || comparison == 0 && (!numericLower.inclusive || !numericUpper.inclusive)) {
                 logger.error(
                     ArcDiagnostic.VALIDATION,
                     "Validation annotations on '$identity' declare contradictory numeric bounds.",

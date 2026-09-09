@@ -2,7 +2,7 @@
 
 The `io.cratis.arc` plugin configures Kotlin/JVM and KSP, targets JDK 17 with warnings treated as errors, adds the Arc runtime and KSP processor, and generates TypeScript proxies from Arc artifact manifests.
 
-The plugin applies Kotlin/JVM and KSP `2.1.0-1.0.29` itself. Kotlin and Java sources in the main source set are processed. By default, both `io.cratis:arc` and `io.cratis:arc-ksp` use the plugin's version. Set `dependencyVersion` explicitly when consuming snapshots or substituting modules from a composite build. A dependency already supplied by the application is not added again.
+The plugin applies Kotlin/JVM `2.4.10` and KSP `2.3.11` (KSP2) itself. See the [compiler compatibility notes](../Documentation/get-started/index.md#compiler-compatibility) for metadata requirements and the Gradle 8.14.4 and JDK 17 baseline. Kotlin and Java sources in the main source set are processed. By default, both `io.cratis:arc` and `io.cratis:arc-ksp` use the plugin's version. Set `dependencyVersion` explicitly when consuming snapshots or substituting modules from a composite build. A dependency already supplied by the application is not added again.
 
 Proxy generation is attached to `build` through `generateArcProxies`. It is skipped until `proxies.outputDirectory` is configured. The task reads every `META-INF/cratis/arc/*.json` manifest on the main output, compile classpath, and runtime classpath. Generated files are only rewritten when their content changes. Stale cleanup only removes files carrying the Arc generated marker; hand-written files are never deleted.
 

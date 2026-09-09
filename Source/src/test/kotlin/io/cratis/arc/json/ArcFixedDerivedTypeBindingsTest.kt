@@ -72,7 +72,6 @@ internal class ArcFixedDerivedTypeBindingsTest {
         val failure = assertThrows(JsonMappingException::class.java) {
             mapper.readValue(json("nested", "[[\"text\"]]"),
                 object : TypeReference<Base<Collection<Collection<Payload>>>>() {})
-            Unit
         }
         assertTrue(failure.originalMessage.contains("base<T>"), failure.message)
         assertTrue(failure.originalMessage.contains(String::class.java.name), failure.message)
@@ -82,11 +81,9 @@ internal class ArcFixedDerivedTypeBindingsTest {
     fun `fixed map rejects incompatible values and keys`() {
         assertThrows(JsonMappingException::class.java) {
             mapper.readValue(json("map", "{}"), object : TypeReference<Base<Map<String, List<Payload>>>>() {})
-            Unit
         }
         assertThrows(JsonMappingException::class.java) {
             mapper.readValue(json("map", "{}"), object : TypeReference<Base<Map<Payload, List<String>>>>() {})
-            Unit
         }
     }
 
@@ -94,7 +91,6 @@ internal class ArcFixedDerivedTypeBindingsTest {
     fun `fixed ordinary generic subtype is projected before comparing bindings`() {
         assertThrows(JsonMappingException::class.java) {
             mapper.readValue(json("box", "{\"value\":\"text\"}"), object : TypeReference<Base<Box<Payload>>>() {})
-            Unit
         }
         val value = mapper.readValue(json("box", "{\"value\":\"text\"}"),
             object : TypeReference<Base<Box<CharSequence>>>() {})
@@ -122,7 +118,6 @@ internal class ArcFixedDerivedTypeBindingsTest {
     fun `fixed generic array rejects incompatible component binding`() {
         assertThrows(JsonMappingException::class.java) {
             mapper.readValue(json("array", "[]"), object : TypeReference<Base<Array<List<Payload>>>>() {})
-            Unit
         }
     }
 

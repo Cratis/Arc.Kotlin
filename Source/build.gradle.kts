@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+import org.jetbrains.kotlin.gradle.dsl.JvmDefaultMode
+
 plugins {
     kotlin("jvm")
     `java-library`
@@ -14,12 +16,12 @@ val slf4jVersion = "2.0.16"
 
 kotlin {
     compilerOptions {
-        freeCompilerArgs.add("-Xjvm-default=all-compatibility")
+        jvmDefault.set(JvmDefaultMode.ENABLE)
     }
 }
 
 dependencies {
-    api("org.jetbrains.kotlin:kotlin-reflect:2.1.0")
+    api("org.jetbrains.kotlin:kotlin-reflect:2.4.10")
     api("jakarta.validation:jakarta.validation-api:$jakartaValidationVersion")
     api("com.fasterxml.jackson.core:jackson-databind:$jacksonVersion")
     api("com.fasterxml.jackson.module:jackson-module-kotlin:$jacksonVersion")
@@ -33,7 +35,7 @@ tasks.named("apiCheck") {
 }
 
 mavenPublishing {
-    publishToMavenCentral(com.vanniktech.maven.publish.SonatypeHost.CENTRAL_PORTAL)
+    publishToMavenCentral()
     signAllPublications()
     coordinates("io.cratis", "arc", version.toString())
 

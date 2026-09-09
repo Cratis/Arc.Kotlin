@@ -105,23 +105,23 @@ internal class TypeShapeBinaryCompatibilityTest {
         ParameterDescriptor::class.java.getConstructor(
             String::class.java,
             String::class.java,
-            java.lang.Boolean::class.java,
-            java.lang.Boolean::class.java,
-            java.lang.Boolean::class.java,
+            Boolean::class.javaObjectType,
+            Boolean::class.javaObjectType,
+            Boolean::class.javaObjectType,
             String::class.java,
             List::class.java,
-            java.lang.Boolean::class.java,
+            Boolean::class.javaObjectType,
             TypeShapeDescriptor::class.java
         )
         ParameterDescriptor::class.java.getConstructor(
             String::class.java,
             String::class.java,
-            java.lang.Boolean::class.java,
-            java.lang.Boolean::class.java,
-            java.lang.Boolean::class.java,
+            Boolean::class.javaObjectType,
+            Boolean::class.javaObjectType,
+            Boolean::class.javaObjectType,
             String::class.java,
             List::class.java,
-            java.lang.Boolean::class.java,
+            Boolean::class.javaObjectType,
             TypeShapeDescriptor::class.java,
             QueryParameterSource::class.java
         )

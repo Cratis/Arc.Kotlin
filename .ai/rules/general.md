@@ -47,7 +47,7 @@ for a convention.
 ## Platform and Architecture
 
 Authoritative platform facts, module boundaries, and dependency direction live in
-[`AGENTS.md`](../../AGENTS.md) at the repository root — JDK 17, Gradle 8.13, Kotlin implementation,
+[`AGENTS.md`](../../AGENTS.md) at the repository root — JDK 17, Gradle 8.14.4, Kotlin implementation,
 Java as a first-class consumer, Spring Boot as the only host, Jackson for JSON, no `ThreadLocal` for
 coroutine-visible state, warnings as errors, JUnit 5, binary-compatibility baselines.
 

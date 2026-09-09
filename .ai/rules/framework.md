@@ -98,8 +98,9 @@ Match that posture: reject with an actionable message, do not degrade silently.
 
 - **Additive first.** Add new members with a default implementation so existing implementors keep
   compiling — `CommandHandler.prepare` carries a default explicitly to preserve source compatibility
-  for manual and previously generated handlers. `Source` compiles with
-  `-Xjvm-default=all-compatibility` so interface defaults are usable from Java.
+  for manual and previously generated handlers. `Source` uses
+  `compilerOptions.jvmDefault.set(JvmDefaultMode.ENABLE)` so interface defaults are usable from Java
+  while retaining `DefaultImpls` compatibility classes.
 - **Add overloads instead of changing signatures.** Use `@JvmOverloads` on constructors with
   defaults (`ArcArtifactManifest`, `ArcPrincipal`, `QueryRequest` all do) so Java callers keep their
   existing call sites.

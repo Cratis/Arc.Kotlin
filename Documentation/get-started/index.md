@@ -5,13 +5,21 @@ description: Create and run a minimal Kotlin Spring Boot command and query with 
 
 ## Prerequisites
 
-Use JDK 17 and Gradle 8.13. This tutorial follows the passing `Samples/Kotlin/SpringBoot` application in the repository. The local workspace version is `0.0.0-SNAPSHOT`; substitute a released version when consuming published artifacts.
+Use JDK 17 and Gradle 8.14.4. This tutorial follows the passing `Samples/Kotlin/SpringBoot` application in the repository. The local workspace version is `0.0.0-SNAPSHOT`; substitute a released version when consuming published artifacts.
 
 For Java records and `CompletionStage`, follow [Build your first Arc application with Java](java.md).
 
+### Compiler compatibility
+
+Use Kotlin 2.4.10 and KSP 2.3.11 (KSP2), as in the examples below. Arc's compiled classes carry Kotlin metadata version 2.4.0; Kotlin 2.1.0 and 2.2.0 reject that metadata when compiling a consumer. Upgrade the consumer compiler rather than disabling metadata validation, and retain the Kotlin runtime versions selected by the dependency graph. JVM bytecode still targets Java 17.
+
+Compiler-generated forwarding methods for inherited interface defaults may appear in implementation classes' `getDeclaredMethods()` results. Reflective lookup can return a class-declared forwarder instead of an inherited interface method, changing its declaring class and `Method.isDefault()` result. An added declared method does not necessarily represent a new handwritten implementation or a changed default.
+
+The repository requires Gradle 8.14.4 and JDK 17. Use the checked-in wrapper with Kotlin 2.4.10 and KSP 2.3.11; this baseline avoids the Kotlin plugin's deprecated Gradle version warning without suppressing it.
+
 ## Configure Gradle
 
-The Arc plugin marker is published through Maven Central. Add Maven Central to plugin resolution in `settings.gradle.kts`:
+The Arc plugin marker is configured for publication through Maven Central. Add Maven Central to plugin resolution in `settings.gradle.kts`:
 
 ```kotlin
 pluginManagement {
@@ -27,7 +35,7 @@ The preferred setup is the Arc plugin. It applies Kotlin/JVM and KSP, adds `io.c
 ```kotlin
 plugins {
     id("io.cratis.arc") version "<version>"
-    kotlin("plugin.spring") version "2.1.0"
+    kotlin("plugin.spring") version "2.4.10"
     id("org.springframework.boot") version "3.5.3"
     id("io.spring.dependency-management") version "1.1.7"
 }
@@ -50,9 +58,9 @@ If the plugin is not available in your build, use manual KSP setup:
 
 ```kotlin
 plugins {
-    kotlin("jvm") version "2.1.0"
-    kotlin("plugin.spring") version "2.1.0"
-    id("com.google.devtools.ksp") version "2.1.0-1.0.29"
+    kotlin("jvm") version "2.4.10"
+    kotlin("plugin.spring") version "2.4.10"
+    id("com.google.devtools.ksp") version "2.3.11"
     id("org.springframework.boot") version "3.5.3"
     id("io.spring.dependency-management") version "1.1.7"
 }

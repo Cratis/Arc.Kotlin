@@ -5,11 +5,13 @@ description: Create and run a minimal Java Spring Boot command and query using r
 
 ## Prerequisites
 
-Use JDK 17 and Gradle 8.13. This tutorial follows the passing `Samples/Java/SpringBoot` application. The local workspace version is `0.0.0-SNAPSHOT`; substitute a released version when consuming published artifacts.
+Use JDK 17 and Gradle 8.14.4. This tutorial follows the passing `Samples/Java/SpringBoot` application. The local workspace version is `0.0.0-SNAPSHOT`; substitute a released version when consuming published artifacts.
+
+Arc generates Kotlin implementations for Java models, so the build also uses Kotlin 2.4.10 and KSP 2.3.11 (KSP2). The Arc plugin supplies this tooling. See the [compiler compatibility notes](index.md#compiler-compatibility), including the Gradle 8.14.4 requirement, when configuring the plugins manually or mixing Kotlin and Java sources.
 
 ## Configure Gradle
 
-The Arc plugin marker is published through Maven Central. Add Maven Central to plugin resolution in `settings.gradle.kts`:
+The Arc plugin marker is configured for publication through Maven Central. Add Maven Central to plugin resolution in `settings.gradle.kts`:
 
 ```kotlin
 pluginManagement {
@@ -44,7 +46,7 @@ dependencies {
 }
 ```
 
-For builds that do not use the Arc plugin, apply `java`, KSP `2.1.0-1.0.29`, and Spring Boot directly; add `io.cratis:arc`, `io.cratis:arc-spring-boot-starter`, and `ksp("io.cratis:arc-ksp:<version>")`, then set `ksp { arg("arc.moduleName", "TaskApplication") }`. The plugin and manual setup produce the same generated contracts.
+For builds that do not use the Arc plugin, apply `java`, Kotlin/JVM `2.4.10`, KSP `2.3.11`, and Spring Boot directly; add `io.cratis:arc`, `io.cratis:arc-spring-boot-starter`, and `ksp("io.cratis:arc-ksp:<version>")`, then set `ksp { arg("arc.moduleName", "TaskApplication") }`. The plugin and manual setup produce the same generated contracts.
 
 Set the matching host convention in `src/main/resources/application.properties`:
 

@@ -91,10 +91,13 @@ no Kotlin default arguments, no extension functions, no `Continuation` in the si
 
 ## 5. Add KSP compile fixtures
 
-KSP tests use `dev.zacsweers.kctfork:ksp:0.7.0`. Every KSP test class carries a private `compile`
-helper that sets `useKsp2()`, `inheritClassPath = true`,
+KSP compile fixtures use `dev.zacsweers.kctfork:ksp:0.13.0`. Existing compilation helpers set
+`useKsp2()`, `inheritClassPath = true`,
 `symbolProcessorProviders = mutableListOf(ArcSymbolProcessorProvider())`, `kspProcessorOptions`
-with `arc.moduleName`, and `kspWithCompilation = true`.
+with `arc.moduleName`, and `kspWithCompilation = true`. The embedded compiler and KSP engine are
+separate from the Gradle production toolchain; inspect their resolved versions rather than assuming
+alignment. Root Gradle compiler options do not automatically configure embedded compilations, so
+also verify the actual Gradle KSP path when changing the toolchain or processor lifecycle.
 
 **Positive fixture** — the source is inline in the test:
 

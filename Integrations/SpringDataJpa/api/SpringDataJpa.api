@@ -138,6 +138,7 @@ public final class io/cratis/arc/springdata/jpa/JpaReadModelForCommandResolver :
 	public synthetic fun <init> (Lio/cratis/arc/springdata/jpa/JpaPersistenceUnitResolver;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun ownership ()Lio/cratis/arc/queries/ReadModelForCommandOwnership;
 	public fun readModelTypes ()Ljava/util/Set;
+	public fun resolve (Ljava/lang/Class;Lio/cratis/arc/commands/CommandContext;Ljava/lang/Object;)Ljava/util/concurrent/CompletionStage;
 	public fun resolveBlocking (Ljava/lang/Class;Lio/cratis/arc/commands/CommandContext;Ljava/lang/Object;)Ljava/lang/Object;
 }
 

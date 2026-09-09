@@ -44,7 +44,7 @@ Arc.Kotlin is the JVM implementation of Arc for Kotlin and Java applications hos
 
 ## Build
 
-The build uses the checked-in Gradle 8.13 wrapper and requires JDK 17. Make a JDK 17 installation the active `JAVA_HOME`/`PATH`; no repository-specific absolute JDK path is required.
+The build uses the checked-in Gradle 8.14.4 wrapper and requires JDK 17. Make a JDK 17 installation the active `JAVA_HOME`/`PATH`; no repository-specific absolute JDK path is required.
 
 ```shell
 java -version

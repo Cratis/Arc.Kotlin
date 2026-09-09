@@ -86,6 +86,7 @@ public final class io/cratis/arc/chronicle/ChronicleReadModelInterceptor : io/cr
 	public fun <init> (Ljava/lang/Iterable;Lio/cratis/arc/chronicle/TenantEventStoreResolver;Lkotlinx/coroutines/CoroutineScope;)V
 	public fun <init> (Ljava/lang/Iterable;Lio/cratis/chronicle/IEventStore;Lkotlinx/coroutines/CoroutineScope;)V
 	public fun intercept (Ljava/lang/Object;Lio/cratis/arc/queries/QueryContext;)Ljava/util/concurrent/CompletionStage;
+	public fun order ()I
 	public fun readModelType ()Ljava/lang/Class;
 }
 

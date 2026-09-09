@@ -220,13 +220,13 @@ internal class ArcQueryHttpRequestHandler(
             ?: asyncManager.concurrentResultContext?.firstOrNull() as? UUID
             ?: parseCorrelationId(request.getHeader(properties.correlationHeader))
         asyncManager.clearConcurrentResult()
-        val hostedResult = when (concurrentResult) {
-            is HostedQueryResult -> concurrentResult
-            is Throwable -> HostedQueryResult(QueryResult.exception<Any?>(correlationId, concurrentResult), concurrentResult)
-            else -> {
-                val exception = IllegalStateException("Spring MVC returned an unexpected Arc query result.")
-                HostedQueryResult(QueryResult.exception<Any?>(correlationId, exception), exception)
-            }
+        val hostedResult = if (concurrentResult is HostedQueryResult) {
+            concurrentResult
+        } else if (concurrentResult is Throwable) {
+            HostedQueryResult(QueryResult.exception<Any?>(correlationId, concurrentResult), concurrentResult)
+        } else {
+            val exception = IllegalStateException("Spring MVC returned an unexpected Arc query result.")
+            HostedQueryResult(QueryResult.exception<Any?>(correlationId, exception), exception)
         }
         prepareResponse(response, hostedResult.result.correlationId, request.method)
         writeResult(

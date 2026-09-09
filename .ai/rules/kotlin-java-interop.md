@@ -438,7 +438,7 @@ and two adapters convert between them.**
 - Consequently, **adding a case to a public sealed hierarchy is a source-breaking change for Java
   consumers** even though Kotlin only warns them via a non-exhaustive `when`. Treat it as a breaking
   change and say so in the changelog.
-- `Source/build.gradle.kts` sets `freeCompilerArgs.add("-Xjvm-default=all-compatibility")`. In
+- `Source/build.gradle.kts` sets `compilerOptions.jvmDefault.set(JvmDefaultMode.ENABLE)`. In
   `Source`, an interface member with a body therefore becomes a **real JVM `default` method** plus a
   `$DefaultImpls` compatibility class:
 
@@ -452,12 +452,12 @@ and two adapters convert between them.**
 
   This is why a Java implementer of `BlockingCommandHandler` can skip `resolveCommandKey` and
   `prepare` and only write `getCommandType`, `getMetadata`, and `invoke`.
-- **No other module sets that flag**, and no integration interface currently declares a bodied
-  member — there is not one `$DefaultImpls` class in any `Integrations/*/build` output. If you add a
-  bodied interface member outside `Source`, `javap` the result before publishing rather than
-  assuming Java gets a default method.
-- `@JvmDefault` appears nowhere in this repository. The `-Xjvm-default` compiler flag is the
-  mechanism this build uses; do not reach for the annotation.
+- Other modules inherit the compiler's default mode unless they configure it explicitly. If you
+  add a bodied interface member outside `Source`, inspect the emitted methods and compatibility
+  classes with `javap` rather than assuming either abstract or default dispatch. Compiler upgrades
+  can also add declared forwarding bridges on implementation classes; review those ABI changes.
+- `@JvmDefault` appears nowhere in this repository. The typed `jvmDefault` compiler option is the
+  mechanism this build uses; do not reach for the annotation or the deprecated `-Xjvm-default` flag.
 
 ## Checked exceptions
 

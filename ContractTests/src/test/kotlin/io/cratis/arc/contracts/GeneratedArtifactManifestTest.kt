@@ -24,8 +24,10 @@ internal class GeneratedArtifactManifestTest {
         val resourceName = "META-INF/cratis/arc/ContractTests.json"
         val bytes = requireNotNull(javaClass.classLoader.getResourceAsStream(resourceName)).use { it.readAllBytes() }
         val json = bytes.toString(Charsets.UTF_8)
-        val manifest = ArcObjectMapper.create().readValue(bytes, ArcArtifactManifest::class.java)
+        val mapper = ArcObjectMapper.create()
+        val manifest = mapper.readValue(bytes, ArcArtifactManifest::class.java)
 
+        assertEquals(mapper.writeValueAsString(manifest) + "\n", json)
         assertEquals(ArcArtifactManifest.CURRENT_FORMAT_VERSION, manifest.formatVersion)
         assertEquals("ContractTests", manifest.moduleName)
         assertEquals(
