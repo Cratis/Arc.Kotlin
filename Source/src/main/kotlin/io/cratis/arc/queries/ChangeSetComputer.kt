@@ -17,25 +17,25 @@ public class ChangeSetComputer @JvmOverloads constructor(
 ) {
     private val accessors = ConcurrentHashMap<Class<*>, KeyAccessor>()
 
-    /** Computes a change set, or returns `null` when stable identity cannot be established. */
+    /** Computes a change set, using serialized value identity when a stable item key is unavailable. */
     @JvmOverloads
     public fun compute(
         previous: List<*>?,
         current: List<*>,
         keyExtractor: ((Any) -> Any?)? = null
-    ): ChangeSet<Any?>? {
+    ): ChangeSet<Any?> {
         if (previous == null) return ChangeSet(added = current)
         val sample = current.firstOrNull() ?: previous.firstOrNull()
         if (sample == null) return ChangeSet()
         val extractor = keyExtractor ?: generatedKeyExtractors[sample.javaClass] ?: accessorFor(sample.javaClass).extractor
-            ?: return null
+            ?: return computeByJson(previous, current)
 
         val previousByKey = LinkedHashMap<Any, Any?>()
         previous.forEach { item -> item?.let { extractor(it)?.let { key -> previousByKey[key] = it } } }
         val currentByKey = LinkedHashMap<Any, Any?>()
         current.forEach { item -> item?.let { extractor(it)?.let { key -> currentByKey[key] = it } } }
         if (previousByKey.size != previous.count { it != null } || currentByKey.size != current.count { it != null }) {
-            return null
+            return computeByJson(previous, current)
         }
 
         val added = mutableListOf<Any?>()
@@ -50,6 +50,17 @@ public class ChangeSetComputer @JvmOverloads constructor(
         }
         val removed = previousByKey.filterKeys { it !in currentByKey }.values.toList()
         return ChangeSet(added, replaced, removed)
+    }
+
+    private fun computeByJson(previous: List<*>, current: List<*>): ChangeSet<Any?> {
+        val previousItems = previous.map { item -> item to objectMapper.writeValueAsString(item) }
+        val currentItems = current.map { item -> item to objectMapper.writeValueAsString(item) }
+        val previousJson = previousItems.mapTo(HashSet(previousItems.size)) { it.second }
+        val currentJson = currentItems.mapTo(HashSet(currentItems.size)) { it.second }
+        return ChangeSet(
+            added = currentItems.filter { it.second !in previousJson }.map { it.first },
+            removed = previousItems.filter { it.second !in currentJson }.map { it.first }
+        )
     }
 
     private fun accessorFor(type: Class<*>): KeyAccessor = accessors.computeIfAbsent(type) { discoverAccessor(it) }
