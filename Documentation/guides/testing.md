@@ -28,6 +28,8 @@ Select queries with `FullyQualifiedQueryName` and use `QueryScenario<T>`. Add se
 
 Command and query results carry matching positive and negative assertions, so a test can pin which stage rejected an operation instead of only that it failed. `shouldBeAuthorized` and `shouldBeUnauthorized` cover authorization, `shouldBeValid` and `shouldBeInvalid` cover validation feedback, and `shouldHaveErrors` and `shouldHaveNoErrors` cover retained exception messages. Chaining `shouldBeAuthorized().shouldBeInvalid()` states that authorization passed and validation rejected the command, which `shouldFail` alone does not.
 
+`CommandScenarioResult.shouldBeInvalid()` requires that validation actually ran. It fails when every validation result has reason `dependencyUnavailable`, because that outcome usually means the scenario forgot to register a read model or another validator dependency and no rule executed. Seed the missing dependency for a rule assertion. When dependency failure is the behavior under test, assert it explicitly with `shouldHaveValidation(reason = ValidationResultReasons.DEPENDENCY_UNAVAILABLE)`; this remains green without pretending a validation rule ran.
+
 To exercise the same host-neutral tenancy contract an integration uses, provide both the resolver and explicit request context. The resolved tenant ID is also used as the namespace unless a namespace is supplied:
 
 ```kotlin

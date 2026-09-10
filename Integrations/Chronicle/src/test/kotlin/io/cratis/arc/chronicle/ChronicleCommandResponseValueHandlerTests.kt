@@ -318,6 +318,65 @@ internal class ChronicleCommandResponseValueHandlerTests {
     }
 
     @Test
+    fun `mixed plain and routed events append atomically in item order`() = runBlocking {
+        val correlationId = UUID.randomUUID()
+        val plain = SomethingHappened("plain")
+        val routed = EventForEventSourceId("explicit-source", SomethingHappened("routed"))
+        val fixture = fixture(KeyedCommand("command-source", listOf(plain, routed))) { command ->
+            (command as KeyedCommand).key
+        }
+        coEvery {
+            fixture.eventLog.appendMany(
+                events = match<List<EventForEventSourceId>> { events ->
+                    events.map { it.eventSourceId to it.event } == listOf(
+                        "command-source" to plain,
+                        "explicit-source" to routed.event
+                    )
+                },
+                concurrencyScopes = match<Map<String, ConcurrencyScope>> { it.isEmpty() },
+                correlationId = correlationId
+            )
+        } returns listOf(successfulAppend(1), successfulAppend(2))
+
+        val result = fixture.pipeline.execute(fixture.command, executionOptions(correlationId))
+
+        assertTrue(result.isSuccess)
+        coVerify(exactly = 1) {
+            fixture.eventLog.appendMany(
+                events = match<List<EventForEventSourceId>> { events ->
+                    events.map { it.eventSourceId to it.event } == listOf(
+                        "command-source" to plain,
+                        "explicit-source" to routed.event
+                    )
+                },
+                concurrencyScopes = match<Map<String, ConcurrencyScope>> { it.isEmpty() },
+                correlationId = correlationId
+            )
+        }
+    }
+
+    @Test
+    fun `mixed response requires a command key only for its plain events`() = runBlocking {
+        val response = listOf(
+            EventForEventSourceId("explicit-source", SomethingHappened("routed")),
+            SomethingHappened("plain")
+        )
+        val fixture = fixture(KeyedCommand(null, response)) { command -> (command as KeyedCommand).key }
+
+        val result = fixture.pipeline.execute(fixture.command, executionOptions(UUID.randomUUID()))
+
+        assertFalse(result.isSuccess)
+        assertEquals("commandKey", result.validationResults.single().reasonDetail)
+        coVerify(exactly = 0) {
+            fixture.eventLog.appendMany(
+                any<List<EventForEventSourceId>>(),
+                any<Map<String, ConcurrencyScope>>(),
+                any<UUID>()
+            )
+        }
+    }
+
+    @Test
     fun `constraint concurrency and append errors are mapped in event order`() = runBlocking {
         val events = listOf(
             SomethingHappened("constraint"),
@@ -491,30 +550,25 @@ internal class ChronicleCommandResponseValueHandlerTests {
     }
 
     @Test
-    fun `heterogeneous collections and arrays containing routed wrappers fail atomically without client leakage`() =
-        runBlocking {
-            listOf<Any>(
-                listOf(
-                    EventForEventSourceId("routed", SomethingHappened("routed")),
-                    SomethingHappened("plain")
-                ),
-                arrayOf<Any>(
-                    EventForEventSourceId("routed", SomethingHappened("routed")),
-                    "client-value"
-                ),
-                listOf(
-                    EventForEventSourceId("malformed", NotAnEvent("malformed")),
-                    SomethingHappened("plain")
-                ),
-                arrayOf<Any>(
-                    EventForEventSourceId("malformed", NotAnEvent("malformed")),
-                    EventForEventSourceId("valid", SomethingHappened("valid")),
-                    "client-value"
-                )
-            ).forEach { response ->
-                assertMalformedRoutedResponseIsRejected(response)
-            }
+    fun `mixed collections and arrays with malformed items fail atomically without client leakage`() = runBlocking {
+        listOf<Any>(
+            arrayOf<Any>(
+                EventForEventSourceId("routed", SomethingHappened("routed")),
+                "client-value"
+            ),
+            listOf(
+                EventForEventSourceId("malformed", NotAnEvent("malformed")),
+                SomethingHappened("plain")
+            ),
+            arrayOf<Any>(
+                EventForEventSourceId("malformed", NotAnEvent("malformed")),
+                EventForEventSourceId("valid", SomethingHappened("valid")),
+                "client-value"
+            )
+        ).forEach { response ->
+            assertMalformedRoutedResponseIsRejected(response)
         }
+    }
 
     @Test
     fun `empty statically handled routed collection succeeds without resolving or appending`() = runBlocking {

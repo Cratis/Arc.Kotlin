@@ -3,6 +3,8 @@
 
 package io.cratis.arc.chronicle;
 
+import io.cratis.arc.authorization.ArcPrincipal;
+import io.cratis.arc.commands.CommandContext;
 import io.cratis.arc.commands.CommandPipeline;
 import io.cratis.arc.commands.ConcurrentCommandHandlerRegistry;
 import io.cratis.arc.commands.ServiceResolver;
@@ -11,7 +13,9 @@ import io.cratis.chronicle.eventSequences.EventForEventSourceId;
 import io.cratis.chronicle.eventSequences.concurrency.ConcurrencyScope;
 import io.cratis.chronicle.eventSequences.concurrency.ConcurrencyScopeBuilder;
 import io.cratis.chronicle.events.EventContext;
+import io.cratis.chronicle.events.EventType;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletionStage;
 import java.util.function.Consumer;
 import kotlinx.coroutines.CoroutineScope;
@@ -21,6 +25,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
 
 class TenantEventStoreJavaConformanceTest {
     @Test
@@ -37,6 +43,26 @@ class TenantEventStoreJavaConformanceTest {
         assertNotNull(handler);
         assertNull(resolver.resolve(null));
         assertNull(provider.provide("tenant-one"));
+    }
+
+    @Test
+    void mixedPlainAndRoutedEventCollectionIsRecognizedFromJava() {
+        IEventStore eventStore = mock(IEventStore.class);
+        ConcurrentCommandHandlerRegistry registry = new ConcurrentCommandHandlerRegistry();
+        ChronicleCommandResponseValueHandler handler = new ChronicleCommandResponseValueHandler(eventStore, registry);
+        Object command = new Object();
+        ServiceResolver services = new ServiceResolver() {
+            @Override
+            public <T> T resolve(Class<T> type) {
+                return null;
+            }
+        };
+        CommandContext context = new CommandContext(
+            UUID.randomUUID(), command, command.getClass(), ArcPrincipal.anonymous(), services);
+
+        assertTrue(handler.canHandle(context, List.of(
+            new JavaEvent(),
+            new EventForEventSourceId("explicit-source", new JavaEvent()))));
     }
 
     @Test
@@ -103,6 +129,10 @@ class TenantEventStoreJavaConformanceTest {
             services,
             coroutineScope);
         return handler.executeAsync(List.of(new Object()), JavaSystemReactor.class, eventContext);
+    }
+
+    @EventType
+    private static final class JavaEvent {
     }
 
     @ExecuteCommandsAsSystem(roles = { "Administrator", "Auditor" })

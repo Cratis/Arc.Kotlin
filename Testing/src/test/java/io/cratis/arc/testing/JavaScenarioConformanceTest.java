@@ -116,16 +116,31 @@ final class JavaScenarioConformanceTest {
             assertEquals(
                 ValidationResultReasons.DEPENDENCY_UNAVAILABLE,
                 scenario.execute(new KeyedTestCommand(new TestModelId("model-1"), "value"))
-                    .shouldBeInvalid()
-                    .getResult()
-                    .getValidationResults()
-                    .get(0)
+                    .shouldHaveValidation(null, null, ValidationResultReasons.DEPENDENCY_UNAVAILABLE)
                     .getReason());
         }
 
         assertThrows(
             IllegalArgumentException.class,
             () -> pinned.withReadModel(TestModel.class, new TestModel("duplicate")));
+    }
+
+    @Test
+    void invalidAssertionRejectsDependencyOnlyFeedbackAndExplicitReasonRemainsAvailable() {
+        CommandScenarioResult<Void> result = new CommandScenarioResult<>(CommandResult.invalid(
+            UUID.randomUUID(),
+            List.of(ValidationResult.error(
+                "Required dependency was unavailable.",
+                List.of(),
+                null,
+                ValidationResultReasons.DEPENDENCY_UNAVAILABLE))));
+
+        AssertionError failure = assertThrows(AssertionError.class, result::shouldBeInvalid);
+
+        assertTrue(failure.getMessage().contains("only dependencyUnavailable feedback"));
+        assertEquals(
+            ValidationResultReasons.DEPENDENCY_UNAVAILABLE,
+            result.shouldHaveValidation(null, null, ValidationResultReasons.DEPENDENCY_UNAVAILABLE).getReason());
     }
 
     @Test
