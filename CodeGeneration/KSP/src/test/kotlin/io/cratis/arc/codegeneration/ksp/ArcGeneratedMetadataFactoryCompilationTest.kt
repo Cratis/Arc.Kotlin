@@ -241,15 +241,15 @@ internal class ArcGeneratedMetadataFactoryCompilationTest {
             contextType: String
         ) {
             // validate() failures and unresolved signature types are fatal, never caught or deferred away.
-            assertTrue(declaration.validate(), declaration.qualifiedName?.asString())
+            assertTrue(declaration.validate({ _, _ -> true }, enableNewFeatures = false), declaration.qualifiedName?.asString())
             assertTrue(Modifier.PUBLIC in declaration.modifiers)
             assertTrue(declaration.getConstructors().any { it.parameters.isEmpty() && Modifier.PUBLIC in it.modifiers })
             val metadata = declaration.getAllProperties().single { it.simpleName.asString() == property }
-            assertTrue(metadata.validate())
+            assertTrue(metadata.validate({ _, _ -> true }, enableNewFeatures = false))
             assertFalse(metadata.type.resolve().isError)
             assertEquals(descriptorType, metadata.type.resolve().declaration.qualifiedName?.asString())
             val invocation = declaration.getDeclaredFunctions().single { it.simpleName.asString() == method }
-            assertTrue(invocation.validate())
+            assertTrue(invocation.validate({ _, _ -> true }, enableNewFeatures = false))
             assertTrue(Modifier.SUSPEND in invocation.modifiers)
             assertEquals(contextType, invocation.parameters.single().type.resolve().declaration.qualifiedName?.asString())
             val returnType = requireNotNull(invocation.returnType).resolve()

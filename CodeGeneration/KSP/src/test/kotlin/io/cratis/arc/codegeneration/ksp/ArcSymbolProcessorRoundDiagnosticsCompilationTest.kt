@@ -249,7 +249,7 @@ internal class ArcSymbolProcessorRoundDiagnosticsCompilationTest {
                         observation.rounds++
                         observation.phase = "process"
                         return processor.process(resolver).also { deferred ->
-                            observation.deferred += deferred.map { (it as? KSDeclaration)?.simpleName?.asString() to it.validate() }
+                            observation.deferred += deferred.map { (it as? KSDeclaration)?.simpleName?.asString() to it.validate({ _, _ -> true }, enableNewFeatures = false) }
                         }
                     }
                     override fun finish() {

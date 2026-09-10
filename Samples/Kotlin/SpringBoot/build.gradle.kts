@@ -36,6 +36,17 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
 }
 
+// The Arc integration libraries are built against the coroutines version pinned in :Source. The Spring Boot
+// dependency management pins an older kotlinx-coroutines, and 1.11 changed the binary shape of the $default
+// synthetic methods the integration calls - a mixed runtime fails with NoSuchMethodError. Keep the sample's
+// runtime on the same coroutines version the libraries were compiled with.
+dependencyManagement {
+    dependencies {
+        dependency("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
+        dependency("org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.11.0")
+    }
+}
+
 ksp {
     arg("arc.moduleName", arcModuleName)
 }
