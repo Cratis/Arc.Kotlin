@@ -5,7 +5,7 @@ package io.cratis.arc.testing
 
 import io.cratis.arc.results.CommandResult
 import io.cratis.arc.results.ValidationResult
-
+import io.cratis.arc.results.ValidationResultReasons
 /** Framework-neutral assertions over a real Arc [CommandResult]. */
 public class CommandScenarioResult<TResponse>(public val result: CommandResult<TResponse>) {
     /** Asserts that the command succeeded. */
@@ -38,11 +38,23 @@ public class CommandScenarioResult<TResponse>(public val result: CommandResult<T
         "Expected the command to be valid."
     )
 
-    /** Asserts that validation rejected the command. */
-    public fun shouldBeInvalid(): CommandScenarioResult<TResponse> = assertThat(
-        !result.isValid,
-        "Expected the command to be invalid."
-    )
+    /**
+     * Asserts that validation rejected the command because validation actually ran.
+     *
+     * A result containing only `dependencyUnavailable` feedback means required test infrastructure
+     * was not supplied and no validation rule ran. Assert that case explicitly with
+     * [shouldHaveValidation] and [ValidationResultReasons.DEPENDENCY_UNAVAILABLE].
+     */
+    public fun shouldBeInvalid(): CommandScenarioResult<TResponse> {
+        assertThat(!result.isValid, "Expected the command to be invalid.")
+        if (result.validationResults.all { it.reason == ValidationResultReasons.DEPENDENCY_UNAVAILABLE }) {
+            fail(
+                "Expected validation to reject the command, but only dependencyUnavailable feedback was produced; " +
+                    "register the missing test dependency or assert that reason explicitly with shouldHaveValidation."
+            )
+        }
+        return this
+    }
 
     /**
      * Finds validation feedback matching every non-null criterion.
