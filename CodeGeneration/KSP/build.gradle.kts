@@ -7,7 +7,7 @@ plugins {
     id("com.vanniktech.maven.publish")
 }
 
-val kspVersion = "2.3.11"
+val kspVersion = "2.3.12"
 val springDataVersion = "4.1.1"
 
 dependencies {
