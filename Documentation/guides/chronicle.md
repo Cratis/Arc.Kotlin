@@ -53,7 +53,9 @@ data class CreateTask(@CommandKey val id: String, val title: String) {
 
 Without a usable `@CommandKey`, Arc returns an error validation result with `reason: "rule"` and `reasonDetail: "commandKey"`; it does not guess an event-source identifier.
 
-Return a non-empty collection or array of Chronicle `@EventType` values to target the command-key stream. Return `EventForEventSourceId` values to route events explicitly. `CommandResponseValues`, Kotlin `Pair`/`Triple`, and `ArcOneOf` may combine supported response values in declaration order, but one collection must not mix plain events with routed events.
+Return a non-empty collection or array of Chronicle `@EventType` values to target the command-key stream. Return `EventForEventSourceId` values to route events explicitly. A collection or array may mix both forms: plain events use the command key, routed wrappers retain their explicit event-source identifier, and Arc appends the complete ordered collection atomically through the cross-stream path. A mixed response containing any value that is not an `@EventType` event—or a wrapper whose event lacks `@EventType`—fails before anything is appended. `CommandResponseValues`, Kotlin `Pair`/`Triple`, and `ArcOneOf` may combine supported response values in declaration order.
+
+Per-source concurrency scopes remain explicit: use `EventsWithConcurrencyScopes` when a response needs them. That typed response contains routed events only, so give every event an event-source identifier; a bare event in a mixed collection cannot carry a concurrency scope.
 
 ## Commit one staged Chronicle unit of work
 

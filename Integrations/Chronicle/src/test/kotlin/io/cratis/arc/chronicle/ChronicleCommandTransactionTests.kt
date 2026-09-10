@@ -77,6 +77,35 @@ internal class ChronicleCommandTransactionTests {
     }
 
     @Test
+    fun `mixed plain and routed collection commits as one ordered transaction batch`() = runBlocking {
+        val plain = SomethingHappened("plain")
+        val routed = EventForEventSourceId("secondary", SomethingHappened("routed"))
+        val command = TransactionalCommand("primary", listOf(plain, routed))
+        val fixture = fixture(command)
+        val appendedEvents = io.mockk.slot<List<EventForEventSourceId>>()
+        coEvery {
+            fixture.eventLog.appendMany(
+                capture(appendedEvents),
+                any<Map<String, ConcurrencyScope>>(),
+                fixture.correlationId
+            )
+        } returns listOf(successfulAppend(1), successfulAppend(2))
+
+        val result = fixture.pipeline.execute(command, fixture.options())
+
+        assertTrue(result.isSuccess)
+        assertEquals(listOf("primary", "secondary"), appendedEvents.captured.map { it.eventSourceId })
+        assertEquals(listOf(plain, routed.event), appendedEvents.captured.map { it.event })
+        coVerify(exactly = 1) {
+            fixture.eventLog.appendMany(
+                any<List<EventForEventSourceId>>(),
+                any<Map<String, ConcurrencyScope>>(),
+                fixture.correlationId
+            )
+        }
+    }
+
+    @Test
     fun `failed command rolls staged events back without touching Chronicle`() = runBlocking {
         val event = SomethingHappened("discarded")
         val command = TransactionalCommand(
