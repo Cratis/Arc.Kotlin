@@ -85,13 +85,15 @@ internal class ObservableQueryCoreTest {
     }
 
     @Test
-    fun `missing stable identity falls back to full snapshot`() = runBlocking {
+    fun `missing stable identity uses serialized additions and removals`() = runBlocking {
         val registry = ConcurrentQueryPerformerRegistry()
         registry.register(performer(flowOf(listOf(NoId("one")), listOf(NoId("two")))))
         val opened = DefaultObservableQueryPipeline(registry).open(request(), options(), ObservableQueryTransferMode.DELTA)
         val emissions = (opened as ObservableQueryOpenResult.Stream).results.toList()
-        assertEquals(listOf(NoId("two")), emissions[1].data)
-        assertNull(emissions[1].changeSet)
+        assertNull(emissions[1].data)
+        assertEquals(listOf(NoId("two")), emissions[1].changeSet!!.added)
+        assertEquals(listOf(NoId("one")), emissions[1].changeSet!!.removed)
+        assertEquals(emptyList<NoId>(), emissions[1].changeSet!!.replaced)
     }
 
     @Test
