@@ -43,6 +43,6 @@ public class ArcArtifactManifest @JvmOverloads constructor(
          * this version: a classpath that mixes manifest versions would otherwise render documented and undocumented
          * proxies from the same generation run with no diagnostic.
          */
-        public const val CURRENT_FORMAT_VERSION: Int = 6
+        public const val CURRENT_FORMAT_VERSION: Int = 7
     }
 }

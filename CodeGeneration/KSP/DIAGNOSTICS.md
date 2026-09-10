@@ -15,6 +15,7 @@ Arc KSP prefixes every compile-time diagnostic with a stable code. Errors stop c
 | `ARCKSP0107` | Warning | Provided value is not consumed by handle |
 | `ARCKSP0108` | Error | Conflicting authorization metadata |
 | `ARCKSP0109` | Error | Ambiguous command response values |
+| `ARCKSP0110` | Error | Invalid command event metadata |
 | `ARCKSP0200` | Error | Unsupported read model declaration |
 | `ARCKSP0201` | Error | Invalid query function |
 | `ARCKSP0202` | Error | Ambiguous query overload |

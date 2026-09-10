@@ -22,7 +22,16 @@ internal data class CommandModel(
     val responseIsEnumerable: Boolean,
     val responseValues: List<CommandResponseValueModel>,
     val invocationKind: InvocationKind,
-    val summary: String? = null
+    val summary: String? = null,
+    val eventMetadata: CommandEventMetadataModel? = null
+)
+
+internal data class CommandEventMetadataModel(
+    val eventSourceType: String?,
+    val eventStreamType: String?,
+    val eventStreamId: String?,
+    val subject: String?,
+    val isValid: Boolean = true
 )
 
 /** Invocation facts are independent of provisional response classification and its reachable client graph. */

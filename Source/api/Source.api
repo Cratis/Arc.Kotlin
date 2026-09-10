@@ -56,6 +56,30 @@ public final class io/cratis/arc/artifacts/ArcArtifactModuleRegistry {
 public abstract interface annotation class io/cratis/arc/artifacts/Command : java/lang/annotation/Annotation {
 }
 
+public abstract interface annotation class io/cratis/arc/artifacts/CommandEventSourceType : java/lang/annotation/Annotation {
+	public abstract fun value ()Ljava/lang/String;
+}
+
+public abstract interface annotation class io/cratis/arc/artifacts/CommandEventStreamId : java/lang/annotation/Annotation {
+	public abstract fun value ()Ljava/lang/String;
+}
+
+public abstract interface class io/cratis/arc/artifacts/CommandEventStreamIdProvider {
+	public abstract fun eventStreamId ()Ljava/lang/String;
+}
+
+public abstract interface annotation class io/cratis/arc/artifacts/CommandEventStreamType : java/lang/annotation/Annotation {
+	public abstract fun value ()Ljava/lang/String;
+}
+
+public abstract interface annotation class io/cratis/arc/artifacts/CommandEventSubject : java/lang/annotation/Annotation {
+	public abstract fun value ()Ljava/lang/String;
+}
+
+public abstract interface class io/cratis/arc/artifacts/CommandEventSubjectProvider {
+	public abstract fun eventSubject ()Ljava/lang/String;
+}
+
 public abstract interface annotation class io/cratis/arc/artifacts/CommandKey : java/lang/annotation/Annotation {
 }
 
@@ -341,6 +365,7 @@ public final class io/cratis/arc/commands/CommandContext {
 	public final fun getCommandKey ()Ljava/lang/Object;
 	public final fun getCommandType ()Ljava/lang/Class;
 	public final fun getCorrelationId ()Ljava/util/UUID;
+	public final fun getEventMetadata ()Lio/cratis/arc/metadata/CommandEventMetadata;
 	public final fun getExecutionToken ()Lio/cratis/arc/commands/CommandExecutionToken;
 	public final fun getExposeExceptionDetails ()Z
 	public final fun getPrincipal ()Lio/cratis/arc/authorization/ArcPrincipal;
@@ -1127,6 +1152,7 @@ public final class io/cratis/arc/metadata/CommandDescriptor {
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;Ljava/lang/Boolean;Ljava/lang/String;Ljava/lang/Boolean;Ljava/util/List;Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;Ljava/lang/Boolean;Ljava/lang/String;Ljava/lang/Boolean;Ljava/util/List;Ljava/lang/String;Lio/cratis/arc/metadata/CommandEventMetadata;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;Z)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;ZLjava/lang/String;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;ZLjava/lang/String;Z)V
@@ -1134,6 +1160,7 @@ public final class io/cratis/arc/metadata/CommandDescriptor {
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;ZLjava/lang/String;ZLjava/util/List;)V
 	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lio/cratis/arc/metadata/RouteOptions;Ljava/util/List;Lio/cratis/arc/metadata/AuthorizationMetadata;Ljava/lang/String;ZLjava/lang/String;ZLjava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun getAuthorization ()Lio/cratis/arc/metadata/AuthorizationMetadata;
+	public final fun getEventMetadata ()Lio/cratis/arc/metadata/CommandEventMetadata;
 	public final fun getExplicitPath ()Ljava/lang/String;
 	public final fun getLocation ()Ljava/util/List;
 	public final fun getName ()Ljava/lang/String;
@@ -1145,11 +1172,25 @@ public final class io/cratis/arc/metadata/CommandDescriptor {
 	public final fun getSummary ()Ljava/lang/String;
 	public final fun getTreatWarningsAsErrors ()Z
 	public final fun getTypeName ()Ljava/lang/String;
+	public static final fun withEventMetadata (Ljava/lang/String;Ljava/lang/String;Lio/cratis/arc/metadata/CommandEventMetadata;)Lio/cratis/arc/metadata/CommandDescriptor;
 	public static final fun withResponseValues (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;)Lio/cratis/arc/metadata/CommandDescriptor;
 }
 
 public final class io/cratis/arc/metadata/CommandDescriptor$Companion {
+	public final fun withEventMetadata (Ljava/lang/String;Ljava/lang/String;Lio/cratis/arc/metadata/CommandEventMetadata;)Lio/cratis/arc/metadata/CommandDescriptor;
 	public final fun withResponseValues (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;)Lio/cratis/arc/metadata/CommandDescriptor;
+}
+
+public final class io/cratis/arc/metadata/CommandEventMetadata {
+	public fun <init> (Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getEventSourceType ()Ljava/lang/String;
+	public final fun getEventStreamId ()Ljava/lang/String;
+	public final fun getEventStreamType ()Ljava/lang/String;
+	public final fun getSubject ()Ljava/lang/String;
 }
 
 public final class io/cratis/arc/metadata/CommandResponseValueDescriptor {

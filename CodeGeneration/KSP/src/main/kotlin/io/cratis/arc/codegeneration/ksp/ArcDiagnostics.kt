@@ -22,6 +22,7 @@ internal enum class ArcDiagnostic(
     UNUSED_PROVIDED_VALUE("ARCKSP0107", "Warning", "Provided value is not consumed by handle"),
     AUTHORIZATION("ARCKSP0108", "Error", "Conflicting authorization metadata"),
     AMBIGUOUS_COMMAND_RESPONSE("ARCKSP0109", "Error", "Ambiguous command response values"),
+    COMMAND_EVENT_METADATA("ARCKSP0110", "Error", "Invalid command event metadata"),
     READ_MODEL_SHAPE("ARCKSP0200", "Error", "Unsupported read model declaration"),
     QUERY_DECLARATION("ARCKSP0201", "Error", "Invalid query function"),
     QUERY_OVERLOAD("ARCKSP0202", "Error", "Ambiguous query overload"),

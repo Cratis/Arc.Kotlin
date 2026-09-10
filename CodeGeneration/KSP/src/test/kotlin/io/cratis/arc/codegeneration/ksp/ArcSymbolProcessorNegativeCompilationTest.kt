@@ -50,6 +50,7 @@ internal class ArcSymbolProcessorNegativeCompilationTest {
             "ARCKSP0107",
             "ARCKSP0108",
             "ARCKSP0109",
+            "ARCKSP0110",
             "ARCKSP0200",
             "ARCKSP0201",
             "ARCKSP0202",
@@ -83,6 +84,10 @@ internal class ArcSymbolProcessorNegativeCompilationTest {
         derivedTypeTargetDiagnostics().forEach { message ->
             assertTrue("[ARCKSP0304] $message" in result.messages, "Missing ARCKSP0304 message '$message' in:\n${result.messages}")
         }
+        assertTrue("@CommandEventStreamId with a blank or control-character value" in result.messages, result.messages)
+        assertTrue("@CommandEventSubject with a blank or control-character value" in result.messages, result.messages)
+        assertTrue("cannot declare @CommandEventStreamId and implement CommandEventStreamIdProvider" in result.messages, result.messages)
+        assertTrue("cannot declare @CommandEventSubject and implement CommandEventSubjectProvider" in result.messages, result.messages)
         assertTrue("OverloadedJavaQueries' has overloaded query name 'find'" in result.messages, result.messages)
         assertTrue("star projections are unsupported" in result.messages, result.messages)
         assertTrue(unsupportedJavaArrayDiagnostic() in result.messages, result.messages)

@@ -34,6 +34,7 @@ public class CommandDescriptor @JvmOverloads constructor(
     // Constructor-scoped mutation is required so the legacy primary constructor keeps its exact JVM descriptor.
     private var responseValuesBacking: List<CommandResponseValueDescriptor> = normalizeResponseValues(emptyList())
     private var summaryBacking: String? = null
+    private var eventMetadataBacking: CommandEventMetadata? = null
 
     /**
      * Creates command metadata with explicitly classified response values.
@@ -67,7 +68,37 @@ public class CommandDescriptor @JvmOverloads constructor(
         responseValuesBacking = normalizeResponseValues(responseValues)
     }
 
-    /** Creates command metadata carrying a single-line source documentation summary. */
+    /** Creates command metadata carrying source documentation. */
+    public constructor(
+        name: String,
+        typeName: String,
+        properties: List<PropertyDescriptor>?,
+        routeOptions: RouteOptions?,
+        location: List<String>?,
+        authorization: AuthorizationMetadata?,
+        explicitPath: String?,
+        treatWarningsAsErrors: Boolean?,
+        responseTypeName: String?,
+        responseIsEnumerable: Boolean?,
+        responseValues: List<CommandResponseValueDescriptor>?,
+        summary: String?
+    ) : this(
+        name,
+        typeName,
+        properties,
+        routeOptions,
+        location,
+        authorization,
+        explicitPath,
+        treatWarningsAsErrors,
+        responseTypeName,
+        responseIsEnumerable,
+        responseValues,
+        summary,
+        null
+    )
+
+    /** Creates command metadata carrying source documentation and optional event defaults. */
     @JsonCreator
     public constructor(
         @JsonProperty("name") name: String,
@@ -81,7 +112,8 @@ public class CommandDescriptor @JvmOverloads constructor(
         @JsonProperty("responseTypeName") responseTypeName: String?,
         @JsonProperty("responseIsEnumerable") responseIsEnumerable: Boolean?,
         @JsonProperty("responseValues") responseValues: List<CommandResponseValueDescriptor>?,
-        @JsonProperty("summary") summary: String?
+        @JsonProperty("summary") summary: String?,
+        @JsonProperty("eventMetadata") eventMetadata: CommandEventMetadata?
     ) : this(
         name,
         typeName,
@@ -96,12 +128,18 @@ public class CommandDescriptor @JvmOverloads constructor(
         responseValues.orEmpty()
     ) {
         summaryBacking = DocumentationSummaries.validate(summary, typeName)
+        eventMetadataBacking = eventMetadata
     }
 
     /** Single-line source documentation summary, or `null` when the command carries none. */
     @get:JsonInclude(JsonInclude.Include.NON_NULL)
     public val summary: String?
         get() = summaryBacking
+
+    /** Event defaults declared by this command, or `null` when none are declared. */
+    @get:JsonInclude(JsonInclude.Include.NON_NULL)
+    public val eventMetadata: CommandEventMetadata?
+        get() = eventMetadataBacking
 
     public companion object {
         /** Creates command metadata with explicitly classified response values. */
@@ -114,6 +152,28 @@ public class CommandDescriptor @JvmOverloads constructor(
             name = name,
             typeName = typeName,
             responseValues = responseValues
+        )
+
+        /** Creates command metadata carrying event defaults for a manual handler. */
+        @JvmStatic
+        public fun withEventMetadata(
+            name: String,
+            typeName: String,
+            eventMetadata: CommandEventMetadata
+        ): CommandDescriptor = CommandDescriptor(
+            name = name,
+            typeName = typeName,
+            properties = null,
+            routeOptions = null,
+            location = null,
+            authorization = null,
+            explicitPath = null,
+            treatWarningsAsErrors = null,
+            responseTypeName = null,
+            responseIsEnumerable = null,
+            responseValues = null,
+            summary = null,
+            eventMetadata = eventMetadata
         )
     }
 

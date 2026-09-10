@@ -53,6 +53,29 @@ data class CreateTask(@CommandKey val id: String, val title: String) {
 
 Without a usable `@CommandKey`, Arc returns an error validation result with `reason: "rule"` and `reasonDetail: "commandKey"`; it does not guess an event-source identifier.
 
+## Declare command event defaults
+
+Declare optional event metadata on the command when its returned events share stable Chronicle routing or compliance defaults:
+
+```kotlin
+@Command
+@CommandEventSourceType("Task")
+@CommandEventStreamType("Tasks")
+@CommandEventStreamId("active")
+@CommandEventSubject("task-owner")
+data class CreateTask(@CommandKey val id: String, val title: String) {
+    fun handle(): TaskCreated = TaskCreated(title)
+}
+```
+
+KSP emits these values as typed `CommandEventMetadata`, and the command pipeline adds them to `CommandContext` before filters and execution scopes run. Immediate appends, staged transactions, and `EventsWithConcurrencyScopes` use them as defaults. Java applies the same annotations to its command class; a manual handler can use `CommandDescriptor.withEventMetadata`.
+
+Implement `CommandEventStreamIdProvider` or `CommandEventSubjectProvider` when a value depends on the command instance. Both are ordinary method-shaped interfaces for Kotlin and Java. Do not combine a provider with the matching static annotation; KSP reports `ARCKSP0110` because one metadata slot cannot have two sources.
+
+Omit a declaration to keep Chronicle's own fallback: source and stream types use `Default`, while stream ID and subject use the event-source identifier. A present value must be nonblank and contain no control characters; KSP reports `ARCKSP0110` otherwise.
+
+Explicit routed metadata wins. `EventForEventSourceId` keeps any source type, stream type, stream ID, or subject it already carries, and only missing values inherit the command declaration. Arc appends command causation without replacing the wrapper's existing causation.
+
 Return a non-empty collection or array of Chronicle `@EventType` values to target the command-key stream. Return `EventForEventSourceId` values to route events explicitly. A collection or array may mix both forms: plain events use the command key, routed wrappers retain their explicit event-source identifier, and Arc appends the complete ordered collection atomically through the cross-stream path. A mixed response containing any value that is not an `@EventType` event—or a wrapper whose event lacks `@EventType`—fails before anything is appended. `CommandResponseValues`, Kotlin `Pair`/`Triple`, and `ArcOneOf` may combine supported response values in declaration order.
 
 Per-source concurrency scopes remain explicit: use `EventsWithConcurrencyScopes` when a response needs them. That typed response contains routed events only, so give every event an event-source identifier; a bare event in a mixed collection cannot carry a concurrency scope.
