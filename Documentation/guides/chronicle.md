@@ -55,6 +55,8 @@ Without a usable `@CommandKey`, Arc returns an error validation result with `rea
 
 Return a non-empty collection or array of Chronicle `@EventType` values to target the command-key stream. Return `EventForEventSourceId` values to route events explicitly. A collection or array may mix both forms: plain events use the command key, routed wrappers retain their explicit event-source identifier, and Arc appends the complete ordered collection atomically through the cross-stream path. A mixed response containing any value that is not an `@EventType` event—or a wrapper whose event lacks `@EventType`—fails before anything is appended. `CommandResponseValues`, Kotlin `Pair`/`Triple`, and `ArcOneOf` may combine supported response values in declaration order.
 
+Per-source concurrency scopes remain explicit: use `EventsWithConcurrencyScopes` when a response needs them. That typed response contains routed events only, so give every event an event-source identifier; a bare event in a mixed collection cannot carry a concurrency scope.
+
 ## Commit one staged Chronicle unit of work
 
 The Spring integration starts one `ChronicleCommandTransaction` for the outermost command-execution root before filters. Nested commands executed in the same structured coroutine, or with `CommandExecutionOptions.nested(parentContext)`, receive distinct frame tokens but enroll in that same root. Child completion never appends. If any child or the root fails or is canceled—even when an outer handler ignores the child result—the root becomes rollback-only and discards every staged event.
