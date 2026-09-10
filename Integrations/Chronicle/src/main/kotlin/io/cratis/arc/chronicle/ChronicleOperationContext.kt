@@ -37,6 +37,10 @@ internal fun CommandContext.toChronicleAppendOptions(
 ): AppendOptions = AppendOptions(
     correlationId = correlationId,
     concurrencyScope = concurrencyScope,
+    eventSourceType = eventMetadata?.eventSourceType,
+    eventStreamType = eventMetadata?.eventStreamType,
+    eventStreamId = eventMetadata?.eventStreamId,
+    subject = eventMetadata?.subject,
     causation = chronicleCausation()
 )
 
@@ -45,7 +49,19 @@ internal fun CommandContext.withChronicleCausation(
     events: List<EventForEventSourceId>
 ): List<EventForEventSourceId> {
     val causation = chronicleCausation()
-    return events.map { event -> event.copy(causation = event.causation + causation) }
+    val eventSourceType = eventMetadata?.eventSourceType
+    val eventStreamType = eventMetadata?.eventStreamType
+    val eventStreamId = eventMetadata?.eventStreamId
+    val subject = eventMetadata?.subject
+    return events.map { event ->
+        event.copy(
+            eventSourceType = event.eventSourceType ?: eventSourceType,
+            eventStreamType = event.eventStreamType ?: eventStreamType,
+            eventStreamId = event.eventStreamId ?: eventStreamId,
+            subject = event.subject ?: subject,
+            causation = event.causation + causation
+        )
+    }
 }
 
 private fun CommandContext.chronicleCausation(): List<Causation> {

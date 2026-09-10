@@ -619,6 +619,10 @@ Verified annotation fully-qualified names the processor reacts to:
 | --- | --- |
 | `io.cratis.arc.artifacts.Command` | Marks a command; drives handler generation |
 | `io.cratis.arc.artifacts.CommandKey` | Marks the command key property |
+| `io.cratis.arc.artifacts.CommandEventSourceType` | Static default event-source type for returned events |
+| `io.cratis.arc.artifacts.CommandEventStreamType` | Static default event-stream type for returned events |
+| `io.cratis.arc.artifacts.CommandEventStreamId` | Static default event-stream ID; conflicts with `CommandEventStreamIdProvider` |
+| `io.cratis.arc.artifacts.CommandEventSubject` | Static default event subject; conflicts with `CommandEventSubjectProvider` |
 | `io.cratis.arc.artifacts.ReadModel` | Marks a read model; drives query performer generation |
 | `io.cratis.arc.artifacts.FromServices` | Marks a handler or query parameter as service-resolved |
 | `io.cratis.arc.artifacts.TreatWarningsAsErrors` | Escalates validation severity metadata |
@@ -685,7 +689,9 @@ public class ArcArtifactManifest ... {
 ```
 
 Read the declared version from `ArcArtifactManifest.CURRENT_FORMAT_VERSION` rather than from this
-file; it moves whenever the manifest contract does. `ArcManifestDiscovery` in `GradlePlugin` enforces
+file; it moves whenever the manifest contract does. Current format 7 adds optional typed command
+`eventMetadata`; absence stays absent so event-store fallbacks are not baked into the manifest.
+`ArcManifestDiscovery` in `GradlePlugin` enforces
 it strictly on read and will fail the build with a `GradleException` when a manifest:
 
 - has no numeric `formatVersion`, or one that is not exactly `CURRENT_FORMAT_VERSION`;
@@ -727,6 +733,7 @@ asserted byte-equal by `ArcDiagnosticReferenceTest`.
 | `ARCKSP0107` | Warning | Provided value is not consumed by handle |
 | `ARCKSP0108` | Error | Conflicting authorization metadata |
 | `ARCKSP0109` | Error | Ambiguous command response values |
+| `ARCKSP0110` | Error | Invalid or ambiguous command event metadata |
 | `ARCKSP0200` | Error | Unsupported read model declaration |
 | `ARCKSP0201` | Error | Invalid query function |
 | `ARCKSP0202` | Error | Ambiguous query overload |

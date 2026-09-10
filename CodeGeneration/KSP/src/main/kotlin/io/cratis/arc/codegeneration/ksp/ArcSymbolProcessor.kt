@@ -28,6 +28,7 @@ import com.google.devtools.ksp.validate
 import io.cratis.arc.artifacts.ArcArtifactManifest
 import io.cratis.arc.metadata.AuthorizationMetadata
 import io.cratis.arc.metadata.CommandDescriptor
+import io.cratis.arc.metadata.CommandEventMetadata
 import io.cratis.arc.metadata.CommandResponseValueDescriptor
 import io.cratis.arc.metadata.CommandResponseValueDisposition
 import io.cratis.arc.metadata.ConceptDescriptor
@@ -342,6 +343,8 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
             return null
         }
         val commandKey = commandKeys.singleOrNull()
+        val eventMetadata = buildCommandEventMetadata(command, qualifiedName)
+        if (eventMetadata?.isValid == false) return null
         val authorization = buildAuthorization(command, handler, qualifiedName, "Command") ?: return null
         val containingFile = command.containingFile
         if (containingFile == null) {
@@ -377,7 +380,8 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
             responseIsEnumerable = response.isEnumerable,
             responseValues = response.values,
             invocationKind = invocationKind,
-            summary = DocumentationSummaryParser.parse(command.docString).summary
+            summary = DocumentationSummaryParser.parse(command.docString).summary,
+            eventMetadata = eventMetadata
         )
     }
 
@@ -872,6 +876,72 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
 
     private fun buildProperties(command: KSClassDeclaration, commandName: String): List<PropertyModel>? =
         metadataCollector.describeProperties(command, commandName)
+
+    private fun buildCommandEventMetadata(
+        command: KSClassDeclaration,
+        commandName: String
+    ): CommandEventMetadataModel? {
+        var isValid = true
+        fun value(annotationName: String): String? {
+            val annotation = command.annotationsNamed(annotationName).singleOrNull() ?: return null
+            val raw = annotation.stringArgument("value")
+            if (raw.isNullOrBlank() || raw.any(Char::isISOControl)) {
+                logger.error(
+                    ArcDiagnostic.COMMAND_EVENT_METADATA,
+                    "Command '$commandName' declares @${annotation.shortName.asString()} with a blank or " +
+                        "control-character value; omit the annotation or supply a safe nonblank value.",
+                    annotation
+                )
+                isValid = false
+                return null
+            }
+            return raw
+        }
+
+        fun provides(interfaceName: String): Boolean = command.getAllSuperTypes().any { superType ->
+            superType.declaration.qualifiedName?.asString() == interfaceName
+        }
+        if (
+            command.hasAnnotation(COMMAND_EVENT_STREAM_ID_ANNOTATION) &&
+            provides(COMMAND_EVENT_STREAM_ID_PROVIDER)
+        ) {
+            logger.error(
+                ArcDiagnostic.COMMAND_EVENT_METADATA,
+                "Command '$commandName' cannot declare @CommandEventStreamId and implement " +
+                    "CommandEventStreamIdProvider; choose one event-stream ID source.",
+                command
+            )
+            isValid = false
+        }
+        if (
+            command.hasAnnotation(COMMAND_EVENT_SUBJECT_ANNOTATION) &&
+            provides(COMMAND_EVENT_SUBJECT_PROVIDER)
+        ) {
+            logger.error(
+                ArcDiagnostic.COMMAND_EVENT_METADATA,
+                "Command '$commandName' cannot declare @CommandEventSubject and implement " +
+                    "CommandEventSubjectProvider; choose one subject source.",
+                command
+            )
+            isValid = false
+        }
+
+        val metadata = CommandEventMetadataModel(
+            eventSourceType = value(COMMAND_EVENT_SOURCE_TYPE_ANNOTATION),
+            eventStreamType = value(COMMAND_EVENT_STREAM_TYPE_ANNOTATION),
+            eventStreamId = value(COMMAND_EVENT_STREAM_ID_ANNOTATION),
+            subject = value(COMMAND_EVENT_SUBJECT_ANNOTATION),
+            isValid = isValid
+        )
+        return if (
+            !metadata.isValid || listOf(
+                metadata.eventSourceType,
+                metadata.eventStreamType,
+                metadata.eventStreamId,
+                metadata.subject
+            ).any { it != null }
+        ) metadata else null
+    }
 
     private fun buildAuthorization(
         declaration: KSClassDeclaration,
@@ -1768,6 +1838,13 @@ $keyResolution$preparation
         val schemes = command.authorization.schemes.joinToString(", ") { quote(it) }
         val policy = command.authorization.policy?.let(::quote) ?: "null"
         val responseTypeName = command.responseTypeName?.let(::quote) ?: "null"
+        val eventMetadata = command.eventMetadata?.let { metadata ->
+            "io.cratis.arc.metadata.CommandEventMetadata(" +
+                "eventSourceType = ${quoteOrNull(metadata.eventSourceType)}, " +
+                "eventStreamType = ${quoteOrNull(metadata.eventStreamType)}, " +
+                "eventStreamId = ${quoteOrNull(metadata.eventStreamId)}, " +
+                "subject = ${quoteOrNull(metadata.subject)})"
+        } ?: "null"
         val responseValues = if (command.responseValues.isEmpty()) {
             "emptyList()"
         } else {
@@ -1795,7 +1872,8 @@ $keyResolution$preparation
         responseTypeName = $responseTypeName,
         responseIsEnumerable = ${command.responseIsEnumerable},
         responseValues = $responseValues,
-        summary = ${quoteOrNull(command.summary)}
+        summary = ${quoteOrNull(command.summary)},
+        eventMetadata = $eventMetadata
     )"""
     }
 
@@ -2262,7 +2340,15 @@ public class $className : io.cratis.arc.artifacts.ArcArtifactModule(
         responseValues = command.responseValues.map { value ->
             CommandResponseValueDescriptor(value.typeName, value.isEnumerable, value.disposition)
         },
-        summary = command.summary
+        summary = command.summary,
+        eventMetadata = command.eventMetadata?.toDescriptor()
+    )
+
+    private fun CommandEventMetadataModel.toDescriptor(): CommandEventMetadata = CommandEventMetadata(
+        eventSourceType,
+        eventStreamType,
+        eventStreamId,
+        subject
     )
 
     private fun toQueryDescriptor(query: QueryModel): QueryDescriptor = QueryDescriptor(
@@ -2416,6 +2502,12 @@ public class $className : io.cratis.arc.artifacts.ArcArtifactModule(
         const val MODULE_NAME_OPTION = "arc.moduleName"
         const val COMMAND_ANNOTATION = "io.cratis.arc.artifacts.Command"
         const val COMMAND_SIMPLE_NAME = "Command"
+        const val COMMAND_EVENT_SOURCE_TYPE_ANNOTATION = "io.cratis.arc.artifacts.CommandEventSourceType"
+        const val COMMAND_EVENT_STREAM_TYPE_ANNOTATION = "io.cratis.arc.artifacts.CommandEventStreamType"
+        const val COMMAND_EVENT_STREAM_ID_ANNOTATION = "io.cratis.arc.artifacts.CommandEventStreamId"
+        const val COMMAND_EVENT_SUBJECT_ANNOTATION = "io.cratis.arc.artifacts.CommandEventSubject"
+        const val COMMAND_EVENT_STREAM_ID_PROVIDER = "io.cratis.arc.artifacts.CommandEventStreamIdProvider"
+        const val COMMAND_EVENT_SUBJECT_PROVIDER = "io.cratis.arc.artifacts.CommandEventSubjectProvider"
         const val COMMAND_KEY_ANNOTATION = "io.cratis.arc.artifacts.CommandKey"
         const val READ_MODEL_ANNOTATION = "io.cratis.arc.artifacts.ReadModel"
         const val READ_MODEL_SIMPLE_NAME = "ReadModel"

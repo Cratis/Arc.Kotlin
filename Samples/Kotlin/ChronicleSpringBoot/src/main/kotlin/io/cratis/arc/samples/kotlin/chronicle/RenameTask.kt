@@ -4,12 +4,20 @@
 package io.cratis.arc.samples.kotlin.chronicle
 
 import io.cratis.arc.artifacts.Command
+import io.cratis.arc.artifacts.CommandEventSourceType
+import io.cratis.arc.artifacts.CommandEventStreamId
+import io.cratis.arc.artifacts.CommandEventStreamType
+import io.cratis.arc.artifacts.CommandEventSubject
 import io.cratis.arc.artifacts.CommandKey
 import io.cratis.arc.authorization.AllowAnonymous
 import io.cratis.arc.chronicle.EventsWithConcurrencyScopes
 
 /** Renames a task using its tenant-local Chronicle read model and exact event-log position. */
 @Command
+@CommandEventSourceType("Task")
+@CommandEventStreamType("Tasks")
+@CommandEventStreamId("rename-stream")
+@CommandEventSubject("task-owner")
 @AllowAnonymous
 public data class RenameTask(
     @CommandKey public val id: String,

@@ -131,6 +131,15 @@ class ArcChronicleRealKernelTest {
                 val accepted = tenantAEvents.single { it.content.contains("Accepted title") }
                 val acceptedContent = objectMapper.readTree(accepted.content)
                 assertEquals("Tenant A title", acceptedContent.path("previousTitle").asString())
+                val metadataFiltered = tenantAStore.eventLog.getForEventSourceIdAndEventTypes(
+                    eventSourceId = taskId,
+                    eventTypes = emptyList(),
+                    eventStreamType = "Tasks",
+                    eventStreamId = "rename-stream",
+                    eventSourceType = "Task"
+                )
+                assertEquals(1, metadataFiltered.size)
+                assertTrue(metadataFiltered.single().content.contains("Accepted title"))
                 assertFalse(tenantAEvents.any { it.content.contains("Rejected title") })
                 assertTrue(tenantBEvents.single().content.contains("Tenant B title"))
             } finally {

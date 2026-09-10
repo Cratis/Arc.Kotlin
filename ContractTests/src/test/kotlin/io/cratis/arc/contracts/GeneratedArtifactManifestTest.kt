@@ -501,7 +501,6 @@ internal class GeneratedArtifactManifestTest {
         assertEquals(conceptQuery.parameters, runtimeConceptQuery.parameters)
         assertEquals(conceptQuery.returnTypeName, runtimeConceptQuery.returnTypeName)
 
-        assertEquals(6, manifest.formatVersion)
         assertEquals(ArcArtifactManifest.CURRENT_FORMAT_VERSION, manifest.formatVersion)
     }
 

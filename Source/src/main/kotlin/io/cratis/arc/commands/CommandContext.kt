@@ -4,6 +4,7 @@
 package io.cratis.arc.commands
 
 import io.cratis.arc.authorization.ArcPrincipal
+import io.cratis.arc.metadata.CommandEventMetadata
 import io.cratis.arc.results.ValidationResultSeverity
 import java.util.Collections
 import java.util.LinkedHashMap
@@ -39,10 +40,15 @@ public class CommandContext @JvmOverloads constructor(
     public val commandKey: Any? = (command as? CommandKeyProvider)?.commandKey()
 ) {
     private var executionTokenValue: CommandExecutionToken? = null
+    private var eventMetadataValue: CommandEventMetadata? = null
 
     /** Opaque identity of this pipeline execution frame, or `null` for a manually created context. */
     public val executionToken: CommandExecutionToken?
         get() = executionTokenValue
+
+    /** Event defaults composed for the selected command, or `null` when none are declared. */
+    public val eventMetadata: CommandEventMetadata?
+        get() = eventMetadataValue
 
     public val values: Map<String, Any> = Collections.unmodifiableMap(LinkedHashMap(values))
     public val providedValues: List<Any> = java.util.List.copyOf(providedValues)
@@ -50,6 +56,11 @@ public class CommandContext @JvmOverloads constructor(
         require(commandType.isInstance(command)) {
             "Command of type '${command.javaClass.name}' is not an instance of '${commandType.name}'."
         }
+    }
+
+    internal fun attachEventMetadata(metadata: CommandEventMetadata?): CommandContext = apply {
+        check(eventMetadataValue == null) { "Command event metadata can only be attached once." }
+        eventMetadataValue = metadata
     }
 
     internal fun attachExecutionToken(token: CommandExecutionToken): CommandContext = apply {
@@ -73,7 +84,10 @@ public class CommandContext @JvmOverloads constructor(
         values,
         providedValues,
         commandKey
-    ).also { copy -> executionTokenValue?.let(copy::attachExecutionToken) }
+    ).also { copy ->
+        eventMetadataValue?.let(copy::attachEventMetadata)
+        executionTokenValue?.let(copy::attachExecutionToken)
+    }
 
     internal fun withProvidedValues(values: Collection<Any>): CommandContext = CommandContext(
         correlationId,
@@ -89,5 +103,8 @@ public class CommandContext @JvmOverloads constructor(
         this.values,
         values,
         commandKey
-    ).also { copy -> executionTokenValue?.let(copy::attachExecutionToken) }
+    ).also { copy ->
+        eventMetadataValue?.let(copy::attachEventMetadata)
+        executionTokenValue?.let(copy::attachExecutionToken)
+    }
 }

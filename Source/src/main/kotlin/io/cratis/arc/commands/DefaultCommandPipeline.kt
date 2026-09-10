@@ -3,6 +3,9 @@
 
 package io.cratis.arc.commands
 
+import io.cratis.arc.artifacts.CommandEventStreamIdProvider
+import io.cratis.arc.artifacts.CommandEventSubjectProvider
+import io.cratis.arc.metadata.CommandEventMetadata
 import io.cratis.arc.metadata.CommandResponseValueDescriptor
 import io.cratis.arc.metadata.CommandResponseValueDisposition
 import io.cratis.arc.results.CommandResult
@@ -190,7 +193,20 @@ public class DefaultCommandPipeline @JvmOverloads constructor(
         exposeExceptionDetails = options.exposeExceptionDetails,
         values = buildContextValues(command),
         commandKey = handler.resolveCommandKey(command)
-    )
+    ).attachEventMetadata(eventMetadata(command, handler))
+
+    private fun eventMetadata(command: Any, handler: CommandHandler): CommandEventMetadata? {
+        val declared = handler.metadata.eventMetadata
+        val eventStreamId = (command as? CommandEventStreamIdProvider)?.eventStreamId()
+        val subject = (command as? CommandEventSubjectProvider)?.eventSubject()
+        if (declared == null && eventStreamId == null && subject == null) return null
+        return CommandEventMetadata(
+            eventSourceType = declared?.eventSourceType,
+            eventStreamType = declared?.eventStreamType,
+            eventStreamId = eventStreamId ?: declared?.eventStreamId,
+            subject = subject ?: declared?.subject
+        )
+    }
 
     private fun buildContextValues(command: Any): Map<String, Any> = LinkedHashMap<String, Any>().also { values ->
         contextValuesProviders.forEach { provider -> values.putAll(provider.provide(command)) }

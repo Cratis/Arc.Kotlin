@@ -46,7 +46,7 @@ internal object ArcManifestJson {
 
     @JsonPropertyOrder(
         "name", "typeName", "properties", "routeOptions", "location", "authorization", "explicitPath",
-        "treatWarningsAsErrors", "responseValues"
+        "treatWarningsAsErrors", "responseValues", "summary", "eventMetadata"
     )
     private abstract class CommandMixin
 

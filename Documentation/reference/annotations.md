@@ -31,6 +31,19 @@ All three are Jakarta constraints, work from Kotlin and Java, and remain in gene
 | `@QueryHttpMethod(value)` | Read-model class, function | Proxy preference: `AUTO` (default), `GET`, or `QUERY`. A class value defaults every query; a method value overrides it. |
 | `@QueryTransport(value)` | Function | `REQUEST_RESPONSE` (default) or `OBSERVABLE`. KSP infers `OBSERVABLE` for Kotlin `Flow` and JDK `Flow.Publisher`; Spring hosts observable HTTP snapshots, direct SSE/WebSocket, and multiplexed hubs. |
 
+## Command event metadata annotations
+
+| Annotation | Target | Values and behavior |
+| --- | --- | --- |
+| `@CommandEventSourceType(value)` | Command class | Default event-source type for events returned by the command. |
+| `@CommandEventStreamType(value)` | Command class | Default event-stream type for returned events. |
+| `@CommandEventStreamId(value)` | Command class | Default event-stream identifier; when absent Chronicle uses the event-source identifier. |
+| `@CommandEventSubject(value)` | Command class | Default compliance subject; when absent Chronicle uses the event-source identifier. |
+
+Each annotation is optional. A present value must be nonblank and contain no control characters; KSP reports `ARCKSP0110` otherwise. Generated `CommandEventMetadata` retains absence as `null`, so Chronicle remains responsible for its own `Default` and event-source-ID fallbacks rather than Arc serializing those literals.
+
+These are static command defaults. A command can implement `CommandEventStreamIdProvider` or `CommandEventSubjectProvider` when those values depend on its instance; generated code rejects a static annotation combined with the matching provider under `ARCKSP0110`, so one slot never has two sources. An explicit `EventForEventSourceId` value keeps its own stream/source/subject metadata, while a missing wrapper value inherits the composed command declaration. This deliberately preserves the JVM's existing explicit-event precedence.
+
 ## Authorization annotations
 
 | Annotation | Target | Values and behavior |

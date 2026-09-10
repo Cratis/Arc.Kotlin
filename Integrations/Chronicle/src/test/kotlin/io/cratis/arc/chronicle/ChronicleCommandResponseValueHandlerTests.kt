@@ -4,6 +4,8 @@
 package io.cratis.arc.chronicle
 
 import io.cratis.arc.artifacts.Command
+import io.cratis.arc.artifacts.CommandEventStreamIdProvider
+import io.cratis.arc.artifacts.CommandEventSubjectProvider
 import io.cratis.arc.authorization.ArcPrincipal
 import io.cratis.arc.commands.CommandContext
 import io.cratis.arc.commands.CommandExecutionOptions
@@ -14,6 +16,7 @@ import io.cratis.arc.commands.DefaultCommandPipeline
 import io.cratis.arc.commands.ServiceResolver
 import io.cratis.arc.concepts.ConceptAs as ArcConceptAs
 import io.cratis.arc.metadata.CommandDescriptor
+import io.cratis.arc.metadata.CommandEventMetadata
 import io.cratis.arc.metadata.CommandResponseValueDescriptor
 import io.cratis.arc.metadata.CommandResponseValueDisposition
 import io.cratis.arc.results.ValidationResult
@@ -283,6 +286,81 @@ internal class ChronicleCommandResponseValueHandlerTests {
         val result = fixture.pipeline.execute(command, executionOptions(UUID.randomUUID()))
 
         assertTrue(result.isSuccess)
+    }
+
+    @Test
+    fun `generated command event defaults reach immediate append options through the pipeline`() = runBlocking {
+        val event = SomethingHappened("metadata")
+        val metadata = CommandEventMetadata("Order", "Orders", "priority", "sales")
+        val fixture = fixture(
+            KeyedCommand("source", event),
+            key = { command -> (command as KeyedCommand).key },
+            eventMetadata = metadata
+        )
+        val options = slot<AppendOptions>()
+        coEvery { fixture.eventLog.append("source", event, capture(options)) } returns successfulAppend()
+
+        val result = fixture.pipeline.execute(fixture.command, executionOptions(UUID.randomUUID()))
+
+        assertTrue(result.isSuccess)
+        assertEquals("Order", options.captured.eventSourceType)
+        assertEquals("Orders", options.captured.eventStreamType)
+        assertEquals("priority", options.captured.eventStreamId)
+        assertEquals("sales", options.captured.subject)
+    }
+
+    @Test
+    fun `explicit routed metadata wins and generated defaults fill only absent values`() = runBlocking {
+        val event = SomethingHappened("routed-metadata")
+        val routed = EventForEventSourceId(
+            eventSourceId = "source-one",
+            event = event,
+            eventStreamId = "explicit-stream",
+            subject = "explicit-subject"
+        )
+        val fixture = fixture(
+            KeyedCommand("unused", routed),
+            eventMetadata = CommandEventMetadata("Order", "Orders", "default-stream", "default-subject")
+        )
+        val appended = slot<List<EventForEventSourceId>>()
+        coEvery {
+            fixture.eventLog.appendMany(
+                capture(appended),
+                any<Map<String, ConcurrencyScope>>(),
+                any<UUID>()
+            )
+        } returns listOf(successfulAppend())
+
+        val result = fixture.pipeline.execute(fixture.command, executionOptions(UUID.randomUUID()))
+
+        assertTrue(result.isSuccess)
+        val actual = appended.captured.single()
+        assertEquals("Order", actual.eventSourceType)
+        assertEquals("Orders", actual.eventStreamType)
+        assertEquals("explicit-stream", actual.eventStreamId)
+        assertEquals("explicit-subject", actual.subject)
+        assertTrue(actual.causation.isNotEmpty())
+    }
+
+    @Test
+    fun `dynamic command providers compose with generated static event defaults`() = runBlocking {
+        val event = SomethingHappened("dynamic-metadata")
+        val command = DynamicMetadataCommand("source", event)
+        val fixture = fixture(
+            command,
+            eventMetadata = CommandEventMetadata("Order", "Orders"),
+            key = { (it as DynamicMetadataCommand).key }
+        )
+        val options = slot<AppendOptions>()
+        coEvery { fixture.eventLog.append("source", event, capture(options)) } returns successfulAppend()
+
+        val result = fixture.pipeline.execute(command, executionOptions(UUID.randomUUID()))
+
+        assertTrue(result.isSuccess)
+        assertEquals("Order", options.captured.eventSourceType)
+        assertEquals("Orders", options.captured.eventStreamType)
+        assertEquals("dynamic-stream", options.captured.eventStreamId)
+        assertEquals("dynamic-subject", options.captured.subject)
     }
 
     @Test
@@ -679,13 +757,14 @@ internal class ChronicleCommandResponseValueHandlerTests {
     private fun fixture(
         command: Any,
         responseValues: List<CommandResponseValueDescriptor> = emptyList(),
+        eventMetadata: CommandEventMetadata? = null,
         key: ((Any) -> Any?)? = null
     ): Fixture {
         val eventLog = mockk<IEventLog>()
         val eventStore = mockk<IEventStore>()
         every { eventStore.eventLog } returns eventLog
         val registry = ConcurrentCommandHandlerRegistry()
-        registry.register(TestCommandHandler(command, responseValues, key))
+        registry.register(TestCommandHandler(command, responseValues, eventMetadata, key))
         val responseHandler = ChronicleCommandResponseValueHandler(eventStore, registry)
         val pipeline = DefaultCommandPipeline(registry, responseValueHandlers = listOf(responseHandler))
         return Fixture(command, eventStore, eventLog, registry, pipeline)
@@ -734,20 +813,22 @@ internal class ChronicleCommandResponseValueHandlerTests {
     private class TestCommandHandler(
         private val command: Any,
         responseValues: List<CommandResponseValueDescriptor> = emptyList(),
+        eventMetadata: CommandEventMetadata? = null,
         private val key: ((Any) -> Any?)? = null
     ) : CommandHandler {
         override val commandType: Class<*> = command.javaClass
-        override val metadata: CommandDescriptor = CommandDescriptor.withResponseValues(
-            commandType.simpleName,
-            commandType.name,
-            responseValues
-        )
+        override val metadata: CommandDescriptor = if (eventMetadata == null) {
+            CommandDescriptor.withResponseValues(commandType.simpleName, commandType.name, responseValues)
+        } else {
+            CommandDescriptor.withEventMetadata(commandType.simpleName, commandType.name, eventMetadata)
+        }
 
         override fun resolveCommandKey(command: Any): Any? = key?.invoke(command) ?: super.resolveCommandKey(command)
 
         override suspend fun invoke(context: CommandContext): Any = when (val typed = context.command) {
             is KeyedCommand -> typed.response
             is ProviderCommand -> typed.response
+            is DynamicMetadataCommand -> typed.response
             else -> error("Unexpected command type '${typed.javaClass.name}'.")
         }
     }
@@ -769,6 +850,15 @@ internal class ChronicleCommandResponseValueHandlerTests {
         val response: Any
     ) : CommandKeyProvider {
         override fun commandKey(): Any = key
+    }
+
+    @Command
+    private data class DynamicMetadataCommand(
+        val key: String,
+        val response: Any
+    ) : CommandEventStreamIdProvider, CommandEventSubjectProvider {
+        override fun eventStreamId(): String = "dynamic-stream"
+        override fun eventSubject(): String = "dynamic-subject"
     }
 
     @EventType
