@@ -60,7 +60,7 @@ and Java-side coverage as well.
 
   ```kotlin
   @Test
-  fun `single model is returned as single data`() = runBlocking {
+  fun `single model is returned as single data`(): Unit = runBlocking {
       val result = pipeline(TestPerformer(name) { model }).perform(request, options)
 
       assertSame(model, result.data)
@@ -70,6 +70,16 @@ and Java-side coverage as well.
 
 - Java test names are lowerCamelCase sentences —
   `Testing/src/test/java/io/cratis/arc/testing/JavaScenarioConformanceTest.java` is the model to copy.
+- Make expression-bodied coroutine tests explicitly return `Unit`. A final `assertThrows` or
+  fluent assertion can otherwise infer a non-void JVM return and silently prevent discovery.
+  The ordinary `test` and `check` tasks run `checkTestDeclarations` after `testClasses`, using
+  Python 3 and the configured JDK 17 `javap`. It checks direct `@Test`, `@ParameterizedTest`,
+  `@RepeatedTest`, and `@TestTemplate` method annotations for void return and non-private,
+  non-static, concrete methods; concrete tests in abstract bases are allowed. `@TestFactory`,
+  composed annotations, class eligibility, and general runtime discovery are outside this
+  bounded check. Confirm new cases in fresh test XML, including expanded parameterized cases
+  and inherited methods under their concrete executing classes, rather than inferring coverage
+  from source annotation counts or class filenames.
 - JUnit is wired centrally: the root `build.gradle.kts` adds `org.junit.jupiter:junit-jupiter:5.11.4`,
   `junit-platform-launcher`, and `useJUnitPlatform()` to every project with the `java` plugin. Do not
   re-declare them in a module build file.

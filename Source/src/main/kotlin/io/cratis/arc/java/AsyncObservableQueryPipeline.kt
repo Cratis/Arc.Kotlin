@@ -9,14 +9,11 @@ import io.cratis.arc.queries.ObservableQueryTransferMode
 import io.cratis.arc.queries.QueryExecutionOptions
 import io.cratis.arc.queries.QueryRequest
 import io.cratis.arc.results.QueryResult
-import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
 import java.util.concurrent.Flow as JdkFlow
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
@@ -82,7 +79,7 @@ public class AsyncObservableQueryPipeline internal constructor(
         options: QueryExecutionOptions,
         transferMode: ObservableQueryTransferMode?,
         keyExtractor: ObservableQueryKeyExtractor?
-    ): CompletionStage<AsyncObservableQueryOpenResult> = launchStage(coroutineScope) {
+    ): CompletionStage<AsyncObservableQueryOpenResult> = coroutineScope.launchStage {
         val extractor: ((Any) -> Any?)? = keyExtractor?.let { javaExtractor ->
             { value -> javaExtractor.extractKey(value) }
         }
@@ -94,28 +91,6 @@ public class AsyncObservableQueryPipeline internal constructor(
             )
         }
     }
-}
-
-private fun <T> launchStage(scope: CoroutineScope, operation: suspend () -> T): CompletionStage<T> {
-    val future = CompletableFuture<T>()
-    lateinit var job: Job
-    job = scope.launch {
-        try {
-            future.complete(operation())
-        } catch (exception: CancellationException) {
-            future.cancel(false)
-            throw exception
-        } catch (exception: Exception) {
-            future.completeExceptionally(exception)
-        }
-    }
-    future.whenComplete { _, _ -> if (future.isCancelled) job.cancel() }
-    job.invokeOnCompletion { cause ->
-        if (cause != null && !future.isDone) {
-            if (cause is CancellationException) future.cancel(false) else future.completeExceptionally(cause)
-        }
-    }
-    return future
 }
 
 /** Cold publisher that starts one Flow collection per subscriber and emits only against positive demand. */
@@ -138,47 +113,57 @@ internal class CoroutineFlowPublisher<T : Any>(
         private val subscriber: JdkFlow.Subscriber<in T>
     ) : JdkFlow.Subscription {
         private val requested = AtomicLong()
-        private val cancelled = AtomicBoolean()
-        private val terminated = AtomicBoolean()
+        // Cancellation and terminal delivery compete for the same state, before cleanup can resume
+        // collection. Serialize signals with cancellation so no callback starts after cancel returns.
+        private val stopped = AtomicBoolean()
+        private val signalLock = Any()
+        private val started = AtomicBoolean()
         private val demandChanged = Channel<Unit>(Channel.CONFLATED)
         private val job = scope.launch(start = kotlinx.coroutines.CoroutineStart.LAZY) {
             try {
                 flow.collect { value ->
                     awaitDemand()
-                    if (cancelled.get()) return@collect
-                    consumeDemand()
-                    subscriber.onNext(value)
+                    synchronized(signalLock) {
+                        if (!stopped.get()) {
+                            consumeDemand()
+                            subscriber.onNext(value)
+                        }
+                    }
                 }
                 complete()
-            } catch (exception: CancellationException) {
-                if (!cancelled.get()) error(exception)
             } catch (exception: Throwable) {
                 error(exception)
             }
         }
 
         override fun request(count: Long) {
+            if (stopped.get()) return
             if (count <= 0) {
                 error(IllegalArgumentException("Flow.Subscription.request requires a positive demand."))
                 return
             }
-            if (cancelled.get() || terminated.get()) return
             requested.getAndUpdate { current ->
                 if (current == Long.MAX_VALUE || Long.MAX_VALUE - current < count) Long.MAX_VALUE else current + count
             }
             demandChanged.trySend(Unit)
-            job.start()
+            if (started.compareAndSet(false, true)) {
+                // A cancelled scope can prevent the lazy body from ever entering its try/catch.
+                job.invokeOnCompletion { cause -> if (cause != null) error(cause) }
+                job.start()
+            }
         }
 
         override fun cancel() {
-            if (cancelled.compareAndSet(false, true)) {
-                demandChanged.close()
-                job.cancel()
+            synchronized(signalLock) {
+                if (stopped.compareAndSet(false, true)) {
+                    demandChanged.close()
+                    job.cancel()
+                }
             }
         }
 
         private suspend fun awaitDemand() {
-            while (requested.get() == 0L && !cancelled.get()) demandChanged.receive()
+            while (requested.get() == 0L && !stopped.get()) demandChanged.receive()
             job.ensureActive()
         }
 
@@ -187,15 +172,21 @@ internal class CoroutineFlowPublisher<T : Any>(
         }
 
         private fun complete() {
-            if (!cancelled.get() && terminated.compareAndSet(false, true)) subscriber.onComplete()
+            synchronized(signalLock) {
+                if (stopped.compareAndSet(false, true)) {
+                    demandChanged.close()
+                    subscriber.onComplete()
+                }
+            }
         }
 
         private fun error(exception: Throwable) {
-            if (terminated.compareAndSet(false, true)) {
-                cancelled.set(true)
-                demandChanged.close()
-                job.cancel()
-                subscriber.onError(exception)
+            synchronized(signalLock) {
+                if (stopped.compareAndSet(false, true)) {
+                    demandChanged.close()
+                    job.cancel()
+                    subscriber.onError(exception)
+                }
             }
         }
     }

@@ -1259,7 +1259,7 @@ internal class TypeScriptProxyGenerator(
     }
 
     private fun isMapType(typeName: String): Boolean =
-        typeName == "kotlin.collections.Map" || typeName == "java.util.Map" || typeName.endsWith("Map")
+        typeName == "kotlin.collections.Map" || typeName == "kotlin.collections.MutableMap" || typeName == "java.util.Map"
 
     /**
      * Emits one source documentation summary as a single-line JSDoc comment.

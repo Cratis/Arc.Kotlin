@@ -32,6 +32,19 @@ public abstract class io/cratis/arc/gradle/ArcProxyOptions {
 	public final fun getSegmentsToSkip ()Lorg/gradle/api/provider/Property;
 }
 
+public abstract class io/cratis/arc/gradle/ArcResponseHandlerMetadataArgumentProvider : org/gradle/process/CommandLineArgumentProvider {
+	public fun <init> ()V
+	public fun asArguments ()Ljava/lang/Iterable;
+	public abstract fun getMetadataFile ()Lorg/gradle/api/file/RegularFileProperty;
+}
+
+public abstract class io/cratis/arc/gradle/ExtractArcResponseHandlerMetadata : org/gradle/api/DefaultTask {
+	public fun <init> ()V
+	public final fun extract ()V
+	public abstract fun getDependencyArtifacts ()Lorg/gradle/api/file/ConfigurableFileCollection;
+	public abstract fun getOutputFile ()Lorg/gradle/api/file/RegularFileProperty;
+}
+
 public abstract class io/cratis/arc/gradle/GenerateArcProxies : org/gradle/api/DefaultTask {
 	public fun <init> ()V
 	public final fun generate ()V

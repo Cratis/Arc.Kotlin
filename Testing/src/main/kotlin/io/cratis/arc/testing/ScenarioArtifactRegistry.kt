@@ -7,6 +7,7 @@ import io.cratis.arc.artifacts.ArcArtifactModule
 import io.cratis.arc.artifacts.ArcArtifactModuleRegistry
 import io.cratis.arc.commands.CommandHandler
 import io.cratis.arc.commands.ConcurrentCommandHandlerRegistry
+import io.cratis.arc.polymorphism.ConcurrentDerivedTypeRegistry
 import io.cratis.arc.queries.ConcurrentQueryPerformerRegistry
 import io.cratis.arc.queries.FullyQualifiedQueryName
 import io.cratis.arc.queries.QueryPerformer
@@ -22,11 +23,16 @@ public class ScenarioSetupException(message: String, cause: Throwable? = null) :
 public class ScenarioArtifactRegistry {
     internal val commandHandlers = ConcurrentCommandHandlerRegistry()
     internal val queryPerformers = ConcurrentQueryPerformerRegistry()
+    internal val derivedTypes = ConcurrentDerivedTypeRegistry()
 
-    /** Registers every command and query in [module], rejecting duplicate exact identities. */
+    /**
+     * Registers every command and query in [module], rejecting duplicate exact identities.
+     * Also registers the module's declared derived types before scenario JSON reads.
+     */
     public fun register(module: ArcArtifactModule): ScenarioArtifactRegistry {
         try {
             ArcArtifactModuleRegistry.register(module, commandHandlers, queryPerformers)
+            ArcArtifactModuleRegistry.registerDerivedTypes(module, derivedTypes)
         } catch (exception: IllegalStateException) {
             throw ScenarioSetupException(
                 "The Arc artifact module '${module.javaClass.name}' could not be registered: ${exception.message}",

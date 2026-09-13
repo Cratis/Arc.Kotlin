@@ -90,7 +90,7 @@ internal class QueryExtensionsTest {
     }
 
     @Test
-    fun `declared command read model resolver wins fallback and equal ownership conflicts`() = runBlocking {
+    fun `declared command read model resolver wins fallback and equal ownership conflicts`(): Unit = runBlocking {
         val fallback = resolver(ReadModelForCommandOwnership.FALLBACK, Model(1, "fallback"))
         val declared = resolver(ReadModelForCommandOwnership.DECLARED, Model(1, "declared"))
         val registry = ReadModelForCommandResolverRegistry(listOf(fallback, declared))

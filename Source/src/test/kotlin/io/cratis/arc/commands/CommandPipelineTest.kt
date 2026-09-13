@@ -717,7 +717,7 @@ class CommandPipelineTest {
     }
 
     @Test
-    fun `context value providers run in order before scopes and filters`() = runBlocking {
+    fun `context value providers run in order before scopes and filters`(): Unit = runBlocking {
         var received: Map<String, Any>? = null
         val providers = listOf(
             CommandContextValuesProvider { mapOf("first" to 1, "shared" to "old") },

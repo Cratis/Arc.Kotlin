@@ -195,6 +195,8 @@ internal class ArcSymbolProcessorRoundDiagnosticsCompilationTest {
         assertTrue(observation.deferred.any { it.first == "DeferredHandler" && !it.second }, observation.deferred.toString())
         assertTrue(observation.rounds >= 2)
         assertTrue(observation.diagnostics.isEmpty(), result.messages)
+        assertTrue(compilation.workingDir.resolve(
+            "ksp/sources/resources/META-INF/cratis/arc-response-handlers/RoundDiagnostics.json").isFile)
         assertNoAggregate(compilation)
     }
 
@@ -214,8 +216,10 @@ internal class ArcSymbolProcessorRoundDiagnosticsCompilationTest {
     }
 
     private fun assertNoAggregate(compilation: KotlinCompilation) {
-        val files = compilation.workingDir.resolve("ksp/sources").walkTopDown().filter { it.isFile }.map { it.name }.toList()
-        assertFalse(files.any { "ArcArtifactMetadata" in it || "ArcArtifactModule" in it || it == "RoundDiagnostics.json" }, files.toString())
+        val root = compilation.workingDir.resolve("ksp/sources")
+        val files = root.walkTopDown().filter { it.isFile }.map { it.relativeTo(root).invariantSeparatorsPath }.toList()
+        assertFalse(files.any { "ArcArtifactMetadata" in it || "ArcArtifactModule" in it ||
+            it.endsWith("META-INF/cratis/arc/RoundDiagnostics.json") }, files.toString())
     }
 
     private data class Diagnostic(val message: String, val name: String?, val line: Int?, val property: Boolean, val phase: String)

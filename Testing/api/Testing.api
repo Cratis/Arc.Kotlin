@@ -1,9 +1,12 @@
 public final class io/cratis/arc/testing/CommandScenario {
 	public fun <init> (Lio/cratis/arc/artifacts/ArcArtifactModule;Ljava/lang/Class;)V
 	public fun <init> (Lio/cratis/arc/commands/CommandHandler;)V
+	public final fun addConceptExclusion (Lio/cratis/arc/validation/ConceptValidationExclusion;)Lio/cratis/arc/testing/CommandScenario;
+	public final fun addConceptValidator (Lio/cratis/arc/validation/ConceptValidator;)Lio/cratis/arc/testing/CommandScenario;
 	public final fun addContextValuesProvider (Lio/cratis/arc/commands/CommandContextValuesProvider;)Lio/cratis/arc/testing/CommandScenario;
 	public final fun addExtension (Lio/cratis/arc/testing/CommandScenarioExtender;)Lio/cratis/arc/testing/CommandScenario;
 	public final fun addFilter (Lio/cratis/arc/commands/CommandFilter;)Lio/cratis/arc/testing/CommandScenario;
+	public final fun addModelValidator (Lio/cratis/arc/validation/ModelValidator;)Lio/cratis/arc/testing/CommandScenario;
 	public final fun addPolicy (Ljava/lang/String;Lio/cratis/arc/authorization/AuthorizationPolicy;)Lio/cratis/arc/testing/CommandScenario;
 	public final fun addReadModelResolver (Lio/cratis/arc/queries/CanResolveReadModelForCommand;)Lio/cratis/arc/testing/CommandScenario;
 	public final fun addResponseHandler (Lio/cratis/arc/commands/CommandResponseValueHandler;)Lio/cratis/arc/testing/CommandScenario;
@@ -68,8 +71,11 @@ public final class io/cratis/arc/testing/CommandScenarioResult {
 public final class io/cratis/arc/testing/ObservableQueryScenario {
 	public fun <init> (Lio/cratis/arc/artifacts/ArcArtifactModule;Lio/cratis/arc/queries/FullyQualifiedQueryName;)V
 	public fun <init> (Lio/cratis/arc/queries/QueryPerformer;)V
+	public final fun addConceptExclusion (Lio/cratis/arc/validation/ConceptValidationExclusion;)Lio/cratis/arc/testing/ObservableQueryScenario;
+	public final fun addConceptValidator (Lio/cratis/arc/validation/ConceptValidator;)Lio/cratis/arc/testing/ObservableQueryScenario;
 	public final fun addEmissionGuard (Lio/cratis/arc/queries/GuardObservableQueryEmission;)Lio/cratis/arc/testing/ObservableQueryScenario;
 	public final fun addFilter (Lio/cratis/arc/queries/QueryFilter;)Lio/cratis/arc/testing/ObservableQueryScenario;
+	public final fun addModelValidator (Lio/cratis/arc/validation/ModelValidator;)Lio/cratis/arc/testing/ObservableQueryScenario;
 	public final fun addPolicy (Ljava/lang/String;Lio/cratis/arc/authorization/AuthorizationPolicy;)Lio/cratis/arc/testing/ObservableQueryScenario;
 	public final fun addReadModelInterceptor (Lio/cratis/arc/queries/InterceptReadModel;)Lio/cratis/arc/testing/ObservableQueryScenario;
 	public final fun addRenderer (Lio/cratis/arc/queries/QueryRendererFor;)Lio/cratis/arc/testing/ObservableQueryScenario;
@@ -109,7 +115,10 @@ public final class io/cratis/arc/testing/ObservableQueryScenarioResult {
 public final class io/cratis/arc/testing/QueryScenario {
 	public fun <init> (Lio/cratis/arc/artifacts/ArcArtifactModule;Lio/cratis/arc/queries/FullyQualifiedQueryName;)V
 	public fun <init> (Lio/cratis/arc/queries/QueryPerformer;)V
+	public final fun addConceptExclusion (Lio/cratis/arc/validation/ConceptValidationExclusion;)Lio/cratis/arc/testing/QueryScenario;
+	public final fun addConceptValidator (Lio/cratis/arc/validation/ConceptValidator;)Lio/cratis/arc/testing/QueryScenario;
 	public final fun addFilter (Lio/cratis/arc/queries/QueryFilter;)Lio/cratis/arc/testing/QueryScenario;
+	public final fun addModelValidator (Lio/cratis/arc/validation/ModelValidator;)Lio/cratis/arc/testing/QueryScenario;
 	public final fun addPolicy (Ljava/lang/String;Lio/cratis/arc/authorization/AuthorizationPolicy;)Lio/cratis/arc/testing/QueryScenario;
 	public final fun addReadModelInterceptor (Lio/cratis/arc/queries/InterceptReadModel;)Lio/cratis/arc/testing/QueryScenario;
 	public final fun addRenderer (Lio/cratis/arc/queries/QueryRendererFor;)Lio/cratis/arc/testing/QueryScenario;
@@ -204,14 +213,18 @@ public final class io/cratis/arc/testing/ScenarioSetupException : java/lang/Ille
 }
 
 public final class io/cratis/arc/testing/java/AsyncCommandScenario {
+	public fun <init> (Lio/cratis/arc/artifacts/ArcArtifactModule;Ljava/lang/Class;Lio/cratis/arc/java/JavaAsyncScope;)V
 	public fun <init> (Lio/cratis/arc/artifacts/ArcArtifactModule;Ljava/lang/Class;Lkotlinx/coroutines/CoroutineScope;)V
+	public fun <init> (Lio/cratis/arc/commands/CommandHandler;Lio/cratis/arc/java/JavaAsyncScope;)V
 	public fun <init> (Lio/cratis/arc/commands/CommandHandler;Lkotlinx/coroutines/CoroutineScope;)V
+	public fun <init> (Lio/cratis/arc/testing/CommandScenario;Lio/cratis/arc/java/JavaAsyncScope;)V
 	public fun <init> (Lio/cratis/arc/testing/CommandScenario;Lkotlinx/coroutines/CoroutineScope;)V
 	public final fun execute (Ljava/lang/Object;)Ljava/util/concurrent/CompletionStage;
 	public final fun validate (Ljava/lang/Object;)Ljava/util/concurrent/CompletionStage;
 }
 
 public final class io/cratis/arc/testing/java/AsyncObservableQueryScenario {
+	public fun <init> (Lio/cratis/arc/testing/ObservableQueryScenario;Lio/cratis/arc/java/JavaAsyncScope;)V
 	public fun <init> (Lio/cratis/arc/testing/ObservableQueryScenario;Lkotlinx/coroutines/CoroutineScope;)V
 	public final fun collect (IJLjava/util/Map;Lio/cratis/arc/queries/QueryPaging;Lio/cratis/arc/queries/QuerySorting;Lio/cratis/arc/queries/ObservableQueryTransferMode;Ljava/util/function/Consumer;Ljava/util/function/Consumer;)Lio/cratis/arc/testing/java/ObservableQueryScenarioHandle;
 	public final fun collect (IJLjava/util/Map;Lio/cratis/arc/queries/QueryPaging;Lio/cratis/arc/queries/QuerySorting;Ljava/util/function/Consumer;Ljava/util/function/Consumer;)Lio/cratis/arc/testing/java/ObservableQueryScenarioHandle;
@@ -220,11 +233,21 @@ public final class io/cratis/arc/testing/java/AsyncObservableQueryScenario {
 	public final fun collect (IJLjava/util/function/Consumer;Ljava/util/function/Consumer;)Lio/cratis/arc/testing/java/ObservableQueryScenarioHandle;
 	public final fun collect (ILjava/util/function/Consumer;Ljava/util/function/Consumer;)Lio/cratis/arc/testing/java/ObservableQueryScenarioHandle;
 	public static synthetic fun collect$default (Lio/cratis/arc/testing/java/AsyncObservableQueryScenario;IJLjava/util/Map;Lio/cratis/arc/queries/QueryPaging;Lio/cratis/arc/queries/QuerySorting;Lio/cratis/arc/queries/ObservableQueryTransferMode;Ljava/util/function/Consumer;Ljava/util/function/Consumer;ILjava/lang/Object;)Lio/cratis/arc/testing/java/ObservableQueryScenarioHandle;
+	public final fun collectAsync (I)Ljava/util/concurrent/CompletionStage;
+	public final fun collectAsync (IJ)Ljava/util/concurrent/CompletionStage;
+	public final fun collectAsync (IJLjava/util/Map;)Ljava/util/concurrent/CompletionStage;
+	public final fun collectAsync (IJLjava/util/Map;Lio/cratis/arc/queries/QueryPaging;)Ljava/util/concurrent/CompletionStage;
+	public final fun collectAsync (IJLjava/util/Map;Lio/cratis/arc/queries/QueryPaging;Lio/cratis/arc/queries/QuerySorting;)Ljava/util/concurrent/CompletionStage;
+	public final fun collectAsync (IJLjava/util/Map;Lio/cratis/arc/queries/QueryPaging;Lio/cratis/arc/queries/QuerySorting;Lio/cratis/arc/queries/ObservableQueryTransferMode;)Ljava/util/concurrent/CompletionStage;
+	public static synthetic fun collectAsync$default (Lio/cratis/arc/testing/java/AsyncObservableQueryScenario;IJLjava/util/Map;Lio/cratis/arc/queries/QueryPaging;Lio/cratis/arc/queries/QuerySorting;Lio/cratis/arc/queries/ObservableQueryTransferMode;ILjava/lang/Object;)Ljava/util/concurrent/CompletionStage;
 }
 
 public final class io/cratis/arc/testing/java/AsyncQueryScenario {
+	public fun <init> (Lio/cratis/arc/artifacts/ArcArtifactModule;Lio/cratis/arc/queries/FullyQualifiedQueryName;Lio/cratis/arc/java/JavaAsyncScope;)V
 	public fun <init> (Lio/cratis/arc/artifacts/ArcArtifactModule;Lio/cratis/arc/queries/FullyQualifiedQueryName;Lkotlinx/coroutines/CoroutineScope;)V
+	public fun <init> (Lio/cratis/arc/queries/QueryPerformer;Lio/cratis/arc/java/JavaAsyncScope;)V
 	public fun <init> (Lio/cratis/arc/queries/QueryPerformer;Lkotlinx/coroutines/CoroutineScope;)V
+	public fun <init> (Lio/cratis/arc/testing/QueryScenario;Lio/cratis/arc/java/JavaAsyncScope;)V
 	public fun <init> (Lio/cratis/arc/testing/QueryScenario;Lkotlinx/coroutines/CoroutineScope;)V
 	public final fun perform ()Ljava/util/concurrent/CompletionStage;
 	public final fun perform (Ljava/util/Map;)Ljava/util/concurrent/CompletionStage;

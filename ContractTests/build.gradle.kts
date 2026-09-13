@@ -37,8 +37,12 @@ dependencies {
     testImplementation(testFixtures(project))
     testImplementation(project(":CodeGeneration:KSP"))
     testImplementation(project(":Integrations:SpringBoot"))
+    testImplementation(project(":Integrations:OpenApi"))
     testImplementation(project(":Integrations:Chronicle"))
     testImplementation("io.mockk:mockk:1.14.11")
+    testImplementation("org.springframework.boot:spring-boot-starter-test:4.1.1")
+    testImplementation("org.springframework.boot:spring-boot-starter-webmvc:4.1.1")
+    testImplementation("org.springframework.boot:spring-boot-starter-websocket:4.1.1")
 
     add(chronicleRealKernelTest.implementationConfigurationName, project(":Integrations:Chronicle"))
     add(chronicleRealKernelTest.implementationConfigurationName, "org.junit.jupiter:junit-jupiter:6.1.3")

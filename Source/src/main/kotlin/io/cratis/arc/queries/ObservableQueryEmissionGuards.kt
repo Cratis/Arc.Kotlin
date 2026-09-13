@@ -6,6 +6,10 @@ package io.cratis.arc.queries
 import io.cratis.arc.authorization.ArcPrincipal
 import io.cratis.arc.commands.ServiceResolver
 import io.cratis.arc.commands.await
+import io.cratis.arc.json.ArcObjectMapper
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import tools.jackson.databind.ObjectMapper
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
@@ -17,7 +21,7 @@ public enum class ObservableQueryEmissionVerdict {
     DENY_AND_TERMINATE
 }
 
-/** Immutable subscription and caller snapshot supplied for every observable emission. */
+/** Subscription context supplied for every observable emission; [data] retains pipeline ownership. */
 public class ObservableQueryEmissionContext(
     public val queryName: FullyQualifiedQueryName,
     arguments: Map<String, Any?>,
@@ -29,7 +33,7 @@ public class ObservableQueryEmissionContext(
     public val isFirstEmission: Boolean,
     public val data: Any?
 ) {
-    /** Captured caller arguments, defensively copied for each guard dispatch. */
+    /** Shallow read-only map; the default aggregator independently reconstructs supported values per dispatch and guard. */
     public val arguments: Map<String, Any?> = java.util.Collections.unmodifiableMap(LinkedHashMap(arguments))
 }
 
@@ -57,31 +61,50 @@ public interface ObservableQueryEmissionGuards {
     public suspend fun guard(context: ObservableQueryEmissionContext): ObservableQueryEmissionVerdict
 }
 
-/** Default immutable guard registry. */
+/**
+ * Immutable guard registry with bounded per-dispatch argument isolation. Unsupported or uncopyable arguments deny
+ * before any guard runs. The default mapper supports concrete single-scalar concepts, not general model cloning.
+ * Custom concept codecs must deterministically preserve scalar value/type and reconstruct independent fresh instances;
+ * runtime identity checks reject obvious shared codecs, but cannot prove arbitrary application code independent.
+ */
 public class DefaultObservableQueryEmissionGuards(guards: Iterable<GuardObservableQueryEmission> = emptyList()) :
     ObservableQueryEmissionGuards {
     private val guards = java.util.List.copyOf(guards.toList())
+    private var mapper: ObjectMapper = ArcObjectMapper.create()
+
+    /** Uses the authoritative application mapper for supported concrete single-scalar concepts. */
+    public constructor(guards: Iterable<GuardObservableQueryEmission>, mapper: ObjectMapper) : this(guards) {
+        this.mapper = mapper
+    }
 
     override val hasGuards: Boolean get() = guards.isNotEmpty()
 
     override suspend fun guard(context: ObservableQueryEmissionContext): ObservableQueryEmissionVerdict {
-        var aggregate = ObservableQueryEmissionVerdict.ALLOW
-        for (guard in guards) {
-            val verdict = try {
-                guard.guard(copyContext(context)).await()
-            } catch (_: Exception) {
-                return ObservableQueryEmissionVerdict.DENY_AND_TERMINATE
+        if (!hasGuards) return ObservableQueryEmissionVerdict.ALLOW
+        val coroutineContext = currentCoroutineContext()
+        try {
+            coroutineContext.ensureActive()
+            val arguments = ObservableQueryArgumentSnapshot(mapper, coroutineContext).copies(context.arguments, guards.size)
+            var aggregate = ObservableQueryEmissionVerdict.ALLOW
+            for ((index, guard) in guards.withIndex()) {
+                coroutineContext.ensureActive()
+                val verdict = guard.guard(copyContext(context, arguments[index])).await()
+                coroutineContext.ensureActive()
+                if (verdict == ObservableQueryEmissionVerdict.DENY_AND_TERMINATE) return verdict
+                if (verdict.ordinal > aggregate.ordinal) aggregate = verdict
             }
-            if (verdict == ObservableQueryEmissionVerdict.DENY_AND_TERMINATE) return verdict
-            if (verdict.ordinal > aggregate.ordinal) aggregate = verdict
+            return aggregate
+        } catch (_: Exception) {
+            // Caller cancellation must not become an authorization decision; an independently cancelled stage still denies.
+            coroutineContext.ensureActive()
+            return ObservableQueryEmissionVerdict.DENY_AND_TERMINATE
         }
-        return aggregate
     }
 
-    private fun copyContext(context: ObservableQueryEmissionContext): ObservableQueryEmissionContext =
+    private fun copyContext(context: ObservableQueryEmissionContext, arguments: Map<String, Any?>): ObservableQueryEmissionContext =
         ObservableQueryEmissionContext(
             context.queryName,
-            context.arguments,
+            arguments,
             context.principal,
             context.tenantId,
             context.tenantNamespace,

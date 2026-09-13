@@ -22,7 +22,7 @@ pluginManagement {
 }
 ```
 
-Use the Arc plugin and Spring Boot starter:
+Create `build.gradle.kts` using the Arc plugin and Spring Boot starter. Include application dependency repositories here: `pluginManagement.repositories` only resolves plugins, not application or processor dependencies.
 
 ```kotlin
 plugins {
@@ -30,6 +30,10 @@ plugins {
     id("io.cratis.arc") version "<version>"
     id("org.springframework.boot") version "4.1.1"
     id("io.spring.dependency-management") version "1.1.7"
+}
+
+repositories {
+    mavenCentral()
 }
 
 cratisArc {
@@ -46,7 +50,7 @@ dependencies {
 }
 ```
 
-For builds that do not use the Arc plugin, apply `java`, Kotlin/JVM `2.4.10`, KSP `2.3.11`, and Spring Boot directly; add `io.cratis:arc`, `io.cratis:arc-spring-boot-starter`, and `ksp("io.cratis:arc-ksp:<version>")`, then set `ksp { arg("arc.moduleName", "TaskApplication") }`. The plugin and manual setup produce the same generated contracts.
+For builds that do not use the Arc plugin, retain `repositories { mavenCentral() }` in `build.gradle.kts`, apply `java`, Kotlin/JVM `2.4.10`, KSP `2.3.11`, and Spring Boot directly; add `io.cratis:arc`, `io.cratis:arc-spring-boot-starter`, and `ksp("io.cratis:arc-ksp:<version>")`, then set `ksp { arg("arc.moduleName", "TaskApplication") }`. The plugin and manual setup produce the same generated contracts.
 
 Set the matching host convention in `src/main/resources/application.properties`:
 
@@ -56,7 +60,7 @@ cratis.arc.endpoints.segments-to-skip-for-route=2
 
 ## Add the application model
 
-Create each public type in its named Java file. The command and query return `CompletionStage`; generated Arc adapters await them without reflection.
+Create each public type in its named Java file under `src/main/java/example/tasks/`. The command and query return `CompletionStage`; generated Arc adapters await them without reflection.
 
 `TaskCreated.java`:
 
@@ -169,6 +173,20 @@ curl -sS -X QUERY http://localhost:8080/api/tasks \
   -d '{"arguments":{}}'
 ```
 
-The command returns `isSuccess: true` with a typed `response`; the query returns `isSuccess: true` with the task array in `data`. The full envelope is defined in the [HTTP contract reference](../reference/http-contract.md).
+The command returns `isSuccess: true` with a typed `response`. Identifiers change on every run:
+
+```json
+{"correlationId":"<uuid>","isAuthorized":true,"validationResults":[],"exceptionMessages":[],"exceptionStackTrace":"","authorizationFailureReason":"","isValid":true,"hasExceptions":false,"isSuccess":true,"response":{"id":"<task-id>","title":"Try Arc"}}
+```
+
+The query returns `isSuccess: true` with the created task array in `data`:
+
+```json
+{"correlationId":"<uuid>","data":[{"id":"<task-id>","title":"Try Arc"}],"isReady":true,"isAuthorized":true,"validationResults":[],"exceptionMessages":[],"exceptionStackTrace":"","paging":{"page":0,"size":0,"totalItems":0,"totalPages":0},"isValid":true,"hasExceptions":false,"isSuccess":true}
+```
+
+The current array-returning adapter leaves paging totals at zero; the Kotlin tutorial's `List` return reports `totalItems: 1`. Neither example requests paging. See the [HTTP contract reference](../reference/http-contract.md) for the envelope contract.
+
+The [executable tutorial check](index.md#query-the-read-model) compiles these Java files and generated Kotlin adapters with warnings as errors, then verifies the documented requests against a real Spring Boot host. It tests the preferred plugin setup using locally staged Arc publications, not every documentation snippet or the manual setup.
 
 Continue with [in-process Java testing](../guides/testing.md) or compare the [Kotlin tutorial](index.md).

@@ -7,18 +7,30 @@ import io.cratis.arc.artifacts.ArcArtifactModule
 import io.cratis.arc.commands.CommandHandler
 import io.cratis.arc.testing.CommandScenario
 import io.cratis.arc.testing.CommandScenarioResult
-import java.util.concurrent.CompletableFuture
+import io.cratis.arc.java.JavaAsyncScope
+import io.cratis.arc.java.launchStage
 import java.util.concurrent.CompletionStage
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
 
-/** Java `CompletionStage` bridge using a caller-owned bounded or structured [CoroutineScope]. */
-public class AsyncCommandScenario<TCommand : Any>(
+/** Java `CompletionStage` bridge borrowing a caller-owned scope; close the owner explicitly. */
+public class AsyncCommandScenario<TCommand : Any> private constructor(
     private val scenario: CommandScenario<TCommand>,
-    private val coroutineScope: CoroutineScope
+    private val launch: (suspend () -> CommandScenarioResult<Any?>) -> CompletionStage<CommandScenarioResult<Any?>>
 ) {
+    /** Borrows a Kotlin host's bounded or structured scope. */
+    public constructor(scenario: CommandScenario<TCommand>, coroutineScope: CoroutineScope) :
+        this(scenario, { coroutineScope.launchStage(it) })
+
+    /** Borrows a Java owner. Calls after owner close return cancelled stages without executing user code. */
+    public constructor(scenario: CommandScenario<TCommand>, owner: JavaAsyncScope) :
+        this(scenario, { owner.launchStage(it) })
+
+    /** Creates a bridge for an exact command from a generated module, borrowing [owner]. */
+    public constructor(module: ArcArtifactModule, commandType: Class<TCommand>, owner: JavaAsyncScope) :
+        this(CommandScenario(module, commandType), owner)
+
+    /** Creates a bridge for one real manual handler, borrowing [owner]. */
+    public constructor(handler: CommandHandler, owner: JavaAsyncScope) : this(CommandScenario(handler), owner)
     /** Creates a bridge for an exact command from a generated module. */
     public constructor(
         module: ArcArtifactModule,
@@ -37,28 +49,4 @@ public class AsyncCommandScenario<TCommand : Any>(
     /** Validates [command] asynchronously without invoking the handler. */
     public fun validate(command: TCommand): CompletionStage<CommandScenarioResult<Any?>> =
         launch { scenario.validate(command) }
-
-    private fun launch(
-        operation: suspend () -> CommandScenarioResult<Any?>
-    ): CompletionStage<CommandScenarioResult<Any?>> {
-        val future = CompletableFuture<CommandScenarioResult<Any?>>()
-        lateinit var job: Job
-        job = coroutineScope.launch {
-            try {
-                future.complete(operation())
-            } catch (exception: CancellationException) {
-                future.cancel(false)
-                throw exception
-            } catch (exception: Exception) {
-                future.completeExceptionally(exception)
-            }
-        }
-        future.whenComplete { _, _ -> if (future.isCancelled) job.cancel() }
-        job.invokeOnCompletion { cause ->
-            if (cause != null && !future.isDone) {
-                if (cause is CancellationException) future.cancel(false) else future.completeExceptionally(cause)
-            }
-        }
-        return future
-    }
 }

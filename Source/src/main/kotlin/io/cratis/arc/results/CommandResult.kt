@@ -4,7 +4,9 @@
 package io.cratis.arc.results
 
 import com.fasterxml.jackson.annotation.JsonProperty
+import io.cratis.arc.validation.ValidationFailure
 import java.util.UUID
+import java.util.concurrent.CancellationException
 
 /**
  * Immutable outcome of executing a command.
@@ -100,6 +102,37 @@ public class CommandResult<T> @JvmOverloads constructor(
             correlationId = correlationId,
             exceptionMessages = listOf(message)
         )
+
+        /**
+         * Converts command validation failures without exposing exception details; otherwise retains the ordinary error.
+         * The payload must be nonnull, nonempty and contain only validation results. Ordinary getter or iteration
+         * exceptions fall back to the original exception. Cancellation, including during extraction, always propagates.
+         * Fatal errors propagate rather than being treated as malformed payloads.
+         * No cause or suppressed exception is inspected. Payload state is retained, not deep-copied or redacted.
+         */
+        @JvmStatic
+        public fun fromException(correlationId: UUID, exception: Throwable): CommandResult<Void> {
+            if (exception is CancellationException) throw exception
+            if (exception is ValidationFailure) {
+                try {
+                    // Star projection deliberately validates malformed Java implementations before any typed cast.
+                    val payload: List<*>? = exception.validationResults
+                    val snapshot = ArrayList<ValidationResult>()
+                    if (payload != null) {
+                        for (entry in payload) {
+                            if (entry !is ValidationResult) return exception(correlationId, exception)
+                            snapshot.add(entry)
+                        }
+                    }
+                    if (snapshot.isNotEmpty()) return invalid(correlationId, snapshot)
+                } catch (cancellation: CancellationException) {
+                    throw cancellation
+                } catch (_: Exception) {
+                    // A broken application payload must never turn an ordinary failure into success.
+                }
+            }
+            return exception(correlationId, exception)
+        }
 
         /** Creates an exception result retaining full detail for host-side logging and redaction. */
         @JvmStatic

@@ -80,8 +80,8 @@ internal class ArcSymbolProcessorPolymorphicPropertyCompilationTest {
             @Command
             public data class ProbeCommand(
                 public val base: SealedBase,
-                public val sequence: Collection<SealedBase?>?,
-                public val array: Array<SealedBase?>?
+                public val sequence: Collection<SealedBase>?,
+                public val array: Array<SealedBase>?
             ) { public fun handle() { } }
         """.trimIndent())))
 
@@ -103,8 +103,8 @@ internal class ArcSymbolProcessorPolymorphicPropertyCompilationTest {
                 @Command
                 public data class ProbeCommand(
                     public val base: LateBase,
-                    public val sequence: Collection<LateBase?>?,
-                    public val array: Array<LateBase?>?
+                    public val sequence: Collection<LateBase>?,
+                    public val array: Array<LateBase>?
                 ) { public fun handle() { } }
             """.trimIndent())),
             additionalProviders = listOf(lateProvider)
@@ -164,8 +164,8 @@ internal class ArcSymbolProcessorPolymorphicPropertyCompilationTest {
                 @Command
                 public data class ProbeCommand(
                     public val base: SealedBase,
-                    public val sequence: Collection<SealedBase?>?,
-                    public val array: Array<SealedBase?>?
+                    public val sequence: Collection<SealedBase>?,
+                    public val array: Array<SealedBase>?
                 ) { public fun handle() { } }
             """.trimIndent())),
             additionalClasspaths = listOf(dependency.outputDirectory)
@@ -195,7 +195,7 @@ internal class ArcSymbolProcessorPolymorphicPropertyCompilationTest {
             assertEquals(kind, shape.sequenceKind)
             assertTrue(shape.nullable)
             assertEquals(baseName, shape.elementShape?.typeName)
-            assertEquals(true, shape.elementShape?.nullable)
+            assertEquals(false, shape.elementShape?.nullable)
         }
         assertTrue(module.types.any { it.fullyQualifiedName == baseName })
         assertTrue(workingDirectory.resolve("ksp/sources/resources/META-INF/cratis/arc/PolymorphicProperties.json").isFile)

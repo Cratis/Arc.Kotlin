@@ -95,14 +95,16 @@ internal class GeneratedCommandHandlersTest {
         val explicit = ContractTestsArcArtifactModule()
         val loaded = ServiceLoader.load(ArcArtifactModule::class.java).toList()
 
-        assertEquals(25, explicit.commandHandlers.size)
-        assertEquals(23, explicit.queryPerformers.size)
+        assertEquals(30, explicit.commandHandlers.size)
+        assertEquals(33, explicit.queryPerformers.size)
         assertEquals(listOf(ContractTestsArcArtifactModule::class.java), loaded.map(Any::javaClass))
         assertEquals(
             listOf(
                 ChronicleScopedResponseCommand::class.java.name,
                 "io.cratis.arc.contracts.fixtures.EventCommand",
+                "io.cratis.arc.contracts.fixtures.ImplicitVisibilityCommand",
                 JavaAsyncCommand::class.java.name,
+                "io.cratis.arc.contracts.fixtures.JavaExclusionCommand",
                 JavaMapMetadataCommand::class.java.name,
                 JavaOptionalReadModelCommand::class.java.name,
                 JavaOptionalServiceCommand::class.java.name,
@@ -110,7 +112,9 @@ internal class GeneratedCommandHandlersTest {
                 JavaReadModelCommand::class.java.name,
                 JavaRoutedEventArrayResponseCommand::class.java.name,
                 JavaTemporalCommand::class.java.name,
+                "io.cratis.arc.contracts.fixtures.KotlinBodyCommand",
                 KotlinCommandResultResponseCommand::class.java.name,
+                "io.cratis.arc.contracts.fixtures.KotlinExclusionCommand",
                 KotlinHandledOnlyResponseCommand::class.java.name,
                 KotlinMapMetadataCommand::class.java.name,
                 KotlinNestedResponseCommand::class.java.name,
@@ -124,7 +128,8 @@ internal class GeneratedCommandHandlersTest {
                 KotlinTemporalCommand::class.java.name,
                 "io.cratis.arc.contracts.fixtures.MetadataCommand",
                 ProvideCommand::class.java.name,
-                RoutedEventResponseCommand::class.java.name
+                RoutedEventResponseCommand::class.java.name,
+                "io.cratis.arc.contracts.fixtures.ScenarioShapeCommand"
             ),
             explicit.commandHandlers.map { handler -> handler.commandType.name }
         )

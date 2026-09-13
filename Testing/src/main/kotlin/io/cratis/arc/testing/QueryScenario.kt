@@ -10,6 +10,8 @@ import io.cratis.arc.authorization.AuthorizationEvaluator
 import io.cratis.arc.authorization.AuthorizationPolicy
 import io.cratis.arc.authorization.ConcurrentAuthorizationPolicyRegistry
 import io.cratis.arc.json.ArcObjectMapper
+import io.cratis.arc.metadata.TypeShapeDescriptor
+import io.cratis.arc.metadata.TypeShapeKind
 import io.cratis.arc.queries.DefaultQueryPipeline
 import io.cratis.arc.queries.DefaultQueryRenderers
 import io.cratis.arc.queries.DefaultQueryValidationFilter
@@ -30,6 +32,9 @@ import io.cratis.arc.results.QueryResult
 import io.cratis.arc.results.ValidationResultSeverity
 import io.cratis.arc.tenancy.TenantIdResolver
 import io.cratis.arc.tenancy.TenantResolutionContext
+import io.cratis.arc.validation.ConceptValidator
+import io.cratis.arc.validation.ConceptValidationExclusion
+import io.cratis.arc.validation.ModelValidator
 import java.util.LinkedHashMap
 import java.util.UUID
 
@@ -41,10 +46,13 @@ public class QueryScenario<TData> private constructor(
     private val selectedPerformer: QueryPerformer = artifacts.query(queryName)
     private val filters = mutableListOf<QueryFilter>()
     private val validators = mutableListOf<QueryValidator>()
+    private val conceptValidators = mutableListOf<ConceptValidator<*>>()
+    private val modelValidators = mutableListOf<ModelValidator<*>>()
+    private val conceptExclusions = mutableListOf<ConceptValidationExclusion>()
     private val renderers = mutableListOf<QueryRendererFor<*>>()
     private val readModelInterceptors = mutableListOf<InterceptReadModel<*>>()
     private val policies = LinkedHashMap<String, AuthorizationPolicy>()
-    private val objectMapper: ObjectMapper = ArcObjectMapper.create()
+    private val objectMapper: ObjectMapper = ArcObjectMapper.create(artifacts.derivedTypes)
     private var services: ScenarioServiceResolver = ScenarioServiceResolver.empty()
     private var principal: ArcPrincipal = ArcPrincipal.anonymous()
     private var tenantId: String? = null
@@ -69,6 +77,15 @@ public class QueryScenario<TData> private constructor(
 
     /** Adds a query validator and returns this scenario. */
     public fun addValidator(validator: QueryValidator): QueryScenario<TData> = apply { validators.add(validator) }
+
+    /** Adds a reusable concept rule and returns this scenario. */
+    public fun addConceptValidator(validator: ConceptValidator<*>): QueryScenario<TData> = apply { conceptValidators.add(validator) }
+
+    /** Adds a reusable exact model rule and returns this scenario. */
+    public fun addModelValidator(validator: ModelValidator<*>): QueryScenario<TData> = apply { modelValidators.add(validator) }
+
+    /** Excludes concept rules on one direct member, retaining all other validation. */
+    public fun addConceptExclusion(exclusion: ConceptValidationExclusion): QueryScenario<TData> = apply { conceptExclusions.add(exclusion) }
 
     /** Adds a query renderer and returns this scenario. */
     public fun addRenderer(renderer: QueryRendererFor<*>): QueryScenario<TData> = apply { renderers.add(renderer) }
@@ -174,7 +191,7 @@ public class QueryScenario<TData> private constructor(
         policies.forEach(policyRegistry::register)
         val builtInFilters = listOf<QueryFilter>(
             QueryAuthorizationFilter(artifacts.queryPerformers, AuthorizationEvaluator(policyRegistry)),
-            DefaultQueryValidationFilter(validators)
+            DefaultQueryValidationFilter(validators, conceptValidators, modelValidators, conceptExclusions)
         )
         return DefaultQueryPipeline(
             artifacts.queryPerformers,
@@ -196,18 +213,31 @@ public class QueryScenario<TData> private constructor(
 
     private fun roundTripArguments(arguments: Map<String, Any?>): Map<String, Any?> =
         LinkedHashMap<String, Any?>().also { copy ->
-            arguments.forEach { (name, value) -> copy[name] = roundTripValue(value) }
+            arguments.forEach { (name, value) ->
+                val shape = selectedPerformer.descriptor.parameters.firstOrNull { it.name == name }?.shape
+                copy[name] = roundTripValue(value, shape)
+            }
         }
 
-    private fun roundTripValue(value: Any?): Any? = when (value) {
+    private fun roundTripValue(value: Any?, shape: TypeShapeDescriptor?): Any? = when (value) {
         null -> null
-        is List<*> -> java.util.List.copyOf(value.map(::roundTripValue))
-        else -> objectMapper.readValue(objectMapper.writeValueAsBytes(value), value.javaClass)
+        is List<*> -> java.util.List.copyOf(value.map {
+            roundTripValue(it, shape?.takeIf { it.kind == TypeShapeKind.SEQUENCE }?.elementShape)
+        })
+        else -> {
+            // Only declared, explicitly registered bases can consume Arc's discriminator. Reading a derivative's
+            // runtime class instead bypasses that policy (and normally rejects _derivedTypeId as unknown).
+            // Keep the runtime-class fallback for ordinary/manual data and renderer replacement shapes.
+            val declaredBase = artifacts.derivedTypes.registeredBaseTypes().firstOrNull {
+                shape?.kind == TypeShapeKind.VALUE && it.name == shape.typeName && it.isInstance(value)
+            }
+            objectMapper.readValue(objectMapper.writeValueAsBytes(value), declaredBase ?: value.javaClass)
+        }
     }
 
     private fun roundTripResult(result: QueryResult<*>): QueryResult<*> = QueryResult<Any?>(
         correlationId = result.correlationId,
-        data = roundTripValue(result.data),
+        data = roundTripValue(result.data, selectedPerformer.descriptor.returnShape),
         isReady = result.isReady,
         isAuthorized = result.isAuthorized,
         validationResults = result.validationResults,

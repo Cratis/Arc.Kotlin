@@ -8,7 +8,10 @@ import io.cratis.arc.results.ValidationResult
 import io.cratis.arc.results.ValidationResultReasons
 import io.cratis.arc.results.ValidationResultSeverity
 import io.cratis.arc.validation.ConceptValidation
+import io.cratis.arc.validation.ConceptValidationExclusion
 import io.cratis.arc.validation.ConceptValidator
+import io.cratis.arc.validation.ModelValidationContext
+import io.cratis.arc.validation.ModelValidator
 import java.util.concurrent.CancellationException
 
 /** Runs every validator matching the current command and merges their feedback. */
@@ -17,7 +20,26 @@ public class DefaultCommandValidationFilter @JvmOverloads constructor(
     conceptValidators: Iterable<ConceptValidator<*>> = emptyList()
 ) : CommandFilter {
     private val validators = java.util.List.copyOf(validators.toList())
-    private val conceptValidation = ConceptValidation(conceptValidators)
+    private var conceptValidation = ConceptValidation(conceptValidators)
+
+    /** Adds reusable exact model rules while retaining the original constructor descriptors. */
+    public constructor(
+        validators: Iterable<CommandValidator<*>>,
+        conceptValidators: Iterable<ConceptValidator<*>>,
+        modelValidators: Iterable<ModelValidator<*>>
+    ) : this(validators) {
+        conceptValidation = ConceptValidation(conceptValidators, modelValidators)
+    }
+
+    /** Adds direct concept-rule exclusions without excluding model rules or other filters. */
+    public constructor(
+        validators: Iterable<CommandValidator<*>>,
+        conceptValidators: Iterable<ConceptValidator<*>>,
+        modelValidators: Iterable<ModelValidator<*>>,
+        exclusions: Iterable<ConceptValidationExclusion>
+    ) : this(validators) {
+        conceptValidation = ConceptValidation(conceptValidators, modelValidators, exclusions)
+    }
 
     override suspend fun execute(context: CommandContext): CommandResult<*> {
         val results = mutableListOf<ValidationResult>()
@@ -30,7 +52,7 @@ public class DefaultCommandValidationFilter @JvmOverloads constructor(
                 results.add(validatorFailure(validator, exception))
             }
         }
-        results.addAll(conceptValidation.validate(context.command))
+        results.addAll(conceptValidation.validate(context.command, ModelValidationContext(context, "")))
         return if (results.isEmpty()) {
             CommandResult.success(context.correlationId)
         } else {

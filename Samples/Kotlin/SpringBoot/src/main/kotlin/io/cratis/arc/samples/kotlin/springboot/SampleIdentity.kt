@@ -3,6 +3,7 @@
 
 package io.cratis.arc.samples.kotlin.springboot
 
+import io.cratis.arc.artifacts.ExportedType
 import io.cratis.arc.authorization.ArcPrincipal
 import io.cratis.arc.identity.IdentityDetails
 import io.cratis.arc.identity.IdentityDetailsProvider
@@ -11,7 +12,13 @@ import io.cratis.arc.springboot.ArcPrincipalFactory
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 
-/** Identity details exposed by the standalone sample. */
+/**
+ * Identity details exposed by the standalone sample.
+ *
+ * No command or query references this type, and the provider below is an anonymous object that KSP
+ * cannot see into, so `@ExportedType` is what makes it reach the manifest and the generated client.
+ */
+@ExportedType
 public data class SampleIdentityDetails(public val source: String)
 
 /** Provides deterministic identity behavior for the standalone sample host. */

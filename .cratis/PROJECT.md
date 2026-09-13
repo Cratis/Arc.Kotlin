@@ -120,13 +120,30 @@ This is the caveat most likely to be overstated. `parity.md` says, verbatim:
 
 Never describe `:GradlePlugin:test`'s `.NET`-derived comparison as "byte-identical to .NET output",
 "proves proxy parity", or "the generated TypeScript matches Arc .NET". What it actually compares is
-the sorted output path set and bodies of JVM output against a **repository-local expected fixture**,
-after CRLF-to-LF and generated-header normalization, the fixture's capture-time namespace and
-query-name casing transformations, and expected-side .NET import rewrites required by
-`verbatimModuleSyntax`. It also carries one deliberate expected-side correction at
+the sorted relative paths of all regular output files and untouched JVM bytes, including headers,
+against a **prepared repository-local expected fixture**. Only path separators are normalized on the
+actual side. The expected side validates 16 literal source identities, cross-checked with fixture
+descriptors (queries use declaring models), independently reconstructs uppercase SHA-256 headers
+from prepared expected bodies, and leaves three indexes headerless. The fixed `abc` hash vector and
+byte/path mutations, including a changed body with a valid recomputed hash, guard that comparison.
+
+The complete expected-only inventory is in
+[`Documentation/guides/typescript-proxies.md`](../Documentation/guides/typescript-proxies.md#expected-only-differential-preparation):
+LF/per-line trailing whitespace and terminal newline preparation; FixtureModel quote/indent
+formatting; CreateFixtures quote/import/request-array/class/hook formatting; five literal type-only
+import rewrites for `verbatimModuleSyntax`; exactly one enumerable generic correction at
 `Commands/CreateFixtures.ts` (`Command<ICreateFixtures, FixtureModel>` to
-`Command<ICreateFixtures, FixtureModel[]>`), because the .NET side already calls
-`super(FixtureModel, true)`. `parity.md` further limits what the map fixture proves:
+`Command<ICreateFixtures, FixtureModel[]>`, because the captured command already calls
+`super(FixtureModel, true)`); and the exact-site eslint/ts-ignore hook pair, not arbitrary suppression.
+Only `Models/Observe.ts` also changes the zero-space blank line immediately before its four-space-
+indented `filter: string;` member in exactly one known `ObserveParameters` block to four spaces.
+This is not an empty interface, and `ObserveOne.ts` is excluded. Missing/duplicate correction
+anchors and misplaced suppressions fail preparation. No type-soundness claim is made for ignored
+hook calls. `Contracts/Shape.ts` is a class, not interface-emission proof.
+
+Historical capture-time namespace/query-name casing transformations and removed timestamps/hashes
+remain embedded in the fixture, not reproducible capture tooling. Capture SDK/tool versions remain
+unverified. `parity.md` further limits what the map fixture proves:
 
 > It proves that one string-key/string-value Record fixture, not non-string keys, nullable entries,
 > typed model values, `ValueMap`, or broader dictionary parity.
@@ -591,18 +608,24 @@ contains nothing else. `ArcSymbolProcessor` and every helper (`MetadataCollector
 `ValidationMetadataExtractor`, `JavaRecordParser`, `EnumValueParser`, `Naming`, `Models`,
 `ArcDiagnostics`) are `internal`. Keep it that way — widening one of them is a public ABI change.
 
-The processor takes one option, `arc.moduleName`. `validateModuleName` in `Naming.kt` accepts only
-`[A-Za-z_][A-Za-z0-9_]*` that is not a Kotlin keyword; anything else is rejected and no module is
-generated. Consumers set it through `ksp { arg("arc.moduleName", "...") }`, or through the Gradle
-plugin's `cratisArc.moduleName`, which forwards it.
+The processor requires `arc.moduleName`. `validateModuleName` in `Naming.kt` accepts only
+`[A-Za-z_][A-Za-z0-9_]*` outside its declared Kotlin keyword set; anything else is rejected and no
+module is generated. Consumers set it through `ksp { arg("arc.moduleName", "...") }`, or through the
+Gradle plugin's `cratisArc.moduleName`, which forwards it. The optional `arc.responseHandlerMetadata`
+option accepts an absolute file URI for a format-1 dependency handler index. The Gradle plugin
+extracts this index from `META-INF/cratis/arc-response-handlers/<moduleName>.json` dependency
+resources; both internal readers enforce the same module-name contract. This compiler transport is
+separate from the format-7 artifact manifest and does not register runtime handlers. Unindexed
+libraries remain undiscoverable.
 
 ## What the processor reads
 
 `process(resolver)` replaces its metadata graph and provisional diagnostics each round:
 
 1. Validate configuration and inspect command-like types with the existing diagnostics.
-2. Accumulate stable command, read-model, derivative, and source-visible response-handler names;
-   resolve them through the current resolver rather than retaining earlier-round semantic symbols.
+2. Accumulate stable command, read-model, derivative, and response-handler names from source or the
+   dependency handler index; resolve them through the current resolver rather than retaining
+   earlier-round semantic symbols.
 3. Emit each valid invocation implementation once, while rebuilding response classification and the
    reachable metadata graph against the current discoveries. Handled-only response graphs are not
    retained unless another retained root reaches them.
@@ -641,7 +664,10 @@ Jakarta validation constraints on command properties and query parameters are re
 
 Invocation implementations are emitted during processing. `finish()` flushes the final metadata
 diagnostics and emits aggregate outputs once, only for a valid, resolved snapshot with a valid
-module name and at least one command or query. The output consists of:
+module name. Supported public top-level source response-handler declarations produce a separate
+format-1 resource at `META-INF/cratis/arc-response-handlers/<moduleName>.json`, even in a handler-only
+compilation; imported declarations are not re-exported. When at least one command or query exists,
+the artifact outputs consist of:
 
 - One command handler per command, in `io.cratis.arc.generated.commands`, named
   `<Simple>ArcCommandHandler_<12 hex>` where the suffix is the first six bytes of the SHA-256 of the
@@ -658,7 +684,7 @@ module name and at least one command or query. The output consists of:
   `ServiceLoader`.
 - One manifest resource at `META-INF/cratis/arc/<moduleName>.json`.
 
-The helper, module, service entry, and manifest share explicit aggregating dependencies on the
+The helper, module, service entry, manifest, and handler declaration resource share explicit aggregating dependencies on the
 terminal round's files. Replace that file snapshot every round; `Dependencies.ALL_FILES` can retain
 invalid first-round source objects in KSP2. Keep per-invoker source associations and do not emit
 placeholder files to force stabilization rounds. Provisional diagnostic nodes are likewise replaced

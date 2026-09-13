@@ -38,8 +38,8 @@ final class GeneratedArtifactModuleJavaContractTest {
         ArcArtifactModule explicit = new ContractTestsArcArtifactModule();
         long discovered = ServiceLoader.load(ArcArtifactModule.class).stream().count();
 
-        assertEquals(25, explicit.getCommandHandlers().size());
-        assertEquals(23, explicit.getQueryPerformers().size());
+        assertEquals(30, explicit.getCommandHandlers().size());
+        assertEquals(33, explicit.getQueryPerformers().size());
         assertEquals(1L, discovered);
     }
 

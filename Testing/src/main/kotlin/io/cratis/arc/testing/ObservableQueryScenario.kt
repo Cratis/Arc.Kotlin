@@ -4,6 +4,7 @@
 package io.cratis.arc.testing
 
 import io.cratis.arc.artifacts.ArcArtifactModule
+import io.cratis.arc.json.ArcObjectMapper
 import io.cratis.arc.authorization.ArcPrincipal
 import io.cratis.arc.authorization.AuthorizationEvaluator
 import io.cratis.arc.authorization.AuthorizationPolicy
@@ -32,6 +33,9 @@ import io.cratis.arc.results.QueryResult
 import io.cratis.arc.results.ValidationResultSeverity
 import io.cratis.arc.tenancy.TenantIdResolver
 import io.cratis.arc.tenancy.TenantResolutionContext
+import io.cratis.arc.validation.ConceptValidator
+import io.cratis.arc.validation.ConceptValidationExclusion
+import io.cratis.arc.validation.ModelValidator
 import java.util.UUID
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
@@ -44,6 +48,9 @@ public class ObservableQueryScenario<TData> private constructor(
 ) {
     private val filters = mutableListOf<QueryFilter>()
     private val validators = mutableListOf<QueryValidator>()
+    private val conceptValidators = mutableListOf<ConceptValidator<*>>()
+    private val modelValidators = mutableListOf<ModelValidator<*>>()
+    private val conceptExclusions = mutableListOf<ConceptValidationExclusion>()
     private val renderers = mutableListOf<QueryRendererFor<*>>()
     private val readModelInterceptors = mutableListOf<InterceptReadModel<*>>()
     private val emissionGuards = mutableListOf<GuardObservableQueryEmission>()
@@ -53,7 +60,10 @@ public class ObservableQueryScenario<TData> private constructor(
     private var tenantId: String? = null
     private var tenantNamespace: String? = null
     private var correlationId = UUID.randomUUID()
-    private var allowedSeverity: ValidationResultSeverity? = null
+    private var allowedSeverity: ValidationResultSeverity? =
+        if (artifacts.queryPerformers.find(queryName)?.descriptor?.treatWarningsAsErrors == true) {
+            ValidationResultSeverity.Information
+        } else null
 
     public constructor(module: ArcArtifactModule, queryName: FullyQualifiedQueryName) :
         this(ScenarioArtifactRegistry().register(module), queryName)
@@ -63,6 +73,15 @@ public class ObservableQueryScenario<TData> private constructor(
 
     public fun addFilter(filter: QueryFilter): ObservableQueryScenario<TData> = apply { filters.add(filter) }
     public fun addValidator(validator: QueryValidator): ObservableQueryScenario<TData> = apply { validators.add(validator) }
+    /** Adds a reusable concept rule and returns this scenario. */
+    public fun addConceptValidator(validator: ConceptValidator<*>): ObservableQueryScenario<TData> = apply { conceptValidators.add(validator) }
+
+    /** Adds a reusable exact model rule and returns this scenario. */
+    public fun addModelValidator(validator: ModelValidator<*>): ObservableQueryScenario<TData> = apply { modelValidators.add(validator) }
+
+    /** Excludes concept rules on one direct member, retaining all other validation. */
+    public fun addConceptExclusion(exclusion: ConceptValidationExclusion): ObservableQueryScenario<TData> = apply { conceptExclusions.add(exclusion) }
+
     public fun addRenderer(renderer: QueryRendererFor<*>): ObservableQueryScenario<TData> = apply {
         renderers.add(renderer)
     }
@@ -101,7 +120,10 @@ public class ObservableQueryScenario<TData> private constructor(
         allowedSeverity = value
     }
 
-    /** Collects exactly up to [maximumEmissions], failing if [timeoutMillis] elapses first. */
+    /**
+     * Collects at most [maximumEmissions], allowing finite streams to complete with fewer or no emissions.
+     * One [timeoutMillis] budget bounds both pipeline opening and collection; timeout and caller cancellation propagate.
+     */
     @JvmOverloads
     public suspend fun collect(
         maximumEmissions: Int,
@@ -117,34 +139,36 @@ public class ObservableQueryScenario<TData> private constructor(
         policies.forEach(policyRegistry::register)
         val builtIns = listOf<QueryFilter>(
             QueryAuthorizationFilter(artifacts.queryPerformers, AuthorizationEvaluator(policyRegistry)),
-            DefaultQueryValidationFilter(validators)
+            DefaultQueryValidationFilter(validators, conceptValidators, modelValidators, conceptExclusions)
         )
         val pipeline = DefaultObservableQueryPipeline(
             artifacts.queryPerformers,
             builtIns + filters,
             renderers = DefaultQueryRenderers(renderers),
             readModelInterceptors = DefaultReadModelInterceptors(readModelInterceptors),
-            emissionGuards = DefaultObservableQueryEmissionGuards(emissionGuards)
+            emissionGuards = DefaultObservableQueryEmissionGuards(emissionGuards, ArcObjectMapper.create(artifacts.derivedTypes))
         )
-        val opened = pipeline.open(
-            QueryRequest(queryName, arguments, paging, sorting),
-            QueryExecutionOptions(
-                correlationId,
-                principal,
-                services,
-                tenantId,
-                tenantNamespace,
-                allowedSeverity,
-                true
-            ),
-            transferMode
-        )
-        return when (opened) {
-            is ObservableQueryOpenResult.Failure -> ObservableQueryScenarioResult(opened.result, emptyList())
-            is ObservableQueryOpenResult.Stream -> {
-                val values = withTimeout(timeoutMillis) { opened.results.take(maximumEmissions).toList() }
-                @Suppress("UNCHECKED_CAST")
-                ObservableQueryScenarioResult(null, values as List<QueryResult<TData>>)
+        return withTimeout(timeoutMillis) {
+            val opened = pipeline.open(
+                QueryRequest(queryName, arguments, paging, sorting),
+                QueryExecutionOptions(
+                    correlationId,
+                    principal,
+                    services,
+                    tenantId,
+                    tenantNamespace,
+                    allowedSeverity,
+                    true
+                ),
+                transferMode
+            )
+            when (opened) {
+                is ObservableQueryOpenResult.Failure -> ObservableQueryScenarioResult(opened.result, emptyList())
+                is ObservableQueryOpenResult.Stream -> {
+                    val values = opened.results.take(maximumEmissions).toList()
+                    @Suppress("UNCHECKED_CAST")
+                    ObservableQueryScenarioResult(null, values as List<QueryResult<TData>>)
+                }
             }
         }
     }

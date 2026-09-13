@@ -51,7 +51,7 @@ public class KotlinChronicleContractsTests {
     }
 
     @Test
-    public fun `missing current model is dependency unavailable and appends nothing`() = runBlocking {
+    public fun `missing current model is dependency unavailable and appends nothing`(): Unit = runBlocking {
         val scenario = CommandScenario(module, RenameTask::class.java)
             .withReadModel(TaskView::class.java, null)
             .withTenant("tenant-a")

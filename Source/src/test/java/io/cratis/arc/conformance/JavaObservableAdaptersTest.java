@@ -5,6 +5,8 @@ package io.cratis.arc.conformance;
 
 import io.cratis.arc.authorization.ArcPrincipal;
 import io.cratis.arc.commands.ServiceResolver;
+import io.cratis.arc.concepts.ConceptAs;
+import io.cratis.arc.json.ArcObjectMapper;
 import io.cratis.arc.java.AsyncObservableQueryOpenResult;
 import io.cratis.arc.java.AsyncObservableQueryPipeline;
 import io.cratis.arc.java.AsyncQueryPerformer;
@@ -35,6 +37,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -52,6 +55,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -98,6 +102,63 @@ final class JavaObservableAdaptersTest {
         }
         assertTrue(executor.isShutdown());
     }
+
+    @Test
+    void oldAndMapperConstructorsIsolateArgumentsThroughDemandAwareJavaFacade() throws Exception {
+        for (int constructor = 0; constructor < 3; constructor++) {
+            int[] input = {1};
+            JavaGuardId concept = new JavaGuardId(UUID.randomUUID());
+            List<Integer> seen = Collections.synchronizedList(new ArrayList<>());
+            BlockingObservableQueryEmissionGuard first = context -> {
+                ((int[]) context.getArguments().get("numbers"))[0] = 99;
+                return ObservableQueryEmissionVerdict.ALLOW;
+            };
+            BlockingObservableQueryEmissionGuard second = context -> {
+                seen.add(((int[]) context.getArguments().get("numbers"))[0]);
+                assertEquals(concept, context.getArguments().get("id"));
+                assertNotSame(concept, context.getArguments().get("id"));
+                return ObservableQueryEmissionVerdict.ALLOW;
+            };
+            DefaultObservableQueryEmissionGuards guards = switch (constructor) {
+                case 0 -> new DefaultObservableQueryEmissionGuards();
+                case 1 -> new DefaultObservableQueryEmissionGuards(List.of(first, second));
+                default -> new DefaultObservableQueryEmissionGuards(List.of(first, second), ArcObjectMapper.create());
+            };
+            RecordingPublisher<String> upstream = new RecordingPublisher<>();
+            ConcurrentQueryPerformerRegistry performers = new ConcurrentQueryPerformerRegistry();
+            performers.register(new BlockingQueryPerformerAdapter(new BlockingQueryPerformer() {
+                @Override public QueryDescriptor getDescriptor() { return observableDescriptor(); }
+                @Override public FullyQualifiedQueryName getFullyQualifiedName() { return QUERY_NAME; }
+                @Override public Object perform(io.cratis.arc.queries.QueryContext context) {
+                    assertEquals(1, ((int[]) context.getRequest().getArguments().get("numbers"))[0]);
+                    return upstream;
+                }
+            }));
+            DefaultObservableQueryPipeline core = new DefaultObservableQueryPipeline(performers, List.of(),
+                new ChangeSetComputer(), new DefaultQueryRenderers(), new DefaultReadModelInterceptors(), guards);
+            try (JavaAsyncScope scope = JavaAsyncScope.owningExecutorService(Executors.newSingleThreadExecutor())) {
+                AsyncObservableQueryOpenResult.Stream stream = (AsyncObservableQueryOpenResult.Stream) scope.observableQueries(core)
+                    .open(new QueryRequest(QUERY_NAME, Map.of("numbers", input, "id", concept)), options(),
+                        ObservableQueryTransferMode.FULL, value -> value).toCompletableFuture().get(5, TimeUnit.SECONDS);
+                RecordingSubscriber<QueryResult<?>> subscriber = new RecordingSubscriber<>();
+                stream.getResults().subscribe(subscriber);
+                assertFalse(upstream.subscribed.get());
+                assertTrue(seen.isEmpty());
+                subscriber.subscription.request(1);
+                assertTrue(upstream.subscribedLatch.await(2, TimeUnit.SECONDS));
+                upstream.emit("one");
+                assertTrue(subscriber.firstValue.await(2, TimeUnit.SECONDS));
+                assertTrue(subscriber.values.get(0).isSuccess());
+                assertEquals("one", subscriber.values.get(0).getData());
+                assertEquals(constructor == 0 ? List.of() : List.of(1), seen);
+                assertEquals(1, input[0]);
+                subscriber.subscription.cancel();
+                assertTrue(upstream.cancelledLatch.await(2, TimeUnit.SECONDS));
+            }
+        }
+    }
+
+    public record JavaGuardId(UUID value) implements ConceptAs<UUID> { }
 
     @Test
     void suppressedEmissionsLeaveFirstDeliveryToTheNextDeliveredEmission() throws Exception {

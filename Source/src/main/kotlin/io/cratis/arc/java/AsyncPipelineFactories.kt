@@ -12,12 +12,15 @@ import io.cratis.arc.queries.ObservableQueryPipeline
 import io.cratis.arc.queries.QueryHealth
 import io.cratis.arc.queries.QueryHealthTracker
 import io.cratis.arc.queries.QueryPipeline
+import java.util.concurrent.CompletionStage
 import java.util.concurrent.Executor
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Flow as JdkFlow
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExecutorCoroutineDispatcher
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.cancel
@@ -40,6 +43,22 @@ public class JavaAsyncScope private constructor(
         @JvmStatic
         public fun owningExecutorService(executor: ExecutorService): JavaAsyncScope = JavaAsyncScope(executor, true)
     }
+
+    /**
+     * Launches a child stage using this owner. After close, returns a cancelled stage without running
+     * [operation]. Cancellation affects only this child; ordinary exceptions do not fail the owner.
+     * This supported Kotlin/JVM SPI is hidden from Java source, not reflection.
+     */
+    @JvmSynthetic
+    public fun <T> launchStage(operation: suspend () -> T): CompletionStage<T> = coroutineScope.launchStage(operation)
+
+    /**
+     * Launches a child with the owner's coroutine failure policy. After close, the returned job is
+     * cancelled without running [operation]. Execution follows the executor, which may run inline.
+     * This supported Kotlin/JVM SPI is hidden from Java source, not reflection.
+     */
+    @JvmSynthetic
+    public fun launch(operation: suspend () -> Unit): Job = coroutineScope.launch { operation() }
 
     /** Creates a command facade using this scope. */
     public fun commands(pipeline: CommandPipeline): AsyncCommandPipeline =

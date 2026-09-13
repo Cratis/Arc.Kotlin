@@ -14,7 +14,7 @@ import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.Job
 
-/** Immutable identity captured when a subscription is accepted. */
+/** Immutable identity and JSON-value argument snapshot captured when a subscription is accepted. */
 public class ObservableQuerySubscriptionIdentity @JvmOverloads constructor(
     public val queryName: FullyQualifiedQueryName,
     arguments: Map<String, Any?>,
@@ -39,7 +39,11 @@ public class ObservableQuerySubscriptionIdentity @JvmOverloads constructor(
     public val serializedArguments: ByteArray
         get() = argumentBytes.copyOf()
 
-    /** Creates an independent argument map from the captured serialized baseline. */
+    /**
+     * Creates an independent JSON-value argument map from the captured serialized baseline.
+     * This does not restore declared JVM types such as UUID, concepts, enums, or typed arrays.
+     * Hosts must bind captured wire input against query metadata before invoking a performer.
+     */
     public fun createArguments(): Map<String, Any?> = java.util.Collections.unmodifiableMap(
         mapper.readValue(argumentBytes, object : TypeReference<LinkedHashMap<String, Any?>>() {})
     )

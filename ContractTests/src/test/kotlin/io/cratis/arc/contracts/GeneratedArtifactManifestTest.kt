@@ -34,7 +34,9 @@ internal class GeneratedArtifactManifestTest {
             listOf(
                 "ChronicleScopedResponseCommand",
                 "EventCommand",
+                "ImplicitVisibilityCommand",
                 "JavaAsyncCommand",
+                "JavaExclusionCommand",
                 "JavaMapMetadataCommand",
                 "JavaOptionalReadModelCommand",
                 "JavaOptionalServiceCommand",
@@ -42,7 +44,9 @@ internal class GeneratedArtifactManifestTest {
                 "JavaReadModelCommand",
                 "JavaRoutedEventArrayResponseCommand",
                 "JavaTemporalCommand",
+                "KotlinBodyCommand",
                 "KotlinCommandResultResponseCommand",
+                "KotlinExclusionCommand",
                 "KotlinHandledOnlyResponseCommand",
                 "KotlinMapMetadataCommand",
                 "KotlinNestedResponseCommand",
@@ -56,7 +60,8 @@ internal class GeneratedArtifactManifestTest {
                 "KotlinTemporalCommand",
                 "MetadataCommand",
                 "ProvideCommand",
-                "RoutedEventResponseCommand"
+                "RoutedEventResponseCommand",
+                "ScenarioShapeCommand"
             ),
             manifest.commands.map { it.name }
         )
@@ -66,6 +71,23 @@ internal class GeneratedArtifactManifestTest {
         assertEquals(manifest.concepts.map { it.fullyQualifiedName }.sorted(), manifest.concepts.map { it.fullyQualifiedName })
         assertFalse(json.contains("timestamp", ignoreCase = true))
         assertFalse(json.contains("generatedAt", ignoreCase = true))
+    }
+
+    @Test
+    fun `generated Kotlin and Java observable array parameters retain concrete element metadata`() {
+        val manifest = loadManifest()
+        listOf("observeKotlinSnapshot", "observeJavaSnapshot").forEach { name ->
+            val query = manifest.queries.single { it.name == name }
+            val parameters = query.parameters.associateBy { it.name }
+            mapOf("ids" to "java.util.UUID", "longs" to "kotlin.Long").forEach { (parameter, element) ->
+                val shape = parameters.getValue(parameter).shape
+                assertEquals(SequenceKind.ARRAY, shape.sequenceKind)
+                assertEquals(element, shape.elementShape?.typeName)
+                assertFalse(requireNotNull(shape.elementShape).nullable)
+            }
+            assertEquals(name == "observeKotlinSnapshot", query.treatWarningsAsErrors)
+            assertEquals(name == "observeKotlinSnapshot", parameters["optional"]?.hasDefault == true)
+        }
     }
 
     @Test

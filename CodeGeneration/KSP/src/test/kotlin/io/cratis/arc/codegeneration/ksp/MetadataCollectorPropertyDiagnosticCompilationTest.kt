@@ -73,6 +73,89 @@ internal class MetadataCollectorPropertyDiagnosticCompilationTest {
         }
     }
 
+    @Test
+    fun `nullable sequence diagnostics retain member sites including Java type use and record fallback`() {
+        val sites = mutableListOf<String>()
+        val fallbackKinds = mutableListOf<io.cratis.arc.metadata.SequenceKind?>()
+        val provider = object : SymbolProcessorProvider {
+            override fun create(environment: SymbolProcessorEnvironment): SymbolProcessor {
+                val logger = object : KSPLogger by environment.logger {
+                    override fun error(message: String, symbol: KSNode?) {
+                        if (message.startsWith("[ARCKSP0300]")) {
+                            val member = symbol as? KSDeclaration
+                            sites += "${member?.parentDeclaration?.simpleName?.asString()}.${member?.simpleName?.asString()}"
+                        }
+                        environment.logger.error(message, symbol)
+                    }
+                }
+                val collector = MetadataCollector(ArcDiagnosticReporter(logger))
+                return object : SymbolProcessor {
+                    override fun process(resolver: Resolver): List<KSAnnotated> {
+                        collector.useResolver(resolver)
+                        for (name in listOf("KotlinSequence", "JavaSequence", "JavaSequenceView", "JavaSequenceField", "FallbackSequence", "FallbackValidSequence")) {
+                            val declaration = requireNotNull(resolver.getClassDeclarationByName(
+                                resolver.getKSNameFromString("sequences.sites.$name")
+                            ))
+                            val owner = if (name.startsWith("Fallback")) RecordWithoutMembers(declaration) else declaration
+                            val properties = collector.describeProperties(owner, "sequences.sites.$name")
+                            if (name == "FallbackValidSequence") {
+                                val valid = requireNotNull(properties)
+                                fallbackKinds += valid.map { it.shape.sequenceKind }
+                                assertTrue(valid.all { !requireNotNull(it.shape.elementShape).nullable })
+                            }
+                        }
+                        return emptyList()
+                    }
+                }
+            }
+        }
+        val result = KotlinCompilation().apply {
+            useKsp2()
+            sources = listOf(
+                SourceFile.kotlin("KotlinSequence.kt", """
+                    package sequences.sites
+                    public data class KotlinSequence(public val values: List<String?>?)
+                """.trimIndent()),
+                SourceFile.java("Nullable.java", """
+                    package sequences.sites;
+                    @java.lang.annotation.Target(java.lang.annotation.ElementType.TYPE_USE)
+                    public @interface Nullable { }
+                """.trimIndent()),
+                SourceFile.java("JavaSequence.java", """
+                    package sequences.sites;
+                    public record JavaSequence(java.util.List<@Nullable String> values) { }
+                """.trimIndent()),
+                SourceFile.java("JavaSequenceView.java", """
+                    package sequences.sites;
+                    public interface JavaSequenceView { java.util.List<@Nullable String> getValues(); }
+                """.trimIndent()),
+                SourceFile.java("JavaSequenceField.java", """
+                    package sequences.sites;
+                    public class JavaSequenceField { public java.util.List<@Nullable String> values; }
+                """.trimIndent()),
+                SourceFile.java("FallbackSequence.java", """
+                    package sequences.sites;
+                    public record FallbackSequence(java.util.List<@Nullable String> values) { }
+                """.trimIndent()),
+                SourceFile.java("FallbackValidSequence.java", """
+                    package sequences.sites;
+                    public record FallbackValidSequence(java.util.List<String> list, java.util.Collection<String> collection, String[] array) { }
+                """.trimIndent())
+            )
+            inheritClassPath = true
+            jvmTarget = "17"
+            symbolProcessorProviders = mutableListOf(provider)
+            kspWithCompilation = true
+            messageOutputStream = System.out
+        }.compile()
+        assertEquals(KotlinCompilation.ExitCode.COMPILATION_ERROR, result.exitCode, result.messages)
+        assertEquals(setOf("KotlinSequence.values", "JavaSequence.values", "JavaSequenceView.getValues",
+            "JavaSequenceField.values", "null.FallbackSequence"), sites.toSet(), result.messages)
+        assertEquals(5, sites.size, result.messages)
+        assertEquals(listOf(io.cratis.arc.metadata.SequenceKind.LIST, io.cratis.arc.metadata.SequenceKind.COLLECTION,
+            io.cratis.arc.metadata.SequenceKind.ARRAY), fallbackKinds)
+    }
+
     private class DiagnosticSiteProvider : SymbolProcessorProvider {
         val sites = mutableListOf<String>()
 

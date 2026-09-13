@@ -28,10 +28,12 @@ import io.cratis.arc.queries.QueryTransportType
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.attribute.FileTime
+import java.security.MessageDigest
 import java.util.jar.JarEntry
 import java.util.jar.JarOutputStream
 import org.gradle.api.GradleException
 import org.gradle.testfixtures.ProjectBuilder
+import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotEquals
@@ -40,9 +42,31 @@ import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
 
 class ArcGradlePluginTest {
     private companion object {
+        // Independent fixture inventory, never inferred from generated output or fixture markers.
+        val FIXTURE_SOURCES = sortedMapOf(
+            "Commands/CreateFixtures.ts" to "differential.fixture.commands.CreateFixtures",
+            "Contracts/Shape.ts" to "differential.fixture.contracts.Shape",
+            "Models/All.ts" to "differential.fixture.models.FixtureModel",
+            "Models/ById.ts" to "differential.fixture.models.FixtureModel",
+            "Models/Circle.ts" to "differential.fixture.models.Circle",
+            "Models/EmptyModel.ts" to "differential.fixture.models.EmptyModel",
+            "Models/FixtureModel.ts" to "differential.fixture.models.FixtureModel",
+            "Models/FixturePermissions.ts" to "differential.fixture.models.FixturePermissions",
+            "Models/FixtureState.ts" to "differential.fixture.models.FixtureState",
+            "Models/GetEmpty.ts" to "differential.fixture.models.EmptyModel",
+            "Models/GetShapes.ts" to "differential.fixture.models.ShapeHolder",
+            "Models/Observe.ts" to "differential.fixture.models.FixtureModel",
+            "Models/ObserveOne.ts" to "differential.fixture.models.FixtureModel",
+            "Models/Search.ts" to "differential.fixture.models.FixtureModel",
+            "Models/ShapeBase.ts" to "differential.fixture.models.ShapeBase",
+            "Models/ShapeHolder.ts" to "differential.fixture.models.ShapeHolder"
+        )
+        val FIXTURE_INDEXES = setOf("Commands/index.ts", "Contracts/index.ts", "Models/index.ts")
         const val DOTNET_ENUMERABLE_COMMAND_PATH = "Commands/CreateFixtures.ts"
         const val DOTNET_ENUMERABLE_COMMAND_SCALAR_GENERIC =
             "export class CreateFixtures extends Command<ICreateFixtures, FixtureModel> implements ICreateFixtures {"
@@ -297,6 +321,33 @@ class ArcGradlePluginTest {
                 ArcManifestDiscovery.discover(listOf(root.toFile()))
             }
             assertTrue(exception.message.orEmpty().contains("canonical boolean hasDefault"))
+        }
+    }
+
+    @Test
+    fun `canonical manifest ingestion rejects ordinary nullable sequence entries in every property context`() {
+        for (context in listOf("commands", "types", "interfaces")) {
+            for (kind in listOf("LIST", "COLLECTION", "ARRAY")) {
+                val root = temporaryDirectory.resolve("nullable-sequence-$context-$kind")
+                writeRawManifest(root.resolve("META-INF/cratis/arc/sequence.json"), """
+                    {
+                      "formatVersion":7,
+                      "moduleName":"NullableSequence",
+                      "$context":[{
+                        "name":"Holder", "typeName":"sample.Holder", "fullyQualifiedName":"sample.Holder",
+                        "properties":[{"name":"values","shape":{
+                          "kind":"SEQUENCE","nullable":true,"sequenceKind":"$kind",
+                          "elementShape":{"kind":"VALUE","nullable":true,"typeName":"kotlin.String"}
+                        }}]
+                      }]
+                    }
+                """.trimIndent())
+                val failure = assertThrows(GradleException::class.java) {
+                    ArcManifestDiscovery.discover(listOf(root.toFile()))
+                }
+                assertTrue(failure.message.orEmpty().contains(
+                    "has a nullable container entry at $context[0].properties[0].shape.element."), failure.message)
+            }
         }
     }
 
@@ -628,6 +679,80 @@ class ArcGradlePluginTest {
     }
 
     @Test
+    fun `registered Map suffix models render command properties as ordinary classes`() {
+        val models = listOf("HeatMap", "RoadMap").map { name ->
+            TypeDescriptor(name, "sample.$name", listOf("sample"), listOf(PropertyDescriptor("value", "kotlin.String")))
+        }
+        val command = CommandDescriptor(
+            "SaveMaps", "sample.SaveMaps",
+            models.map { PropertyDescriptor(it.name.replaceFirstChar(Char::lowercaseChar), it.fullyQualifiedName) },
+            location = listOf("sample")
+        )
+        val output = temporaryDirectory.resolve("map-suffix-properties")
+
+        generate(output, MergedArcArtifacts(listOf(command), emptyList(), models, emptyList()))
+
+        val proxy = Files.readString(output.resolve("SaveMaps.ts"))
+        models.forEach { model ->
+            val property = model.name.replaceFirstChar(Char::lowercaseChar)
+            assertTrue(proxy.contains("import { ${model.name} } from './${model.name}';"), proxy)
+            assertTrue(proxy.contains("new PropertyDescriptor('$property', ${model.name}, false)"), proxy)
+            assertTrue(proxy.contains("get $property(): ${model.name}"), proxy)
+            val modelProxy = Files.readString(output.resolve("${model.name}.ts"))
+            assertTrue(modelProxy.contains("export class ${model.name}"), modelProxy)
+            assertTrue(modelProxy.contains("value!: string;"), modelProxy)
+        }
+        assertFalse(proxy.contains("Record<string,"))
+        assertFalse(proxy.contains("sanitizeArcStringMap"))
+    }
+
+    @Test
+    fun `registered Map suffix models render scalar and sequence query constructors`() {
+        val models = listOf("HeatMap", "RoadMap").map { TypeDescriptor(it, "sample.$it", listOf("sample")) }
+        val queries = models.flatMap { model ->
+            listOf(false, true).map { enumerable ->
+                val name = "${model.name}${if (enumerable) "List" else "Single"}"
+                QueryDescriptor(
+                    name, model.fullyQualifiedName, model.fullyQualifiedName,
+                    fullyQualifiedName = "${model.fullyQualifiedName}.$name",
+                    location = listOf("sample"), isEnumerable = enumerable
+                )
+            }
+        }
+        val output = temporaryDirectory.resolve("map-suffix-queries")
+
+        generate(output, MergedArcArtifacts(emptyList(), queries, models, emptyList()))
+
+        queries.forEach { query ->
+            val modelName = query.returnTypeName.substringAfterLast('.')
+            val proxy = Files.readString(output.resolve("${query.name}.ts"))
+            assertTrue(proxy.contains("import { $modelName } from './$modelName';"), proxy)
+            assertTrue(proxy.contains("extends QueryFor<$modelName${if (query.isEnumerable) "[]" else ""}>"), proxy)
+            assertTrue(proxy.contains("super($modelName, ${query.isEnumerable});"), proxy)
+            assertFalse(proxy.contains("Record<string,"))
+        }
+    }
+
+    @Test
+    fun `Map suffix correction preserves raw map generic and unknown target rejection`() {
+        val rawMaps = listOf("java.util.Map", "kotlin.collections.Map", "kotlin.collections.MutableMap")
+        val generics = listOf("sample.Box<kotlin.String>", "sample.HeatMap<kotlin.String>")
+        val unknown = listOf("sample.Missing", "sample.UnknownMap", "java.util.HashMap")
+        (rawMaps + generics + unknown).forEachIndexed { index, typeName ->
+            val command = CommandDescriptor("Input", "sample.Input", listOf(PropertyDescriptor("value", typeName)))
+            val failure = assertThrows(GradleException::class.java) {
+                generate(
+                    temporaryDirectory.resolve("map-suffix-rejection-$index"),
+                    MergedArcArtifacts(listOf(command), emptyList(), emptyList(), emptyList())
+                )
+            }
+            val expected = if (typeName in rawMaps + generics) "Unsupported generic or map type" else "Unsupported"
+            assertTrue(failure.message.orEmpty().contains(expected), failure.message)
+            assertTrue(failure.message.orEmpty().contains("'$typeName'"), failure.message)
+        }
+    }
+
+    @Test
     fun `map metadata consumers reject floating point leaves`() {
         listOf("kotlin.Float", "kotlin.Double", "java.lang.Float", "java.lang.Double", "float", "double").forEach {
             typeName ->
@@ -683,7 +808,7 @@ class ArcGradlePluginTest {
     }
 
     @Test
-    fun `jvm proxies are byte identical to normalized dotnet proxies`() {
+    fun `raw jvm proxy bytes equal the prepared expected fixture`() {
         val output = temporaryDirectory.resolve("cross-runtime-differential")
 
         generate(
@@ -693,19 +818,265 @@ class ArcGradlePluginTest {
             proxySegmentsToSkip = 1
         )
 
-        val expected = expectedProxyTree(resourcePath("/differential/dotnet"))
-        val actual = proxyTree(output, normalizeGeneratedHeader = true)
-        assertEquals(expected.keys.toList(), actual.keys.toList(), "Generated proxy paths differ from .NET")
-        expected.forEach { (path, body) ->
-            val actualBody = actual.getValue(path)
-            val firstDifference = body.indices.firstOrNull { index ->
-                index >= actualBody.length || body[index] != actualBody[index]
-            } ?: minOf(body.length, actualBody.length).takeIf { body.length != actualBody.length }
-            assertEquals(
-                body,
-                actualBody,
-                "Generated proxy body differs from .NET for $path; expected ${body.length} bytes, " +
-                    "actual ${actualBody.length} bytes, first difference $firstDifference"
+        assertDifferential(output)
+    }
+
+    @ParameterizedTest(name = "strict differential rejects {0}")
+    @ValueSource(strings = [
+        "artifact CRLF", "index CRLF", "trailing spaces", "trailing tabs", "interior spaces", "interior tab",
+        "blank line", "indentation", "missing terminal newline", "extra terminal newline",
+        "index missing terminal newline", "index extra terminal newline", "wrong source", "query fqn source",
+        "hash digit", "hash lowercase", "hash removal", "timestamp", "malformed header", "missing header",
+        "missing marker", "duplicate header", "body and recomputed hash", "scalar enumerable"
+    ])
+    fun `strict differential rejects actual byte mutations`(mutation: String) {
+        val output = temporaryDirectory.resolve("mutated-differential")
+        generate(output, crossRuntimeFixtureArtifacts(), ApiEndpointOptions(segmentsToSkipForRoute = 1))
+        assertDifferential(output)
+        val path = output.resolve(when {
+            mutation.startsWith("index ") -> "Models/index.ts"
+            mutation == "query fqn source" -> "Models/All.ts"
+            mutation == "scalar enumerable" -> DOTNET_ENUMERABLE_COMMAND_PATH
+            else -> "Models/FixtureModel.ts"
+        })
+        val original = Files.readString(path)
+        val changed = when (mutation) {
+            "artifact CRLF", "index CRLF" -> original.replace("\n", "\r\n")
+            "trailing spaces" -> original.replace(";\n", ";  \n")
+            "trailing tabs" -> original.replace(";\n", ";\t\n")
+            "interior spaces" -> original.replace("Record<string, string>", "Record<string,  string>")
+            "interior tab" -> original.replace("Record<string, string>", "Record<string,\tstring>")
+            "blank line" -> original.replace("    @field(Object)", "\n    @field(Object)")
+            "indentation" -> original.replace("    @field(Object)", "   @field(Object)")
+            "missing terminal newline", "index missing terminal newline" -> original.removeSuffix("\n")
+            "extra terminal newline", "index extra terminal newline" -> original + "\n"
+            "wrong source" -> original.replace("Source: differential.fixture.models.FixtureModel", "Source: wrong.Model")
+            "query fqn source" -> original.replace("Source: differential.fixture.models.FixtureModel",
+                "Source: differential.fixture.models.FixtureModel.all")
+            "hash digit" -> original.replace(Regex("Hash: [A-F0-9]")) {
+                if (it.value.last() == '0') "Hash: 1" else "Hash: 0"
+            }
+            "hash lowercase" -> original.replace(Regex("Hash: [A-F0-9]{64}")) {
+                "Hash: " + it.value.removePrefix("Hash: ").lowercase()
+            }
+            "hash removal" -> original.replace(Regex("\\. Hash: [A-F0-9]{64}"), "")
+            "timestamp" -> original.replace(". Hash:", ". Time: 2026-01-01T00:00:00Z. Hash:")
+            "malformed header" -> original.replace(". Source:", ". Source=")
+            "missing header" -> original.substringAfter('\n')
+            "missing marker" -> original.replace("@generated", "generated")
+            "duplicate header" -> original.substringBefore('\n') + "\n" + original
+            "body and recomputed hash" -> {
+                // Mutant intentionally has a VALID hash: byte comparison must still reject its changed body.
+                val body = original.substringAfter('\n').replace("identifier!: string", "identifier!: number")
+                assertNotEquals(original.substringAfter('\n'), body, "Mutant body must actually change")
+                val hash = MessageDigest.getInstance("SHA-256").digest(body.toByteArray(Charsets.UTF_8))
+                    .joinToString("") { "%02X".format(it) }
+                assertEquals(expectedSha256(body), hash, "Mutant hash must remain internally valid")
+                original.substringBefore(". Hash:") + ". Hash: $hash\n" + body
+            }
+            "scalar enumerable" -> original.replace(DOTNET_ENUMERABLE_COMMAND_ARRAY_GENERIC,
+                DOTNET_ENUMERABLE_COMMAND_SCALAR_GENERIC)
+            else -> error("Unknown mutation $mutation")
+        }
+        assertNotEquals(original, changed, mutation)
+        Files.writeString(path, changed)
+        assertThrows(AssertionError::class.java, { assertDifferential(output) }, mutation)
+    }
+
+    @ParameterizedTest(name = "strict differential rejects path mutation {0}")
+    @ValueSource(strings = [
+        "missing artifact", "missing index", "extra artifact", "extra index", "renamed artifact", "renamed index",
+        "extra non TS", "renamed non TS"
+    ])
+    fun `strict differential rejects actual path mutations`(mutation: String) {
+        val output = temporaryDirectory.resolve("path-differential")
+        generate(output, crossRuntimeFixtureArtifacts(), ApiEndpointOptions(segmentsToSkipForRoute = 1))
+        assertDifferential(output)
+        val artifact = output.resolve("Models/FixtureModel.ts")
+        val index = output.resolve("Models/index.ts")
+        when (mutation) {
+            "missing artifact" -> Files.delete(artifact)
+            "missing index" -> Files.delete(index)
+            "extra artifact" -> Files.copy(artifact, output.resolve("Models/Extra.ts"))
+            "extra index" -> {
+                Files.createDirectory(output.resolve("Extra"))
+                Files.copy(index, output.resolve("Extra/index.ts"))
+            }
+            "renamed artifact" -> Files.move(artifact, output.resolve("Models/Renamed.ts"))
+            "renamed index" -> Files.move(index, output.resolve("Models/renamed-index.ts"))
+            "extra non TS" -> Files.write(output.resolve("unexpected.bin"), byteArrayOf(0, -1, 13, 10))
+            "renamed non TS" -> Files.move(artifact, output.resolve("Models/FixtureModel.txt"))
+            else -> error("Unknown mutation $mutation")
+        }
+        assertThrows(AssertionError::class.java, { assertDifferential(output) }, mutation)
+    }
+
+    @ParameterizedTest(name = "expected preparation rejects {0}")
+    @ValueSource(strings = [
+        "wrong source", "query fqn source", "unknown path", "missing marker", "duplicate marker", "index marker",
+        "zero generic anchor", "duplicate generic anchor", "zero hook anchor", "duplicate hook anchor",
+        "misplaced suppression", "duplicate suppression", "incomplete suppression",
+        "zero observe anchor", "duplicate observe anchor"
+    ])
+    fun `expected differential preparation rejects invalid fixture mutations`(mutation: String) {
+        val captured = rawProxyTree(resourcePath("/differential/dotnet")).toMutableMap()
+        prepareExpectedProxyTree(captured)
+        val path = when (mutation) {
+            "query fqn source" -> "Models/All.ts"
+            "index marker" -> "Models/index.ts"
+            "zero observe anchor", "duplicate observe anchor" -> "Models/Observe.ts"
+            else -> DOTNET_ENUMERABLE_COMMAND_PATH
+        }
+        val original = captured.getValue(path).toString(Charsets.UTF_8)
+        val scalarAnchor = "    extends Command<ICreateFixtures, FixtureModel>"
+        val hookAnchor = "        return useCommand<CreateFixtures, ICreateFixtures>("
+        val suppression = "        // eslint-disable-next-line @typescript-eslint/ban-ts-comment\n        // @ts-ignore\n"
+        val changed = when (mutation) {
+            "wrong source" -> original.replace("Source: differential.fixture.commands.CreateFixtures", "Source: wrong.Type")
+            "query fqn source" -> original.replace("Source: differential.fixture.models.FixtureModel",
+                "Source: differential.fixture.models.FixtureModel.all")
+            "unknown path" -> original
+            "zero observe anchor" -> original.replace("export interface ObserveParameters {", "export interface ChangedParameters {")
+            "duplicate observe anchor" -> original + "\nexport interface ObserveParameters {\n\n    filter: string;\n}\n"
+            "missing marker" -> original.substringAfter('\n')
+            "duplicate marker" -> original.substringBefore('\n') + "\n" + original
+            "index marker" -> "// @generated by Cratis. Source: wrong.Index\n$original"
+            "zero generic anchor" -> original.replace(scalarAnchor, "    extends Command<ICreateFixtures, FixtureModel[]>")
+            "duplicate generic anchor" -> original + "\n$DOTNET_ENUMERABLE_COMMAND_SCALAR_GENERIC\n"
+            "zero hook anchor" -> original.replace(hookAnchor, "        return changedHook(")
+            "duplicate hook anchor" -> original + "\n" +
+                "        return useCommand<CreateFixtures, ICreateFixtures>(CreateFixtures, initialValues);\n"
+            "misplaced suppression" -> original.replace("export interface ICreateFixtures", "// @ts-ignore\nexport interface ICreateFixtures")
+            "duplicate suppression" -> original.replace("export interface ICreateFixtures", "$suppression$suppression" +
+                "export interface ICreateFixtures")
+            "incomplete suppression" -> original.replace("export interface ICreateFixtures", "// eslint-disable-next-line " +
+                "@typescript-eslint/ban-ts-comment\nexport interface ICreateFixtures")
+            else -> error("Unknown mutation $mutation")
+        }
+        if (mutation == "unknown path") captured["unexpected.txt"] = byteArrayOf(0) else {
+            assertNotEquals(original, changed, mutation)
+            captured[path] = changed.toByteArray(Charsets.UTF_8)
+        }
+        assertThrows(IllegalArgumentException::class.java, { prepareExpectedProxyTree(captured) }, mutation)
+    }
+
+    @Test
+    fun `expected differential hash uses the independent uppercase SHA256 vector`() {
+        assertEquals("BA7816BF8F01CFEA414140DE5DAE2223B00361A396177A9CB410FF61F20015AD", expectedSha256("abc"))
+        assertEquals(
+            "// @generated by Cratis. Source: literal.Source. Hash: " +
+                "BA7816BF8F01CFEA414140DE5DAE2223B00361A396177A9CB410FF61F20015AD\n",
+            expectedHeader("literal.Source", "abc")
+        )
+    }
+
+    @Test
+    fun `differential byte diagnostics report byte lengths and prefix offsets`() {
+        val expected = mapOf("file.bin" to "é\n".toByteArray(Charsets.UTF_8))
+        val shorter = assertThrows(AssertionError::class.java) {
+            assertProxyBytesEqual(expected, mapOf("file.bin" to "é".toByteArray(Charsets.UTF_8)))
+        }
+        assertTrue(shorter.message.orEmpty().contains("expected 3 bytes, actual 2 bytes, first byte difference 2"))
+        val longer = assertThrows(AssertionError::class.java) {
+            assertProxyBytesEqual(expected, mapOf("file.bin" to "é\n\n".toByteArray(Charsets.UTF_8)))
+        }
+        assertTrue(longer.message.orEmpty().contains("expected 3 bytes, actual 4 bytes, first byte difference 3"))
+        val changed = assertThrows(AssertionError::class.java) {
+            assertProxyBytesEqual(expected, mapOf("file.bin" to "ê\n".toByteArray(Charsets.UTF_8)))
+        }
+        assertTrue(changed.message.orEmpty().contains("first byte difference 1"))
+    }
+
+    @Test
+    fun `expected command suppression accepts only the exact hook site`() {
+        val captured = rawProxyTree(resourcePath("/differential/dotnet"))
+        val body = normalizeKnownDotNetMapFixtureFormatting(DOTNET_ENUMERABLE_COMMAND_PATH,
+            captured.getValue(DOTNET_ENUMERABLE_COMMAND_PATH).toString(Charsets.UTF_8))
+        val prepared = normalizeKnownDotNetCommandSuppression(DOTNET_ENUMERABLE_COMMAND_PATH, body)
+        assertNotEquals(body, prepared)
+        assertEquals(prepared, normalizeKnownDotNetCommandSuppression(DOTNET_ENUMERABLE_COMMAND_PATH, prepared))
+        val adapted = captured + (DOTNET_ENUMERABLE_COMMAND_PATH to prepared.toByteArray(Charsets.UTF_8))
+        assertProxyBytesEqual(prepareExpectedProxyTree(captured), prepareExpectedProxyTree(adapted))
+        val misplaced = prepared.replace("        // @ts-ignore\n", "")
+            .replace("export interface ICreateFixtures", "// @ts-ignore\nexport interface ICreateFixtures")
+        assertThrows(IllegalArgumentException::class.java) {
+            prepareExpectedProxyTree(captured + (DOTNET_ENUMERABLE_COMMAND_PATH to misplaced.toByteArray(Charsets.UTF_8)))
+        }
+    }
+
+    @Test
+    fun `expected observe formatting changes only the known parameter block blank line`() {
+        val captured = rawProxyTree(resourcePath("/differential/dotnet"))
+        val path = "Models/Observe.ts"
+        val original = captured.getValue(path).toString(Charsets.UTF_8)
+        val anchor = "export interface ObserveParameters {\n\n    filter: string;\n}"
+        val replacement = "export interface ObserveParameters {\n    \n    filter: string;\n}"
+        assertEquals(1, original.windowed(anchor.length).count { it == anchor })
+        val prepared = prepareKnownObserveParameterSpacing(path, original)
+        assertEquals(original.replace(anchor, replacement), prepared)
+        assertEquals(original.length + 4, prepared.length)
+        assertTrue(prepareExpectedProxyTree(captured).getValue(path).toString(Charsets.UTF_8).contains(replacement))
+    }
+
+    @Test
+    fun `expected observe formatting leaves all other paths and blocks untouched`() {
+        val captured = rawProxyTree(resourcePath("/differential/dotnet"))
+        captured.filterKeys { it != "Models/Observe.ts" }.forEach { (path, bytes) ->
+            val body = bytes.toString(Charsets.UTF_8)
+            assertEquals(body, prepareKnownObserveParameterSpacing(path, body), path)
+        }
+        val anchor = "export interface ObserveParameters {\n\n    filter: string;\n}"
+        listOf("Models/ObserveOne.ts", "Observe.ts", "Other/Observe.ts", "Models/Observe.txt").forEach { path ->
+            assertEquals(anchor, prepareKnownObserveParameterSpacing(path, anchor), path)
+        }
+        val otherBlock = "export interface OtherParameters {\n\n    filter: string;\n}"
+        val body = "$otherBlock\n$anchor\n$otherBlock"
+        assertEquals(
+            "$otherBlock\nexport interface ObserveParameters {\n    \n    filter: string;\n}\n$otherBlock",
+            prepareKnownObserveParameterSpacing("Models/Observe.ts", body)
+        )
+    }
+
+    @ParameterizedTest(name = "strict observe spacing rejects {0}")
+    @ValueSource(strings = ["zero spaces", "one space", "three spaces", "tab"])
+    fun `strict differential rejects wrong actual observe parameter spacing`(mutation: String) {
+        val output = temporaryDirectory.resolve("observe-spacing-differential")
+        generate(output, crossRuntimeFixtureArtifacts(), ApiEndpointOptions(segmentsToSkipForRoute = 1))
+        assertDifferential(output)
+        val path = output.resolve("Models/Observe.ts")
+        val original = Files.readString(path)
+        val spacing = when (mutation) {
+            "zero spaces" -> ""
+            "one space" -> " "
+            "three spaces" -> "   "
+            "tab" -> "\t"
+            else -> error("Unknown mutation $mutation")
+        }
+        val changed = original.replace(
+            "export interface ObserveParameters {\n    \n    filter: string;\n}",
+            "export interface ObserveParameters {\n$spacing\n    filter: string;\n}"
+        )
+        assertNotEquals(original, changed, mutation)
+        Files.writeString(path, changed)
+        assertThrows(AssertionError::class.java, { assertDifferential(output) }, mutation)
+    }
+
+    private fun assertDifferential(output: Path) {
+        assertProxyBytesEqual(expectedProxyTree(resourcePath("/differential/dotnet")), rawProxyTree(output))
+    }
+
+    private fun assertProxyBytesEqual(expected: Map<String, ByteArray>, actual: Map<String, ByteArray>) {
+        assertEquals(expected.keys.sorted(), actual.keys.sorted(), "Generated paths differ from prepared fixture")
+        expected.toSortedMap().forEach { (path, bytes) ->
+            val actualBytes = actual.getValue(path)
+            val firstDifference = (0 until minOf(bytes.size, actualBytes.size)).firstOrNull { index ->
+                bytes[index] != actualBytes[index]
+            } ?: minOf(bytes.size, actualBytes.size).takeIf { bytes.size != actualBytes.size }
+            assertArrayEquals(
+                bytes,
+                actualBytes,
+                "Raw generated bytes differ from prepared fixture for $path; expected ${bytes.size} bytes, " +
+                    "actual ${actualBytes.size} bytes, first byte difference $firstDifference"
             )
         }
     }
@@ -713,7 +1084,7 @@ class ArcGradlePluginTest {
     @Test
     fun `normalized dotnet differential preserves the proven string key Record fixture exactly`() {
         val expected = expectedProxyTree(resourcePath("/differential/dotnet"))
-            .getValue("Models/FixtureModel.ts")
+            .getValue("Models/FixtureModel.ts").toString(Charsets.UTF_8)
 
         assertTrue(expected.contains("@field(Object)\n    labelsByCategory!: Record<string, string>;"))
         assertFalse(expected.contains("ValueMap"))
@@ -1988,6 +2359,7 @@ class ArcGradlePluginTest {
             .iterator()
             .asSequence()
             .associate { path -> root.relativize(path).toString().replace('\\', '/') to Files.readAllBytes(path) }
+            .toSortedMap()
     }
 
     private fun documentedArtifacts(): MergedArcArtifacts = documentationArtifacts(documented = true)
@@ -2345,33 +2717,63 @@ class ArcGradlePluginTest {
     private fun resourcePath(resourceName: String): Path =
         Path.of(requireNotNull(javaClass.getResource(resourceName)) { "Missing resource '$resourceName'." }.toURI())
 
-    private fun expectedProxyTree(root: Path): Map<String, String> =
-        proxyTree(root).mapValues { (relativePath, body) ->
-            normalizeKnownDotNetVerbatimModuleImports(
+    private fun expectedProxyTree(root: Path): Map<String, ByteArray> = prepareExpectedProxyTree(rawProxyTree(root))
+
+    private fun prepareExpectedProxyTree(captured: Map<String, ByteArray>): Map<String, ByteArray> {
+        require(captured.keys == FIXTURE_SOURCES.keys + FIXTURE_INDEXES) { "Unexpected captured fixture paths" }
+        val artifacts = crossRuntimeFixtureArtifacts()
+        val descriptorSources = buildList {
+            artifacts.commands.forEach { add("Commands/${it.name}.ts" to it.typeName) }
+            artifacts.types.forEach { add("${it.location.last()}/${it.name}.ts" to it.fullyQualifiedName) }
+            artifacts.enums.forEach { add("Models/${it.name}.ts" to it.fullyQualifiedName) }
+            artifacts.queries.forEach {
+                add("Models/${it.name.replaceFirstChar(Char::uppercaseChar)}.ts" to it.declaringTypeName)
+            }
+        }
+        require(descriptorSources.size == 16 && descriptorSources.toMap() == FIXTURE_SOURCES) {
+            "Fixture descriptor identities differ from the independent source inventory"
+        }
+        return captured.toSortedMap().mapValues { (relativePath, bytes) ->
+            // These transformations are EXPECTED-ONLY. The actual reader never decodes or normalizes bytes.
+            val text = bytes.toString(Charsets.UTF_8).replace("\r\n", "\n")
+                .split('\n').joinToString("\n") { it.trimEnd() }
+            val source = FIXTURE_SOURCES[relativePath]
+            val body = if (source == null) {
+                require("@generated" !in text) { "Expected headerless index $relativePath" }
+                text
+            } else {
+                require(text.substringBefore('\n') == "// @generated by Cratis. Source: $source") {
+                    "Unexpected captured source marker for $relativePath"
+                }
+                text.substringAfter('\n').also {
+                    require("@generated" !in it) { "Duplicate captured marker for $relativePath" }
+                }
+            }
+            val preparedBody = normalizeKnownDotNetVerbatimModuleImports(
                 normalizeKnownDotNetCommandSuppression(
                     relativePath,
                     normalizeKnownDotNetEnumerableCommandGeneric(
                         relativePath,
-                        normalizeKnownDotNetMapFixtureFormatting(relativePath, body)
+                        prepareKnownObserveParameterSpacing(
+                            relativePath,
+                            normalizeKnownDotNetMapFixtureFormatting(relativePath, body)
+                        )
                     )
                 )
-            )
+            ).trimEnd() + "\n"
+            (if (source == null) preparedBody else expectedHeader(source, preparedBody) + preparedBody)
+                .toByteArray(Charsets.UTF_8)
         }
+    }
 
-    private fun proxyTree(root: Path, normalizeGeneratedHeader: Boolean = false): Map<String, String> =
-        Files.walk(root).use { paths ->
-            paths.filter(Files::isRegularFile)
-                .sorted()
-                .iterator()
-                .asSequence()
-                .associate { path ->
-                    val relativePath = root.relativize(path).toString().replace('\\', '/')
-                    val body = Files.readString(path)
-                        .replace("\r\n", "\n")
-                        .split('\n')
-                        .joinToString("\n") { line -> line.trimEnd() }
-                    relativePath to if (normalizeGeneratedHeader) normalizeGeneratedHeader(body) else body
-                }
+    // Independent test oracle: no production header/hash helper and no actual output input.
+    private fun expectedHeader(source: String, preparedBody: String): String =
+        "// @generated by Cratis. Source: $source. Hash: ${expectedSha256(preparedBody)}\n"
+
+    private fun expectedSha256(body: String): String = MessageDigest.getInstance("SHA-256")
+        .digest(body.toByteArray(Charsets.UTF_8)).joinToString("") { byte ->
+            val value = byte.toInt() and 0xff
+            "0123456789ABCDEF"[value ushr 4].toString() + "0123456789ABCDEF"[value and 15]
         }
 
     private fun normalizeKnownDotNetMapFixtureFormatting(relativePath: String, body: String): String = when (relativePath) {
@@ -2420,17 +2822,36 @@ class ArcGradlePluginTest {
         else -> body
     }
 
+    private fun prepareKnownObserveParameterSpacing(relativePath: String, body: String): String {
+        if (relativePath != "Models/Observe.ts") return body
+        val anchor = "export interface ObserveParameters {\n\n    filter: string;\n}"
+        require(body.indexOf(anchor) >= 0 && body.indexOf(anchor) == body.lastIndexOf(anchor)) {
+            "Expected exactly one known ObserveParameters block in Models/Observe.ts"
+        }
+        return body.replace(anchor, "export interface ObserveParameters {\n    \n    filter: string;\n}")
+    }
+
     private fun normalizeKnownDotNetCommandSuppression(relativePath: String, body: String): String {
-        if (relativePath != DOTNET_ENUMERABLE_COMMAND_PATH || "// @ts-ignore" in body) return body
+        if (relativePath != DOTNET_ENUMERABLE_COMMAND_PATH) return body
         val marker = "        return useCommand<CreateFixtures, ICreateFixtures>(CreateFixtures, initialValues);"
+        val hook = "    static use(initialValues?: ICreateFixtures): " +
+            "[CreateFixtures, SetCommandValues<ICreateFixtures>, ClearCommandValues] {\n"
+        val suppression = "        // eslint-disable-next-line @typescript-eslint/ban-ts-comment\n" +
+            "        // @ts-ignore\n"
         require(body.indexOf(marker) >= 0 && body.indexOf(marker) == body.lastIndexOf(marker)) {
             "Expected exactly one CreateFixtures useCommand return in $DOTNET_ENUMERABLE_COMMAND_PATH"
         }
-        return body.replace(
-            marker,
-            "        // eslint-disable-next-line @typescript-eslint/ban-ts-comment\n" +
-                "        // @ts-ignore\n$marker"
-        )
+        val hasSuppression = "@ts-ignore" in body || "ban-ts-comment" in body
+        val exactHook = hook + (if (hasSuppression) suppression else "") + marker + "\n    }"
+        require(exactHook in body) { "Expected exact CreateFixtures hook and suppression placement" }
+        if (hasSuppression) {
+            require(body.windowed("@ts-ignore".length).count { it == "@ts-ignore" } == 1 &&
+                body.windowed("ban-ts-comment".length).count { it == "ban-ts-comment" } == 1) {
+                "Unexpected additional CreateFixtures suppression"
+            }
+            return body
+        }
+        return body.replace(marker, suppression + marker)
     }
 
     private fun normalizeKnownDotNetEnumerableCommandGeneric(relativePath: String, body: String): String {
@@ -2501,14 +2922,6 @@ class ArcGradlePluginTest {
             "useChangeStream, type SetSorting, type SetPage, type SetPageSize, ObservableQueryWhen } " +
                 "from '@cratis/arc.react/queries';"
         )
-
-    private fun normalizeGeneratedHeader(body: String): String {
-        val firstLineEnd = body.indexOf('\n')
-        if (firstLineEnd < 0 || !body.startsWith("// @generated by Cratis. Source: ")) return body
-        val firstLine = body.substring(0, firstLineEnd)
-        val normalized = firstLine.substringBefore(". Time:").substringBefore(". Hash:")
-        return normalized + body.substring(firstLineEnd)
-    }
 
     private fun generate(
         output: Path,

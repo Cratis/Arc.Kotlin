@@ -66,8 +66,18 @@ internal class ArcSymbolProcessorNegativeCompilationTest {
             "ARCKSP0303",
             "ARCKSP0304",
             "ARCKSP0305",
+            "ARCKSP0306",
             "ARCKSP0400"
         ).forEach { code -> assertTrue("[$code]" in result.messages, "Missing $code in:\n${result.messages}") }
+        for (owner in listOf("ComputedBodyInput", "ComputedBodyChild")) {
+            assertTrue("[ARCKSP0300] Artifact/property 'io.cratis.arc.contracts.negative.$owner.calculated' is computed command input; " +
+                "use a backed property, @JsonIgnore, or a separate output model." in result.messages, result.messages)
+        }
+        assertTrue("[ARCKSP0300] Artifact/property 'io.cratis.arc.contracts.negative.JavaComputedBodyChild.javaCalculated' is computed command input; " +
+            "use a backed property, @JsonIgnore, or a separate output model." in result.messages, result.messages)
+        assertTrue("[ARCKSP0106] Command 'io.cratis.arc.contracts.negative.DuplicateBodyKeys' declares multiple @CommandKey properties: first, second. Exactly one is supported." in result.messages, result.messages)
+        assertTrue("[ARCKSP0300] Artifact/property 'io.cratis.arc.contracts.negative.RenamedBodyInput.value' has body-property Jackson names or access that metadata cannot represent; use the default Arc wire name and symmetric access, or a separate wire model." in result.messages, result.messages)
+        assertTrue("[ARCKSP0201] Query 'io.cratis.arc.contracts.negative.InaccessibleQueryCompanion.find' must be declared in a public companion object; make the companion public." in result.messages, result.messages)
         assertTrue("annotate it with @FromServices" in result.messages, result.messages)
         queryInfrastructureDiagnostics().forEach { message ->
             assertTrue("[ARCKSP0208] $message" in result.messages, "Missing ARCKSP0208 message '$message' in:\n${result.messages}")
@@ -84,6 +94,9 @@ internal class ArcSymbolProcessorNegativeCompilationTest {
         derivedTypeTargetDiagnostics().forEach { message ->
             assertTrue("[ARCKSP0304] $message" in result.messages, "Missing ARCKSP0304 message '$message' in:\n${result.messages}")
         }
+        exportedTypeTargetDiagnostics().forEach { message ->
+            assertTrue("[ARCKSP0306] $message" in result.messages, "Missing ARCKSP0306 message '$message' in:\n${result.messages}")
+        }
         assertTrue("@CommandEventStreamId with a blank or control-character value" in result.messages, result.messages)
         assertTrue("@CommandEventSubject with a blank or control-character value" in result.messages, result.messages)
         assertTrue("cannot declare @CommandEventStreamId and implement CommandEventStreamIdProvider" in result.messages, result.messages)
@@ -91,6 +104,14 @@ internal class ArcSymbolProcessorNegativeCompilationTest {
         assertTrue("OverloadedJavaQueries' has overloaded query name 'find'" in result.messages, result.messages)
         assertTrue("star projections are unsupported" in result.messages, result.messages)
         assertTrue(unsupportedJavaArrayDiagnostic() in result.messages, result.messages)
+        listOf("covariant", "contravariant", "starred").forEach { method ->
+            assertTrue("[ARCKSP0300] Artifact/property 'io.cratis.arc.contracts.negative.ProjectedArrayQueries.$method.ids' value path 'element': raw and wildcard arguments are unsupported; star projections are unsupported; variant generic arguments are unsupported." in result.messages, result.messages)
+        }
+        assertTrue("[ARCKSP0300] Artifact/property 'io.cratis.arc.contracts.negative.ProjectedArrayQueries.nullableEntries.ids' value path 'element': nullable sequence elements are unsupported." in result.messages, result.messages)
+        listOf("wildcard", "raw").forEach { method ->
+            assertTrue("[ARCKSP0300] 'io.cratis.arc.contracts.negative.GenericArrayQueries.$method.ids' uses an unsupported nested or generic collection element shape." in result.messages, result.messages)
+        }
+        assertTrue("[ARCKSP0201] Query 'io.cratis.arc.contracts.negative.GenericArrayQueries.parameter' must not declare type parameters." in result.messages, result.messages)
         listOf(
             "InvalidMapShapes.kt",
             "value path 'value.key': map keys must be nonnullable String",
@@ -106,6 +127,12 @@ internal class ArcSymbolProcessorNegativeCompilationTest {
         ).forEach { message -> assertTrue(message in result.messages, "Missing '$message' in:\n${result.messages}") }
         exactMapDiagnostics().forEach { message ->
             assertTrue("[ARCKSP0300] $message" in result.messages, "Missing ARCKSP0300 message '$message' in:\n${result.messages}")
+        }
+        for (owner in listOf("NullableListProperty", "NullableCollectionProperty", "NullableArrayProperty",
+            "NullableSequenceModel", "NullableSequenceView", "NullableSequenceReadModel", "NullableJavaSequenceProperty")) {
+            val message = "[ARCKSP0300] Artifact/property 'io.cratis.arc.contracts.negative.$owner.values' value path 'value[]': " +
+                "nullable sequence elements are unsupported; declare nonnullable elements, for example List<T> or List<T>?."
+            assertTrue(message in result.messages, result.messages)
         }
         nullableResponseDiagnostics().forEach { message ->
             assertTrue("[ARCKSP0105] $message" in result.messages, "Missing ARCKSP0105 message '$message' in:\n${result.messages}")
@@ -380,6 +407,17 @@ internal class ArcSymbolProcessorNegativeCompilationTest {
             "annotate concrete implementations.",
         "Interface 'io.cratis.arc.contracts.negative.AnnotatedDerivedTypeJavaInterface' cannot carry @DerivedType; " +
             "annotate concrete implementations."
+    )
+
+    private fun exportedTypeTargetDiagnostics(): List<String> = listOf(
+        "Exported type 'io.cratis.arc.contracts.negative.AbstractExportedType' must not be abstract; " +
+            "export the concrete derived types instead.",
+        "Exported type 'io.cratis.arc.contracts.negative.AbstractJavaExportedType' must not be abstract; " +
+            "export the concrete derived types instead.",
+        "Exported type 'io.cratis.arc.contracts.negative.GenericExportedType' must not declare type parameters; " +
+            "a generic definition has no single shape to generate.",
+        "Exported type 'io.cratis.arc.contracts.negative.InternalExportedType' must be public so generated clients can use it.",
+        "@ExportedType types must be top-level; nested and local types are not supported."
     )
 
     private fun queryDefaultDiagnostics(): List<String> = listOf(

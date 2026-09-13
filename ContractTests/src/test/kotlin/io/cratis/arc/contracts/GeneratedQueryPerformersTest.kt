@@ -49,14 +49,21 @@ internal class GeneratedQueryPerformersTest {
         assertEquals(
             listOf(
                 "io.cratis.arc.contracts.fixtures.ConceptTemporalReadModel.findConceptTemporal",
+                "io.cratis.arc.contracts.fixtures.ImplicitVisibilityView.findImplicit",
+                "io.cratis.arc.contracts.fixtures.JavaExclusionView.findJavaExclusions",
+                "io.cratis.arc.contracts.fixtures.JavaExclusionView.observeJavaExclusions",
                 "io.cratis.arc.contracts.fixtures.JavaMapReadModel.getJavaMap",
+                "io.cratis.arc.contracts.fixtures.JavaObservableSnapshot.observeJavaSnapshot",
                 "io.cratis.arc.contracts.fixtures.JavaQueryReadModel.byId",
                 "io.cratis.arc.contracts.fixtures.JavaQueryReadModel.contextualJava",
                 "io.cratis.arc.contracts.fixtures.JavaQueryReadModel.observeJava",
                 "io.cratis.arc.contracts.fixtures.JavaQueryReadModel.springDataAsync",
                 "io.cratis.arc.contracts.fixtures.JavaQueryReadModel.springDataJavaDirect",
                 "io.cratis.arc.contracts.fixtures.JavaTemporalReadModel.findJavaTemporal",
+                "io.cratis.arc.contracts.fixtures.KotlinExclusionView.findKotlinExclusions",
+                "io.cratis.arc.contracts.fixtures.KotlinExclusionView.observeKotlinExclusions",
                 "io.cratis.arc.contracts.fixtures.KotlinMapReadModel.getKotlinMap",
+                "io.cratis.arc.contracts.fixtures.KotlinObservableSnapshot.observeKotlinSnapshot",
                 "io.cratis.arc.contracts.fixtures.KotlinQueryReadModel.all",
                 "io.cratis.arc.contracts.fixtures.KotlinQueryReadModel.contextualKotlin",
                 "io.cratis.arc.contracts.fixtures.KotlinQueryReadModel.defaulted",
@@ -70,7 +77,10 @@ internal class GeneratedQueryPerformersTest {
                 "io.cratis.arc.contracts.fixtures.KotlinQueryReadModel.single",
                 "io.cratis.arc.contracts.fixtures.KotlinQueryReadModel.springDataDirect",
                 "io.cratis.arc.contracts.fixtures.KotlinQueryReadModel.springDataSuspend",
-                "io.cratis.arc.contracts.fixtures.KotlinTemporalReadModel.findKotlinTemporal"
+                "io.cratis.arc.contracts.fixtures.KotlinTemporalReadModel.findKotlinTemporal",
+                "io.cratis.arc.contracts.fixtures.OpenApiNamingView.namedSchema",
+                "io.cratis.arc.contracts.fixtures.ScenarioShapeView.list",
+                "io.cratis.arc.contracts.fixtures.ScenarioShapeView.nested"
             ),
             performers.map { performer -> performer.fullyQualifiedName.value }
         )

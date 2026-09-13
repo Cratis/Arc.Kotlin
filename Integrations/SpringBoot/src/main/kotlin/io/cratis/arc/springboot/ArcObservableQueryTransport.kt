@@ -50,9 +50,12 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -93,7 +96,9 @@ public class ArcObservableQueryTransport internal constructor(
         }
         .build()
     private val connections = AtomicInteger()
+    private val closed = AtomicBoolean()
     private val sseConnections = ConcurrentHashMap<String, HubSseConnection>()
+    private val directSseStreams = ConcurrentHashMap.newKeySet<ServletSseStream>()
 
     internal val activeConnectionCount: Int get() = connections.get()
 
@@ -116,6 +121,7 @@ public class ArcObservableQueryTransport internal constructor(
 
     internal fun tryReserveConnection(): ConnectionLease? {
         while (true) {
+            if (closed.get()) return null
             val current = connections.get()
             if (current >= settings.maximumConnections) return null
             if (connections.compareAndSet(current, current + 1)) return ConnectionLease(connections)
@@ -207,6 +213,16 @@ public class ArcObservableQueryTransport internal constructor(
         revision: Long?,
         request: ObservableQuerySubscriptionRequest,
         subscriptionHandshake: ArcObservableHandshake = connection.handshake
+    ): HubSubscribeResult = connection.ifOpen {
+        subscribeOpen(connection, queryId, revision, request, subscriptionHandshake)
+    } ?: HubSubscribeResult.UNAVAILABLE
+
+    private fun subscribeOpen(
+        connection: ArcHubConnection,
+        queryId: String,
+        revision: Long?,
+        request: ObservableQuerySubscriptionRequest,
+        subscriptionHandshake: ArcObservableHandshake
     ): HubSubscribeResult {
         if (!ObservableQuerySubscriptionRevision.isValid(revision)) return HubSubscribeResult.MALFORMED
         if (queryId.isBlank() || request.queryName.isBlank()) return HubSubscribeResult.MALFORMED
@@ -220,6 +236,9 @@ public class ArcObservableQueryTransport internal constructor(
             logger.debug("Arc observable query subscription could not be bound. queryId={}", queryId, exception)
             return HubSubscribeResult.MALFORMED
         }
+        // The lifecycle monitor is reentrant: application converters and serializers can
+        // close the hub synchronously. Recheck before any reservation or later callback.
+        if (connection.isClosed) return HubSubscribeResult.UNAVAILABLE
         val principal = subscriptionHandshake.principal
         val identity = ObservableQuerySubscriptionIdentity(
             performer.fullyQualifiedName,
@@ -230,22 +249,36 @@ public class ArcObservableQueryTransport internal constructor(
             subscriptionHandshake.correlationId,
             objectMapper
         )
+        if (connection.isClosed) return HubSubscribeResult.UNAVAILABLE
         val operation = connection.subscriptions.trySubscribe(queryId, revision, identity)
             ?: return HubSubscribeResult.ACCEPTED
+        // Cancelling the replaced operation can also reenter close(). The new operation
+        // is already owned by the hub and cancelled, but must not recreate health or work.
+        if (connection.isClosed) return HubSubscribeResult.UNAVAILABLE
         if (connection.subscriptions.activeCount > settings.maximumSubscriptionsPerConnection) {
             connection.subscriptions.terminate(queryId, operation)
             return HubSubscribeResult.OVERLOADED
         }
         registerSubscription(connection.id, queryId, protocol(connection.id), performer, subscriptionHandshake)
+        if (connection.isClosed) {
+            // An application tracker may record health after its reentrant close returns.
+            healthTracker.unregisterSubscription(connection.id, queryId)
+            return HubSubscribeResult.UNAVAILABLE
+        }
 
-        val job = applicationScope.tryLaunch {
-            runSubscription(connection, queryId, operation, request, queryRequest, identity)
+        val job = applicationScope.tryLaunch(start = CoroutineStart.LAZY) {
+            runSubscription(
+                connection, queryId, operation, request, performer, identity,
+                subscriptionHandshake.allowedValidationSeverity
+                    ?: ValidationResultSeverity.Information.takeIf { performer.descriptor.treatWarningsAsErrors }
+            )
         } ?: run {
             connection.subscriptions.terminate(queryId, operation)
             healthTracker.unregisterSubscription(connection.id, queryId)
             return HubSubscribeResult.UNAVAILABLE
         }
         operation.attach(job)
+        job.start()
         return HubSubscribeResult.ACCEPTED
     }
 
@@ -274,8 +307,12 @@ public class ArcObservableQueryTransport internal constructor(
     )
 
     override fun close() {
-        sseConnections.values.toList().forEach(HubSseConnection::close)
-        sseConnections.clear()
+        val states = synchronized(sseConnections) {
+            if (!closed.compareAndSet(false, true)) return
+            sseConnections.values.toList().also { sseConnections.clear() }
+        }
+        states.forEach(HubSseConnection::close)
+        directSseStreams.toList().forEach(ServletSseStream::close)
     }
 
     private fun openSnapshot(request: HttpServletRequest, response: HttpServletResponse, performer: QueryPerformer) {
@@ -382,9 +419,9 @@ public class ArcObservableQueryTransport internal constructor(
         async.timeout = settings.connectionTimeout.toMillis()
         val connectionId = "sse-direct-${UUID.randomUUID()}"
         val subscriptionId = correlationId.toString()
-        val stream = ServletSseStream(async, response, lease, settings.outboundBufferCapacity) {
-            healthTracker.removeConnection(connectionId)
-        }
+        val stream = ServletSseStream(
+            async, response, lease, settings.outboundBufferCapacity, applicationScope, properties.requestTimeout.toMillis()
+        )
         registerSubscription(
             connectionId,
             subscriptionId,
@@ -400,22 +437,35 @@ public class ArcObservableQueryTransport internal constructor(
                 request.getHeader("User-Agent")
             )
         )
+        synchronized(sseConnections) {
+            if (closed.get()) stream.close() else directSseStreams.add(stream)
+        }
+        stream.attachOwner {
+            directSseStreams.remove(stream)
+            healthTracker.removeConnection(connectionId)
+        }
         async.addListener(stream)
-        val job = applicationScope.tryLaunch {
+        stream.start()
+        val job = applicationScope.tryLaunch(start = CoroutineStart.LAZY) {
             try {
                 when (val opened = pipeline.open(captured.request, captured.options)) {
                     is ObservableQueryOpenResult.Failure -> stream.send(json(wire(opened.result)))
                     is ObservableQueryOpenResult.Stream -> opened.results.collect { result ->
                         if (!stream.send(json(wire(result)))) {
-                            cancel("Observable SSE outbound buffer is full.")
-                        } else {
-                            healthTracker.recordDataServed(connectionId, subscriptionId)
+                            stream.close()
+                            throw CancellationException("Observable SSE outbound buffer is unavailable.")
                         }
-                        if (!result.isAuthorized) cancel("Observable query became unauthorized.")
+                        healthTracker.recordDataServed(connectionId, subscriptionId)
+                        if (!result.isAuthorized) {
+                            stream.finish()
+                            throw CancellationException("Observable query became unauthorized.")
+                        }
                     }
                 }
+                stream.finish()
             } finally {
-                stream.close()
+                // External cancellation/errors abort; a terminal envelope already selected draining.
+                stream.producerEnded()
             }
         }
         if (job == null) {
@@ -424,6 +474,7 @@ public class ArcObservableQueryTransport internal constructor(
             return
         }
         stream.attach(job)
+        job.start()
     }
 
     private fun openHubSse(request: HttpServletRequest, response: HttpServletResponse) {
@@ -457,18 +508,23 @@ public class ArcObservableQueryTransport internal constructor(
         val async = request.startAsync(request, response)
         async.timeout = settings.connectionTimeout.toMillis()
         val connectionId = UUID.randomUUID().toString()
-        lateinit var state: HubSseConnection
-        val stream = ServletSseStream(async, response, lease, settings.outboundBufferCapacity) {
-            sseConnections.remove(connectionId, state)
-        }
-        state = HubSseConnection(
+        val stream = ServletSseStream(async, response, lease, settings.outboundBufferCapacity, applicationScope)
+        val state = HubSseConnection(
             createHubConnection(connectionId, handshake, { message -> stream.send(json(message)) }, stream::close),
             stream
         )
-        sseConnections[connectionId] = state
+        synchronized(sseConnections) {
+            if (closed.get()) state.close() else sseConnections[connectionId] = state
+        }
+        // Closing before attachment must close the late owner too. The writer starts only
+        // after ownership and the servlet listener are installed; no lateinit callback race.
+        stream.attachOwner {
+            sseConnections.remove(connectionId, state)
+            state.connection.close()
+        }
         async.addListener(stream)
-        stream.send(json(connected(connectionId)))
-        state.startHeartbeat()
+        stream.start()
+        if (stream.send(json(connected(connectionId)))) state.startHeartbeat()
     }
 
     private fun subscribeHubSse(request: HttpServletRequest, response: HttpServletResponse) {
@@ -499,13 +555,10 @@ public class ArcObservableQueryTransport internal constructor(
             response.status = HttpServletResponse.SC_NOT_FOUND
             return
         }
-        response.status = when (subscribe(
-            state.connection,
-            body.queryId,
-            body.revision,
-            body.request,
-            subscriptionHandshake
-        )) {
+        response.status = when (state.connection.ifOpen {
+            subscribe(state.connection, body.queryId, body.revision, body.request, subscriptionHandshake)
+        }) {
+            null -> HttpServletResponse.SC_NOT_FOUND
             HubSubscribeResult.ACCEPTED -> HttpServletResponse.SC_OK
             HubSubscribeResult.MALFORMED -> HttpServletResponse.SC_BAD_REQUEST
             HubSubscribeResult.OVERLOADED -> 429
@@ -543,25 +596,27 @@ public class ArcObservableQueryTransport internal constructor(
         queryId: String,
         operation: ObservableQuerySubscriptionOperation,
         request: ObservableQuerySubscriptionRequest,
-        queryRequest: QueryRequest,
-        identity: ObservableQuerySubscriptionIdentity
+        performer: QueryPerformer,
+        identity: ObservableQuerySubscriptionIdentity,
+        allowedValidationSeverity: ValidationResultSeverity?
     ) {
         try {
+            // Rebind the defensively copied wire input with the same declared metadata.
+            // Identity's JSON snapshot deliberately does not preserve JVM argument types.
+            // Application converters run twice and must be deterministic and thread-independent.
             val captured = captured(
                 identity.principal,
                 identity.tenantId,
-                QueryRequest(
-                    identity.queryName,
-                    identity.createArguments(),
-                    queryRequest.paging,
-                    queryRequest.sorting
-                ),
-                identity.correlationId
+                requestBinder.fromSubscription(request, performer),
+                identity.correlationId,
+                allowedValidationSeverity
             )
             // An omitted transfer mode is not "full": it selects the legacy snapshot-plus-change-set behavior,
             // which the pipeline expresses as a null mode.
             when (val opened = pipeline.open(captured.request, captured.options, request.transferMode)) {
                 is ObservableQueryOpenResult.Failure -> {
+                    // Opening can finish after cancellation if application code does not cooperate.
+                    if (!connection.subscriptions.isCurrent(queryId, operation)) return
                     if (!opened.result.isAuthorized) {
                         connection.send(unauthorized(queryId, operation.revision))
                     } else {
@@ -802,7 +857,7 @@ public class ArcObservableQueryTransport internal constructor(
     ) {
         fun startHeartbeat() {
             if (settings.keepAliveInterval.isZero) return
-            val heartbeat = applicationScope.tryLaunch {
+            val heartbeat = applicationScope.tryLaunch(start = CoroutineStart.LAZY) {
                 while (true) {
                     delay(settings.keepAliveInterval.toMillis())
                     if (!connection.send(ping())) break
@@ -813,6 +868,7 @@ public class ArcObservableQueryTransport internal constructor(
                 return
             }
             stream.attachHeartbeat(heartbeat)
+            heartbeat.start()
         }
 
         fun close() {
@@ -857,10 +913,16 @@ internal class ArcHubConnection(
 ) : AutoCloseable {
     val subscriptions = ObservableQuerySubscriptionStates()
     private val closed = AtomicBoolean()
+    val isClosed: Boolean get() = closed.get()
 
     fun send(message: ObservableQueryHubMessage): Boolean = !closed.get() && sender(message)
 
-    override fun close() {
+    /** Serializes subscription acceptance (including health and job attachment) with closure. */
+    fun <T : Any> ifOpen(action: () -> T): T? = synchronized(this) {
+        if (closed.get()) null else action().takeUnless { closed.get() }
+    }
+
+    override fun close(): Unit = synchronized(this) {
         if (!closed.compareAndSet(false, true)) return
         subscriptions.close()
         closeTransport()
@@ -874,58 +936,161 @@ internal class ConnectionLease(private val counter: AtomicInteger) : AutoCloseab
     }
 }
 
-private class ServletSseStream(
+internal class ServletSseStream(
     private val async: jakarta.servlet.AsyncContext,
     private val response: HttpServletResponse,
     private val lease: ConnectionLease,
     outboundBufferCapacity: Int,
-    private val onClosed: () -> Unit = {}
+    applicationScope: CoroutineScope,
+    drainTimeoutMillis: Long = 30_000
 ) : AsyncListener, AutoCloseable {
-    private val closed = AtomicBoolean()
-    private val channel = Channel<String>(outboundBufferCapacity)
-    private var collectionJob: Job? = null
-    private var heartbeatJob: Job? = null
-    private val writer = CoroutineScope(SupervisorJob() + kotlinx.coroutines.Dispatchers.IO).launch {
-        try {
-            for (json in channel) {
-                val bytes = "data: $json\n\n".toByteArray(StandardCharsets.UTF_8)
-                response.outputStream.write(bytes)
-                response.outputStream.flush()
-            }
-        } catch (_: IOException) {
-            // Client disconnected.
-        } finally {
-            close()
-        }
-    }
+    private val lifecycle = ArcOutboundWriter(
+        applicationScope, outboundBufferCapacity, drainTimeoutMillis,
+        write = { json ->
+            response.outputStream.write("data: $json\n\n".toByteArray(StandardCharsets.UTF_8))
+            response.outputStream.flush()
+        },
+        release = lease::close,
+        closeTransport = { async.complete() }
+    )
 
-    fun attach(job: Job) {
-        collectionJob = job
-        if (closed.get()) job.cancel()
-    }
-
-    fun attachHeartbeat(job: Job) {
-        heartbeatJob = job
-        if (closed.get()) job.cancel()
-    }
-
-    fun send(json: String): Boolean = !closed.get() && channel.trySend(json).isSuccess
-
-    override fun close() {
-        if (!closed.compareAndSet(false, true)) return
-        channel.close()
-        collectionJob?.cancel()
-        heartbeatJob?.cancel()
-        lease.close()
-        onClosed()
-        runCatching { async.complete() }
-        writer.cancel()
-    }
-
+    fun start() = lifecycle.start()
+    fun attachOwner(onClosed: () -> Unit) = lifecycle.attachOwner(onClosed)
+    fun attach(job: Job) = lifecycle.attach(job)
+    fun attachHeartbeat(job: Job) = lifecycle.attachHeartbeat(job)
+    fun send(json: String): Boolean = lifecycle.send(json) { close() }
+    fun finish() = lifecycle.finish()
+    fun producerEnded() = lifecycle.producerEnded()
+    override fun close() = lifecycle.abort()
     override fun onComplete(event: AsyncEvent) = close()
     override fun onTimeout(event: AsyncEvent) = close()
     override fun onError(event: AsyncEvent) = close()
     override fun onStartAsync(event: AsyncEvent) = Unit
+}
+
+/** Bounded ordered writes, with nonblocking lifecycle APIs and application-owned cleanup. */
+internal class ArcOutboundWriter(
+    applicationScope: CoroutineScope,
+    capacity: Int,
+    private val drainTimeoutMillis: Long,
+    private val write: (String) -> Unit,
+    private val release: () -> Unit,
+    private val closeTransport: () -> Unit
+) {
+    private enum class State { OPEN, DRAINING, CLOSED }
+    private val lock = Any()
+    private var state = State.OPEN
+    private val channel = Channel<String>(capacity)
+    private val closed = CompletableDeferred<Unit>()
+    private var owner: (() -> Unit)? = null
+    private var collectionJob: Job? = null
+    private var heartbeatJob: Job? = null
+    private val ioScope = CoroutineScope(applicationScope.coroutineContext + Dispatchers.IO)
+    private val deadline = CoroutineScope(applicationScope.coroutineContext + Dispatchers.Default).launch(start = CoroutineStart.LAZY) {
+        delay(drainTimeoutMillis.coerceAtLeast(1))
+        abort()
+    }
+    private val writer = ioScope.launch(start = CoroutineStart.LAZY) {
+        try {
+            for (payload in channel) write(payload)
+        } catch (_: IOException) {
+            // Client disconnected.
+        } finally {
+            abort()
+        }
+    }
+    // This sibling remains cancellable even when the writer is inside blocking container I/O.
+    // Native close runs outside lifecycle locks, not on the caller of finish/abort. It is NOT
+    // a guarantee of writer-thread termination: the container controls blocking I/O teardown.
+    init {
+        writer.invokeOnCompletion { abort() }
+        CoroutineScope(applicationScope.coroutineContext + Dispatchers.Default).launch(start = CoroutineStart.UNDISPATCHED) {
+            try {
+                closed.await()
+            } finally {
+                abort()
+                withContext(NonCancellable + Dispatchers.IO) { runCatching { closeTransport() } }
+            }
+        }
+    }
+
+    fun start() { writer.start() }
+
+    fun attachOwner(onClosed: () -> Unit) {
+        val alreadyClosed = synchronized(lock) {
+            if (state == State.CLOSED) true else {
+                check(owner == null) { "Outbound writer already has an owner." }
+                owner = onClosed
+                false
+            }
+        }
+        if (alreadyClosed) onClosed()
+    }
+
+    fun attach(job: Job) {
+        val reject = synchronized(lock) {
+            if (state != State.OPEN) true else { collectionJob = job; false }
+        }
+        if (reject) job.cancel()
+    }
+
+    fun attachHeartbeat(job: Job) {
+        val reject = synchronized(lock) {
+            if (state != State.OPEN) true else { heartbeatJob = job; false }
+        }
+        if (reject) job.cancel()
+    }
+
+    fun send(payload: String, onOverflow: () -> Unit): Boolean {
+        val accepted = synchronized(lock) {
+            if (state != State.OPEN) return false
+            channel.trySend(payload).isSuccess
+        }
+        if (!accepted) onOverflow()
+        return accepted
+    }
+
+    fun finish() {
+        val heartbeat = synchronized(lock) {
+            if (state != State.OPEN) return
+            state = State.DRAINING
+            channel.close()
+            heartbeatJob.also { heartbeatJob = null }
+        }
+        heartbeat?.cancel()
+        deadline.start()
+        writer.start()
+    }
+
+    /** A producer that did not explicitly finish was interrupted and must not drain. */
+    fun producerEnded() {
+        val interrupted = synchronized(lock) { state == State.OPEN }
+        if (interrupted) abort()
+    }
+
+    fun abort(beforeClose: () -> Unit = {}) {
+        val cleanup = synchronized(lock) {
+            if (state == State.CLOSED) return
+            state = State.CLOSED
+            beforeClose()
+            Triple(owner, collectionJob, heartbeatJob).also {
+                owner = null
+                collectionJob = null
+                heartbeatJob = null
+            }
+        }
+        channel.cancel()
+        writer.cancel()
+        deadline.cancel()
+        cleanup.second?.cancel()
+        cleanup.third?.cancel()
+        try {
+            release()
+            cleanup.first?.invoke()
+        } finally {
+            closed.complete(Unit)
+        }
+    }
 }
 
 internal fun parseUriParameters(uri: URI): Map<String, List<String>> {

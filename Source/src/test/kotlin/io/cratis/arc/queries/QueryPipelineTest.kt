@@ -53,7 +53,7 @@ class QueryPipelineTest {
     }
 
     @Test
-    fun `list and array results are returned as immutable list data`() = runBlocking {
+    fun `list and array results are returned as immutable list data`(): Unit = runBlocking {
         val listResult = pipeline(TestPerformer(name) { mutableListOf(Order("one")) }).perform(request, options)
         val arrayResult = pipeline(TestPerformer(name) { arrayOf(Order("one"), Order("two")) }).perform(request, options)
 

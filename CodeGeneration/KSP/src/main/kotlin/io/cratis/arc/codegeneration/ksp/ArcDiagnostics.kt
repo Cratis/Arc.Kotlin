@@ -40,6 +40,7 @@ internal enum class ArcDiagnostic(
     DERIVED_TYPE_ID("ARCKSP0303", "Error", "Missing or blank @DerivedType identifier"),
     DERIVED_TYPE_TARGET("ARCKSP0304", "Error", "Unsupported @DerivedType declaration target"),
     CONCRETE_POLYMORPHIC_PROPERTY("ARCKSP0305", "Error", "Concrete polymorphic base used as a property type"),
+    EXPORTED_TYPE_TARGET("ARCKSP0306", "Error", "Unsupported @ExportedType declaration target"),
     INTEROP("ARCKSP0400", "Warning", "Java/Kotlin interoperability hazard"),
     INTERNAL("ARCKSP9999", "Error", "Unclassified Arc KSP diagnostic");
 

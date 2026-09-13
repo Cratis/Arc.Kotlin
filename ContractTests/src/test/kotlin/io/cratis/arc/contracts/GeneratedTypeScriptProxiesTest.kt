@@ -18,6 +18,44 @@ internal class GeneratedTypeScriptProxiesTest {
     )
 
     @Test
+    fun `body properties produce wire named descriptors constraints reachable models and separate inheritance`() {
+        val command = generated("KotlinBodyCommand")
+        val descriptors = listOf("zulu", "alpha", "URLValue", "backed", "child", "id", "title")
+        assertEquals(descriptors, Regex("new PropertyDescriptor\\('([^']+)'").findAll(command).map { it.groupValues[1] }.toList())
+        assertContains(command, "new PropertyDescriptor('child', BodyChild, false)")
+        assertContains(command, "this.ruleFor(c => c.id).notEmpty();")
+        assertContains(command, "this.ruleFor(c => c.title).length(2, 30);")
+        assertContains(command, "Stable body identifier.")
+        assertContains(command, "super(BodyOutput, false);")
+        for (name in listOf("secret", "hidden", "computed")) assertFalse(command.contains("'$name'"), command)
+        assertContains(generated("BodyChild"), "last!: string;")
+        assertContains(generated("BodyBase"), "baseBody!: string;")
+        val output = generated("BodyOutput")
+        assertContains(output, "export class BodyOutput extends BodyBase")
+        assertContains(output, "detail!: string;")
+        assertEquals(1, Regex("label!: string;").findAll(output).count())
+        assertFalse(output.contains("baseBody!:"))
+    }
+
+    @Test
+    fun `Kotlin and Java observable snapshots generate typed scalar and array descriptors`() {
+        listOf("Kotlin", "Java").forEach { language ->
+            val proxy = generated("Observe${language}Snapshot")
+            assertContains(proxy, "extends ObservableQueryFor<${language}ObservableSnapshot, Observe${language}SnapshotParameters>")
+            assertContains(proxy, "ids: Guid[];")
+            assertContains(proxy, "longs: number[];")
+            assertContains(proxy, "new ParameterDescriptor('id', Guid, false)")
+            assertContains(proxy, "new ParameterDescriptor('ids', Guid, true)")
+            assertContains(proxy, "new ParameterDescriptor('longs', Number, true)")
+            assertContains(proxy, "new ParameterDescriptor('date', DateOnly, false)")
+            assertContains(proxy, "super(${language}ObservableSnapshot, false);")
+            assertFalse(proxy.contains("new ParameterDescriptor('request'"))
+            assertFalse(proxy.contains("new ParameterDescriptor('context'"))
+        }
+        assertContains(generated("ObserveKotlinSnapshot"), "optional?: number;")
+    }
+
+    @Test
     fun `direct Kotlin and Java temporal commands use value imports descriptors and typed response constructors`() {
         mapOf(
             "KotlinTemporalCommand" to "KotlinTemporalResult",

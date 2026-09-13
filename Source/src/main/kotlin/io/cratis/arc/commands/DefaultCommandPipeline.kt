@@ -80,10 +80,28 @@ public class DefaultCommandPipeline @JvmOverloads constructor(
         options: CommandExecutionOptions,
         token: CommandExecutionToken
     ): CommandResult<*> {
-        var context = createContext(command, handler, options).attachExecutionToken(token)
+        var context = try {
+            createContext(command, handler, options).attachExecutionToken(token)
+        } catch (exception: Exception) {
+            // Application providers run before any scope begins. Fail this owned frame without
+            // completing unbegun scopes, but still poison an ignored nested failure or cancellation.
+            token.executionOwner.markRollbackOnly(token)
+            if (token.isRootExecution) token.executionOwner.sealRoot(token)
+            if (exception is CancellationException) throw exception
+            return CommandResult.fromException(options.correlationId, exception)
+        }
         var result: CommandResult<*> = CommandResult.success(options.correlationId)
         var cancellation: CancellationException? = null
         val begunScopes = ArrayList<CommandExecutionScope>(scopes.size)
+
+        fun convertFailure(exception: Exception): CommandResult<*> = try {
+            CommandResult.fromException(options.correlationId, exception)
+        } catch (extractionCancellation: CancellationException) {
+            // A catch does not catch exceptions thrown inside itself. Retain cancellation as failure
+            // bookkeeping here so begun scopes still complete in reverse order before it is rethrown.
+            if (cancellation == null) cancellation = extractionCancellation
+            CommandResult.exception(options.correlationId, extractionCancellation)
+        }
 
         try {
             for (scope in scopes) {
@@ -124,7 +142,7 @@ public class DefaultCommandPipeline @JvmOverloads constructor(
             cancellation = exception
             result = result.merge(CommandResult.exception(options.correlationId, exception))
         } catch (exception: Exception) {
-            result = result.merge(CommandResult.exception(options.correlationId, exception))
+            result = result.merge(convertFailure(exception))
         }
 
         if (!result.isSuccess) token.executionOwner.markRollbackOnly(token)
@@ -149,7 +167,7 @@ public class DefaultCommandPipeline @JvmOverloads constructor(
                     result = result.merge(CommandResult.exception(options.correlationId, exception))
                     if (cancellation == null) cancellation = exception
                 } catch (exception: Exception) {
-                    result = result.merge(CommandResult.exception(options.correlationId, exception))
+                    result = result.merge(convertFailure(exception))
                 }
                 if (!result.isSuccess) token.executionOwner.markRollbackOnly(token)
             }
@@ -161,18 +179,17 @@ public class DefaultCommandPipeline @JvmOverloads constructor(
     }
 
     override suspend fun validate(command: Any, options: CommandExecutionOptions): CommandResult<*> {
-        if (handlers.find(command.javaClass) == null) {
-            return CommandResult.missingHandler(options.correlationId, command.javaClass.name)
-        }
-        val context = createContext(command, requireNotNull(handlers.find(command.javaClass)), options)
+        val handler = handlers.find(command.javaClass)
+            ?: return CommandResult.missingHandler(options.correlationId, command.javaClass.name)
         var result: CommandResult<*> = CommandResult.success(options.correlationId)
 
         try {
+            val context = createContext(command, handler, options)
             result = executeFilters(context).filterValidation(options.allowedValidationSeverity)
         } catch (exception: CancellationException) {
             throw exception
         } catch (exception: Exception) {
-            result = result.merge(CommandResult.exception(options.correlationId, exception))
+            result = result.merge(CommandResult.fromException(options.correlationId, exception))
         }
         return if (result.isSuccess) result else result.withoutResponse()
     }
@@ -223,7 +240,7 @@ public class DefaultCommandPipeline @JvmOverloads constructor(
             } catch (exception: CancellationException) {
                 throw exception
             } catch (exception: Exception) {
-                result = result.merge(CommandResult.exception(context.correlationId, exception))
+                result = result.merge(CommandResult.fromException(context.correlationId, exception))
             }
             if (!result.isSuccess) break
         }
@@ -511,7 +528,7 @@ public class DefaultCommandPipeline @JvmOverloads constructor(
             } catch (exception: Exception) {
                 hadFailure = true
                 if (recordedFailureIndexes == null || recordedFailureIndexes.add(handlerIndex)) {
-                    failures = failures.merge(CommandResult.exception(context.correlationId, exception))
+                    failures = failures.merge(CommandResult.fromException(context.correlationId, exception))
                 }
             }
         }
@@ -530,7 +547,7 @@ public class DefaultCommandPipeline @JvmOverloads constructor(
         } catch (exception: CancellationException) {
             throw exception
         } catch (exception: Exception) {
-            result = result.merge(CommandResult.exception(context.correlationId, exception))
+            result = result.merge(CommandResult.fromException(context.correlationId, exception))
         }
         return result
     }

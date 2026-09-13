@@ -59,7 +59,12 @@ import io.cratis.arc.queries.QueryableQueryRenderer
 import io.cratis.arc.queries.ReadModelForCommandResolverRegistry
 import io.cratis.arc.queries.ReadModelInterceptors
 import io.cratis.arc.tenancy.TenantIdResolver
+import io.cratis.arc.validation.ConceptValidator
+import io.cratis.arc.validation.ConceptValidationExclusion
+import io.cratis.arc.validation.ModelValidator
 import org.springframework.beans.factory.ObjectProvider
+import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.beans.factory.support.DefaultListableBeanFactory
 import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.context.properties.EnableConfigurationProperties
@@ -72,6 +77,25 @@ import org.springframework.context.annotation.Import
 @EnableConfigurationProperties(ArcProperties::class)
 @Import(ArcJacksonObjectMapperConfiguration::class)
 public class ArcAutoConfiguration {
+    // Field injection preserves the published no-arg constructor and two-provider bean factory descriptor.
+    // Dependency resolution retains original contributions and order metadata that adapters cannot carry.
+    @Autowired
+    private var authenticationApplicationContext: ApplicationContext? = null
+
+    // An injected provider preserves candidate eligibility and factory-method ordering without changing
+    // the published no-arg constructor or one-provider validation factories. Standalone calls stay typed-only.
+    @Autowired
+    private var conceptValidators: ObjectProvider<ConceptValidator<*>>? = null
+
+    @Autowired
+    private var modelValidators: ObjectProvider<ModelValidator<*>>? = null
+
+    @Autowired
+    private var conceptExclusions: ObjectProvider<ConceptValidationExclusion>? = null
+
+    // Resolve lazily at the existing factory to preserve its published descriptor and mapper authority/backoff.
+    @Autowired
+    private var emissionGuardMapper: ObjectProvider<tools.jackson.databind.ObjectMapper>? = null
 
     /** Resolves tenants from the configured strategy chain unless the application supplies an override. */
     @Bean
@@ -113,15 +137,29 @@ public class ArcAutoConfiguration {
         queryPerformers: QueryPerformerRegistry
     ): ArcArtifactModules = ArcArtifactModules(applicationContext, commandHandlers, queryPerformers)
 
-    /** Ordered host-neutral authentication chain; an application may replace the complete service. */
+    /**
+     * Globally Spring-ordered host-neutral authentication chain; an application may replace the complete service.
+     * Directly constructed configurations retain the legacy concatenation of the two supplied provider chains.
+     */
     @Bean
     @ConditionalOnMissingBean(Authentication::class)
     public fun arcAuthentication(
         handlers: ObjectProvider<AuthenticationHandler>,
         asyncHandlers: ObjectProvider<AsyncAuthenticationHandler>
-    ): Authentication = DefaultAuthentication(
-        handlers.orderedStream().toList() + asyncHandlers.orderedStream().map { it.asAuthenticationHandler() }.toList()
-    )
+    ): Authentication {
+        val applicationContext = authenticationApplicationContext
+            ?: return DefaultAuthentication(
+                handlers.orderedStream().toList() + asyncHandlers.orderedStream().map { it.asAuthenticationHandler() }.toList()
+            )
+        val contributions = AuthenticationContributions.ordered(applicationContext.autowireCapableBeanFactory as DefaultListableBeanFactory)
+        return DefaultAuthentication(contributions.map { contribution ->
+            when (contribution) {
+                is AuthenticationHandler -> contribution
+                is AsyncAuthenticationHandler -> contribution.asAuthenticationHandler()
+                else -> error("Unexpected authentication contribution '${contribution.javaClass.name}'.")
+            }
+        })
+    }
 
     /** Java-friendly asynchronous authentication service. */
     @Bean
@@ -169,12 +207,17 @@ public class ArcAutoConfiguration {
         evaluator: AuthorizationEvaluator
     ): CommandAuthorizationFilter = CommandAuthorizationFilter(handlers, evaluator)
 
-    /** Adapts every host-neutral typed validator declared as a Spring bean. */
+    /** Adapts Spring-ordered typed command, concept and model validator beans. */
     @Bean
     @ConditionalOnMissingBean
     public fun arcCommandValidationFilter(
         validators: ObjectProvider<CommandValidator<*>>
-    ): DefaultCommandValidationFilter = DefaultCommandValidationFilter(validators.orderedStream().toList())
+    ): DefaultCommandValidationFilter = DefaultCommandValidationFilter(
+        validators.orderedStream().toList(),
+        conceptValidators?.orderedStream()?.toList().orEmpty(),
+        modelValidators?.orderedStream()?.toList().orEmpty(),
+        conceptExclusions?.orderedStream()?.toList().orEmpty()
+    )
 
     /** Applies generated query authorization before all other query filters. */
     @Bean
@@ -184,12 +227,17 @@ public class ArcAutoConfiguration {
         evaluator: AuthorizationEvaluator
     ): QueryAuthorizationFilter = QueryAuthorizationFilter(performers, evaluator)
 
-    /** Adapts every host-neutral query validator declared as a Spring bean. */
+    /** Adapts Spring-ordered query, concept and model validator beans. */
     @Bean
     @ConditionalOnMissingBean
     public fun arcQueryValidationFilter(
         validators: ObjectProvider<QueryValidator>
-    ): DefaultQueryValidationFilter = DefaultQueryValidationFilter(validators.orderedStream().toList())
+    ): DefaultQueryValidationFilter = DefaultQueryValidationFilter(
+        validators.orderedStream().toList(),
+        conceptValidators?.orderedStream()?.toList().orEmpty(),
+        modelValidators?.orderedStream()?.toList().orEmpty(),
+        conceptExclusions?.orderedStream()?.toList().orEmpty()
+    )
 
     /** Bounded scope owned and closed by the application context. */
     @Bean(destroyMethod = "close")
@@ -244,7 +292,10 @@ public class ArcAutoConfiguration {
     @ConditionalOnMissingBean(ObservableQueryEmissionGuards::class)
     public fun arcObservableQueryEmissionGuards(
         guards: ObjectProvider<GuardObservableQueryEmission>
-    ): ObservableQueryEmissionGuards = DefaultObservableQueryEmissionGuards(guards.orderedStream().toList())
+    ): ObservableQueryEmissionGuards = DefaultObservableQueryEmissionGuards(
+        guards.orderedStream().toList(),
+        emissionGuardMapper?.ifAvailable ?: io.cratis.arc.json.ArcObjectMapper.create()
+    )
 
     /** Tracks observable-query connection and subscription health. */
     @Bean
