@@ -55,6 +55,113 @@ class ArcGradlePluginFunctionalTest {
     }
 
     @Test
+    fun `JVM proxies are compared against reproducibly captured Arc dotNET output`() {
+        val captured = File(property("capturedDifferential"))
+        val consumer = fixture("dotnet-capture-differential")
+        // The capture runs the .NET generator with segmentsToSkip 0; align the JVM side so routes and output
+        // directories are compared like for like rather than differing by harness configuration.
+        consumer.resolve("build.gradle").appendText(
+            "\ncratisArc { endpoints { segmentsToSkip.set(0) }\nproxies { segmentsToSkip.set(0) } }\n"
+        )
+        write(consumer, "src/main/kotlin/arc/kotlin/differential/fixture/Fixture.kt", """
+            package arc.kotlin.differential.fixture
+
+            import io.cratis.arc.artifacts.Command
+            import io.cratis.arc.artifacts.ReadModel
+            import java.time.LocalDate
+            import java.time.LocalTime
+            import java.time.OffsetDateTime
+            import java.util.UUID
+
+            public enum class OrderKind { Standard, Express }
+
+            public data class Address(public val street: String, public val city: String)
+
+            @Command
+            public data class PlaceOrder(
+                public val id: UUID,
+                public val customer: String,
+                public val quantity: Int,
+                public val express: Boolean,
+                public val requestedDate: LocalDate,
+                public val requestedTime: LocalTime,
+                public val placedAt: OffsetDateTime,
+                public val kind: OrderKind,
+                public val shipTo: Address,
+                public val tags: List<String>
+            ) {
+                public fun handle(): UUID = id
+            }
+
+            @ReadModel
+            public data class OrderView(
+                public val id: UUID,
+                public val customer: String,
+                public val kind: OrderKind,
+                public val requestedDate: LocalDate,
+                public val requestedTime: LocalTime,
+                public val shipTo: Address
+            ) {
+                public companion object {
+                    @JvmStatic public fun allOrders(): List<OrderView> = emptyList()
+                    @JvmStatic public fun orderById(id: UUID): OrderView = throw UnsupportedOperationException()
+                }
+            }
+        """.trimIndent())
+
+        val generation = runner(consumer, "generateArcProxies").build()
+        assertEquals(TaskOutcome.SUCCESS, generation.task(":generateArcProxies")?.outcome, generation.output)
+
+        // The shared harness seeds every consumer with its own default sources; compare only this fixture's package.
+        val jvmFiles = consumer.resolve("build/generated/proxies").walkTopDown()
+            .filter { it.isFile && it.extension == "ts" && "differential/fixture" in it.invariantSeparatorsPath }
+            .associateBy { it.name }
+        val dotnetFiles = captured.walkTopDown()
+            .filter { it.isFile && it.extension == "ts" }.associateBy { it.name }
+
+        // Both runtimes must at least agree on which artifacts exist for identical declarations.
+        assertEquals(
+            dotnetFiles.keys.sorted(),
+            jvmFiles.keys.sorted(),
+            "Generated artifact sets diverge.\nJVM: ${jvmFiles.keys.sorted()}\n.NET: ${dotnetFiles.keys.sorted()}"
+        )
+
+        val report = StringBuilder()
+        dotnetFiles.keys.sorted().forEach { name ->
+            val jvm = jvmFiles.getValue(name).readText().lines()
+            val dotnet = dotnetFiles.getValue(name).readText().lines()
+            if (jvm != dotnet) {
+                report.appendLine("=== $name")
+                dotnet.forEachIndexed { index, expected ->
+                    val actual = jvm.getOrNull(index)
+                    if (actual != expected) report.appendLine("  ${index + 1}\n    .NET: $expected\n    JVM : $actual")
+                }
+                if (jvm.size > dotnet.size) {
+                    jvm.drop(dotnet.size).forEach { report.appendLine("  extra JVM line: $it") }
+                }
+            }
+        }
+        File(property("work")).resolve("dotnet-capture-differential-report.txt").writeText(report.toString())
+
+        // Model and enum proxies agree byte for byte apart from the namespace casing both runtimes echo into the
+        // header Source field. This is real cross-runtime agreement and must not silently regress.
+        listOf("Address.ts", "OrderKind.ts").forEach { name ->
+            val jvm = jvmFiles.getValue(name).readText()
+            val dotnet = dotnetFiles.getValue(name).readText()
+            assertEquals(
+                dotnet.replace("Arc.Kotlin.Differential.Fixture.", "arc.kotlin.differential.fixture."),
+                jvm,
+                "$name diverged from captured Arc .NET output"
+            )
+        }
+        // Identical content produces an identical generated hash on both runtimes.
+        listOf("Address.ts", "OrderKind.ts").forEach { name ->
+            val hash = { text: String -> text.substringAfter("Hash: ").substringBefore("\n") }
+            assertEquals(hash(dotnetFiles.getValue(name).readText()), hash(jvmFiles.getValue(name).readText()), name)
+        }
+    }
+
+    @Test
     fun `configured type and package mappings import external types instead of generating them`() {
         val consumer = fixture(
             "external-mappings",

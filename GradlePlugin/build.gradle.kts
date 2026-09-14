@@ -104,6 +104,9 @@ tasks.test {
     systemProperty("arc.functional.version", project.version.toString())
     systemProperty("arc.functional.gradleHome", requireNotNull(gradle.gradleHomeDir).absolutePath)
     systemProperty("arc.functional.work", layout.buildDirectory.dir("functional-tests").get().asFile.absolutePath)
+    val capturedDifferential = layout.projectDirectory.dir("src/test/resources/differential/captured")
+    inputs.dir(capturedDifferential)
+    systemProperty("arc.functional.capturedDifferential", capturedDifferential.asFile.absolutePath)
     providers.gradleProperty("arc.handlerIndex.evidence").orNull?.let {
         systemProperty("arc.handlerIndex.evidence", it)
     }
