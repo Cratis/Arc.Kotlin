@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <AssemblyName>Arc.Kotlin.Differential.Fixture</AssemblyName>
+        <RootNamespace>Arc.Kotlin.Differential.Fixture</RootNamespace>
+        <!-- Arc's own analyzers run against this fixture; keep it warning-clean rather than suppressing them. -->
+        <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- Pinned deliberately. Moving this version re-captures the expected side and must be reviewed. -->
+        <PackageReference Include="Cratis.Arc" Version="22.14.0" />
+    </ItemGroup>
+</Project>
