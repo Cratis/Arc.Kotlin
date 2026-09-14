@@ -30,7 +30,11 @@ internal data class ProxyGenerationOptions(
     val outputDirectory: File,
     val endpointOptions: ApiEndpointOptions,
     val removeStaleGeneratedFiles: Boolean,
-    val segmentsToSkip: Int
+    val segmentsToSkip: Int,
+    /** Configured JVM type to TypeScript type mappings, keyed by fully qualified JVM type name. */
+    val typeMappings: Map<String, ProxyTypeMapping> = emptyMap(),
+    /** JVM package to npm package mappings; matching types are imported instead of generated. */
+    val packageMappings: Map<String, String> = emptyMap()
 )
 
 private enum class ArtifactKind { COMMAND, TYPE, INTERFACE, ENUM, QUERY }
@@ -71,7 +75,22 @@ internal class TypeScriptProxyGenerator(
     private val options: ProxyGenerationOptions
 ) {
     private val commandTypeNames = artifacts.commands.map(CommandDescriptor::typeName).toSet()
-    private val emittedTypes = artifacts.types.filterNot { it.fullyQualifiedName in commandTypeNames }
+
+    /**
+     * A type answered by configuration is never also generated.
+     *
+     * Emitting it as well would put a local declaration and an external import of the same name in scope, so a
+     * configured mapping has to remove the type from output the way Arc .NET excludes types from a mapped assembly.
+     */
+    private fun isExternallyMapped(typeName: String): Boolean =
+        typeName in options.typeMappings ||
+            ProxyTypeMappings.npmPackageFor(typeName, options.packageMappings) != null
+
+    private val emittedTypes = artifacts.types
+        .filterNot { it.fullyQualifiedName in commandTypeNames }
+        .filterNot { isExternallyMapped(it.fullyQualifiedName) }
+    private val emittedInterfaces = artifacts.interfaces.filterNot { isExternallyMapped(it.fullyQualifiedName) }
+    private val emittedEnums = artifacts.enums.filterNot { isExternallyMapped(it.fullyQualifiedName) }
     private val queryTargets = buildQueryTargets()
     private val conceptsBySource = artifacts.concepts.associateBy { concept -> concept.fullyQualifiedName }
     private val targets = buildTargets()
@@ -151,10 +170,10 @@ internal class TypeScriptProxyGenerator(
         emittedTypes.forEach {
             result += ArtifactTarget(it.fullyQualifiedName, it.name, outputDirectory(it.location), ArtifactKind.TYPE)
         }
-        artifacts.interfaces.forEach {
+        emittedInterfaces.forEach {
             result += ArtifactTarget(it.fullyQualifiedName, it.name, outputDirectory(it.location), ArtifactKind.INTERFACE)
         }
-        artifacts.enums.forEach {
+        emittedEnums.forEach {
             result += ArtifactTarget(it.fullyQualifiedName, it.name, outputDirectory(it.location), ArtifactKind.ENUM)
         }
         artifacts.queries.forEach { result += queryTarget(it) }
@@ -1230,13 +1249,29 @@ internal class TypeScriptProxyGenerator(
         concepts: MutableSet<String>
     ): TypeScriptType {
         val typeName = rawTypeName.removeSuffix("?")
-        val primitiveType = primitiveTypes[typeName]
-        if (primitiveType != null) return primitiveType
+        // Concepts unwrap first, then configuration, then the built-in map, matching the order Arc .NET's
+        // TypeExtensions.GetTargetType uses. Concepts and primitives never share a key, so moving the concept
+        // branch above the primitive lookup changes nothing on its own.
         conceptsBySource[typeName]?.let { concept ->
             if (!concepts.add(typeName)) {
                 throw GradleException("Cyclic Arc concept metadata for '$typeName' in '${current.sourceName}'.")
             }
             return resolveType(concept.underlyingTypeName, current, concepts)
+        }
+        // Ahead of the built-in map, which is what lets a mapping correct an existing type rather than only
+        // declare one the generator has never seen.
+        options.typeMappings[typeName]?.let { mapping ->
+            return TypeScriptType(
+                mapping.typeScriptType,
+                mapping.typeScriptType,
+                valueImport = mapping.npmPackage?.let { TypeScriptValueImport(it, mapping.typeScriptType) }
+            )
+        }
+        val primitiveType = primitiveTypes[typeName]
+        if (primitiveType != null) return primitiveType
+        ProxyTypeMappings.npmPackageFor(typeName, options.packageMappings)?.let { npmPackage ->
+            val simpleName = typeName.substringAfterLast('.')
+            return TypeScriptType(simpleName, simpleName, valueImport = TypeScriptValueImport(npmPackage, simpleName))
         }
         if (typeName.contains('<') || typeName.contains('>') || isMapType(typeName)) {
             throw GradleException("Unsupported generic or map type '$rawTypeName' in '${current.sourceName}'.")

@@ -34,6 +34,42 @@ cratisArc {
 }
 ```
 
+## Share types with an existing npm package
+
+A type can be answered by configuration instead of being generated, so a model already published in a
+TypeScript package is imported rather than duplicated.
+
+```kotlin
+proxies {
+    // A JVM type that should cross the wire as a plain TypeScript type.
+    mapType("java.time.Duration", "string")
+
+    // A JVM type that is imported from an npm package.
+    mapType("io.acme.shared.Money", "Money", "@acme/models")
+
+    // Every model type under a JVM package, imported by its simple name.
+    mapPackage("io.acme.shared.model", "@acme/models")
+}
+```
+
+Type mappings are consulted **ahead of** the generator's built-in type map, so an entry can correct an
+existing mapping as well as declare one the generator has never seen. Concepts are unwrapped first, so
+map the concept's underlying type rather than the concept.
+
+A mapped type is **not generated**. Emitting it as well would put a local declaration and an external
+import of the same name in scope. For a package mapping the longest matching JVM package wins, so a
+nested package can override a broader one.
+
+An entry that cannot be used is named in a build warning and skipped. It is not dropped silently,
+because a mapping that never took effect otherwise produces the built-in type, which looks plausible
+in generated output until it is wrong.
+
+The standalone CLI takes the same values as repeatable `--type-to-typescript
+<FullyQualifiedTypeName>=<TypeScriptType>[=<NpmPackage>]` and `--package-to-npm <JvmPackage>=<NpmPackage>`
+options. The value is split on at most two separators, so anything after the second one stays part of the
+npm package rather than being dropped without saying so. The TypeScript type itself therefore cannot
+contain an `=`.
+
 ## Run the task
 
 ```bash

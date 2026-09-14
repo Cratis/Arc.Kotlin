@@ -7,6 +7,8 @@ import javax.inject.Inject
 import org.gradle.api.Action
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.model.ObjectFactory
+import org.gradle.api.provider.ListProperty
+import org.gradle.api.provider.MapProperty
 import org.gradle.api.provider.Property
 
 /** Public configuration for the Arc Gradle plugin. */
@@ -53,4 +55,36 @@ public abstract class ArcProxyOptions @Inject constructor(objects: ObjectFactory
     public val removeStaleGeneratedFiles: Property<Boolean> =
         objects.property(Boolean::class.java).convention(true)
     public val segmentsToSkip: Property<Int> = objects.property(Int::class.java).convention(0)
+
+    /**
+     * Repeatable `<FullyQualifiedTypeName>=<TypeScriptType>[=<NpmPackage>]` entries.
+     *
+     * Consulted ahead of the generator's built-in type map, so an entry can correct an existing mapping as well as
+     * declare one the generator has never seen. Prefer [mapType] over adding raw strings.
+     */
+    public val typeMappings: ListProperty<String> = objects.listProperty(String::class.java)
+
+    /**
+     * JVM package to npm package mappings.
+     *
+     * Every model type under a mapped JVM package is imported from the npm package by its simple name instead of
+     * being generated. The longest matching package wins, so a nested package can override a broader one.
+     */
+    public val packageMappings: MapProperty<String, String> =
+        objects.mapProperty(String::class.java, String::class.java)
+
+    /** Maps a JVM type to a TypeScript type that needs no import, such as `string` or `number`. */
+    public fun mapType(typeName: String, typeScriptType: String) {
+        typeMappings.add("$typeName=$typeScriptType")
+    }
+
+    /** Maps a JVM type to a TypeScript type imported from an npm package. */
+    public fun mapType(typeName: String, typeScriptType: String, npmPackage: String) {
+        typeMappings.add("$typeName=$typeScriptType=$npmPackage")
+    }
+
+    /** Maps every model type under a JVM package to an npm package it is imported from instead of generated. */
+    public fun mapPackage(javaPackage: String, npmPackage: String) {
+        packageMappings.put(javaPackage, npmPackage)
+    }
 }

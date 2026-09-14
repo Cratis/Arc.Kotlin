@@ -55,6 +55,80 @@ class ArcGradlePluginFunctionalTest {
     }
 
     @Test
+    fun `configured type and package mappings import external types instead of generating them`() {
+        val consumer = fixture(
+            "external-mappings",
+            options = """
+                proxies {
+                    mapType('java.time.Duration', 'string')
+                    mapType('fixture.shared.Money', 'Money', '@acme/models')
+                    mapPackage('fixture.external', '@acme/external')
+                }
+            """.trimIndent()
+        )
+        write(consumer, "src/main/kotlin/fixture/mappings/Mappings.kt", """
+            package fixture.mappings
+            import fixture.external.Region
+            import fixture.shared.Money
+            @io.cratis.arc.artifacts.Command
+            public data class Pay(
+                public val total: Money,
+                public val region: Region,
+                public val elapsed: java.time.Duration
+            ) {
+                public fun handle(): String = total.amount.toString()
+            }
+        """.trimIndent())
+        write(consumer, "src/main/kotlin/fixture/shared/Money.kt", """
+            package fixture.shared
+            public data class Money(public val amount: Long)
+        """.trimIndent())
+        write(consumer, "src/main/kotlin/fixture/external/Region.kt", """
+            package fixture.external
+            public data class Region(public val code: String)
+        """.trimIndent())
+
+        val generation = runner(consumer, "generateArcProxies").build()
+        assertEquals(TaskOutcome.SUCCESS, generation.task(":generateArcProxies")?.outcome, generation.output)
+
+        val command = consumer.resolve("build/generated/proxies/mappings/Pay.ts").readText()
+        assertTrue(command.contains("import { Money } from '@acme/models';"), command)
+        assertTrue(command.contains("import { Region } from '@acme/external';"), command)
+        assertTrue(command.contains("elapsed?: string;"), command)
+        assertFalse(command.contains("from './Money'"), command)
+        assertFalse(command.contains("from '../shared/Money'"), command)
+        // A mapped type is answered by configuration, so it must not also be generated.
+        assertFalse(consumer.resolve("build/generated/proxies/shared/Money.ts").exists())
+        assertFalse(consumer.resolve("build/generated/proxies/external/Region.ts").exists())
+    }
+
+    @Test
+    fun `unusable proxy mappings are reported as warnings rather than dropped silently`() {
+        val consumer = fixture(
+            "unusable-mappings",
+            options = "proxies { typeMappings.add('fixture.Broken='); packageMappings.put('fixture.Empty', '  ') }"
+        )
+        write(consumer, "src/main/kotlin/fixture/warn/Warn.kt", """
+            package fixture.warn
+            @io.cratis.arc.artifacts.Command
+            public data class Warn(public val value: String) {
+                public fun handle(): String = value
+            }
+        """.trimIndent())
+
+        val generation = runner(consumer, "generateArcProxies").build()
+
+        assertEquals(TaskOutcome.SUCCESS, generation.task(":generateArcProxies")?.outcome, generation.output)
+        assertTrue(generation.output.contains("Ignoring unusable Arc proxy type mapping 'fixture.Broken='"), generation.output)
+        // The entry is quoted verbatim, so the whitespace-only value stays visible in the warning.
+        assertTrue(
+            generation.output.contains("Ignoring unusable Arc proxy package mapping 'fixture.Empty="),
+            generation.output
+        )
+        assertTrue(consumer.resolve("build/generated/proxies/warn/Warn.ts").exists())
+    }
+
+    @Test
     fun `native Kotlin and Java Map suffix models flow from KSP through discovery to ordinary proxies`() {
         val consumer = fixture("map-models")
         write(consumer, "src/main/kotlin/fixture/kotlinmaps/HeatMap.kt", """
