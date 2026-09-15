@@ -46,9 +46,9 @@ internal fun CommandContext.toChronicleAppendOptions(
 
 /** Adds explicit Arc causation to a Chronicle 4 cross-source append shape. */
 internal fun CommandContext.withChronicleCausation(
-    events: List<EventForEventSourceId>
+    events: List<EventForEventSourceId>,
+    causation: List<Causation> = chronicleCausation()
 ): List<EventForEventSourceId> {
-    val causation = chronicleCausation()
     val eventSourceType = eventMetadata?.eventSourceType
     val eventStreamType = eventMetadata?.eventStreamType
     val eventStreamId = eventMetadata?.eventStreamId
@@ -64,7 +64,7 @@ internal fun CommandContext.withChronicleCausation(
     }
 }
 
-private fun CommandContext.chronicleCausation(): List<Causation> {
+internal fun CommandContext.chronicleCausation(): List<Causation> {
     val properties = linkedMapOf(
         COMMAND_TYPE_PROPERTY to commandType.simpleName,
         COMMAND_TYPE_FULL_NAME_PROPERTY to commandType.name

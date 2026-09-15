@@ -8,6 +8,7 @@ import io.cratis.arc.commands.CommandExecutionScope
 import io.cratis.arc.commands.CommandExecutionToken
 import io.cratis.arc.results.CommandResult
 import io.cratis.chronicle.IEventStore
+import io.cratis.chronicle.auditing.Causation
 import io.cratis.chronicle.eventSequences.EventForEventSourceId
 import io.cratis.chronicle.eventSequences.concurrency.ConcurrencyScope
 import java.util.Collections
@@ -140,6 +141,10 @@ private class StagedChronicleRootUnitOfWork(
     private var eventStore: IEventStore? = null
     private var eventStoreNamespace: String? = null
     private val events = mutableListOf<EventForEventSourceId>()
+    // One execution frame contributes one immutable Arc command link, regardless of how many response leaves
+    // it enrolls. Fresh timestamps per leaf make even a single-command batch fail the SDK's single-chain check.
+    // Child frames and explicit event lineage remain distinct; do not flatten them to force a batch through.
+    private val frameCausation = IdentityHashMap<CommandExecutionToken, List<Causation>>()
     private val concurrencyScopes = linkedMapOf<String, ConcurrencyScope>()
 
     @Synchronized
@@ -200,7 +205,8 @@ private class StagedChronicleRootUnitOfWork(
 
         this.eventStore = eventStore
         eventStoreNamespace = namespace
-        this.events.addAll(context.withChronicleCausation(events))
+        val causation = frameCausation.getOrPut(token) { context.chronicleCausation() }
+        this.events.addAll(context.withChronicleCausation(events, causation))
         concurrencyScopes.forEach { (eventSourceId, scope) ->
             this.concurrencyScopes[eventSourceId] = scope
         }
@@ -215,6 +221,7 @@ private class StagedChronicleRootUnitOfWork(
         check(activeTokens.remove(token)) {
             "This nested command execution is not active in the Chronicle transaction root."
         }
+        frameCausation.remove(token)
         if (!result.isSuccess) rollbackOnly = true
     }
 
@@ -265,6 +272,7 @@ private class StagedChronicleRootUnitOfWork(
 
     private fun clear() {
         activeTokens.clear()
+        frameCausation.clear()
         events.clear()
         concurrencyScopes.clear()
         eventStore = null

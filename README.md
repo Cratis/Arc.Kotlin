@@ -91,6 +91,12 @@ Arc.Kotlin does not claim full Arc .NET parity. Controllers and non-Spring hosts
 
 `LocalDateTime`, `Instant`, `OffsetDateTime`, and `ZonedDateTime` still map to JavaScript `Date`. The `LocalDateTime` mapping invents a zone, while offset/zoned values lose their original offset or zone identity. Raw `08:09:10.1235567` hydrates through the pinned `TimeOnly` as `08:09:10.123`, proving millisecond truncation rather than rounding, so it is not an exact precision round-trip. Arc accepts and emits `LocalTime` values with up to seven fractional digits for 100 ns compatibility. Deserialization rejects eight or nine fractional digits, and serialization rejects values finer than 100 ns rather than rounding or truncating them. This server binding is distinct from the shared `@cratis/arc` generated-client limitation: explicit RFC QUERY bodies still pass `DateOnly` or `TimeOnly` component objects to native `JSON.stringify`; use GET until upstream serialization uses the typed serializer or `toJSON()`. `Guid` is unaffected because it has `toJSON()`, and the JVM server continues to require scalar date/time strings.
 
+Chronicle plain-event routing uses the command key captured before validation, never a second provider
+call after command mutation. Manual response-handler contexts must supply a captured key. The pinned
+client permits one causation chain per atomic batch: separate responses within one frame share Arc's
+command link, but heterogeneous explicit or nested-frame chains remain rejected rather than flattened
+or split. See the [staged transaction boundary](Documentation/guides/chronicle.md#commit-one-staged-chronicle-unit-of-work).
+
 Map support remains property-only: query parameters, top-level query/command response maps, non-string keys, nullable entries/elements, `ValueMap`, and model/concept/enum/UUID/temporal map leaves are rejected. Aggregate response metadata, calendar/UUID proxy fidelity, tenant-safe Spring Data command read models, and nested Chronicle transaction ownership are completed P0 slices. Chronicle now commits after local opt-in scopes, but thread-bound persistence and cross-store partial/indeterminate outcomes remain explicit limitations.
 
 Start with the [documentation](Documentation/index.md), then consult module tests for executable contract details.
