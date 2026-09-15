@@ -55,7 +55,6 @@ import io.cratis.arc.queries.QueryPipeline
 import io.cratis.arc.queries.QueryRendererFor
 import io.cratis.arc.queries.QueryRenderers
 import io.cratis.arc.queries.QueryValidator
-import io.cratis.arc.queries.QueryableQueryRenderer
 import io.cratis.arc.queries.ReadModelForCommandResolverRegistry
 import io.cratis.arc.queries.ReadModelInterceptors
 import io.cratis.arc.tenancy.TenantIdResolver
@@ -272,14 +271,11 @@ public class ArcAutoConfiguration {
         coroutineScope: ArcApplicationCoroutineScope
     ): AsyncCommandPipeline = AsyncCommandPipeline.fromCoroutineScope(pipeline, coroutineScope)
 
-    /** Aggregates ordered query renderer beans and the JVM in-memory iterable renderer. */
+    /** Aggregates application renderer beans; the registry supplies fallback only for otherwise unhandled values. */
     @Bean
     @ConditionalOnMissingBean(QueryRenderers::class)
-    public fun arcQueryRenderers(renderers: ObjectProvider<QueryRendererFor<*>>): QueryRenderers {
-        val discovered = renderers.orderedStream().toList()
-        val configured = if (discovered.any { it is QueryableQueryRenderer }) discovered else discovered + QueryableQueryRenderer()
-        return DefaultQueryRenderers(configured)
-    }
+    public fun arcQueryRenderers(renderers: ObjectProvider<QueryRendererFor<*>>): QueryRenderers =
+        DefaultQueryRenderers(renderers.orderedStream().toList())
 
     /** Aggregates ordered typed read-model interceptor beans. */
     @Bean

@@ -73,7 +73,44 @@ With explicit `transferMode=delta`, Arc prefers a stable generated or convention
 
 ## Extend result processing
 
-Register `QueryRendererFor<T>` beans to transform supported result values and paging before they leave the query pipeline. Renderers run in ascending `order()` and retain registration order for ties. Kotlin code can read the renderer's `type` and `order` property views, while Java implementations retain `queryType()` and `order()`. Arc includes `QueryableQueryRenderer`, which applies in-memory paging and sorting to `Iterable` results; large or provider-backed queries should return `QueryPage` or use a store-specific renderer so filtering remains in the database.
+Register `QueryRendererFor<T>` beans to transform supported result values and paging before they leave the query pipeline. Configured renderers match the **original** performer value, run in ascending `order()`, and retain registration order for ties. Each receives the preceding stage's `current` result. Kotlin code can read the renderer's `type` and `order` property views, while Java implementations retain `queryType()` and `order()`.
+
+A matching application renderer chain owns its data and paging. `DefaultQueryRenderers` uses its automatic
+`QueryableQueryRenderer` fallback only when **no configured renderer matches** the original value. This
+prevents restored filtered rows, lost projections, premature provider enumeration, and overwritten
+provider totals. Even a matching identity/no-op renderer owns its output; automatic in-memory paging
+is not silently appended to that chain.
+
+To filter first and then apply standard in-memory sorting/paging, explicitly include
+`QueryableQueryRenderer()` after the filter in the configured chain. In Spring, register it as a bean
+alongside the transforming renderer and make ordering explicit; its order is zero. Arc sorts primarily
+by each renderer's `order()`; Spring's `orderedStream()` supplies the input order retained for ties,
+not an override of that method. To place the built-in at another order, wrap/delegate it through the
+existing renderer interfaces. Avoid duplicate in-memory stages. This explicit stage
+processes `current.data`, never the original rows, and preserves null/non-iterable current projections.
+Do not add another in-memory paging stage after a renderer that already owns a provider page. Return
+`QueryPage` from the performer or use a store-specific renderer without that additional stage so
+filtering and paging remain owned by the database.
+
+This is a behavioral migration for existing renderer contributions: an application renderer no longer
+gets implicit iterable processing before or after it. Direct callers of `QueryableQueryRenderer` must
+initialize `QueryRendererResult.data` with the values to process; null now means a null projection,
+not permission to recover the original query. Later interceptors or serialization may still enumerate
+the **current output**; ownership does not make an unchanged provider cursor lazy end-to-end.
+Original-array and performer-returned `QueryPage`/`QueryResult` dispatch boundaries are unchanged.
+
+The default in-memory sorter reads public instance properties only. It honors public Kotlin getters
+(including properties with private setters), Java record accessors, field-backed public JavaBean getters,
+and public Java instance fields. It does not bypass a getter to read private storage or expose arbitrary
+zero-argument methods. Kotlin visibility is retained for inherited Kotlin declarations on Java classes.
+Every non-null runtime row type is checked before comparisons, including singleton results; inaccessible
+and unknown keys use the same failure path, with no sorted payload. Getter cancellation and fatal errors
+propagate rather than becoming ordinary query failures.
+
+This is a visibility boundary, **not a per-field authorization policy**. A public property remains public
+even if JSON annotations omit it. Return a suitably restricted DTO or supply a custom renderer when a
+query needs a narrower sort-key allowlist. Empty/all-null results provide no runtime type to inspect.
+Provider-owned `QueryPage` results and the documented original-array boundary are unchanged.
 
 Register `InterceptReadModel<T>` beans for ordered, per-model interception after rendering. Kotlin code can use the interceptor's `type` and `order` property views; Java retains `readModelType()` and `order()`. Both renderer and interceptor chains apply to one-shot and observable results. Blocking Java stores can implement the corresponding blocking convenience interfaces; asynchronous contracts use `CompletionStage`.
 

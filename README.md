@@ -61,6 +61,18 @@ Supply a release version with `-Pversion=<version>`; local builds default to `0.
 
 ## Current limits
 
+Application query renderer chains own their data and paging. The iterable renderer is automatic only
+when no application renderer matches the original value. Explicitly register `QueryableQueryRenderer`
+where in-memory processing belongs in a custom chain; it processes current data, not discarded original
+rows. Existing identity/logging renderers also require this opt-in. Provider-owned pages must not be
+fed into another in-memory paging stage. See [renderer composition](Documentation/guides/queries.md).
+
+The default in-memory sorter reads public instance properties, not private storage. Java records and
+field-backed bean properties use their public accessors, and inherited Kotlin visibility remains
+respected from Java. Unknown/inaccessible keys fail even for singleton rows, without a sorted payload.
+This is not a sort-key authorization allowlist; restrict the result DTO or provide a custom renderer
+for public properties that must not be sortable. See [query rendering](Documentation/guides/queries.md).
+
 JPA concept storage is an [application-owned mapping recipe](Documentation/guides/spring-data.md#map-jpa-concepts-explicitly-in-the-application), not automatic Arc conversion. Kotlin and ordinary-Java `JpaConceptStorageTests`/`JavaJpaConceptStorageTests` execute explicit UUID/String/Long attribute converters and one-column embedded concept IDs, including Java record embeddables, on Hibernate 7.4.5.Final with H2 2.5.250. This does not certify converters on basic `@Id`, other providers/databases or numeric types, repository tenant routing, or Arc .NET persistence parity.
 
 MongoDB concept storage has a separate [application-owned converter recipe](Documentation/guides/spring-data.md#map-mongodb-concepts-explicitly-in-the-application). Kotlin and ordinary-Java `MongoConceptStorageTests`/`JavaMongoConceptStorageTests` execute explicit UUID/String/Long converter pairs, scalar BSON IDs/fields, and certified two-database routing with Spring Data MongoDB 5.1.1 and driver 5.8.1 against mongo-java-server 1.47.0 `MemoryBackend`. This emulator evidence is not real MongoDB, Testcontainers, production/change-stream certification, automatic Arc conversion, or Arc .NET parity.
