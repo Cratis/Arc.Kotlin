@@ -60,15 +60,26 @@ A mapped type is **not generated**. Emitting it as well would put a local declar
 import of the same name in scope. For a package mapping the longest matching JVM package wins, so a
 nested package can override a broader one.
 
-An entry that cannot be used is named in a build warning and skipped. It is not dropped silently,
-because a mapping that never took effect otherwise produces the built-in type, which looks plausible
-in generated output until it is wrong.
+Unpackaged overrides support `string`, `number`, `boolean`, `object`, and `Date`, with their actual
+JavaScript runtime constructors (`String`, `Number`, `Boolean`, `Object`, and `Date`). Packaged
+mappings require a named export. Manifest interfaces use type-only imports and `Object` descriptors;
+manifest numeric enums use type-only imports and `Number` descriptors. Other mapped types must export
+a constructible class with fields registered using Fundamentals `@field` decorators. A plain,
+undecorated class is not a hydration contract: its payload fields may be lost. Mappings change client
+generation, not server serialization; the package must honor the existing JSON wire shape.
+
+A missing or blank mapping component is named in a build warning and skipped. Nonblank but unsafe or
+unrepresentable mappings, import collisions, and overrides of command or concept declarations fail
+before output is written. Map the properties/response of a command or the underlying value of a concept
+instead. Arbitrary TypeScript expressions, unions, arrays in a type name, and ambient undeclared
+constructors are not supported. Map values only support primitive overrides; external map-value
+hydration and externally mapped polymorphic bases/derivatives are not supported.
 
 The standalone CLI takes the same values as repeatable `--type-to-typescript
 <FullyQualifiedTypeName>=<TypeScriptType>[=<NpmPackage>]` and `--package-to-npm <JvmPackage>=<NpmPackage>`
-options. The value is split on at most two separators, so anything after the second one stays part of the
-npm package rather than being dropped without saying so. The TypeScript type itself therefore cannot
-contain an `=`.
+options. The value is split on at most two separators. Anything after the second stays in the package
+field and is validated as part of its import path; it is never silently discarded. Neither the exported
+identifier nor the npm import path may contain an `=`.
 
 ## Run the task
 

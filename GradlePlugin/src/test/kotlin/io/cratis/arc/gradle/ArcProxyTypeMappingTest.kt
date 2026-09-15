@@ -13,6 +13,8 @@ import java.nio.file.Path
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.assertThrows
+import org.gradle.api.GradleException
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 
@@ -185,6 +187,71 @@ internal class ArcProxyTypeMappingTest {
 
         assertEquals(mapOf("shared" to "@acme/models"), mappings)
         assertEquals(3, warnings.size, warnings.toString())
+    }
+
+    @Test
+    fun `invalid mappings fail before touching output including unused entries`() {
+        val output = temporaryDirectory.resolve("unsafe")
+        Files.createDirectories(output)
+        val manual = output.resolve("manual.ts")
+        Files.writeString(manual, "// keep this file\n")
+        val artifacts = MergedArcArtifacts(emptyList(), emptyList(), emptyList(), emptyList())
+        for (entry in listOf(
+            "app.Bad=string[]", "app.Bad=X;throw Error()=@acme/models",
+            "app.Bad=Money=@acme/models'", "app.Bad=Money=../models", "app.Bad=Money=@acme/../models",
+            "app.Bad=unknown", "app.Bad=ImaginaryGlobal", "app.Bad=delete=@acme/models",
+            "app.Bad=return=@acme/models", "app.Bad=const=@acme/models"
+        )) {
+            assertThrows(GradleException::class.java, { generate(output, artifacts, listOf(entry)) }, entry)
+            assertEquals("// keep this file\n", Files.readString(manual))
+        }
+    }
+
+    @Test
+    fun `external import collisions include generated scaffolding and global constructors`() {
+        val command = CommandDescriptor("Save", "app.Save", listOf(
+            PropertyDescriptor("text", "kotlin.String"), PropertyDescriptor("mapped", "shared.Money")
+        ))
+        val artifacts = MergedArcArtifacts(listOf(command), emptyList(), emptyList(), emptyList())
+        for (name in listOf("String", "Command", "PropertyDescriptor", "ISave", "Save", "SaveValidator")) {
+            val failure = assertThrows(GradleException::class.java) {
+                generate(temporaryDirectory.resolve(name), artifacts, listOf("shared.Money=$name=@acme/models"))
+            }
+            assertTrue(name in failure.message.orEmpty(), failure.message)
+        }
+    }
+
+    @Test
+    fun `external interface and enum names cannot shadow their global descriptor constructors`() {
+        val view = io.cratis.arc.metadata.InterfaceDescriptor("View", "shared.View", emptyList(), emptyList())
+        val state = io.cratis.arc.metadata.EnumDescriptor("State", "shared.State")
+        for ((type, name) in listOf("shared.View" to "Object", "shared.State" to "Number")) {
+            val command = CommandDescriptor("Save", "app.Save", listOf(PropertyDescriptor("value", type)))
+            val artifacts = MergedArcArtifacts(listOf(command), emptyList(), emptyList(), listOf(state), listOf(view))
+            val failure = assertThrows(GradleException::class.java) {
+                generate(temporaryDirectory.resolve(name), artifacts, listOf("$type=$name=@acme/models"))
+            }
+            assertTrue("shadowed" in failure.message.orEmpty(), failure.message)
+        }
+    }
+
+    @Test
+    fun `mapping addition and removal cleans generated models but preserves manual files`() {
+        val money = TypeDescriptor("Money", "shared.Money", listOf("shared"), emptyList())
+        val command = CommandDescriptor("Pay", "app.Pay", listOf(PropertyDescriptor("total", "shared.Money")))
+        val artifacts = MergedArcArtifacts(listOf(command), emptyList(), listOf(money), emptyList())
+        val output = temporaryDirectory.resolve("transitions")
+        generate(output, artifacts)
+        val manual = output.resolve("manual.ts")
+        Files.writeString(manual, "// authored\n")
+        assertTrue(Files.exists(output.resolve("Money.ts")))
+        generate(output, artifacts, packageMappings = mapOf("shared" to "@acme/models"))
+        assertFalse(Files.exists(output.resolve("Money.ts")))
+        assertFalse(Files.readString(output.resolve("index.ts")).contains("./Money"))
+        assertEquals("// authored\n", Files.readString(manual))
+        generate(output, artifacts)
+        assertTrue(Files.exists(output.resolve("Money.ts")))
+        assertTrue(Files.readString(output.resolve("index.ts")).contains("./Money"))
     }
 
     private fun generate(

@@ -73,6 +73,13 @@ respected from Java. Unknown/inaccessible keys fail even for singleton rows, wit
 This is not a sort-key authorization allowlist; restrict the result DTO or provide a custom renderer
 for public properties that must not be sortable. See [query rendering](Documentation/guides/queries.md).
 
+External TypeScript mappings require compatible runtime exports: unimported overrides are limited to
+`string`, `number`, `boolean`, `object`, and `Date`; mapped classes need Fundamentals field metadata for
+hydration. Manifest interfaces and numeric enums retain `Object`/`Number` descriptors and type-only
+imports. Mappings do not change server JSON. Unsupported type expressions, import collisions, and
+external map-value or polymorphic-base/derivative hydration fail rather than silently emitting invalid
+clients. See [external package mappings](Documentation/guides/typescript-proxies.md#share-types-with-an-existing-npm-package).
+
 JPA concept storage is an [application-owned mapping recipe](Documentation/guides/spring-data.md#map-jpa-concepts-explicitly-in-the-application), not automatic Arc conversion. Kotlin and ordinary-Java `JpaConceptStorageTests`/`JavaJpaConceptStorageTests` execute explicit UUID/String/Long attribute converters and one-column embedded concept IDs, including Java record embeddables, on Hibernate 7.4.5.Final with H2 2.5.250. This does not certify converters on basic `@Id`, other providers/databases or numeric types, repository tenant routing, or Arc .NET persistence parity.
 
 MongoDB concept storage has a separate [application-owned converter recipe](Documentation/guides/spring-data.md#map-mongodb-concepts-explicitly-in-the-application). Kotlin and ordinary-Java `MongoConceptStorageTests`/`JavaMongoConceptStorageTests` execute explicit UUID/String/Long converter pairs, scalar BSON IDs/fields, and certified two-database routing with Spring Data MongoDB 5.1.1 and driver 5.8.1 against mongo-java-server 1.47.0 `MemoryBackend`. This emulator evidence is not real MongoDB, Testcontainers, production/change-stream certification, automatic Arc conversion, or Arc .NET parity.

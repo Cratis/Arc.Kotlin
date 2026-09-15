@@ -97,7 +97,10 @@ listOf(":Source", ":CodeGeneration:KSP", ":Integrations:SpringBoot", ":Integrati
     }
 }
 tasks.test {
-    dependsOn(prepareFunctionalRepository, functionalPluginJar)
+    dependsOn(prepareFunctionalRepository, functionalPluginJar, ":ContractTests:typeScriptInstall")
+    val mappingClient = rootProject.layout.projectDirectory.dir("ContractTests/TypeScript")
+    inputs.files(mappingClient.file("package.json"), mappingClient.file("package-lock.json"))
+    systemProperty("arc.mapping.nodeModules", mappingClient.dir("node_modules").asFile.absolutePath)
     inputs.files(functionalPluginClasspath)
     inputs.dir(functionalRepository)
     systemProperty("arc.functional.repository", functionalRepository.get().asFile.absolutePath)
