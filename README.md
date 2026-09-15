@@ -64,6 +64,11 @@ The separate seven-file captured proxy comparison is guarded by
 must match the reviewed receipt and snapshot hashes. This runs offline before GradlePlugin tests; it is
 not a fresh .NET execution or an attestation, and does not establish full cross-runtime parity.
 
+An explicit [`:ContractTests:httpConformanceTest`](ContractTests/HttpConformance/README.md) now compares
+nine selected task-board HTTP behaviors on real Arc .NET 22.14.0, Kotlin, and Java hosts. It uses pinned
+public .NET packages and the existing generated JVM samples, preserves raw responses, and stays outside
+ordinary build/check. It is not full server parity; paging totals and framework 404 bodies differ.
+
 ## Current limits
 
 Application query renderer chains own their data and paging. The iterable renderer is automatic only

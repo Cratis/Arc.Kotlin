@@ -160,6 +160,41 @@ val chronicleRealKernelTestTask = tasks.register<Test>("chronicleRealKernelTest"
     systemProperty("arc.chronicle.javaSample.jar", javaChronicleSampleBootJar.get().asFile.absolutePath)
 }
 
+// Explicit cross-runtime HTTP proof; deliberately not a dependency of check/build or proxy generation.
+val javaHttpSample = project(":Samples:Java:SpringBoot")
+evaluationDependsOn(":Samples:Java:SpringBoot")
+val javaHttpBootJar = javaHttpSample.tasks.named<org.springframework.boot.gradle.tasks.bundling.BootJar>("bootJar")
+val httpConformanceHarnessTest by tasks.registering(Exec::class) {
+    group = "verification"
+    description = "Checks paired HTTP assertions, loopback transport and bounded child lifecycle without starting framework hosts"
+    inputs.dir(layout.projectDirectory.dir("HttpConformance"))
+    commandLine("python3", "-B", "-m", "unittest", "discover", "-s",
+        layout.projectDirectory.dir("HttpConformance").asFile.absolutePath, "-v")
+    doFirst {
+        val managed = providers.environmentVariable("AI_WORK_OUTPUT").orNull
+        check(managed != null) { "AI_WORK_OUTPUT is required for the explicit HTTP harness tests." }
+        environment("AI_WORK_OUTPUT", managed)
+    }
+}
+val httpConformanceTest by tasks.registering(Exec::class) {
+    group = "verification"
+    description = "Runs selected HTTP contracts against pinned Arc .NET and real generated Kotlin/Java samples"
+    dependsOn(httpConformanceHarnessTest, kotlinSampleBootJarTask, javaHttpBootJar)
+    val evidence = providers.gradleProperty("arc.httpConformance.output")
+    val managed = providers.environmentVariable("AI_WORK_OUTPUT")
+    doFirst {
+        check(evidence.isPresent && managed.isPresent) {
+            "Run explicitly with lifecycle AI_WORK_OUTPUT and -Parc.httpConformance.output=<new .ai-work directory>."
+        }
+        commandLine("python3", "-B", layout.projectDirectory.file("HttpConformance/run.py").asFile.absolutePath,
+            "--kotlin-jar", kotlinSampleBootJar.get().asFile.absolutePath,
+            "--java-jar", javaHttpBootJar.get().archiveFile.get().asFile.absolutePath,
+            "--java", "${System.getProperty("java.home")}/bin/java",
+            "--output", evidence.get())
+        environment("AI_WORK_OUTPUT", managed.get())
+    }
+}
+
 tasks.named("check") {
     dependsOn(typeScriptRuntimeTest)
 }

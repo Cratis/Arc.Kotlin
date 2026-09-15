@@ -28,6 +28,28 @@ Unsupported methods return 405 with an `Allow` header. Conventional routes use t
 
 Default observable emission guards now reconstruct [bounded per-dispatch argument copies](../guides/queries.md#bound-emission-guard-arguments). Unsupported or uncopyable guarded arguments terminate with the existing unauthorized result before any guard executes; this is behavioral tightening, not a wire-schema change. No guards means no argument-copy validation. Query opening and result-data ownership are unchanged.
 
+## Paired HTTP conformance evidence
+
+The explicit `:ContractTests:httpConformanceTest` gate exercises the real generated Kotlin and Java
+Spring Boot task-board samples alongside a repository-authored ASP.NET Core task board using published
+`Cratis.Arc` 22.14.0. It requires JDK 17, pinned .NET SDK 10.0.400 and runtime 10.0.11, and an explicit
+lifecycle-owned output location; it is not part of ordinary `build` or `check`. Run instructions live
+in `ContractTests/HttpConformance/README.md`.
+
+Nine cases run independently on each host: initial empty query, two distinct typed create responses,
+GET and RFC QUERY identifier binding, enumerable snapshots, successful validation without execution,
+completion response/state, malformed command JSON without mutation, and unknown-route status. The
+harness checks complete two-task snapshots, success flags and correlation UUIDs, QUERY `no-store`,
+and malformed-command validation classification without parser details. It preserves raw responses;
+it does not normalize them into claimed byte equality.
+
+This is selected task-board HTTP evidence, not a guarantee that all declarations or features match.
+The Java array and .NET plain enumerable queries do not count rows like the Kotlin iterable query,
+so their paging totals remain outside the common assertions. Framework-generated 404 bodies differ;
+only their status is compared. Authentication/authorization rejection, custom validation-rule parity,
+null/default handling, temporal precision, paging requests, streaming and database behavior remain
+outside this fixture. See the [parity reference](parity.md).
+
 ## Request headers
 
 | Header | Behavior |
