@@ -9,6 +9,8 @@ import io.cratis.arc.metadata.CommandDescriptor
 import io.cratis.arc.metadata.EnumDescriptor
 import io.cratis.arc.metadata.EnumMemberDescriptor
 import io.cratis.arc.metadata.InterfaceDescriptor
+import io.cratis.arc.metadata.ParameterDescriptor
+import io.cratis.arc.queries.QueryTransportType
 import io.cratis.arc.metadata.PropertyDescriptor
 import io.cratis.arc.metadata.QueryDescriptor
 import io.cratis.arc.metadata.TypeDescriptor
@@ -135,6 +137,52 @@ internal class ArcProxyMappingRuntimeTest {
                 assert.equal(many.data[0].amount, 48);
             } finally {
                 await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+            }
+            console.log('MAPPED_RUNTIME_OK');
+        """.trimIndent())
+    }
+
+    @Test
+    fun `returned row sorting helpers compile and set correct fields for one shot and observable queries`() {
+        val parent = TypeDescriptor("ParentRow", "data.ParentRow", listOf("data"), listOf(
+            PropertyDescriptor("id", "kotlin.String"), PropertyDescriptor("_name", "kotlin.String")))
+        val row = TypeDescriptor("Row", "data.Row", listOf("data"), listOf(
+            PropertyDescriptor("name", "kotlin.String"), PropertyDescriptor("query", "kotlin.String")
+        ), baseTypeName = parent.fullyQualifiedName)
+        val queries = listOf(
+            QueryDescriptor("searchRows", "app.Queries", row.fullyQualifiedName, listOf(ParameterDescriptor("filter", "kotlin.String")),
+                isEnumerable = true, supportsSorting = true),
+            QueryDescriptor("allRows", "app.Queries", row.fullyQualifiedName, isEnumerable = true, supportsSorting = true),
+            QueryDescriptor("watchRows", "app.Queries", row.fullyQualifiedName, listOf(ParameterDescriptor("filter", "kotlin.String")),
+                transport = QueryTransportType.OBSERVABLE, isEnumerable = true, supportsSorting = true),
+            QueryDescriptor("watchAllRows", "app.Queries", row.fullyQualifiedName,
+                transport = QueryTransportType.OBSERVABLE, isEnumerable = true, supportsSorting = true)
+        )
+        generate(listOf(ArcArtifactManifest("SortHelpers", queries = queries, types = listOf(row, parent))), emptyList())
+        runClient("""
+            import assert from 'node:assert/strict';
+            import { SearchRows } from './generated/SearchRows';
+            import { AllRows } from './generated/AllRows';
+            import { WatchRows } from './generated/WatchRows';
+            import { WatchAllRows } from './generated/WatchAllRows';
+            import { SortDirection } from '@cratis/arc/queries';
+            for (const query of [new SearchRows(), new AllRows(), new WatchRows(), new WatchAllRows()]) {
+                assert.equal(query.sortBy.name.ascending().field, 'name');
+                assert.equal(query.sorting.field, 'name');
+                assert.equal(query.sorting.direction, SortDirection.ascending);
+                assert.equal(query.sortBy.id.descending().field, 'id');
+                assert.equal(query.sorting.field, 'id');
+                assert.equal(query.sorting.direction, SortDirection.descending);
+                assert.equal(query.sortBy.query.ascending().field, 'query');
+                assert.equal(query.sortBy._name.ascending().field, '_name');
+                assert.equal('filter' in query.sortBy, false);
+            }
+            for (const helpers of [SearchRows.sortBy, AllRows.sortBy, WatchRows.sortBy, WatchAllRows.sortBy]) {
+                assert.equal(helpers.name.descending.field, 'name');
+                assert.equal(helpers.id.ascending.field, 'id');
+                assert.equal(helpers.query.ascending.field, 'query');
+                assert.equal(helpers._name.descending.field, '_name');
+                assert.equal('filter' in helpers, false);
             }
             console.log('MAPPED_RUNTIME_OK');
         """.trimIndent())

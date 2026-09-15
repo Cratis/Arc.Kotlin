@@ -213,7 +213,12 @@ accurately; never round them up.
   its four-space-indented `filter: string;` member in exactly one known `ObserveParameters` block to
   four spaces; it is not an empty interface and `ObserveOne.ts` is excluded. Missing/duplicate
   correction anchors and misplaced suppressions fail preparation. Ignored hook calls carry no
-  type-soundness claim. Historical capture-time namespace/query casing and removed timestamps/hashes
+  type-soundness claim. Three explicit expected-side helper corrections (`Models/All.ts`, `Search.ts`,
+  `Observe.ts`) now use independently declared returned-row fields instead of query arguments, guarded
+  by unique anchors and fixed original block hashes; only All gains SortingActions imports and the
+  helper owner is no longer exposed as `query`. Request parameters, routes, hooks and flags remain
+  untouched. This is a documented JVM correctness divergence, not raw .NET output parity.
+  Historical capture-time namespace/query casing and removed timestamps/hashes
   remain embedded in the fixture; capture SDK/tool versions remain unverified. Actual byte/path
   mutations include a changed body with a valid recomputed hash, through the same comparison path.
   `Contracts/Shape.ts` is a class, not interface-emission proof. The Record fixture proves only

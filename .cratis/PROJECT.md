@@ -137,7 +137,13 @@ import rewrites for `verbatimModuleSyntax`; exactly one enumerable generic corre
 `super(FixtureModel, true)`); and the exact-site eslint/ts-ignore hook pair, not arbitrary suppression.
 Only `Models/Observe.ts` also changes the zero-space blank line immediately before its four-space-
 indented `filter: string;` member in exactly one known `ObserveParameters` block to four spaces.
-This is not an empty interface, and `ObserveOne.ts` is excluded. Missing/duplicate correction
+This is not an empty interface, and `ObserveOne.ts` is excluded. The three captured helper pairs in
+`Models/All.ts`, `Models/Search.ts`, and `Models/Observe.ts` additionally receive an explicit
+expected-side result-field correction: fixed SHA-256 block digests and unique anchors are checked
+before replacing parameter-derived helper fields with the literal returned-model field inventory;
+only All gains the corresponding SortingActions imports. The constructor no longer stores a public
+`query` owner property. Request parameters, routes, hooks and capability flags are not changed.
+This semantic JVM correction is not raw .NET source-output parity. Missing/duplicate correction
 anchors and misplaced suppressions fail preparation. No type-soundness claim is made for ignored
 hook calls. `Contracts/Shape.ts` is a class, not interface-emission proof.
 

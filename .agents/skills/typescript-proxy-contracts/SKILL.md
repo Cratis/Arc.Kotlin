@@ -162,6 +162,14 @@ anchors and misplaced suppressions fail preparation, and no type-soundness claim
 hook calls. Actual mutation tests exercise this same reader/preparer/byte comparator, including
 wrong Observe spacing, non-TS files, headers, and a changed body with a valid recomputed hash.
 
+The helper pairs in `Models/All.ts`, `Models/Search.ts`, and `Models/Observe.ts` also receive an explicit
+expected-side result-field correction through `ExpectedSortHelperPreparation`: unique anchors and fixed
+original block hashes guard replacement with the independently declared FixtureModel field inventory.
+Only All gains SortingActions imports; the helper constructor no longer exposes its owner as `query`.
+No request parameter, route, hook or capability flag is changed. This semantic correction records a
+JVM correctness divergence, not matching .NET output. Mutations of original helper blocks and of actual
+sort keys must fail. See the full preparation inventory in the guide.
+
 Historical capture-time namespace/query casing and removed timestamps/hashes are embedded in the
 fixture, not reproduced here. Capture SDK/tool versions remain unverified. `Contracts/Shape.ts`
 is a class, not interface-emission proof. The Record fixture proves only string keys/string values,

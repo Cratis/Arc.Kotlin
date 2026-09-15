@@ -182,6 +182,19 @@ internal class GeneratedTypeScriptProxiesTest {
     }
 
     @Test
+    fun `generated Kotlin and Java Spring Data helpers sort returned values not request labels`() {
+        for (queryName in listOf("SpringDataAsync", "SpringDataDirect", "SpringDataJavaDirect", "SpringDataSuspend")) {
+            val proxy = generated(queryName)
+            assertContains(proxy, "get value(): SortingActions")
+            assertContains(proxy, "new SortingActions('value')")
+            assertContains(proxy, "new ParameterDescriptor('label', String, false)")
+            assertContains(proxy, "label: string;")
+            assertFalse("get label(): SortingActions" in proxy, proxy)
+            assertFalse("constructor(readonly query:" in proxy, proxy)
+        }
+    }
+
+    @Test
     fun `one shot and observable proxies expose only client query parameters`() {
         mapOf(
             "All" to listOf("prefix"),

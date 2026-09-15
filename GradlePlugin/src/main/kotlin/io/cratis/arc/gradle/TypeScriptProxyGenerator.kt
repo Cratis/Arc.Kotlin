@@ -604,7 +604,7 @@ internal class TypeScriptProxyGenerator(
         val parameterTypes = parameters.map { resolveParameterType(it, target) }
         val referencedTypes = listOf(model) + parameterTypes
         val imports = customImports(referencedTypes, referencedTypes)
-        val sortableProperties = parameters.map(ParameterDescriptor::name)
+        val sortableProperties = returnedSortProperties(query)
         val className = target.typeScriptName
         val modelType = model.name + if (query.isEnumerable) "[]" else ""
         val parameterType = if (parameters.isEmpty()) "" else ", ${className}Parameters"
@@ -720,7 +720,7 @@ internal class TypeScriptProxyGenerator(
         val parameterTypes = parameters.map { resolveParameterType(it, target) }
         val referencedTypes = listOf(model) + parameterTypes
         val imports = customImports(referencedTypes, referencedTypes)
-        val sortableProperties = parameters.map(ParameterDescriptor::name)
+        val sortableProperties = returnedSortProperties(query)
         val className = target.typeScriptName
         val modelType = model.name + if (query.isEnumerable) "[]" else ""
         val parameterType = if (parameters.isEmpty()) "" else ", ${className}Parameters"
@@ -914,40 +914,38 @@ internal class TypeScriptProxyGenerator(
         .replace("\r", "\\r")
         .replace("\n", "\\n") + "'"
 
+    /** Select only declared return-row fields; request arguments are not sortable row members. */
+    private fun returnedSortProperties(query: QueryDescriptor): List<String> {
+        if (!query.isEnumerable || !query.supportsSorting) return emptyList()
+        val names = sortedSetOf<String>()
+        val visited = mutableSetOf<String>()
+        var typeName: String? = query.returnTypeName
+        while (typeName != null) {
+            if (!visited.add(typeName)) {
+                throw GradleException("Cyclic Arc return-model inheritance for '${query.fullyQualifiedName}' at '$typeName'.")
+            }
+            val model = artifacts.types.firstOrNull { it.fullyQualifiedName == typeName }
+            if (model == null) {
+                // Interface inheritance is not represented by the manifest; do not invent missing members.
+                artifacts.interfaces.firstOrNull { it.fullyQualifiedName == typeName }?.properties?.forEach {
+                    names += lowerCamel(it.name)
+                }
+                break
+            }
+            model.properties.forEach { names += lowerCamel(it.name) }
+            typeName = model.baseTypeName
+        }
+        names.firstOrNull { it == "constructor" || !TYPESCRIPT_IDENTIFIER.matches(it) }?.let { name ->
+            throw GradleException("Cannot generate Arc sorting helper '${query.fullyQualifiedName}.$name'; rename that return-model member or expose a different result contract.")
+        }
+        return names.toList()
+    }
+
     private fun StringBuilder.appendObservableSortHelpers(
         className: String,
         model: String,
         properties: List<String>
-    ) {
-        append("\nclass ${className}SortBy {\n")
-        properties.forEach { property ->
-            append("    private _${lowerCamel(property)}: SortingActionsForObservableQuery<$model[]>;\n")
-        }
-        append("\n    constructor(readonly query: $className) {\n")
-        properties.forEach { property ->
-            val name = lowerCamel(property)
-            append("        this._$name = new SortingActionsForObservableQuery<$model[]>('$name', query);\n")
-        }
-        append("    }\n")
-        if (properties.isNotEmpty()) append("\n")
-        properties.forEach { property ->
-            val name = lowerCamel(property)
-            append("    get $name(): SortingActionsForObservableQuery<$model[]> {\n        return this._$name;\n    }\n")
-        }
-        if (properties.isEmpty()) append("\n")
-        append("}\n\nclass ${className}SortByWithoutQuery {\n")
-        properties.forEach { property ->
-            val name = lowerCamel(property)
-            append("    private _$name: SortingActions  = new SortingActions('$name');\n")
-        }
-        append("\n")
-        properties.forEach { property ->
-            val name = lowerCamel(property)
-            append("    get $name(): SortingActions {\n        return this._$name;\n    }\n")
-        }
-        append("}\n")
-        if (properties.isEmpty()) append("\n")
-    }
+    ) = appendSortHelpers(className, model, properties, "SortingActionsForObservableQuery")
 
     private fun StringBuilder.appendObservableQueryHooks(
         query: QueryDescriptor,
@@ -1025,32 +1023,40 @@ internal class TypeScriptProxyGenerator(
         }
     }
 
-    private fun StringBuilder.appendSortHelpers(className: String, model: String, properties: List<String>) {
-        append("\nclass ${className}SortBy {\n")
-        properties.forEach { property ->
-            append("    private _${lowerCamel(property)}: SortingActionsForQuery<$model[]>;\n")
-        }
-        append("\n    constructor(readonly query: $className) {\n")
-        properties.forEach { property ->
+    private fun StringBuilder.appendSortHelpers(
+        className: String,
+        model: String,
+        properties: List<String>,
+        actions: String = "SortingActionsForQuery"
+    ) {
+        // `_name` and `name` are both valid row fields. Private storage must not collide with either
+        // public accessor, nor with another private slot (including collisions inherited from a base).
+        val reserved = properties.map(::lowerCamel).toMutableSet()
+        val storage = properties.associate { property ->
             val name = lowerCamel(property)
-            append("        this._$name = new SortingActionsForQuery<$model[]>('$name', query);\n")
+            var slot = "_$name"
+            while (!reserved.add(slot)) slot = "_$slot"
+            name to slot
+        }
+        append("\nclass ${className}SortBy {\n")
+        storage.values.forEach { append("    private $it: $actions<$model[]>;\n") }
+        append("\n    constructor(query: $className) {\n")
+        storage.forEach { (name, slot) ->
+            append("        this.$slot = new $actions<$model[]>('$name', query);\n")
         }
         append("    }\n")
         if (properties.isNotEmpty()) append("\n")
-        properties.forEach { property ->
-            val name = lowerCamel(property)
-            append("    get $name(): SortingActionsForQuery<$model[]> {\n        return this._$name;\n    }\n")
+        storage.forEach { (name, slot) ->
+            append("    get $name(): $actions<$model[]> {\n        return this.$slot;\n    }\n")
         }
         if (properties.isEmpty()) append("\n")
         append("}\n\nclass ${className}SortByWithoutQuery {\n")
-        properties.forEach { property ->
-            val name = lowerCamel(property)
-            append("    private _$name: SortingActions  = new SortingActions('$name');\n")
+        storage.forEach { (name, slot) ->
+            append("    private $slot: SortingActions  = new SortingActions('$name');\n")
         }
         append("\n")
-        properties.forEach { property ->
-            val name = lowerCamel(property)
-            append("    get $name(): SortingActions {\n        return this._$name;\n    }\n")
+        storage.forEach { (name, slot) ->
+            append("    get $name(): SortingActions {\n        return this.$slot;\n    }\n")
         }
         append("}\n")
         if (properties.isEmpty()) append("\n")
