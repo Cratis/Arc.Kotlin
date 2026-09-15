@@ -2,6 +2,13 @@
     <PropertyGroup>
         <TargetFramework>net10.0</TargetFramework>
         <Nullable>enable</Nullable>
+        <RuntimeFrameworkVersion>10.0.11</RuntimeFrameworkVersion>
+        <RollForward>Disable</RollForward>
+        <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+        <RestoreLockedMode>true</RestoreLockedMode>
+        <NuGetAudit>false</NuGetAudit>
+        <ImportDirectoryBuildProps>false</ImportDirectoryBuildProps>
+        <ImportDirectoryBuildTargets>false</ImportDirectoryBuildTargets>
         <ImplicitUsings>enable</ImplicitUsings>
         <AssemblyName>Arc.Kotlin.Differential.Fixture</AssemblyName>
         <RootNamespace>Arc.Kotlin.Differential.Fixture</RootNamespace>
@@ -11,6 +18,6 @@
 
     <ItemGroup>
         <!-- Pinned deliberately. Moving this version re-captures the expected side and must be reviewed. -->
-        <PackageReference Include="Cratis.Arc" Version="22.14.0" />
+        <PackageReference Include="Cratis.Arc" Version="[22.14.0]" />
     </ItemGroup>
 </Project>

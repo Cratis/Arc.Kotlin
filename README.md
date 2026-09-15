@@ -59,6 +59,11 @@ Run the documentation-only gate with:
 
 Supply a release version with `-Pversion=<version>`; local builds default to `0.0.0-SNAPSHOT`.
 
+The separate seven-file captured proxy comparison is guarded by
+`:GradlePlugin:verifyCapturedProxyBaseline`: current generator inputs and SDK/runtime/package/tool pins
+must match the reviewed receipt and snapshot hashes. This runs offline before GradlePlugin tests; it is
+not a fresh .NET execution or an attestation, and does not establish full cross-runtime parity.
+
 ## Current limits
 
 Application query renderer chains own their data and paging. The iterable renderer is automatic only

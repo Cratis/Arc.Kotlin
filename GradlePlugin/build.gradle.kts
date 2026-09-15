@@ -18,6 +18,34 @@ dependencies {
     testImplementation(gradleTestKit())
 }
 
+// Offline capture consistency: no dotnet invocation, package restore, network, or snapshot regeneration.
+val captureHarness = layout.projectDirectory.dir("src/test/resources/differential/capture")
+val capturedBaseline = layout.projectDirectory.dir("src/test/resources/differential/captured")
+val testCapturedProxyBaseline by tasks.registering(Exec::class) {
+    group = "verification"
+    description = "Tests the offline capture consistency verifier against stale-input and tampering mutations"
+    inputs.dir(captureHarness)
+    inputs.dir(capturedBaseline)
+    val testWork = providers.gradleProperty("arc.captureBaseline.testWork")
+        .orElse(layout.buildDirectory.dir("capture-baseline-tests").map { it.asFile.absolutePath })
+    commandLine("python3", "-B", "-m", "unittest", "discover", "-s", captureHarness.asFile.absolutePath,
+        "-p", "test_baseline.py", "-v")
+    doFirst {
+        val directory = file(testWork.get())
+        check(directory.isDirectory || directory.mkdirs()) { "Cannot create capture verifier test workspace: $directory" }
+        environment("AI_WORK_OUTPUT", directory.absolutePath)
+    }
+}
+val verifyCapturedProxyBaseline by tasks.registering(Exec::class) {
+    group = "verification"
+    description = "Checks the seven-file captured baseline against current input hashes and reviewed SDK/runtime/package pins"
+    dependsOn(testCapturedProxyBaseline)
+    inputs.dir(captureHarness)
+    inputs.dir(capturedBaseline)
+    commandLine("python3", "-B", captureHarness.file("verify_baseline.py").asFile.absolutePath, "--check")
+}
+tasks.test { dependsOn(verifyCapturedProxyBaseline) }
+
 // Both internal readers exercise the same module-name cases without a compiler dependency.
 tasks.processTestResources {
     from(rootProject.file("CodeGeneration/KSP/src/test/resources/response-handler-module-names.csv"))

@@ -1,68 +1,156 @@
-# Reproducible Arc .NET proxy capture
+# Arc .NET proxy capture harness
 
-`capture.sh` regenerates real Arc .NET TypeScript proxy output from published NuGet packages at pinned
-versions. It exists because the differential fixture in `../dotnet` was hand-prepared with no recorded
-provenance, which is what `Documentation/reference/parity.md` means when it says capture-time fixture
-preparation is not yet reproducible tooling.
+This harness builds only the repository-authored `Fixture.cs`, using published NuGet packages.
+It never reads, builds, installs from, or copies from a sibling Arc checkout. It does not update
+`../captured` or `../dotnet`. Ordinary JVM tests check the reviewed seven-file baseline offline; an
+actual .NET capture remains an explicit operation.
 
-## Run it
+## Run
+
+Requires Python 3.9+, the exact SDK/runtime below, network access to nuget.org, and the local
+`ai-work-lifecycle` CLI. From the physical repository root (no symlink components):
 
 ```bash
-./capture.sh [output-directory]   # defaults to ../captured
+ai-work-lifecycle --repo "$PWD" run-task capture-example -- sh -c \
+  'GradlePlugin/src/test/resources/differential/capture/capture.sh --output "$AI_WORK_KEEP/capture"'
 ```
 
-Requires `dotnet` on `PATH`. Everything else is downloaded at pinned versions.
+Use a unique task name each time. `--output` is mandatory and must name a **nonexistent directory**
+under this repository's `.ai-work/`, with an existing parent. Existing captures, empty directories,
+manual directories, files, symlinks (including ancestor/dangling links), and paths outside `.ai-work/`
+are refused. There is no overwrite or cleanup switch. Historical snapshots cannot be destinations.
 
-It never reads, builds, or copies from a sibling Arc .NET checkout, so the result does not depend on an
-unrecorded local working tree.
+Work goes into a newly allocated directory inside lifecycle's `AI_WORK_OUTPUT`; no system `mktemp`
+or recursive deletion is used. Only after generation, normalization, and verification succeed is the
+complete staged tree atomically published with no replacement, even if another process creates an
+empty destination between validation and publication. This needs macOS `renamex_np` or Linux
+`renameat2`, with staging and destination on the same filesystem. Other hosts fail closed. This is
+not a security boundary against a hostile same-user process swapping ancestor directories.
 
-## What is pinned
+The harness leaves all scratch cleanup to lifecycle. Its conservative cleanup may retain copied C#
+sources, extracted packages, or NuGet scratch files for review; read its cleanup result. Failed runs
+leave recovery evidence and no published capture. Do not infer that retained output is disposable
+merely because a command exited.
 
-| Input | Version |
+## Pins and isolation
+
+| Input | Pin |
 | --- | --- |
-| `Cratis.Arc` | 22.14.0 |
-| `Cratis.Arc.ProxyGenerator` | 22.14.0 |
+| .NET SDK | `global.json`: 10.0.400, roll-forward disabled, no prereleases |
+| Runtime / reflection reference sets | Microsoft.NETCore.App and Microsoft.AspNetCore.App 10.0.11 |
+| `Cratis.Arc` | exact `[22.14.0]` PackageReference |
+| `Cratis.Arc.ProxyGenerator` | `tool.lock.json`: 22.14.0, archive URL and SHA-256 |
+| Fixture dependency graph | `packages.lock.json`, restored with `--locked-mode` |
+| Signed dependency archive bytes | `packages.sha256.json`, 100 package SHA-256 checksums |
+| NuGet sources | `NuGet.Config`: nuget.org only, cleared fallback folders/source mapping |
 
-Both were the latest published versions, matching Arc .NET's `v22.14.0` tag. The resolved dotnet SDK is
-recorded in the output rather than pinned, because the generator reads the fixture through a
-`MetadataLoadContext` against the installed runtime.
+The SDK is selected from a copied `global.json` in the private project directory and checked.
+Both runtime versions must be installed. The tool runs with `dotnet exec --fx-version 10.0.11
+--roll-forward Disable`. Its logged MetadataLoadContext reference directories must also identify
+those exact framework versions; missing, duplicate, or different resolution fails capture. Merely
+having a version installed is not treated as proof that reflection used it.
 
-Every run writes `capture-manifest.json` beside the captured TypeScript, recording those versions, the
-resolved SDK, the normalization applied, and a SHA-256 for every captured file.
+The generator's published tool archive bundles its dependency closure. Its bytes are verified before
+extracting only `tools/net10.0/any/`; no global/local dotnet tool installation or tool-manifest search
+occurs. Fixture restore uses only the explicit NuGet config and the standard shared package cache,
+then checks the package-only assets graph, archive SHA-256, and extracted package payload bytes before
+publishing. NuGet's lockfile `contentHash` is a logical package hash, **not necessarily the hash of the
+signed archive**; these are deliberately separate checks.
 
-## The one normalization, and why
+The subprocess environment is allowlisted, ancestor Directory.Build/Directory.Packages imports are
+disabled, and publish uses `--no-restore`. No source/project reference to Arc is involved. NuGet audit
+is disabled for this capture-only project to avoid an unrelated changing advisory feed; this is not
+a security audit. Shared cache corruption fails rather than being silently repaired.
 
-The Arc .NET generator stamps a wall-clock `Time:` field into every generated header:
+Pin updates are deliberate reviews: resolve the changed project in a new lifecycle workspace with
+locked mode disabled, review the entire generated dependency lock, record SHA-256 for every resolved
+signed archive, and replace the reviewed lock files here. Normal capture never regenerates locks or
+falls forward to another SDK, runtime, tool, or package version. Archive checksums are integrity pins,
+not signatures or a claim of independently authenticated publisher identity.
 
-```text
-// @generated by Cratis. Source: ...PlaceOrder. Time: 2026-09-14T07:42:48.6501150Z. Hash: C8FB...
+## Output and exact normalization
+
+A capture contains:
+
+- `raw/`: untouched generator bytes, including timestamps and original body checksums.
+- `normalized/`: the expected-side candidate; only the first header line's `Time:` field is removed.
+- `inputs/`: the exact fixture, project, scripts, SDK/NuGet configuration, and all locks used.
+- `capture-manifest.json`: format 2, tool/archive/SDK/runtime/platform provenance, input hashes,
+  raw and normalized inventories, and uppercase SHA-256 of every other output file.
+
+Every non-index `.ts` file must have exactly one first-line header with a source identity, a valid UTC
+seven-fractional-digit timestamp, and an uppercase 64-hex body SHA-256. The body checksum is verified
+**before** normalization. Header syntax drift, duplicates, wrong checksums, BOM/CRLF headers, and
+unexpected outputs fail closed. Headerless `index.ts` files accept only the generator's exact export
+line grammar. Bodies, whitespace, casing, paths, imports, and checksums are not rewritten. Nothing is
+applied to JVM output.
+
+Two equivalent runs should have identical `normalized/` bytes and matching input/tool/runtime pins.
+Their raw timestamps, raw hashes, and therefore full manifests will differ. Do not claim complete
+capture trees or raw generator bytes are deterministic.
+
+Verify a retained capture without building or downloading anything:
+
+```bash
+GradlePlugin/src/test/resources/differential/capture/capture.sh --verify /absolute/.ai-work/path/capture
 ```
 
-The JVM generator emits no such field. Captured verbatim, the fixture would differ from itself on every
-run — which is exactly what prevented a reproducible capture before. `capture.sh` removes that field at
-capture time, in a step recorded in the manifest, rather than hiding it inside a comparison that rewrites
-output later.
+Verification checks the exact inventory, hashes, and rederives every normalized file from its raw
+counterpart. This detects accidental corruption; a manifest is not an attestation and can be replaced
+along with its files. Consumers should additionally compare `inputHashes` against reviewed harness
+inputs and enforce their expected tool/runtime/package pins. The JVM differential should consume
+only `normalized/` after provenance validation, keeping any semantic expected-side preparation
+separate and never normalizing actual JVM output. Integration and snapshot promotion are separate
+reviewed changes; this harness makes no claim of raw .NET/JVM output equivalence.
 
-**Nothing else is transformed, and nothing whatsoever is applied to JVM output.** Two consecutive runs
-produce byte-identical trees.
+## Offline baseline consistency gate
 
-## The fixture
+`./gradlew :GradlePlugin:verifyCapturedProxyBaseline` runs as a dependency of `:GradlePlugin:test`.
+It first exercises the verifier's mutation tests, then checks `baseline-receipt.json` against:
 
-`Fixture.cs` is authored here rather than copied. It deliberately carries `Guid`, `DateOnly`, and
-`TimeOnly`, which the older `../dotnet` fixture does not — `parity.md` notes that gap and attributes that
-coverage to focused generator and contract tests instead.
+- The bytes of every current generation input in `capture.INPUTS`, including the fixture, project,
+  capture scripts, SDK/NuGet configuration, and dependency/tool locks.
+- The configured SDK, runtime/reflector, package, generator argument, and tool-archive pins.
+- The exact seven paths and bytes in `../captured`, plus that snapshot's existing format-1 metadata.
 
-Captured output confirms, from real .NET rather than from assertion, that Arc .NET maps `Guid` to `Guid`,
-`DateOnly` to `DateOnly`, and `TimeOnly` to `TimeOnly` from `@cratis/fundamentals`, renders enum members
-camel-cased with a `Number` property descriptor, and imports nested models relatively.
+No dotnet command, network request, package-cache access, local `.ai-work` capture, or output rewrite
+is part of normal checking. Python 3 is required, as it already is for the test-declaration checker.
+Unit-test scratch is isolated in temporary directories under `build/capture-baseline-tests`; local
+managed checks may set `-Parc.captureBaseline.testWork=<lifecycle-output-directory>`. The verifier
+itself only reads files. It does not adopt the older nineteen-file `../dotnet` fixture, whose original
+capture provenance remains different and incomplete.
 
-## Status
+A receipt is a **reviewed consistency fixture, not an attestation**. Its capture-manifest digest names
+retained evidence but cannot re-prove tool execution without that full capture. Replacing the receipt
+and its inputs together can forge the claim; code review is still required. Ordinary checking prevents
+accidental/stale drift, not malicious coordinated edits to the checker, fixture and receipt. Raw bytes
+are verified only when producing a candidate from a full capture.
 
-What is done: the capture is reproducible, pinned, provenance-recorded, and proven byte-identical across
-runs.
+When generation inputs change, make a new explicit capture with the pinned tool, then prepare a
+candidate receipt without overwriting either reviewed baseline:
 
-What is **not** done: the differential gate in `ArcGradlePluginTest` still compares against the older
-hand-prepared `../dotnet` fixture. Repointing the gate at a captured expected side is a separate change
-that has to reconcile the existing expected-only preparation inventory documented in
-`Documentation/guides/typescript-proxies.md`. Until then this harness is proof and reference, not the
-gate's input, and no claim of raw .NET output equivalence follows from it.
+```bash
+python3 -B verify_baseline.py --candidate /absolute/.ai-work/path/new-capture \
+  > /absolute/.ai-work/path/candidate-receipt.json
+```
+
+Candidate generation verifies the complete format-2 raw/normalized inventory and timestamp removal,
+requires input hashes to match today's source and all metadata pins, then writes only JSON to stdout.
+Review the candidate and normalized proxy diff before updating `baseline-receipt.json` and, if needed,
+the seven-file fixture in one change. Never recompute the receipt from a snapshot alone or update input
+hashes just to clear the gate. The receipt/checker/tests themselves are not generator inputs, avoiding
+a self-referential hash while keeping every source actually used to produce proxies bound.
+
+## Harness tests
+
+```bash
+ai-work-lifecycle --repo "$PWD" run-task capture-tests -- \
+  python3 -B -m unittest discover -s GradlePlugin/src/test/resources/differential/capture -v
+```
+
+Tests cover checksum corruption (including extracted cache bytes), exact normalization and index
+syntax, malformed headers, unsafe destinations, runtime resolution, tool archive traversal,
+subprocess/IO failures, publication races, and rehashed normalized-file tampering. They use only
+Python's standard library and lifecycle-owned temporary directories; no .NET installation is needed
+for these unit tests. The additional `test_baseline.py` cases run automatically before
+`:GradlePlugin:test`; the standalone capture-harness tests still run through the explicit command above.

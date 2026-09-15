@@ -250,6 +250,23 @@ The separate `ArcGradlePluginTest` test `raw jvm proxy bytes equal the prepared 
 
 This remains a drift gate for the normalized fixture, not an exact raw .NET-output comparison; capture-time fixture preparation is not yet reproducible tooling. Capture SDK and tool versions remain unverified. The .NET-derived `FixtureModel.labelsByCategory` capture already contains `@field(Object)` and `Record<string, string>` and receives no dictionary-shape rewrite, although its file receives the formatting preparation below. It proves only this string-key/string-value Record fixture, not non-string keys, nullable entries, typed model values, `ValueMap`, or broader dictionary parity. Covered shapes include commands, one-shot and observable queries, models, derived types, enums, flags, validators, indexes, and that bounded Record fixture. `Contracts/Shape.ts` is a class, not proof of interface emission. The current .NET fixture contains no `Guid`, `DateOnly`, or `TimeOnly`, so the temporal/UUID mapping itself is covered by focused generator and contract tests rather than this differential. Overall Arc .NET parity remains Partial.
 
+### Verify the separate captured baseline offline
+
+The seven-file `differential/captured` comparison is separate from the nineteen-file historical fixture
+above. `:GradlePlugin:verifyCapturedProxyBaseline` runs before `:GradlePlugin:test` and binds that
+seven-file snapshot to the reviewed capture-input hashes and SDK/runtime/package/tool pins. Mutation
+tests prove that stale scripts/lockfiles, changed proxy bytes, renewed snapshot checksums, and malformed
+or incomplete metadata fail. Normal verification reads local repository files only; it requires Python
+but no .NET SDK, network, package cache, or retained session capture.
+
+The baseline receipt is a consistency check, not cryptographic proof that a publisher's tool ran.
+After changing a generation input, use the capture harness's explicit pinned-package capture and
+`verify_baseline.py --candidate <full-capture>` workflow, review the normalized diff, then update the
+receipt and fixture together where necessary. The candidate command verifies raw-to-normalized bytes
+and current input pins, and prints JSON without changing either reviewed fixture. See the harness
+README under `GradlePlugin/src/test/resources/differential/capture/` for the exact commands and safety
+boundaries. Do not update hashes alone to clear stale-input failures. Overall parity remains Partial.
+
 ### Expected-only differential preparation
 
 Historical capture-time namespace and query-name casing transformations and removal of timestamps/hashes are already embedded in the 19 checked-in files; this test does not reproduce that capture. Its executable preparation is limited to:
