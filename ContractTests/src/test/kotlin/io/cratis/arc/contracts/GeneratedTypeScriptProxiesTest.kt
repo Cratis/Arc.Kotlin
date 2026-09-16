@@ -18,6 +18,16 @@ internal class GeneratedTypeScriptProxiesTest {
     )
 
     @Test
+    fun `identity provider and factory declarations export unannotated details proxies`() {
+        for (language in listOf("Kotlin", "Java")) {
+            assertContains(generated("${language}IdentityDetails"), "address!: IdentityAddress;")
+            assertContains(generated("${language}IdentityDetails"), "@field(IdentityAddress)")
+            assertContains(generated("${language}FactoryIdentityDetails"), "source!: string;")
+        }
+        assertContains(generated("IdentityAddress"), "city!: string;")
+    }
+
+    @Test
     fun `body properties produce wire named descriptors constraints reachable models and separate inheritance`() {
         val command = generated("KotlinBodyCommand")
         val descriptors = listOf("zulu", "alpha", "URLValue", "backed", "child", "id", "title")

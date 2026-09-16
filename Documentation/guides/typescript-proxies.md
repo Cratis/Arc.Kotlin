@@ -169,6 +169,42 @@ Arc accepts and emits `LocalTime` values with up to seven fractional digits for 
 
 Concept wrapper classes are not emitted or imported into the client. Imports are retained for generated underlying enums and model classes when Arc needs them for typing or runtime result construction. Type-only generated interfaces use `import type` where appropriate, and the strict contract enables `verbatimModuleSyntax` so accidental runtime imports fail compilation. The OpenAPI starter continues to describe `UUID`, `LocalDate`, and `LocalTime` as `string`/`uuid`, `string`/`date`, and `string`/`time`; the richer classes are generated-client types, not new wire shapes.
 
+## Discover identity details
+
+KSP automatically exports the details graph of public concrete source providers implementing
+`IdentityDetailsProvider<T>` or `AsyncIdentityDetailsProvider<T>`. It also reads public typed factory
+returns: Kotlin top-level, member and companion functions, and ordinary Java static or instance
+methods. Spring `@Bean` is not required. The Kotlin sample's anonymous provider is discoverable from
+its factory's `IdentityDetailsProvider<SampleIdentityDetails>` return type; KSP does not inspect the
+object body, evaluate `detailsType`, instantiate providers, or register runtime beans.
+
+Inherited generic bindings are resolved through provider base classes. Abstract generic provider
+bases, including implicitly abstract Kotlin sealed classes, remain templates; a concrete provider or
+factory must establish a supported, public top-level
+concrete details class with no type parameters. Raw, wildcard/star-projected, `Any`/`Object`, generic,
+inaccessible and unsupported details shapes fail with `ARCKSP0307` (graph failures also retain their
+specific model diagnostic). Bind a concrete details type and correct its graph rather than relying
+on runtime erasure. Existing supported nested property graphs are traversed; this does not broaden
+DTO shape support.
+
+Identity-only compilations emit the same artifact module, service entry and format-7 manifest with
+empty command/query lists. Roots and graph metadata are rebuilt from current-round source declarations,
+including generated declarations alongside already valid roots; native Kotlin and Java incremental
+checks cover correction, addition, removal, inherited generic binding changes and reachable DTO property
+edits. KSP artifact comparisons use fresh output and project-cache directories and require KSP to execute;
+proxy assertions separately check the changed roots and fields. `ArcSymbolProcessorIdentityCompilationTest`, `ArcIdentityDiscoveryFunctionalTest`,
+`GeneratedIdentityArtifactsTest`, `IdentityArtifactsJavaContractTest` and
+`GeneratedTypeScriptProxiesTest` cover this declaration-to-client path.
+
+Dependency-only providers are not scanned wholesale. Compile tests demonstrate source bindings through
+compiled Kotlin and ordinary Java generic provider bases, and a dependency-resident Kotlin data-class
+DTO with a string property. This is not evidence for arbitrary binary DTOs or Java binary record
+property discovery. Use the existing
+`@ExportedType` on a supported source DTO when no public source provider/factory declaration exposes
+it. Explicit export remains useful for unrelated DTOs, but is unnecessary for the sample's typed
+identity factory. This is compile-time discovery, not .NET assembly scanning or bulk library export;
+no runtime provider registration or raw-output equivalence is implied.
+
 ## Include declared body properties
 
 Generated command and model metadata preserves public constructor-property order and appends remaining eligible public declared Kotlin properties sorted by name. Backed body `var`, backed `val`, and private-setter `var` state uses the existing shape, key, constraint, summary, and reachable-model machinery. Member `@JsonIgnore` and nonpublic Kotlin state are excluded. A model's inherited state remains in its separate base model, with declared overrides retained; inherited command state is not established by this change.

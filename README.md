@@ -71,7 +71,14 @@ ordinary build/check. It is not full server parity; paging totals and framework 
 
 ## Current limits
 
-Static resources and SPA fallback belong to application-configured Spring facilities, not Arc. Existing query infrastructure injection and Spring binding replace the need for `@FromRequest`; this is not an arbitrary request-injection API. KSP's annotated command/query generation entry points need no `@IgnoreAutoRegistration`, without implying that every discovery path is annotation-only. Runtime `ArcOneOf` does not imply `@GenerateOneOf` union generation. Screenplay and non-Spring hosting are not planned; see the [explicit dispositions](Documentation/reference/parity.md).
+Identity details now reach manifests and generated clients through public source provider supertypes
+and typed Kotlin/Java factory returns, including anonymous providers returned by typed factories.
+Concrete erased, star-projected, generic or unsupported details boundaries fail with `ARCKSP0307`;
+bind a supported concrete DTO. Dependency-only providers are not scanned wholesale, runtime bean
+registration is unchanged, and bulk DTO export is not provided. See
+[identity discovery](Documentation/guides/typescript-proxies.md#discover-identity-details).
+
+Static resources and SPA fallback belong to application-configured Spring facilities, not Arc. Existing query infrastructure injection and Spring binding replace the need for `@FromRequest`; this is not an arbitrary request-injection API. KSP's annotated command/query entry points need no `@IgnoreAutoRegistration`; identity details are also discovered automatically from public concrete source providers and typed factory returns, independently of annotations. Runtime `ArcOneOf` does not imply `@GenerateOneOf` union generation. Screenplay and non-Spring hosting are not planned; see the [explicit dispositions](Documentation/reference/parity.md).
 
 Application query renderer chains own their data and paging. The iterable renderer is automatic only
 when no application renderer matches the original value. Explicitly register `QueryableQueryRenderer`

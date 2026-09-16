@@ -67,6 +67,7 @@ internal class ArcSymbolProcessorNegativeCompilationTest {
             "ARCKSP0304",
             "ARCKSP0305",
             "ARCKSP0306",
+            "ARCKSP0307",
             "ARCKSP0400"
         ).forEach { code -> assertTrue("[$code]" in result.messages, "Missing $code in:\n${result.messages}") }
         for (owner in listOf("ComputedBodyInput", "ComputedBodyChild")) {
@@ -97,6 +98,14 @@ internal class ArcSymbolProcessorNegativeCompilationTest {
         exportedTypeTargetDiagnostics().forEach { message ->
             assertTrue("[ARCKSP0306] $message" in result.messages, "Missing ARCKSP0306 message '$message' in:\n${result.messages}")
         }
+        for (name in listOf("sealedIdentity", "starredIdentity", "erasedIdentity", "genericIdentity", "hiddenIdentity", "GenericIdentityProvider", "genericProviderReturn", "InvalidJavaIdentityProviders.genericProviderReturn",
+            "InvalidJavaIdentityProviders.GenericProvider", "InvalidJavaIdentityProviders.hiddenIdentity", "InvalidJavaIdentityProviders.projectedIdentity",
+            "InvalidJavaIdentityProviders.rawIdentity", "InvalidJavaIdentityProviders.wildcardIdentity",
+            "InvalidJavaIdentityProviders.erasedIdentity", "InvalidJavaIdentityProviders.genericIdentity")) {
+            assertTrue("[ARCKSP0307] Identity provider declaration 'io.cratis.arc.contracts.negative.$name' " +
+                "has no supported concrete public top-level details class" in result.messages, result.messages)
+        }
+        assertTrue("unsupportedIdentity' has an unsupported details graph" in result.messages, result.messages)
         assertTrue("@CommandEventStreamId with a blank or control-character value" in result.messages, result.messages)
         assertTrue("@CommandEventSubject with a blank or control-character value" in result.messages, result.messages)
         assertTrue("cannot declare @CommandEventStreamId and implement CommandEventStreamIdProvider" in result.messages, result.messages)
