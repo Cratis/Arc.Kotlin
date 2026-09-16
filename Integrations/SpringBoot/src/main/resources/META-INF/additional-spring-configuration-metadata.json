@@ -1,6 +1,11 @@
 {
   "groups": [
     {
+      "name": "cratis.arc.platform-identity",
+      "type": "io.cratis.arc.springboot.ArcPlatformIdentityProperties",
+      "description": "Optional trusted-ingress platform identity bridge."
+    },
+    {
       "name": "cratis.arc",
       "type": "io.cratis.arc.springboot.ArcProperties",
       "description": "Configuration for the Arc Spring Boot host."
@@ -22,6 +27,12 @@
     }
   ],
   "properties": [
+    {
+      "name": "cratis.arc.platform-identity.enabled",
+      "type": "java.lang.Boolean",
+      "defaultValue": false,
+      "description": "Enables unsigned platform-header authentication with an application trusted-ingress policy; default policy denies all ingress."
+    },
     {
       "name": "cratis.arc.correlation-enabled",
       "type": "java.lang.Boolean",

@@ -65,6 +65,34 @@ public final class io/cratis/arc/springboot/ArcObservableQueryTransport : java/l
 	public fun close ()V
 }
 
+public final class io/cratis/arc/springboot/ArcPlatformAuthenticationConverter : org/springframework/security/web/authentication/AuthenticationConverter {
+	public fun <init> (Lio/cratis/arc/springboot/ArcPlatformIdentityTrust;)V
+	public fun convert (Ljakarta/servlet/http/HttpServletRequest;)Lorg/springframework/security/core/Authentication;
+}
+
+public final class io/cratis/arc/springboot/ArcPlatformAuthenticationFilter : org/springframework/web/filter/OncePerRequestFilter {
+	public fun <init> (Lorg/springframework/security/web/authentication/AuthenticationConverter;)V
+}
+
+public class io/cratis/arc/springboot/ArcPlatformIdentityAutoConfiguration {
+	public fun <init> ()V
+	public fun arcPlatformAuthenticationConverter (Lio/cratis/arc/springboot/ArcPlatformIdentityTrust;)Lorg/springframework/security/web/authentication/AuthenticationConverter;
+	public fun arcPlatformAuthenticationFilter (Lorg/springframework/security/web/authentication/AuthenticationConverter;)Lio/cratis/arc/springboot/ArcPlatformAuthenticationFilter;
+	public fun arcPlatformAuthenticationFilterRegistration (Lio/cratis/arc/springboot/ArcPlatformAuthenticationFilter;)Lorg/springframework/boot/web/servlet/FilterRegistrationBean;
+	public fun arcPlatformIdentityTrust ()Lio/cratis/arc/springboot/ArcPlatformIdentityTrust;
+	public fun arcPlatformSecurityFilterChain (Lorg/springframework/security/config/annotation/web/builders/HttpSecurity;Lio/cratis/arc/springboot/ArcPlatformAuthenticationFilter;)Lorg/springframework/security/web/SecurityFilterChain;
+}
+
+public final class io/cratis/arc/springboot/ArcPlatformIdentityProperties {
+	public fun <init> ()V
+	public fun isEnabled ()Z
+	public fun setEnabled (Z)V
+}
+
+public abstract interface class io/cratis/arc/springboot/ArcPlatformIdentityTrust {
+	public abstract fun isTrusted (Ljakarta/servlet/http/HttpServletRequest;)Z
+}
+
 public abstract interface class io/cratis/arc/springboot/ArcPrincipalFactory {
 	public abstract fun create (Ljakarta/servlet/http/HttpServletRequest;Ljava/util/Collection;)Lio/cratis/arc/authorization/ArcPrincipal;
 }
