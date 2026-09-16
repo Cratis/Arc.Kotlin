@@ -3,6 +3,7 @@
 
 package io.cratis.arc.queries
 
+import io.cratis.arc.java.BlockingPipelineGuard
 import io.cratis.arc.results.PagingInfo
 import io.cratis.arc.results.QueryResult
 import io.cratis.arc.results.ValidationResult
@@ -83,6 +84,7 @@ public class DefaultQueryPipeline @JvmOverloads constructor(
                 )
             ).filterValidation(options.allowedValidationSeverity)
         } catch (exception: Exception) {
+            BlockingPipelineGuard.rethrowInterruption(exception)
             result = result.merge(QueryResult.exception<Any?>(options.correlationId, exception))
         }
         return result
@@ -99,6 +101,7 @@ public class DefaultQueryPipeline @JvmOverloads constructor(
             } catch (exception: CancellationException) {
                 throw exception
             } catch (exception: Exception) {
+                BlockingPipelineGuard.rethrowInterruption(exception)
                 result = result.merge(QueryResult.exception<Any?>(context.correlationId, exception))
             }
             if (!result.isSuccess) break

@@ -1017,6 +1017,16 @@ public final class io/cratis/arc/java/BlockingCommandHandlerAdapter : io/cratis/
 	public fun resolveCommandKey (Ljava/lang/Object;)Ljava/lang/Object;
 }
 
+public final class io/cratis/arc/java/BlockingCommandPipeline {
+	public fun <init> (Lio/cratis/arc/commands/CommandPipeline;)V
+	public fun <init> (Lio/cratis/arc/commands/CommandPipeline;Lio/cratis/arc/commands/CommandExecutionOptions;)V
+	public synthetic fun <init> (Lio/cratis/arc/commands/CommandPipeline;Lio/cratis/arc/commands/CommandExecutionOptions;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun execute (Ljava/lang/Object;)Lio/cratis/arc/results/CommandResult;
+	public final fun execute (Ljava/lang/Object;Lio/cratis/arc/commands/CommandExecutionOptions;)Lio/cratis/arc/results/CommandResult;
+	public final fun validate (Ljava/lang/Object;)Lio/cratis/arc/results/CommandResult;
+	public final fun validate (Ljava/lang/Object;Lio/cratis/arc/commands/CommandExecutionOptions;)Lio/cratis/arc/results/CommandResult;
+}
+
 public abstract interface class io/cratis/arc/java/BlockingCommandResponseValueHandler {
 	public abstract fun canHandle (Lio/cratis/arc/commands/CommandContext;Ljava/lang/Object;)Z
 	public abstract fun handle (Lio/cratis/arc/commands/CommandContext;Ljava/lang/Object;)Lio/cratis/arc/results/CommandResult;
@@ -1050,6 +1060,11 @@ public final class io/cratis/arc/java/BlockingModelValidatorAdapter : io/cratis/
 	public fun validate (Ljava/lang/Object;Lio/cratis/arc/validation/ModelValidationContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
 
+public final class io/cratis/arc/java/BlockingPipelineGuard {
+	public static final field INSTANCE Lio/cratis/arc/java/BlockingPipelineGuard;
+	public final synthetic fun contextElement ()Lkotlin/coroutines/CoroutineContext;
+}
+
 public abstract interface class io/cratis/arc/java/BlockingQueryFilter {
 	public abstract fun execute (Lio/cratis/arc/queries/QueryContext;)Lio/cratis/arc/results/QueryResult;
 }
@@ -1073,6 +1088,14 @@ public final class io/cratis/arc/java/BlockingQueryPerformerAdapter : io/cratis/
 	public fun getSupportsPaging ()Z
 	public fun getSupportsSorting ()Z
 	public fun perform (Lio/cratis/arc/queries/QueryContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/java/BlockingQueryPipeline {
+	public fun <init> (Lio/cratis/arc/queries/QueryPipeline;)V
+	public fun <init> (Lio/cratis/arc/queries/QueryPipeline;Lio/cratis/arc/queries/QueryExecutionOptions;)V
+	public synthetic fun <init> (Lio/cratis/arc/queries/QueryPipeline;Lio/cratis/arc/queries/QueryExecutionOptions;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun perform (Lio/cratis/arc/queries/QueryRequest;)Lio/cratis/arc/results/QueryResult;
+	public final fun perform (Lio/cratis/arc/queries/QueryRequest;Lio/cratis/arc/queries/QueryExecutionOptions;)Lio/cratis/arc/results/QueryResult;
 }
 
 public abstract interface class io/cratis/arc/java/BlockingQueryValidator {

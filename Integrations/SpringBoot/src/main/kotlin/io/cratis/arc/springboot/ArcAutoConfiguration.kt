@@ -27,6 +27,8 @@ import io.cratis.arc.commands.ConcurrentCommandHandlerRegistry
 import io.cratis.arc.commands.DefaultCommandPipeline
 import io.cratis.arc.commands.DefaultCommandValidationFilter
 import io.cratis.arc.commands.ServiceResolver
+import io.cratis.arc.java.BlockingCommandPipeline
+import io.cratis.arc.java.BlockingQueryPipeline
 import io.cratis.arc.json.ArcJacksonModule
 import io.cratis.arc.introspection.DefaultIntrospectionService
 import io.cratis.arc.introspection.IntrospectionService
@@ -270,6 +272,18 @@ public class ArcAutoConfiguration {
         pipeline: CommandPipeline,
         coroutineScope: ArcApplicationCoroutineScope
     ): AsyncCommandPipeline = AsyncCommandPipeline.fromCoroutineScope(pipeline, coroutineScope)
+
+    /** Caller-thread Java facade; callers supply options explicitly, without application-scope dispatch. */
+    @Bean
+    @ConditionalOnMissingBean(BlockingCommandPipeline::class)
+    public fun arcBlockingCommandPipeline(pipeline: CommandPipeline): BlockingCommandPipeline =
+        BlockingCommandPipeline(pipeline)
+
+    /** Caller-thread one-shot Java facade; callers supply options explicitly. */
+    @Bean
+    @ConditionalOnMissingBean(BlockingQueryPipeline::class)
+    public fun arcBlockingQueryPipeline(pipeline: QueryPipeline): BlockingQueryPipeline =
+        BlockingQueryPipeline(pipeline)
 
     /** Aggregates application renderer beans; the registry supplies fallback only for otherwise unhandled values. */
     @Bean

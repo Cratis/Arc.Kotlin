@@ -3,6 +3,7 @@
 
 package io.cratis.arc.springboot
 
+import io.cratis.arc.java.BlockingPipelineGuard
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.BlockingQueue
 import java.util.concurrent.Semaphore
@@ -51,7 +52,7 @@ public class ArcApplicationCoroutineScope @JvmOverloads constructor(
         admission = Semaphore(Math.addExact(parallelism, queueCapacity))
     }
 
-    override val coroutineContext: CoroutineContext = job + dispatcher
+    override val coroutineContext: CoroutineContext = job + dispatcher + BlockingPipelineGuard.contextElement()
 
     /**
      * Reserves bounded execution capacity without waiting and creates [block] only when admitted.

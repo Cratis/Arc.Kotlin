@@ -189,4 +189,113 @@ The current array-returning adapter leaves paging totals at zero; the Kotlin tut
 
 The [executable tutorial check](index.md#query-the-read-model) compiles these Java files and generated Kotlin adapters with warnings as errors, then verifies the documented requests against a real Spring Boot host. It tests the preferred plugin setup using locally staged Arc publications, not every documentation snippet or the manual setup.
 
+## Call pipelines from an imperative Java service
+
+Inject `io.cratis.arc.java.BlockingCommandPipeline` and `BlockingQueryPipeline` for an ordinary
+imperative service or scheduled job. The Spring starter supplies both beans and backs off when you
+supply your own. Unlike the `Blocking*Handler` adapters (which implement pipeline extension points),
+these facades let the **caller** execute, validate, and perform one-shot queries without a
+`Continuation`, `CompletionStage.join()`, or an owned executor.
+
+Supply `CommandExecutionOptions` or `QueryExecutionOptions` on every call. Capture the intended
+principal, tenant, correlation ID and `ServiceResolver` explicitly at entry; the facade neither
+reads request/security thread locals nor creates an anonymous identity. Authorization and validation
+still run through the configured pipelines. For example, a constructor-injected service can expose:
+
+```java
+import io.cratis.arc.commands.CommandExecutionOptions;
+import io.cratis.arc.java.BlockingCommandPipeline;
+import io.cratis.arc.java.BlockingQueryPipeline;
+import io.cratis.arc.queries.QueryExecutionOptions;
+import io.cratis.arc.queries.QueryRequest;
+import io.cratis.arc.results.CommandResult;
+import io.cratis.arc.results.QueryResult;
+import org.springframework.stereotype.Service;
+
+@Service
+public final class TaskOperations {
+    private final BlockingCommandPipeline commands;
+    private final BlockingQueryPipeline queries;
+
+    public TaskOperations(BlockingCommandPipeline commands, BlockingQueryPipeline queries) {
+        this.commands = commands;
+        this.queries = queries;
+    }
+
+    public CommandResult<?> execute(Object command, CommandExecutionOptions options) {
+        return commands.execute(command, options);
+    }
+
+    public CommandResult<?> validate(Object command, CommandExecutionOptions options) {
+        return commands.validate(command, options); // Does not invoke the command handler.
+    }
+
+    public QueryResult<?> perform(QueryRequest request, QueryExecutionOptions options) {
+        return queries.perform(request, options);
+    }
+}
+```
+
+A scheduler has no incoming request: choose a configured application identity and tenant, and create
+fresh correlation/options for each scheduled invocation. Do not invent an authenticated principal
+from untrusted request data. A Java service with constructor injection and an explicitly invoked
+`@Scheduled` method is compiled and executed by
+`Integrations/SpringBoot`'s `BlockingPipelineJavaConformanceTest`; this does not test scheduler timing.
+`Source`'s `BlockingPipelineJavaConformanceTest` verifies context capture, authorization, validation
+nonexecution, results, failed/cancelled stages, and interrupted command cleanup.
+
+For deliberately bound context, construct `new BlockingCommandPipeline(pipeline, options)` to use
+`execute(command)` and `validate(command)`, or `new BlockingQueryPipeline(pipeline, options)` to use
+`perform(request)`. Binding retains those exact options, including correlation and identity; it does
+not refresh or resolve them at runtime. Prefer a short-lived bound facade when context is per-call,
+not a singleton holding request-scoped data. An explicit per-call options argument overrides the
+binding. The default Spring beans are **unbound**: short calls throw `IllegalStateException` before
+execution rather than silently choosing security context.
+
+### Blocking, interruption, and limits
+
+- Each call uses `runBlocking` on the caller thread and occupies that thread until completion. No
+  application scope or executor is used for offloading. This is an opt-in imperative entry point,
+  including conventional MVC service calls or scheduler workers; generated Arc HTTP endpoints keep
+  their existing coroutine hosting. Size caller capacity accordingly.
+- Do not call these facades from coroutines, event loops, Arc handlers, or Arc bounded application
+  work. Use `CommandPipeline`/`QueryPipeline` from Kotlin, or the existing async facades from Java.
+  Marked Arc bounded work and reentrant blocking-facade work fail fast with `IllegalStateException`,
+  including after `withContext` dispatcher migration. The safety marker restores pooled-thread
+  state; it is not request context. It cannot detect every unrelated external coroutine or work
+  detached into a fresh context. There are no thread-name heuristics.
+- Returned `CommandResult<?>` and `QueryResult<?>` are unchanged: inspect `isSuccess()` and the
+  validation/authorization/exception fields. A failed result is not automatically thrown. Exceptions
+  propagated by the underlying pipeline and ordinary handler cancellation retain their exact failure
+  identity rather than being wrapped by the facade, except for the interruption policy below.
+- Interrupting a blocked caller cancels the invocation, waits for cooperative structured cleanup,
+  restores the caller's interrupt flag, then throws unchecked `CancellationException` with
+  `InterruptedException` as its cause. This includes synchronous handlers, performers, and validators
+  whose interruptible waits throw before the default pipelines could turn them into failure results.
+  Begun command scopes complete in reverse order with a failed result; interrupted validation stops
+  before subsequent validators or the handler/performer. An already-interrupted caller does not
+  start execution. Repeated interrupts do not detach cleanup.
+- **Normalization policy:** any directly observed `InterruptedException` at framework-managed
+  callback boundaries during this blocking invocation means cancellation, including an exception
+  propagated from a worker through `withContext`. The facade sets the **caller** interrupt flag even
+  in that worker-originated case; this is not evidence that the caller was physically interrupted.
+  The cause is the exception observed at the framework boundary (coroutine stack recovery may already
+  have copied an upstream exception). Shared model/concept traversal also recognizes interruption
+  through its existing reflection/stage wrappers; there is no arbitrary cause-chain search.
+  Application-swallowed interruption is undetectable, including replacement pipelines that consume
+  it themselves. The first framework-observed interruption also takes precedence over an earlier
+  ordinary cancellation retained during command-scope cleanup; every begun scope still completes.
+  This policy is not enabled for ordinary suspending/async pipeline callers or by the bounded-scope
+  safety marker alone. Ordinary handler cancellation without interruption does not set the flag.
+- Existing `CompletionStage.await` cancels the stage when it also implements `Future`; cancellation
+  cannot force arbitrary external work to stop or undo a side effect. `Source`'s
+  `BlockingRealPipelineInterruptionTest` covers real synchronous and staged command/query execution,
+  command/query/model validation, cleanup/rollback, worker normalization, and unchanged legacy and
+  guard-only coroutine behavior. `BlockingPipelineNormalizationTest` covers callback exception sites,
+  completion-time interruption, reflective traversal, and invocation-marker restoration.
+- There is no facade timeout. The application owns its deadline and interrupting caller-task policy;
+  a caller timeout is not a promise that cleanup or external work has already stopped. Cleanup must
+  cooperate, so an uncooperative handler or cleanup can keep the caller blocked. Existing pipeline
+  scope-completion timeouts still apply. Use the async API when retaining a blocked thread is wrong.
+
 Continue with [in-process Java testing](../guides/testing.md) or compare the [Kotlin tutorial](index.md).
