@@ -145,31 +145,60 @@ internal class ConceptValidation(
         (value.javaClass.isEnum || value.javaClass.packageName.startsWith("java.") ||
             value.javaClass.packageName.startsWith("kotlin."))
 
-    private fun readableProperties(value: Any): List<Pair<String, Any?>> {
-        if (value.javaClass.isRecord) {
-            return value.javaClass.recordComponents.map { component ->
-                component.name to try {
+    private fun readableProperties(value: Any): Sequence<Pair<String, Any?>> = sequence {
+        val type = value.javaClass
+        if (type.isRecord) {
+            for (component in type.recordComponents) {
+                if (ValidationMemberPolicy.isIgnored(type, component.name)) continue
+                val child = try {
                     component.accessor.invoke(value)
                 } catch (exception: InvocationTargetException) {
                     exception.rethrowCancellationOrFatal()
                     throw exception
                 }
+                yield(component.name to child)
+            }
+            return@sequence
+        }
+        // Retain the previous public reflection selection (including Java public fields) and
+        // ordinary read-failure handling. A JavaBean getter only adds a previously unreadable name;
+        // it must not replace a public field's value with an independently computed getter value.
+        val properties = value::class.memberProperties
+            .filter { it.visibility == KVisibility.PUBLIC }.sortedBy { it.name }
+        var selectedReflectedMember = false
+        for (property in properties) {
+            if (ValidationMemberPolicy.isIgnored(type, property.name)) {
+                selectedReflectedMember = true // Never fall back to another read of an ignored edge.
+                continue
+            }
+            val read = runCatching {
+                property.getter.isAccessible = true
+                property.getter.call(value)
+            }.onFailure { it.rethrowCancellationOrFatal() }
+            if (read.isSuccess) {
+                selectedReflectedMember = true
+                yield(property.name to read.getOrNull())
             }
         }
-        val kotlinProperties = value::class.memberProperties
-            .filter { property -> property.visibility == KVisibility.PUBLIC }
-            .sortedBy { property -> property.name }
-            .mapNotNull { property ->
-                runCatching {
-                    property.getter.isAccessible = true
-                    property.name to property.getter.call(value)
-                }.onFailure { it.rethrowCancellationOrFatal() }.getOrNull()
+        if (!type.isAnnotationPresent(Metadata::class.java)) {
+            val propertyNames = properties.map { it.name }.toSet()
+            for ((name, getter) in ValidationMemberPolicy.javaGetters(type)) {
+                if (propertyNames.any { ValidationMemberPolicy.sameMember(type, it, name) } ||
+                    ValidationMemberPolicy.isIgnored(type, name)) continue
+                val child = try {
+                    getter.invoke(value)
+                } catch (exception: InvocationTargetException) {
+                    exception.rethrowCancellationOrFatal()
+                    throw exception
+                }
+                yield(name to child)
             }
-        if (kotlinProperties.isNotEmpty()) return kotlinProperties
-        return value.javaClass.fields
-            .filter { field -> Modifier.isPublic(field.modifiers) && !Modifier.isStatic(field.modifiers) }
-            .sortedBy { field -> field.name }
-            .map { field -> field.name to field.get(value) }
+        }
+        if (selectedReflectedMember) return@sequence
+        for (field in type.fields.filter { !Modifier.isStatic(it.modifiers) }.sortedBy { it.name }) {
+            if (ValidationMemberPolicy.isIgnored(type, field.name)) continue
+            yield(field.name to field.get(value))
+        }
     }
 
     // Only known invocation/stage wrappers are transparent. Ordinary reflective failures retain

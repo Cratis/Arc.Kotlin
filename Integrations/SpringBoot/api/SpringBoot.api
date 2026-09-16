@@ -187,6 +187,7 @@ public class io/cratis/arc/springboot/ArcValidationAutoConfiguration {
 	public fun <init> ()V
 	public fun arcJakartaBeanValidationCommandFilter (Ljakarta/validation/Validator;)Lio/cratis/arc/commands/CommandFilter;
 	public fun arcJakartaBeanValidationQueryFilter (Ljakarta/validation/Validator;Lio/cratis/arc/queries/QueryPerformerRegistry;)Lio/cratis/arc/queries/QueryFilter;
+	public fun arcJakartaValidationCapabilityCheck (Ljakarta/validation/Validator;Lio/cratis/arc/commands/CommandHandlerRegistry;Lio/cratis/arc/queries/QueryPerformerRegistry;Lorg/springframework/context/ApplicationContext;)Lorg/springframework/beans/factory/SmartInitializingSingleton;
 }
 
 public class io/cratis/arc/springboot/ArcWebAutoConfiguration {

@@ -169,7 +169,7 @@ internal class ArcIdentityDiscoveryFunctionalTest {
     private fun assertTypes(vararg names: String) {
         val manifest = ArcManifestDiscovery.discover(listOf(root.resolve("build/generated/ksp/main/resources"))).single().manifest
         assertEquals(names.map { "identity.$it" }.sorted(), manifest.types.map { it.fullyQualifiedName })
-        assertEquals(7, manifest.formatVersion)
+        assertEquals(8, manifest.formatVersion)
         assertTrue(manifest.commands.isEmpty())
         assertTrue(manifest.queries.isEmpty())
     }

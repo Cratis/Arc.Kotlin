@@ -102,7 +102,7 @@ internal object ArcManifestDiscovery {
                         expected.path("rules").forEach { rule ->
                             val expectedArgs = rule.path("arguments").toList().map { if (it.isNumber) it.numberValue() else it.asString() }
                             val message = rule.path("message").takeUnless { it.isNull }?.asString()
-                            if (actual == null || actual.validationRules.none { it.ruleName == rule.path("ruleName").asString() &&
+                            if (actual == null || !actual.ignoreValidation && actual.validationRules.none { it.ruleName == rule.path("ruleName").asString() &&
                                     arguments(it.arguments) == arguments(expectedArgs) && it.message == message }) {
                                 throw GradleException("Shared fluent rule for '$model.$member' is missing from ${document.source}; " +
                                     "recompile consumers with the verified fluent dependency index and matching compile/runtime dependencies.")
@@ -291,6 +291,13 @@ internal object ArcManifestDiscovery {
             validateSummary(node, nodePath, source)
             validateCanonicalNode(node, "shape", legacyFields, nodePath, source)
             validateSupportedShape(node.path("shape"), "$nodePath.shape", source, allowMaps)
+            if (path.endsWith(".properties")) {
+                val ignored = node.get("ignoreValidation")
+                if (ignored == null || !ignored.isBoolean) throw GradleException(
+                    "Arc artifact manifest in $source must declare canonical boolean ignoreValidation at $nodePath.")
+                if (ignored.booleanValue() && (node.path("validationRules").size() != 0 || node.path("validateRecursively").asBoolean()))
+                    throw GradleException("Ignored Arc validation property at $nodePath in $source must have empty effective rules and no recursion.")
+            }
         }
     }
 

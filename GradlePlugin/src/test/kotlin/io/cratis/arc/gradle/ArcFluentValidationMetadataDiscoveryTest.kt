@@ -90,8 +90,9 @@ internal class ArcFluentValidationMetadataDiscoveryTest {
     @Test
     fun `manual generator boundary refuses manifests that missed dependency rules`() {
         val directory = fixture()
-        fun manifest(rules: List<ValidationRuleDescriptor>) {
-            val type = TypeDescriptor("Person", "fixture.Person", properties = listOf(PropertyDescriptor("name", "kotlin.String", validationRules = rules)))
+        fun manifest(rules: List<ValidationRuleDescriptor>, ignored: Boolean = false) {
+            val type = TypeDescriptor("Person", "fixture.Person", properties = listOf(PropertyDescriptor("name",
+                io.cratis.arc.metadata.TypeShapeDescriptor.value("kotlin.String"), false, rules, false, emptyList(), null, ignored)))
             directory.resolve("META-INF/cratis/arc/Consumer.json").apply {
                 parentFile.mkdirs(); writeText(ArcObjectMapper.create().writeValueAsString(ArcArtifactManifest("Consumer", types = listOf(type))))
             }
@@ -104,6 +105,11 @@ internal class ArcFluentValidationMetadataDiscoveryTest {
         assertTrue(assertThrows(GradleException::class.java) { ArcManifestDiscovery.discover(listOf(directory), "Consumer") }.message!!.contains("Missing declarations: [fixture.Rules]"))
         scope.writeText("""{"formatVersion":1,"moduleName":"Consumer","indexed":true,"validators":["fixture.Rules"]}""")
         assertTrue(assertThrows(GradleException::class.java) { ArcManifestDiscovery.discover(listOf(directory), "Consumer") }.message!!.contains("missing from"))
+        manifest(emptyList(), ignored = true)
+        val ignored = ArcManifestDiscovery.merge(ArcManifestDiscovery.discover(listOf(directory), "Consumer"))
+        assertTrue(ignored.types.single().properties.single().ignoreValidation)
+        assertTrue(SharedValidationGraph(ignored).rules("fixture.Person", "name").isEmpty())
+        assertEquals(1, ignored.sharedValidators.single().members.single().rules.size, "Authored declaration must remain intact")
         manifest(listOf(ValidationRuleDescriptor("maxLength", listOf(5))))
         assertEquals(1, ArcManifestDiscovery.discover(listOf(directory), "Consumer").size)
         assertTrue(assertThrows(GradleException::class.java) { ArcManifestDiscovery.discover(listOf(directory)) }.message!!.contains("--module-name"))

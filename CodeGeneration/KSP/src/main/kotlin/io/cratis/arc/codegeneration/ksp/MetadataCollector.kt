@@ -3,6 +3,7 @@
 
 package io.cratis.arc.codegeneration.ksp
 
+import com.google.devtools.ksp.getConstructors
 import com.google.devtools.ksp.getDeclaredFunctions
 import com.google.devtools.ksp.getDeclaredProperties
 import com.google.devtools.ksp.isPublic
@@ -31,7 +32,8 @@ import java.io.File
 /** Collects the closed, language-neutral model graph used by generated modules and manifests. */
 internal class MetadataCollector(
     private val logger: ArcDiagnosticReporter,
-    private val fluentRules: Map<String, List<ValidationRuleModel>> = emptyMap()
+    private val fluentRules: Map<String, List<ValidationRuleModel>> = emptyMap(),
+    private val binaryRecords: BinaryRecordMetadata = BinaryRecordMetadata(null)
 ) {
     private val validationExtractor = ValidationMetadataExtractor(logger)
     private val collectedTypes = linkedMapOf<String, TypeModel>()
@@ -103,6 +105,7 @@ internal class MetadataCollector(
     fun isConcept(typeName: String): Boolean = collectedConcepts.containsKey(typeName)
 
     fun describeProperties(declaration: KSClassDeclaration, identity: String): List<PropertyModel>? {
+        IgnoreValidationPolicy.validateWireOwner(declaration, logger)
         // Validate roots before the Java record/interface fast paths as well as Kotlin property collection.
         if (declaration.hasAnnotation(COMMAND_ANNOTATION) && !validateCommandInput(declaration, mutableSetOf())) return null
         val documentation = DocumentationSummaryParser.parse(declaration.docString)
@@ -162,11 +165,44 @@ internal class MetadataCollector(
                             shape = shape.descriptor.withNullability(component.isNullable || shape.isNullable),
                             validationRules = validation.rules,
                             validateRecursively = validation.validateRecursively,
+                            ignoreValidation = validation.ignoreValidation,
                             summary = memberSummary(accessor?.docString, declaredMemberTags, component.name)
                         )
                     )
                 }
                 return properties
+            }
+        }
+        if (declaration.origin == Origin.JAVA_LIB && declaration.superTypes.any {
+                it.resolve().declaration.qualifiedName?.asString() == "java.lang.Record" }) {
+            val binaryName = listOf(declaration.packageName.asString(), generateSequence(declaration) { it.parentDeclaration as? KSClassDeclaration }
+                .toList().asReversed().joinToString("$") { it.simpleName.asString() }).filter(String::isNotBlank).joinToString(".")
+            val binaryFields = try { binaryRecords.fields(binaryName) } catch (exception: Exception) {
+                logger.error(ArcDiagnostic.IGNORE_VALIDATION,
+                    "Cannot inspect binary record '$identity': ${exception.message}; supply its exact compile classpath with '${BinaryRecordMetadata.OPTION}'.", declaration)
+                return null
+            }
+            val functions = declaration.getDeclaredFunctions().filter { it.parameters.isEmpty() }.associateBy { it.simpleName.asString() }
+            val components = declaration.getConstructors().map { it.parameters }.filter { parameters ->
+                parameters.all { it.name?.asString() in functions }
+            }.maxByOrNull { it.size }.orEmpty()
+            return components.map { component ->
+                val name = requireNotNull(component.name).asString()
+                val accessor = functions.getValue(name)
+                val shape = describe(requireNotNull(accessor.returnType).resolve(), "$identity.$name", accessor, allowMaps = true) ?: return null
+                val componentField = declarations[name] ?: resolver?.let { it.getPropertyDeclarationByName(it.getKSNameFromString("$identity.$name")) }
+                val fieldAnnotations = binaryFields?.get(name)
+                // Class-file metadata contains both sites. Do not treat field constraints as a
+                // fallback for accessor annotations: the same constraint type may have different bounds.
+                val sites = if (fieldAnnotations == null) listOfNotNull(componentField, accessor) else emptyList()
+                val validation = extractValidation(sites, shape, "$identity.$name", accessor, fieldAnnotations.orEmpty()) ?: return null
+                if (componentField == null && fieldAnnotations == null && !validation.ignoreValidation) {
+                    logger.error(ArcDiagnostic.IGNORE_VALIDATION,
+                        "Binary record component '$identity.$name' has no visible field annotation metadata; supply its exact compile classpath with '${BinaryRecordMetadata.OPTION}' or compile the model from source.", accessor)
+                    return null
+                }
+                PropertyModel(name, shape.typeName, shape.isNullable, false, shape.isEnumerable, shape.elementTypeName,
+                    shape.descriptor, validation.rules, validation.validateRecursively, ignoreValidation = validation.ignoreValidation)
             }
         }
         if (declaration.origin == Origin.JAVA && declaration.classKind == ClassKind.INTERFACE) {
@@ -196,6 +232,7 @@ internal class MetadataCollector(
                     shape = shape.descriptor,
                     validationRules = validation.rules,
                     validateRecursively = validation.validateRecursively,
+                    ignoreValidation = validation.ignoreValidation,
                     summary = memberSummary(property.docString, declaredMemberTags, name)
                 )
             )
@@ -362,6 +399,7 @@ internal class MetadataCollector(
                     shape = shape.descriptor,
                     validationRules = validation.rules,
                     validateRecursively = validation.validateRecursively,
+                    ignoreValidation = validation.ignoreValidation,
                     summary = memberSummary(function.docString, declaredMemberTags, name)
                 )
             )
@@ -785,6 +823,11 @@ internal class MetadataCollector(
         node: KSNode,
         sourceAnnotations: List<SourceValidationAnnotation> = emptyList()
     ): ValidationMetadata? {
+        if (IgnoreValidationPolicy.isIgnored(annotated, node, resolver, logger) ||
+            sourceAnnotations.any { it.qualifiedName == IgnoreValidationPolicy.ANNOTATION }) {
+            // Declaration parsing/fingerprints remain unchanged; only effective member rules are cut.
+            return ValidationMetadata(emptyList(), false, true)
+        }
         val conceptRules = extractConceptValidationRules(shape, identity, node) ?: return null
         return validationExtractor.extract(
             annotated,
@@ -870,6 +913,9 @@ internal class MetadataCollector(
         } else {
             emptyList()
         }
+        if (sourceAnnotations.any { it.qualifiedName == IgnoreValidationPolicy.ANNOTATION } || properties.any {
+                IgnoreValidationPolicy.isIgnored(listOfNotNull(it, it.getter), it, resolver, logger)
+            }) return emptyList()
         return validationExtractor.extract(
             listOfNotNull(constructorParameter) + properties + accessors,
             effectiveShape,

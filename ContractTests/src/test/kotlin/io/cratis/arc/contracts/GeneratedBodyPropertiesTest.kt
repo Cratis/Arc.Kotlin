@@ -32,7 +32,7 @@ internal class GeneratedBodyPropertiesTest {
         val bytes = requireNotNull(javaClass.classLoader.getResourceAsStream("META-INF/cratis/arc/ContractTests.json"))
             .use { it.readAllBytes() }
         val manifest = mapper.readValue(bytes, ArcArtifactManifest::class.java)
-        assertEquals(7, manifest.formatVersion)
+        assertEquals(8, manifest.formatVersion)
         assertEquals(names, handler.metadata.properties.map { it.name })
         assertEquals(handler.metadata.properties, manifest.commands.single { it.name == "KotlinBodyCommand" }.properties)
         assertEquals(handler.metadata.properties, module.types.single { it.name == "KotlinBodyCommand" }.properties)

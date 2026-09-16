@@ -13,7 +13,7 @@ val springDataVersion = "4.1.1"
 dependencies {
     implementation(project(":Source"))
     implementation("com.google.devtools.ksp:symbol-processing-api:$kspVersion")
-    // Whole-body syntax parsing only, exact production compiler baseline. Never an application dependency.
+    // Whole-body syntax parsing and class-file annotation inspection, exact compiler baseline. Never an application dependency.
     implementation("org.jetbrains.kotlin:kotlin-compiler-embeddable:2.4.20")
     testImplementation("dev.zacsweers.kctfork:ksp:0.14.0")
     testImplementation("jakarta.validation:jakarta.validation-api:3.1.1")

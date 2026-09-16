@@ -70,6 +70,7 @@ internal class ArcSymbolProcessorNegativeCompilationTest {
             "ARCKSP0307",
             "ARCKSP0308",
             "ARCKSP0309",
+            "ARCKSP0311",
             "ARCKSP0400"
         ).forEach { code -> assertTrue("[$code]" in result.messages, "Missing $code in:\n${result.messages}") }
         for (language in listOf("Kotlin", "Java")) {
@@ -79,6 +80,9 @@ internal class ArcSymbolProcessorNegativeCompilationTest {
         for (owner in listOf("ComputedFluentMemberRules", "ComputedFluentRecordRules")) {
             assertTrue("[ARCKSP0309] Fluent validator 'io.cratis.arc.contracts.negative.$owner': member 'name' is computed" in result.messages, result.messages)
         }
+        assertTrue("[ARCKSP0311] @IgnoreValidation requires an instance property, field, record accessor or bean getter; move the annotation to a supported member edge." in result.messages, result.messages)
+        assertTrue("[ARCKSP0311] Ambiguous @IgnoreValidation member 'io.cratis.arc.contracts.negative.HiddenIgnoredField.name' hides inherited state" in result.messages, result.messages)
+        assertTrue("[ARCKSP0311] @IgnoreValidation accessor 'io.cratis.arc.contracts.negative.UnbackedIgnoredGetter.getValue' has no supported declared wire member" in result.messages, result.messages)
         assertTrue("class mapping may be shadowed" in result.messages, result.messages)
         assertTrue("Fluent matches requires nonempty classes and escaped literal closing brackets" in result.messages, result.messages)
         for (owner in listOf("ComputedBodyInput", "ComputedBodyChild")) {

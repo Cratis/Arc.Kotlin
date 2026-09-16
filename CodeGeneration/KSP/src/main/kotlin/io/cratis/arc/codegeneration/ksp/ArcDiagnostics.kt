@@ -45,6 +45,7 @@ internal enum class ArcDiagnostic(
     FLUENT_DECLARATION("ARCKSP0308", "Error", "Unsupported fluent validation declaration"),
     FLUENT_RULE("ARCKSP0309", "Error", "Invalid or unrepresentable fluent validation rule"),
     FLUENT_METADATA("ARCKSP0310", "Error", "Missing or conflicting fluent validation compiler metadata"),
+    IGNORE_VALIDATION("ARCKSP0311", "Error", "Unsupported or ambiguous validation ignore member"),
     INTEROP("ARCKSP0400", "Warning", "Java/Kotlin interoperability hazard"),
     INTERNAL("ARCKSP9999", "Error", "Unclassified Arc KSP diagnostic");
 

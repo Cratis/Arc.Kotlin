@@ -26,7 +26,7 @@ internal class TypeShapeManifestJsonTest {
     }
 
     @Test
-    fun `format 7 manifest round trip uses only canonical shape metadata`() {
+    fun `format 8 manifest round trip uses only canonical shape metadata`() {
         val shape = nestedShape()
         val manifest = ArcArtifactManifest(
             moduleName = "shapes",

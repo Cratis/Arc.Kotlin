@@ -19,8 +19,11 @@ public class ArcArtifactManifest ... {
 ```
 
 Read the declared version from `ArcArtifactManifest.CURRENT_FORMAT_VERSION` rather than from this
-file; it moves whenever the manifest contract does. Current format 7 adds optional typed command
-`eventMetadata`; absence stays absent so event-store fallbacks are not baked into the manifest.
+file; it moves whenever the manifest contract does. Current format 8 requires boolean
+`ignoreValidation` on command/model/interface properties; true requires empty effective
+`validationRules` and `validateRecursively: false`. Rebuild producer/dependency manifests and
+regenerate consumers together; format 7 is rejected. Optional typed command `eventMetadata`
+remains optional; absence stays absent so event-store fallbacks are not baked into the manifest.
 `ArcManifestDiscovery` in `GradlePlugin` enforces
 it strictly on read and will fail the build with a `GradleException` when a manifest:
 

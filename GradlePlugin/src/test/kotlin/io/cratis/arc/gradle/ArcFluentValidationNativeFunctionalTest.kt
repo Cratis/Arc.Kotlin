@@ -133,6 +133,84 @@ internal class ArcFluentValidationNativeFunctionalTest {
         println("FLUENT_NATIVE_EVIDENCE $root")
     }
 
+    @Test
+    fun `ignore edge add remove recovery and fresh native outputs preserve declared rules`() {
+        fixture()
+        run("ignore-baseline")
+        val baseline = snapshot("build")
+        val declared = resource("producer", declarationResource).readBytes().toList()
+        val commandPath = "consumer/src/main/kotlin/consumer/Create.kt"
+        write(commandPath, command(true).replace("val person:", "@io.cratis.arc.validation.IgnoreValidation val person:"))
+        run("ignore-added")
+        assertEquals(declared, resource("producer", declarationResource).readBytes().toList())
+        val manifest = resource("consumer", "META-INF/cratis/arc/Consumer.json").readText()
+        assertTrue("\"ignoreValidation\":true" in manifest, manifest)
+        val proxy = root.resolve("consumer/build/proxies/consumer/Create.ts").readText()
+        assertTrue("person" in proxy)
+        assertFalse("value.person" in proxy, proxy)
+        val ignored = snapshot("build")
+        run("ignore-fresh", fresh = true)
+        assertEquals(ignored, snapshot("ignore-fresh"))
+        write("consumer/src/main/java/consumer/InvalidIgnore.java", """
+            package consumer;
+            public final class InvalidIgnore {
+                @io.cratis.arc.validation.IgnoreValidation public void setName(String value) {}
+            }
+        """.trimIndent())
+        val invalid = run("ignore-invalid", fails = true)
+        assertTrue("InvalidIgnore.java:3: [ARCKSP0311]" in invalid.output, invalid.output)
+        assertTrue(root.resolve("consumer/src/main/java/consumer/InvalidIgnore.java").delete())
+        run("ignore-recovered", executed = false)
+        assertEquals(ignored, snapshot("build"))
+        write(commandPath, command(true))
+        run("ignore-removed")
+        assertEquals(baseline, snapshot("build"))
+        run("ignore-removed-fresh", fresh = true)
+        assertEquals(baseline, snapshot("ignore-removed-fresh"))
+
+        val personPath = "producer/src/main/kotlin/library/Person.kt"
+        val originalPerson = root.resolve(personPath).readText()
+        write(personPath, originalPerson.replace("val name:", "@io.cratis.arc.validation.IgnoreValidation val name:"))
+        run("dependency-ignore-added", extra = listOf("-PignoreExpected=true"))
+        assertEquals(declared, resource("producer", declarationResource).readBytes().toList(), "Authored dependency declarations are unchanged")
+        val imported = io.cratis.arc.json.ArcObjectMapper.create().readValue(resource("consumer", "META-INF/cratis/arc/Consumer.json"), io.cratis.arc.artifacts.ArcArtifactManifest::class.java)
+        val member = imported.types.single { it.fullyQualifiedName == "library.Person" }.properties.single { it.name == "name" }
+        assertTrue(member.ignoreValidation)
+        assertTrue(member.validationRules.isEmpty())
+        assertFalse("ruleFor(c => c.name)" in root.resolve("consumer/build/proxies/library/Person.ts").readText())
+        val dependencyIgnored = snapshot("build")
+        run("dependency-ignore-fresh", fresh = true, extra = listOf("-PignoreExpected=true"))
+        assertEquals(dependencyIgnored, snapshot("dependency-ignore-fresh"))
+        write(personPath, originalPerson)
+        run("dependency-ignore-removed")
+        assertEquals(baseline, snapshot("build"))
+        verifyClient("dependency-ignore-restored", 5)
+
+        // An explicit accessor leaves a header annotation only on the PRIVATE record field.
+        // Its edit must invalidate the unchanged consumer even when public ABI/declaration indexes do not change.
+        val recordPath = "producer/src/main/java/library/BinaryData.java"
+        val recordSource = "package library; public record BinaryData(String value) { public String value() { return value; } }"
+        write(recordPath, recordSource)
+        write(commandPath, command(true).replace("val tag:", "val binary: library.BinaryData, val tag:"))
+        run("record-field-baseline")
+        fun importedRecord() = io.cratis.arc.json.ArcObjectMapper.create().readValue(resource("consumer", "META-INF/cratis/arc/Consumer.json"), io.cratis.arc.artifacts.ArcArtifactManifest::class.java)
+            .types.single { it.fullyQualifiedName == "library.BinaryData" }.properties.single()
+        assertFalse(importedRecord().ignoreValidation)
+        val recordBaseline = snapshot("build")
+        write(recordPath, recordSource.replace("String value)", "@io.cratis.arc.validation.IgnoreValidation String value)"))
+        run("record-field-ignore-added")
+        assertTrue(importedRecord().ignoreValidation)
+        assertEquals(declared, resource("producer", declarationResource).readBytes().toList())
+        val recordIgnored = snapshot("build")
+        run("record-field-ignore-fresh", fresh = true)
+        assertEquals(recordIgnored, snapshot("record-field-ignore-fresh"))
+        write(recordPath, recordSource)
+        run("record-field-ignore-removed")
+        assertFalse(importedRecord().ignoreValidation)
+        assertEquals(recordBaseline, snapshot("build"))
+        println("IGNORE_NATIVE_EVIDENCE $root")
+    }
+
     private fun fixture() {
         write("settings.gradle", """
             pluginManagement { repositories { maven { url = uri('${repository.toURI()}') }; gradlePluginPortal(); mavenCentral() } }
@@ -166,6 +244,7 @@ internal class ArcFluentValidationNativeFunctionalTest {
                     classpath = sourceSets.main.runtimeClasspath
                     mainClass.set('consumer.Verify')
                     systemProperty 'arc.test.runtime', 'true'
+                    systemProperty 'arc.test.ignoreExpected', providers.gradleProperty('ignoreExpected').getOrElse('false')
                 }
                 dependencies {
                     if (providers.gradleProperty('unindexedProducer').isPresent()) implementation files(rootProject.file('unindexed.jar'))
@@ -201,11 +280,12 @@ internal class ArcFluentValidationNativeFunctionalTest {
                     for (var validator : discovered) {
                         if (validator instanceof FluentModelValidator<?> fluent && fluent.getModelType().equals(library.Person.class)) {
                             var results = evaluate(fluent, person);
-                            if (results.size() != 1 || !results.get(0).getMembers().equals(List.of("name"))) throw new AssertionError(results);
+                            boolean ignored = Boolean.getBoolean("arc.test.ignoreExpected");
+                            if (ignored ? !results.isEmpty() : results.size() != 1 || !results.get(0).getMembers().equals(List.of("name"))) throw new AssertionError(results);
                             checked++;
                         }
                     }
-                    System.out.println("FLUENT_RUNTIME_VERIFIED declarations=" + discovered.size() + " rejected=" + checked);
+                    System.out.println("FLUENT_RUNTIME_VERIFIED declarations=" + discovered.size() + " checked=" + checked);
                 }
                 private static <T> List<ValidationResult> evaluate(FluentModelValidator<T> validator, Object value) {
                     return validator.validate(validator.getModelType().cast(value));

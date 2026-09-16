@@ -113,7 +113,8 @@ internal data class PropertyModel(
     val validationRules: List<ValidationRuleModel>,
     val validateRecursively: Boolean,
     val derivatives: List<String> = emptyList(),
-    val summary: String? = null
+    val summary: String? = null,
+    val ignoreValidation: Boolean = false
 )
 
 internal data class ValidationRuleModel(

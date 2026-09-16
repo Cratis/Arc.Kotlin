@@ -49,9 +49,11 @@ internal class GeneratedQueryPerformersTest {
         assertEquals(
             listOf(
                 "io.cratis.arc.contracts.fixtures.ConceptTemporalReadModel.findConceptTemporal",
+                "io.cratis.arc.contracts.fixtures.IgnoreContractView.checkIgnoredContract",
                 "io.cratis.arc.contracts.fixtures.ImplicitVisibilityView.findImplicit",
                 "io.cratis.arc.contracts.fixtures.JavaExclusionView.findJavaExclusions",
                 "io.cratis.arc.contracts.fixtures.JavaExclusionView.observeJavaExclusions",
+                "io.cratis.arc.contracts.fixtures.JavaIgnoreContractView.checkJavaIgnoredContract",
                 "io.cratis.arc.contracts.fixtures.JavaMapReadModel.getJavaMap",
                 "io.cratis.arc.contracts.fixtures.JavaObservableSnapshot.observeJavaSnapshot",
                 "io.cratis.arc.contracts.fixtures.JavaQueryReadModel.byId",

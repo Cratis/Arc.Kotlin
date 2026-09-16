@@ -190,6 +190,81 @@ Shared rules are applied to present nested nodes automatically, including collec
 A null `input` creates no model node: its child's `required.notNull()` does not require the parent
 object itself. Put a presence rule on the parent member when the parent is required.
 
+## Opt out one member
+
+Use `io.cratis.arc.validation.IgnoreValidation` when a serialized member must not be read for
+member/descendant validation. Kotlin property, field and getter placements select the same logical
+edge; Java uses a field, bean getter or record component:
+
+```kotlin
+import io.cratis.arc.validation.IgnoreValidation
+
+data class Input(
+    @IgnoreValidation val property: String?,
+    @field:IgnoreValidation val field: String?,
+    @get:IgnoreValidation val getter: String?,
+    val sibling: String?
+)
+```
+
+```java
+import io.cratis.arc.validation.IgnoreValidation;
+
+public record Input(@IgnoreValidation String ignored, String sibling) { }
+```
+
+These are placement illustrations, not additional runnable sample artifacts. Keep any authored
+fluent declarations intact: their compiler/runtime fingerprints still include the ignored member,
+while effective evaluation omits it. Nonignored siblings and separately validated child roots still
+run. This is not `@JsonIgnore`, does not waive required binding, and does not remove owner-level
+imperative/Jakarta class validation or executable query-parameter constraints.
+
+Read the [full opt-out, custom-validator and format-8 contract](../reference/validation.md#ignore-a-validation-member-edge)
+before using custom Jakarta validators or distributing compiled models. In particular, Arc composes
+the application's actual factory resolver before access, never filters already-read violations,
+and fails closed when an opaque validator cannot guarantee the cut. Runtime bean-only Java getters
+are a new traversal surface; this does not broaden the compiler's shared-model restrictions.
+
+### Run the Kotlin and Java opt-out samples
+
+The same runnable Kotlin Spring Boot sample contains `IgnoredInput.kt`, `IgnoredInputRules.kt`,
+`ValidateIgnored.kt` and `IgnoredView.kt`. Its ordinary Java sources are `JavaIgnoredInput.java`,
+`JavaIgnoredInputRules.java`, `ValidateJavaIgnored.java` and `JavaIgnoredView.java` in the parallel
+`src/main/java` package. No manual validator beans are needed. Their generated model, command and
+QUERY validators are exercised by `runtime.ignore-validation.contract.ts`.
+
+With that sample running, the following request is accepted despite invalid ignored text/children
+and an empty array that contradicts its still-declared fluent minimum:
+
+```bash
+input='{"ignoredText":"","ignoredChild":{"name":""},"ignoredList":[{"name":""}],"ignoredArray":[],"ignoredMap":{"wire":""},"validated":{"name":"ok"},"sibling":"ok"}'
+curl -sS -X POST http://localhost:8080/api/validate-ignored \
+  -H 'Content-Type: application/json' -d "{\"input\":$input}"
+curl -sS -X QUERY http://localhost:8080/api/ignored \
+  -H 'Content-Type: application/json' -d "{\"arguments\":{\"input\":$input}}"
+```
+
+The QUERY response's `data.value` is the empty ignored text: the member still binds and the handler
+can read it. Change `validated.name` or `sibling` to empty to get active-member rejection. The Java
+routes are `/api/validate-java-ignored` and `/api/java-ignored`; omit `ignoredArray` and `ignoredMap`
+from that Java record's body. Append `/validate` to either command route for preflight.
+
+These shell commands adapt the executable contract's `send` calls. That contract also uses actual
+`ValidateIgnored.execute()`, `ValidateJavaIgnored.execute()`, `CheckIgnored.perform()` and
+`CheckJavaIgnored.perform()`, including local rejection before fetch. Its getter/container/cycle
+probes call validators directly: they do not claim arbitrary JavaScript getters, aliases or cycles
+survive JSON serialization. The ignored self edge is omitted in generated command transport
+examples; the pinned serializer fails on explicit null nested values, including this sample's
+`ignoredNext: null`. Raw JSON requests separately prove that explicit null binds on the server.
+`@IgnoreValidation` does not change that serializer limitation.
+
+The sample intentionally has no Jakarta provider. Real-provider POST/preflight/QUERY proof is in
+`Integrations/SpringBoot/ArcIgnoreValidationHostingTests`, using Kotlin and ordinary Java inputs,
+throwing getter counters, live owner class/group-sequence callbacks, and active sibling constraints.
+`IgnoreValidationProviderJavaTest` separately proves pre-extractor suppression with the actual
+provider. The generated Kotlin/Java in-process scenario, fingerprint, JSON and OpenAPI agreement
+checks are `ContractTests/IgnoreValidationContractTest` and `IgnoreValidationJavaContractTest`.
+
 ## Execute and inspect rejection
 
 First distinguish the three operations:

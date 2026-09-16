@@ -434,7 +434,7 @@ internal class TypeScriptProxyGenerator(
             append("import { PropertyDescriptor } from '@cratis/arc/reflection';\n")
             appendPackageImports(referencedTypes)
             appendCustomImports(imports, target)
-            if (sharedValidation) appendSharedImports(target, command.properties.map { it.shape })
+            if (sharedValidation) appendSharedImports(target, command.properties.filterNot { it.ignoreValidation }.map { it.shape })
             append("\n")
             if (requiresStringMapGuard) {
                 appendStringMapGuard()
@@ -556,7 +556,7 @@ internal class TypeScriptProxyGenerator(
             }
             appendPackageImports(referencedTypes, fundamentals)
             appendCustomImports(imports, target)
-            if (shared.contains(type.fullyQualifiedName)) appendSharedImports(target, type.properties.map { it.shape })
+            if (shared.contains(type.fullyQualifiedName)) appendSharedImports(target, type.properties.filterNot { it.ignoreValidation }.map { it.shape })
             append("\n")
             appendDocumentation(type.summary)
             type.derivedTypeId?.let { append("@derivedType('${escape(it)}')\n") }
@@ -900,7 +900,7 @@ internal class TypeScriptProxyGenerator(
         append("        const qualified = results.map(result => new ArcSharedResult(result.severity, result.message,\n")
         append("            result.members.length === 0 ? (arcPath ? [arcPath] : []) : result.members.map(member => arcPath ? (member.startsWith('[') ? arcPath + member : arcPath + '.' + member) : member), result.state, result.reason, result.reasonDetail));\n")
         properties.sortedBy { it.name }.forEach { property ->
-            if (shared.reaches(property.shape)) {
+            if (!property.ignoreValidation && shared.reaches(property.shape)) {
                 val access = "value.${lowerCamel(property.name)}"
                 val path = "(arcPath ? arcPath + '.${escape(property.name)}' : '${escape(property.name)}')"
                 val seen = if (query) "arcSeen${sharedAlias(property.name)}" else "arcSeen"

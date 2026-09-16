@@ -5,6 +5,7 @@ package io.cratis.arc.springboot
 
 import io.cratis.arc.commands.CommandContext
 import io.cratis.arc.commands.CommandFilter
+import io.cratis.arc.commands.CommandHandlerRegistry
 import io.cratis.arc.metadata.QueryDescriptor
 import io.cratis.arc.metadata.QueryParameterSource
 import io.cratis.arc.queries.QueryContext
@@ -30,12 +31,35 @@ import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
+import org.springframework.context.ApplicationContext
 import org.springframework.context.annotation.Bean
+import org.springframework.beans.factory.SmartInitializingSingleton
 
 /** Optional Jakarta Bean Validation adaptation for Arc commands and queries. */
-@AutoConfiguration(after = [ArcAutoConfiguration::class])
+@AutoConfiguration(after = [ArcAutoConfiguration::class],
+    afterName = ["org.springframework.boot.validation.autoconfigure.ValidationAutoConfiguration"])
 @ConditionalOnClass(name = ["jakarta.validation.Validator"])
 public class ArcValidationAutoConfiguration {
+    /** Rejects discoverable ignored inputs when an application supplies an opaque, unintegrated validator. */
+    @Bean("arcJakartaValidationCapabilityCheck")
+    @ConditionalOnBean(Validator::class, CommandHandlerRegistry::class, QueryPerformerRegistry::class)
+    @ConditionalOnMissingBean(name = ["arcJakartaValidationCapabilityCheck"])
+    public fun arcJakartaValidationCapabilityCheck(
+        validator: Validator, commands: CommandHandlerRegistry, queries: QueryPerformerRegistry,
+        applicationContext: ApplicationContext
+    ): SmartInitializingSingleton = SmartInitializingSingleton {
+        val names = applicationContext.getBeanNamesForType(Validator::class.java).filter { applicationContext.getBean(it) === validator }
+        val capability = JakartaValidationCapability(validator, "Validator bean(s) ${names.joinToString()} '${validator.javaClass.name}'")
+        if (applicationContext.getBean("arcJakartaBeanValidationCommandFilter") is JakartaBeanValidationCommandFilter)
+            commands.snapshot().forEach { capability.requireSupport(it.commandType) }
+        if (applicationContext.getBean("arcJakartaBeanValidationQueryFilter") is JakartaBeanValidationQueryFilter)
+            queries.snapshot().flatMap { it.descriptor.parameters }.filter { it.source == QueryParameterSource.CLIENT }.forEach { parameter ->
+                val name = parameter.elementTypeName ?: parameter.typeName
+                val type = try { Class.forName(name, false, applicationContext.classLoader) } catch (_: ClassNotFoundException) { null }
+                type?.let(capability::requireSupport)
+            }
+    }
+
     /** Adds Jakarta constraint violations from command graphs to the ordinary Arc validation envelope. */
     @Bean("arcJakartaBeanValidationCommandFilter")
     @ConditionalOnBean(Validator::class)
@@ -80,12 +104,16 @@ private class JakartaBeanValidationQueryFilter(
     }
 }
 
-private class JakartaModelGraphValidator(private val validator: Validator) {
+private class JakartaModelGraphValidator(selected: Validator) {
+    private val capability = JakartaValidationCapability(selected)
+    private val validator = capability.validator
     fun validate(instance: Any): List<ValidationResult> = validationResults(
         collectGraphViolations(instance, "", cascadeContainer = true)
     )
 
     fun validateQuery(context: QueryContext, performer: QueryPerformer): List<ValidationResult> {
+        // Executable parameter constraints remain active; only member edges in cascaded values opt out.
+        context.request.arguments.values.filterNotNull().forEach(capability::requireArgumentSupport)
         val violations = linkedSetOf<MappedViolation>()
         val executableViolations = executableViolations(context, performer)
         executableViolations?.forEach(violations::add)
@@ -118,6 +146,7 @@ private class JakartaModelGraphValidator(private val validator: Validator) {
         violations: MutableSet<MappedViolation>
     ) {
         if (!instance.javaClass.isPrimitive && !visited.add(instance)) return
+        capability.requireSupport(instance.javaClass)
         validator.validate(instance).forEach { violation ->
             violations.add(violation.toMapped(rootPath))
         }
@@ -142,6 +171,7 @@ private class JakartaModelGraphValidator(private val validator: Validator) {
 
     private fun executableViolations(context: QueryContext, performer: QueryPerformer): Set<MappedViolation>? {
         val executable = findExecutable(context, performer) ?: return null
+        executable.arguments.filterNotNull().forEach(capability::requireArgumentSupport)
         return validator.forExecutables().validateParameters(executable.target, executable.method, executable.arguments)
             .filter { violation -> violation.isSuppliedClientParameterViolation(context, performer.descriptor) }
             .mapTo(linkedSetOf()) { violation -> violation.toExecutableMapped(performer.descriptor) }

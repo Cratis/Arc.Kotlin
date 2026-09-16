@@ -44,9 +44,9 @@ final class ProxyMappingsJavaConformanceTest {
         Path manifest = resources.resolve("META-INF/cratis/arc/Fixture.json");
         Files.createDirectories(manifest.getParent());
         Files.writeString(manifest, """
-            {"formatVersion":7,"moduleName":"Fixture","commands":[],"queries":[],"interfaces":[],"enums":[],"concepts":[],
+            {"formatVersion":8,"moduleName":"Fixture","commands":[],"queries":[],"interfaces":[],"enums":[],"concepts":[],
              "types":[{"name":"View","fullyQualifiedName":"app.View","location":["app"],
-              "properties":[{"name":"elapsed","shape":{"kind":"VALUE","typeName":"java.time.Duration","nullable":false}}]}]}
+              "properties":[{"name":"elapsed","ignoreValidation":false,"shape":{"kind":"VALUE","typeName":"java.time.Duration","nullable":false}}]}]}
             """);
         task.getManifestClasspath().from(resources.toFile());
         task.generate();

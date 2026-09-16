@@ -41,6 +41,22 @@ import org.junit.jupiter.api.Test
 
 internal class ArcOpenApiGeneratorTests {
     @Test
+    fun `ignored validation property retains serialization shape and binding requiredness without constraints`() {
+        val property = PropertyDescriptor("ignored", TypeShapeDescriptor.value("kotlin.String"), false, emptyList(), false, emptyList(), null, true)
+        val module = object : ArcArtifactModule(emptyList(), emptyList(), types = listOf(
+            TypeDescriptor("IgnoredInput", "fixture.IgnoredInput", properties = listOf(property)))) { }
+        val schema = ArcOpenApiGenerator().generate(listOf(module)).openApi.components.schemas.getValue("IgnoredInput")
+        assertEquals(listOf("ignored"), schema.required)
+        val value = schema.properties.getValue("ignored")
+        assertEquals("string", value.type)
+        assertNull(value.minLength)
+        assertNull(value.maxLength)
+        assertNull(value.pattern)
+        assertNull(value.minimum)
+        assertNull(value.maximum)
+    }
+
+    @Test
     fun `document uses exact routes schemas enums responses security and custom query paths`() {
         val document = ArcOpenApiGenerator().generate(
             listOf(FixtureModule()),

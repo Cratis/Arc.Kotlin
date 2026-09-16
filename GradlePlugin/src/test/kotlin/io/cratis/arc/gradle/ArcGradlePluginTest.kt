@@ -134,18 +134,18 @@ class ArcGradlePluginTest {
         }
 
         assertTrue(exception.message.orEmpty().contains(manifest.toString()))
-        assertTrue(exception.message.orEmpty().contains("explicit numeric formatVersion=7"))
+        assertTrue(exception.message.orEmpty().contains("explicit numeric formatVersion=8"))
     }
 
     @Test
-    fun `rejects format 7 manifests containing only legacy flat shape metadata`() {
+    fun `rejects format 8 manifests containing only legacy flat shape metadata`() {
         val root = temporaryDirectory.resolve("legacy-only")
         val manifest = root.resolve("META-INF/cratis/arc/legacy.json")
         writeRawManifest(
             manifest,
             """
             {
-              "formatVersion": 7,
+              "formatVersion": 8,
               "moduleName": "LegacyOnly",
               "commands": [{
                 "name": "Run",
@@ -166,14 +166,14 @@ class ArcGradlePluginTest {
     }
 
     @Test
-    fun `rejects format 7 jar manifests mixing canonical and legacy shape metadata`() {
+    fun `rejects format 8 jar manifests mixing canonical and legacy shape metadata`() {
         val jar = temporaryDirectory.resolve("mixed.jar")
         writeJarManifest(
             jar,
             "META-INF/cratis/arc/mixed.json",
             """
             {
-              "formatVersion": 7,
+              "formatVersion": 8,
               "moduleName": "Mixed",
               "commands": [{
                 "name": "Run",
@@ -198,7 +198,7 @@ class ArcGradlePluginTest {
     }
 
     @Test
-    fun `discovers format 7 manifests containing canonical shapes on all typed nodes`() {
+    fun `discovers format 8 manifests containing canonical shapes on all typed nodes`() {
         val root = temporaryDirectory.resolve("canonical")
         val manifest = root.resolve("META-INF/cratis/arc/canonical.json")
         val valueShape = """{"kind":"VALUE","nullable":false,"typeName":"kotlin.String"}"""
@@ -206,12 +206,12 @@ class ArcGradlePluginTest {
             manifest,
             """
             {
-              "formatVersion": 7,
+              "formatVersion": 8,
               "moduleName": "Canonical",
               "commands": [{
                 "name": "Run",
                 "typeName": "sample.Run",
-                "properties": [{"name": "value", "shape": $valueShape}],
+                "properties": [{"name": "value", "shape": $valueShape, "ignoreValidation": false}],
                 "responseValues": [{"shape": $valueShape, "disposition": "CLIENT"}]
               }],
               "queries": [{
@@ -223,12 +223,12 @@ class ArcGradlePluginTest {
               "types": [{
                 "name": "Model",
                 "fullyQualifiedName": "sample.Model",
-                "properties": [{"name": "value", "shape": $valueShape}]
+                "properties": [{"name": "value", "shape": $valueShape, "ignoreValidation": false}]
               }],
               "interfaces": [{
                 "name": "Contract",
                 "fullyQualifiedName": "sample.Contract",
-                "properties": [{"name": "value", "shape": $valueShape}]
+                "properties": [{"name": "value", "shape": $valueShape, "ignoreValidation": false}]
               }]
             }
             """.trimIndent()
@@ -248,7 +248,7 @@ class ArcGradlePluginTest {
             manifest,
             """
             {
-              "formatVersion": 7,
+              "formatVersion": 8,
               "moduleName": "MissingSource",
               "queries": [{
                 "name": "find",
@@ -306,7 +306,7 @@ class ArcGradlePluginTest {
                 manifest,
                 """
                 {
-                  "formatVersion":7,
+                  "formatVersion":8,
                   "moduleName":"QueryDefaults$index",
                   "queries":[{
                     "name":"find", "declaringTypeName":"sample.Queries",
@@ -331,7 +331,7 @@ class ArcGradlePluginTest {
                 val root = temporaryDirectory.resolve("nullable-sequence-$context-$kind")
                 writeRawManifest(root.resolve("META-INF/cratis/arc/sequence.json"), """
                     {
-                      "formatVersion":7,
+                      "formatVersion":8,
                       "moduleName":"NullableSequence",
                       "$context":[{
                         "name":"Holder", "typeName":"sample.Holder", "fullyQualifiedName":"sample.Holder",
@@ -359,7 +359,7 @@ class ArcGradlePluginTest {
             unsafeLeafManifest,
             """
             {
-              "formatVersion": 7,
+              "formatVersion": 8,
               "moduleName": "UnsafeLeaf",
               "commands": [{
                 "name": "Run",
@@ -392,7 +392,7 @@ class ArcGradlePluginTest {
             queryManifest,
             """
             {
-              "formatVersion":7,
+              "formatVersion":8,
               "moduleName":"UnsafeQuery",
               "queries":[{
                 "name":"find", "declaringTypeName":"sample.Queries",

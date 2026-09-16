@@ -15,6 +15,7 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder
     "isCommandKey",
     "validationRules",
     "validateRecursively",
+    "ignoreValidation",
     "derivatives",
     "summary"
 )
@@ -40,6 +41,7 @@ public class PropertyDescriptor @JvmOverloads constructor(
     private var shapeBacking: TypeShapeDescriptor =
         legacyPropertyShape(typeName, isNullable, isEnumerable, elementTypeName)
     private var summaryBacking: String? = null
+    private var ignoreValidationBacking: Boolean = false
 
     init {
         require(isEnumerable == (elementTypeName != null)) {
@@ -83,6 +85,23 @@ public class PropertyDescriptor @JvmOverloads constructor(
         summaryBacking = DocumentationSummaries.validate(summary, name)
     }
 
+    /** Creates metadata with an explicit validation edge opt-out, independent of automatic traversal. */
+    public constructor(
+        name: String,
+        shape: TypeShapeDescriptor,
+        isCommandKey: Boolean,
+        validationRules: List<ValidationRuleDescriptor>,
+        validateRecursively: Boolean,
+        derivatives: List<String>,
+        summary: String?,
+        ignoreValidation: Boolean
+    ) : this(name, shape, isCommandKey, validationRules, validateRecursively, derivatives, summary) {
+        require(!ignoreValidation || validationRules.isEmpty() && !validateRecursively) {
+            "Ignored validation property '$name' must have empty effective rules and no recursive validation."
+        }
+        ignoreValidationBacking = ignoreValidation
+    }
+
     /** Preserves the Jackson creator descriptor used before source documentation metadata was added. */
     public constructor(
         name: String,
@@ -109,6 +128,14 @@ public class PropertyDescriptor @JvmOverloads constructor(
         null
     )
 
+    /** Preserves the pre-format-8 Jackson creator JVM signature. */
+    public constructor(
+        name: String, typeName: String?, isNullable: Boolean?, isCommandKey: Boolean?,
+        isEnumerable: Boolean?, elementTypeName: String?, validationRules: List<ValidationRuleDescriptor>?,
+        validateRecursively: Boolean?, derivatives: List<String>?, shape: TypeShapeDescriptor?, summary: String?
+    ) : this(name, typeName, isNullable, isCommandKey, isEnumerable, elementTypeName,
+        validationRules, validateRecursively, derivatives, shape, summary, false)
+
     /** Jackson compatibility creator accepting either legacy flat metadata or the canonical shape. */
     @JsonCreator
     public constructor(
@@ -122,7 +149,8 @@ public class PropertyDescriptor @JvmOverloads constructor(
         @JsonProperty("validateRecursively") validateRecursively: Boolean?,
         @JsonProperty("derivatives") derivatives: List<String>?,
         @JsonProperty("shape") shape: TypeShapeDescriptor?,
-        @JsonProperty("summary") summary: String?
+        @JsonProperty("summary") summary: String?,
+        @JsonProperty("ignoreValidation") ignoreValidation: Boolean?
     ) : this(
         name,
         resolvePropertyShape(typeName, isNullable, isEnumerable, elementTypeName, shape),
@@ -130,7 +158,8 @@ public class PropertyDescriptor @JvmOverloads constructor(
         validationRules.orEmpty(),
         validateRecursively ?: false,
         derivatives.orEmpty(),
-        summary
+        summary,
+        ignoreValidation ?: false
     )
 
     /** Canonical recursive type metadata. */
@@ -143,6 +172,10 @@ public class PropertyDescriptor @JvmOverloads constructor(
     public val summary: String?
         get() = summaryBacking
 
+    /** Whether validation must skip this logical member before access, including automatic traversal. */
+    public val ignoreValidation: Boolean
+        get() = ignoreValidationBacking
+
     /** Client-representable Jakarta validation rules in deterministic order. */
     public val validationRules: List<ValidationRuleDescriptor> = java.util.List.copyOf(validationRules)
 
@@ -152,7 +185,7 @@ public class PropertyDescriptor @JvmOverloads constructor(
     override fun equals(other: Any?): Boolean = other is PropertyDescriptor &&
         name == other.name && shape == other.shape && isCommandKey == other.isCommandKey &&
         validationRules == other.validationRules && validateRecursively == other.validateRecursively &&
-        derivatives == other.derivatives && summary == other.summary
+        derivatives == other.derivatives && summary == other.summary && ignoreValidation == other.ignoreValidation
 
     override fun hashCode(): Int {
         var result = name.hashCode()
@@ -161,13 +194,14 @@ public class PropertyDescriptor @JvmOverloads constructor(
         result = 31 * result + validationRules.hashCode()
         result = 31 * result + validateRecursively.hashCode()
         result = 31 * result + derivatives.hashCode()
-        return 31 * result + (summary?.hashCode() ?: 0)
+        result = 31 * result + (summary?.hashCode() ?: 0)
+        return 31 * result + ignoreValidation.hashCode()
     }
 
     override fun toString(): String =
         "PropertyDescriptor(name=$name, shape=$shape, isCommandKey=$isCommandKey, " +
             "validationRules=$validationRules, validateRecursively=$validateRecursively, " +
-            "derivatives=$derivatives, summary=$summary)"
+            "derivatives=$derivatives, summary=$summary, ignoreValidation=$ignoreValidation)"
 }
 
 private fun resolvePropertyShape(

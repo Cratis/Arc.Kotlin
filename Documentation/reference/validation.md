@@ -26,6 +26,104 @@ and checks their frozen rules against compiler metadata.
 - Reading `rules`, registering or evaluating freezes the declaration. Escaped builders cannot
   mutate it afterward. Direct evaluation requires the exact model runtime class.
 
+## Ignore a validation member edge
+
+`io.cratis.arc.validation.IgnoreValidation` is a runtime-retained logical-member annotation.
+Kotlin supports `@IgnoreValidation` on a property, `@field:IgnoreValidation`, and
+`@get:IgnoreValidation`. Java supports instance fields, bean getters, and record components
+through their propagated field/accessor annotations. Compiled record private-field annotations,
+including a header annotation with an explicit accessor, are read from the exact compiler classpath
+without loading application classes. The Arc plugin supplies `arc.validationClasspath` automatically
+and tracks it as a nonincremental classpath input, so private annotation edits invalidate unchanged
+consumers even when public ABI and authored fluent metadata do not change.
+
+Manual KSP wiring must supply absolute file URIs for the compilation's directories/JARs joined by
+`|`, plus the same nonincremental classpath task input; the Kotlin sample and ContractTests build files
+show the main/test-fixtures forms. This is an input-location option, not another generated metadata
+resource. Missing evidence, conflicting definitions or unreadable records fail with `ARCKSP0311`;
+a visible accessor whole-edge opt-out is sufficient without private annotations. Do not add an
+ignore annotation merely to silence missing classpath evidence for an active edge. Unannotated
+binary records remain active when their field metadata can be inspected.
+There is no class, type-use, constructor-parameter, setter, static member, or executable query-parameter
+opt-out. KSP reports unsupported or ambiguous placements with `ARCKSP0311`; language-illegal
+annotation targets are rejected by the Kotlin/Java compiler itself.
+
+The annotation cuts **one member edge before access**: direct fluent, concept and Jakarta member
+constraints, container-element constraints, and descendant validation through that edge do not run.
+A throwing ignored getter and an ignored container's value extractor are not invoked. An active
+sibling/alias remains eligible; validating the child separately as a root still validates it.
+Genuine property overrides inherit the policy; hidden fields are ambiguous, not overrides.
+
+This is not an access prohibition. Owner-level imperative `ModelValidator` callbacks, Jakarta class
+constraints and group-sequence providers still run and may read the member. Their feedback is not
+post-filtered, even when it names an ignored member. Serialization, command keys, authorization,
+nullability/binding requirements, and executable parameter constraints remain unchanged. It does
+not mean `@JsonIgnore`. Existing concept-only exclusions keep their narrower behavior.
+
+Runtime traversal now also visits **bean-only Java getters**, including on models without this
+annotation. Public reflected fields retain precedence on the same logical edge. This is an explicit
+runtime graph expansion, not new support for computed/bean-only shared wire models: KSP still
+requires a representable property and rejects an annotated unbacked generated-model getter.
+Source-proved fluent declaration restrictions and the supported graph limits below still apply.
+
+### Jakarta factory ownership
+
+With Boot's default `LocalValidatorFactoryBean`, Arc obtains a dedicated validator from that exact
+factory's `usingContext()`, composing `IgnoreValidationTraversableResolver` with
+`factory.getTraversableResolver()`. It does not replace the application Validator bean or create,
+close, or otherwise own its factory. An application-configured resolver remains the delegate. Automatic adaptation is limited
+to the ordinary `LocalValidatorFactoryBean` class: subclasses and custom Validator/ValidatorFactory
+facades may override validation behavior, so their owner must explicitly choose the factory adapter.
+`Configuration.getDefaultTraversableResolver()` is only the **provider default**, not the current
+application resolver; it is not used for composition. This factory-context adaptation needs no
+Boot customizer module on Arc's production classpath and remains optional without Jakarta/Boot
+validation classes. No fallback factory is installed.
+
+For an application-owned factory, explicitly supply the Java-friendly adapter as the selected
+Validator bean:
+
+```java
+@Bean
+Validator arcAwareValidator(ValidatorFactory applicationValidatorFactory) {
+    return IgnoreValidationValidator.fromFactory(applicationValidatorFactory);
+}
+```
+
+Imports are `jakarta.validation.Validator`, `jakarta.validation.ValidatorFactory`,
+`io.cratis.arc.validation.IgnoreValidationValidator`, and Spring's `Bean`. The application must
+keep its configured factory alive. This recipe does not turn an arbitrary existing bare Validator
+into a factory: custom per-validator context/decorator behavior must be integrated by its owner,
+not silently replaced using some unrelated injected factory. Arc uses full-object validation and
+executable cascades. Direct `validateProperty`, `validateValue` and unwrapped provider-specific APIs
+retain provider semantics; they are not covered by this pre-access graph guarantee.
+
+An opaque Validator remains usable for unaffected statically provable graphs. Discoverable ignored
+command/query inputs fail startup with the selected validator class, member and adapter remedy;
+late imperative inputs are checked before validation. Unprovable dynamic cascades also require the
+adapter, before reading the parent getter. Named Arc command/query filter beans still back off for
+application replacements. Custom filters own their own validation policy.
+
+### Manifest format 8 migration
+
+Every command/model/interface property now carries a required JSON boolean `ignoreValidation`.
+`true` requires empty **effective** `validationRules` and `validateRecursively: false`; those two
+fields alone do not suppress automatic shared traversal. The property, canonical shape, command
+key and documentation summary remain present. The Gradle reader rejects missing/nonboolean flags,
+inconsistent ignored rules/recursion, and every manifest version other than **8**. Rebuild all
+producer/dependency artifacts and regenerate consumers together; format 7 is not accepted.
+
+The public `PropertyDescriptor` has an explicit eight-argument canonical constructor ending in
+`summary, ignoreValidation`, and a `getIgnoreValidation()` Java getter. All earlier JVM constructor
+signatures remain available and default to `false`. Equality/hash code include the flag. The manual
+KSP JSON writer, runtime JSON, generated factories and descriptor merge preserve it; duplicate
+producers must agree about the flag instead of unioning rules back into an ignored edge.
+
+The DSL declaration resource, frozen `rules`, compiler expectations and runtime registration
+fingerprint retain **all authored rules**. Ignoring a member changes effective evaluation and client
+composition, not declaration validity or agreement. OpenAPI retains the property type and required
+binding slot; it adds no validation constraints for the ignored edge. This does not introduce general
+Jakarta-constraint-to-OpenAPI projection.
+
 ## Rule signatures, types and default messages
 
 All rules produce error severity. `withMessage(value: String)` (Java `String`) accepts a literal
@@ -135,10 +233,12 @@ requiring Jakarta `@Valid`. Annotation-only client behavior is unchanged; `valid
 metadata alone does not promise general recursive Jakarta client execution.
 
 Inherited/polymorphic graphs, cycles, erased inline-value members, scalar/concept shared roots,
-opaque `Any`/`Object` input edges, ignored/computed shared edges and external mappings of active
+opaque `Any`/`Object` input edges, serialization-ignored/computed shared edges and external mappings of active
 shared models reject. Maps containing models remain outside the existing wire-shape contract.
 Existing Java object-array property restrictions still apply; supported Kotlin arrays and Java
-lists are separate contracts. Use server-only validators for unsupported graphs.
+lists are separate contracts. An explicit validation-ignored edge can be skipped in validation graph
+analysis, but its serialization shape must still be representable. This does not claim support for
+all polymorphic, inherited or cyclic shared graphs. Use server-only validators for unsupported graphs.
 
 Identity tracking runs once per node within a command or a supplied query-argument root. Separate
 query arguments have independent tracking. JSON does not preserve aliases: serializing one aliased
@@ -169,7 +269,7 @@ resources together. For a module named `Producer`, the relevant inventory is:
 | `META-INF/cratis/arc-fluent-validation-scope/Producer.json` | Format-1 compilation scope, recording its complete declaration set and index status |
 | `io/cratis/arc/generated/ProducerArcArtifactModule.class` | Compiled module with runtime validator linkage |
 | `META-INF/services/io.cratis.arc.artifacts.ArcArtifactModule` | ServiceLoader entry naming that module |
-| `META-INF/cratis/arc/Producer.json` when artifact metadata is emitted | Format-7 artifact descriptors; not a substitute for declaration or scope metadata |
+| `META-INF/cratis/arc/Producer.json` when artifact metadata is emitted | Format-8 artifact descriptors; not a substitute for declaration or scope metadata |
 
 Validator-only libraries still need the generated module, declaration resource and ServiceLoader
 registration; an imported-only root needs a scope and runtime contributions, not a re-exported
@@ -189,7 +289,11 @@ Prefer the plugin. If you maintain manual KSP wiring, use the actual
 `ksp` and `kspKotlin` configuration form one recipe. It resolves compile/runtime **JAR** artifacts,
 registers those as extraction inputs, declares the output index, makes KSP depend on extraction,
 passes `fluentIndex.map { it.asFile.toURI().toASCIIString() }`, and registers that file as the
-nonincremental `arcFluentValidationMetadata` task input with `PathSensitivity.NONE`.
+nonincremental `arcFluentValidationMetadata` task input with `PathSensitivity.NONE`. It also supplies
+`arc.validationClasspath` from the main compile classpath's sorted file URIs and registers that
+classpath with `ClasspathNormalizer` as the nonincremental `arcValidationClasspath` input.
+Use the actual matching compilation classpath for other source sets; do not substitute a runtime-only
+classpath or assume public ABI tracking observes private record annotations.
 Do not copy only `ksp { arg("arc.moduleName", ...) }` from a basic onboarding build for shared rules.
 
 The CLI has exactly **three positional arguments**, no named flags:
@@ -229,6 +333,7 @@ Do not assume every metadata failure carries a KSP code. Read the failing task f
 | KSP, `ARCKSP0310` | Missing or unusable supplied index, or unavailable parser/configuration. Supply the extracted absolute index URI and nonincremental task input; restore the processor's packaged parser dependencies. |
 | KSP, `ARCKSP0308` | Unsupported constructor grammar or potentially shadowed Kotlin class mapping. Use only the restricted body and standard `Model::class.java`; remove/rename conflicting declarations or imports. |
 | KSP, `ARCKSP0309` | Unsupported member/rule/bound, contradictions, computed or unproved wire members/edges, or ambiguous regex grammar. Use source-proved unchanged members and supported literals, or keep the rule server-only. |
+| KSP, `ARCKSP0311` | Unsupported annotation target, hidden state, or unrepresentable ignored wire member. Move the annotation to a supported member edge or rename hidden state. |
 | Proxy generation, `ARCVALIDATION_GRAPH` | Unsupported shared graph or query transport. Use the bounded concrete graph and RFC QUERY, or server-only rules. |
 | Proxy discovery/root verification | Incomplete root scope, runtime inventory or incompatible descriptors. Supply the complete compiled root and matching dependencies, not manifest-only files. |
 | Registration/startup | Runtime declaration rules disagree with compiler metadata, or a fluent bean has no generated contribution. Regenerate and register the matching module. |

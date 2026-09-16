@@ -113,6 +113,12 @@ public class ArcGradlePlugin : Plugin<Project> {
                     provider.metadataFile.set(extract.flatMap { it.outputFile })
                     provider.rootCompilation.set(compilation.name == "main")
                     task.commandLineArgumentProviders.add(provider)
+                    val binaryClasspath = project.objects.newInstance(ArcValidationClasspathArgumentProvider::class.java)
+                    binaryClasspath.classpath.from(compilation.compileDependencyFiles)
+                    task.commandLineArgumentProviders.add(binaryClasspath)
+                    // Private annotation edits can leave public ABI and fluent declarations unchanged.
+                    task.inputs.files(binaryClasspath.classpath).withPropertyName("arcValidationClasspath")
+                        .withNormalizer(org.gradle.api.tasks.ClasspathNormalizer::class.java)
                     // Nonincremental input: changed dependency rules rebuild every unchanged source root.
                     task.inputs.file(provider.metadataFile).withPropertyName("arcFluentValidationMetadata").withPathSensitivity(PathSensitivity.NONE)
                 }

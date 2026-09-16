@@ -35,6 +35,172 @@ internal class ArcFluentValidationCompilationTest {
     }
 
     @Test
+    fun `ignored Kotlin use sites suppress effective rules but preserve declared fluent fingerprints and wire shapes`() {
+        val source = SourceFile.kotlin("Ignored.kt", """
+            package fixture
+            import io.cratis.arc.validation.IgnoreValidation
+            import io.cratis.arc.validation.FluentModelValidator
+            import io.cratis.arc.artifacts.ExportedType
+            import jakarta.validation.Valid
+            import jakarta.validation.constraints.NotNull
+            @ExportedType
+            class Person(@IgnoreValidation @field:NotNull val name: String?,
+                @field:IgnoreValidation @field:Valid val field: Child,
+                @get:IgnoreValidation @field:NotNull val getter: String?,
+                @field:NotNull val sibling: String?)
+            class Child(@field:NotNull val value: String?)
+            class Rules : FluentModelValidator<Person>(Person::class.java) {
+                init { ruleFor("name").notNull(); ruleFor("sibling").notNull() }
+            }
+        """.trimIndent())
+        val compiled = compile(listOf(source))
+        assertEquals(KotlinCompilation.ExitCode.OK, compiled.result.exitCode, compiled.result.messages)
+        val module = compiled.result.classLoader.loadClass("io.cratis.arc.generated.FluentArcArtifactModule").getConstructor().newInstance() as ArcArtifactModule
+        val properties = module.types.single { it.fullyQualifiedName == "fixture.Person" }.properties
+        assertEquals(setOf("name", "field", "getter", "sibling"), properties.map { it.name }.toSet())
+        properties.filter { it.name != "sibling" }.forEach {
+            assertTrue(it.ignoreValidation, it.name)
+            assertTrue(it.validationRules.isEmpty(), it.name)
+            assertFalse(it.validateRecursively, it.name)
+        }
+        assertFalse(properties.single { it.name == "sibling" }.ignoreValidation)
+        assertEquals(listOf("notNull"), properties.single { it.name == "sibling" }.validationRules.map { it.ruleName })
+        val registration = module.fluentValidators.single()
+        assertEquals(registration.expectedRules, registration.validator.rules)
+        assertEquals(listOf("name", "sibling"), registration.expectedRules.map { it.member })
+        val manifest = compiled.resource("META-INF/cratis/arc/Fluent.json").readText()
+        assertTrue("\"formatVersion\":8" in manifest, manifest)
+        assertTrue("\"ignoreValidation\":true" in manifest, manifest)
+    }
+
+    @Test
+    fun `ignored concept edges suppress effective inherited constraints without removing scalar shapes`() {
+        val compiled = compile(listOf(SourceFile.kotlin("Concepts.kt", """
+            package fixture
+            import io.cratis.arc.validation.IgnoreValidation
+            import io.cratis.arc.concepts.ConceptAs
+            class Code(@field:jakarta.validation.constraints.NotBlank val raw: String) : ConceptAs<String> {
+                override fun value(): String = raw
+            }
+            class InnerIgnored(@field:IgnoreValidation @field:jakarta.validation.constraints.NotBlank val raw: String) : ConceptAs<String> {
+                override fun value(): String = raw
+            }
+            @io.cratis.arc.artifacts.ExportedType
+            class Owner(@IgnoreValidation val ignored: Code, val active: Code, val innerIgnored: InnerIgnored,
+                @IgnoreValidation @field:jakarta.validation.constraints.Pattern(regexp = "(?i)unportable") val text: String)
+        """.trimIndent())))
+        assertEquals(KotlinCompilation.ExitCode.OK, compiled.result.exitCode, compiled.result.messages)
+        val module = compiled.result.classLoader.loadClass("io.cratis.arc.generated.FluentArcArtifactModule").getConstructor().newInstance() as ArcArtifactModule
+        val properties = module.types.single { it.fullyQualifiedName == "fixture.Owner" }.properties.associateBy { it.name }
+        assertTrue(properties.getValue("ignored").ignoreValidation)
+        assertEquals("fixture.Code", properties.getValue("ignored").shape.typeName)
+        assertTrue(properties.getValue("ignored").validationRules.isEmpty())
+        assertEquals(listOf("notEmpty"), properties.getValue("active").validationRules.map { it.ruleName })
+        assertTrue(properties.getValue("innerIgnored").validationRules.isEmpty())
+        assertTrue(properties.getValue("text").validationRules.isEmpty())
+    }
+
+    @Test
+    fun `genuine Kotlin overrides inherit ignore and binary Java field getter record metadata is retained`() {
+        val binary = compile(listOf(SourceFile.java("Binary.java", """
+            package fixture;
+            public final class Binary {
+                @io.cratis.arc.validation.IgnoreValidation @jakarta.validation.constraints.NotNull public String ignored;
+                @jakarta.validation.constraints.NotNull public String value;
+                @io.cratis.arc.validation.IgnoreValidation public String getValue() { return value; }
+            }
+        """.trimIndent()), SourceFile.java("BinaryRecord.java", """
+            package fixture;
+            public record BinaryRecord(@io.cratis.arc.validation.IgnoreValidation @jakarta.validation.constraints.NotNull String name) {
+                @Override public String name() { return name; }
+            }
+        """.trimIndent()), SourceFile.java("ActiveBinaryRecord.java", """
+            package fixture;
+            public record ActiveBinaryRecord(@jakarta.validation.constraints.NotBlank @jakarta.validation.constraints.Size(min = 2) String name) {
+                static { if (System.getProperty("arc.test.allowBinaryConstruction") == null) throw new AssertionError("APPLICATION_CLASS_INITIALIZED"); }
+                @Override @jakarta.validation.constraints.Size(max = 5) public String name() { return name; }
+            }
+        """.trimIndent())), processor = false)
+        assertEquals(KotlinCompilation.ExitCode.OK, binary.result.exitCode, binary.result.messages)
+        val compiled = compile(listOf(SourceFile.kotlin("Inheritance.kt", """
+            package fixture
+            import io.cratis.arc.validation.IgnoreValidation
+            import io.cratis.arc.artifacts.ExportedType
+            interface Contract { @get:IgnoreValidation val name: String }
+            interface BooleanContract { @get:IgnoreValidation val isReady: Boolean }
+            open class Base { @get:IgnoreValidation open val value: String = "" }
+            @ExportedType class Derived(override val name: String, override val value: String) : Base(), Contract
+            @ExportedType class Holder(val binary: Binary, val record: BinaryRecord, val active: ActiveBinaryRecord)
+        """.trimIndent()), SourceFile.java("BooleanImplementation.java", """
+            package fixture;
+            @io.cratis.arc.artifacts.ExportedType
+            public final class BooleanImplementation implements BooleanContract {
+                public boolean ready;
+                @Override public boolean isReady() { return ready; }
+            }
+        """.trimIndent())), classpaths = listOf(binary.directory.resolve("classes")))
+        assertEquals(KotlinCompilation.ExitCode.OK, compiled.result.exitCode, compiled.result.messages)
+        val module = compiled.result.classLoader.loadClass("io.cratis.arc.generated.FluentArcArtifactModule").getConstructor().newInstance() as ArcArtifactModule
+        for (name in listOf("fixture.Derived", "fixture.Binary", "fixture.BinaryRecord", "fixture.BooleanImplementation")) {
+            val properties = module.types.single { it.fullyQualifiedName == name }.properties
+            assertTrue(properties.isNotEmpty(), name)
+            properties.forEach { assertTrue(it.ignoreValidation, "$name.${it.name}"); assertTrue(it.validationRules.isEmpty()) }
+        }
+        val active = module.types.single { it.fullyQualifiedName == "fixture.ActiveBinaryRecord" }.properties.single()
+        assertFalse(active.ignoreValidation)
+        assertEquals(listOf("notEmpty", "minLength", "maxLength"), active.validationRules.map { it.ruleName })
+        assertEquals(listOf(2), active.validationRules.single { it.ruleName == "minLength" }.arguments)
+        assertEquals(listOf(5), active.validationRules.single { it.ruleName == "maxLength" }.arguments)
+    }
+
+    @Test
+    fun `binary record field only ignore fails closed without the actual compiler classpath`() {
+        val binary = compile(listOf(SourceFile.java("FieldOnlyRecord.java", """
+            package fixture;
+            public record FieldOnlyRecord(@io.cratis.arc.validation.IgnoreValidation String name) {
+                @Override public String name() { return name; }
+            }
+        """.trimIndent())), processor = false)
+        assertEquals(KotlinCompilation.ExitCode.OK, binary.result.exitCode, binary.result.messages)
+        val consumer = compile(listOf(SourceFile.kotlin("Holder.kt", """
+            package fixture
+            @io.cratis.arc.artifacts.ExportedType class Holder(val record: FieldOnlyRecord)
+        """.trimIndent())), classpaths = listOf(binary.directory.resolve("classes")), binaryClasspath = false)
+        assertEquals(KotlinCompilation.ExitCode.COMPILATION_ERROR, consumer.result.exitCode, consumer.result.messages)
+        assertTrue("[ARCKSP0311] Binary record component 'fixture.FieldOnlyRecord.name' has no visible field annotation metadata" in consumer.result.messages, consumer.result.messages)
+        assertFalse(consumer.resource("META-INF/cratis/arc/Fluent.json").exists())
+    }
+
+    @Test
+    fun `Java fields bean getters and record headers retain explicit ignored metadata`() {
+        val field = SourceFile.java("Fields.java", """
+            package fixture;
+            @io.cratis.arc.artifacts.ExportedType
+            public final class Fields {
+                @io.cratis.arc.validation.IgnoreValidation @jakarta.validation.constraints.NotNull public String field;
+                @jakarta.validation.constraints.NotNull public String getter;
+                @io.cratis.arc.validation.IgnoreValidation public String getGetter() { return getter; }
+                @jakarta.validation.constraints.NotNull public String sibling;
+            }
+        """.trimIndent())
+        val record = SourceFile.java("Record.java", """
+            package fixture;
+            @io.cratis.arc.artifacts.ExportedType
+            public record Record(@io.cratis.arc.validation.IgnoreValidation @jakarta.validation.constraints.NotNull String name,
+                @jakarta.validation.constraints.NotNull String sibling) {
+                @Override public String name() { return name; }
+            }
+        """.trimIndent())
+        val compiled = compile(listOf(field, record))
+        assertEquals(KotlinCompilation.ExitCode.OK, compiled.result.exitCode, compiled.result.messages)
+        val module = compiled.result.classLoader.loadClass("io.cratis.arc.generated.FluentArcArtifactModule").getConstructor().newInstance() as ArcArtifactModule
+        module.types.forEach { type -> type.properties.forEach { property ->
+            assertEquals(property.name != "sibling", property.ignoreValidation, "${type.name}.${property.name}")
+            assertEquals(if (property.ignoreValidation) 0 else 1, property.validationRules.size)
+        } }
+    }
+
+    @Test
     fun `real Kotlin and ordinary Java declarations compile merged metadata and verified runtime registration`() {
         val compiled = compile(listOf(model, javaModel, kotlinRules("KotlinRules", "ruleFor(\"name\").notNull().maxLength(10)"), javaRules("JavaRules", "ruleFor(\"name\").notNull().maxLength(10);")))
         assertEquals(KotlinCompilation.ExitCode.OK, compiled.result.exitCode, compiled.result.messages)
@@ -459,7 +625,7 @@ internal class ArcFluentValidationCompilationTest {
     }
 
     private fun compile(sources: List<SourceFile>, processor: Boolean = true, indexed: Boolean = true,
-        providers: List<SymbolProcessorProvider> = listOf(ArcSymbolProcessorProvider()), classpaths: List<File> = emptyList()): Compilation {
+        providers: List<SymbolProcessorProvider> = listOf(ArcSymbolProcessorProvider()), classpaths: List<File> = emptyList(), binaryClasspath: Boolean = true): Compilation {
         root.mkdirs()
         val directory = Files.createTempDirectory(root.toPath(), "fluent-compile-").toFile()
         val index = directory.resolve("index.json").apply { writeText("{\"formatVersion\":1,\"modules\":[]}") }
@@ -470,7 +636,10 @@ internal class ArcFluentValidationCompilationTest {
             this.classpaths = classpaths
             inheritClassPath = true
             if (processor) symbolProcessorProviders = providers.toMutableList()
-            kspProcessorOptions = mutableMapOf("arc.moduleName" to "Fluent").apply { if (indexed) put(FluentValidationMetadata.OPTION, index.toURI().toASCIIString()) }
+            kspProcessorOptions = mutableMapOf("arc.moduleName" to "Fluent").apply {
+                if (indexed) put(FluentValidationMetadata.OPTION, index.toURI().toASCIIString())
+                if (binaryClasspath) put(BinaryRecordMetadata.OPTION, classpaths.joinToString("|") { it.toURI().toASCIIString() })
+            }
             kspWithCompilation = true
             messageOutputStream = System.out
         }.compile()

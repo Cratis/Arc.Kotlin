@@ -24,7 +24,7 @@ internal class GeneratedIdentityArtifactsTest {
         val expected = setOf("KotlinIdentityDetails", "KotlinFactoryIdentityDetails", "JavaIdentityDetails", "JavaFactoryIdentityDetails", "IdentityAddress")
         assertEquals(expected, module.types.filter { it.name in expected }.map { it.name }.toSet())
         assertEquals(mapper.writeValueAsString(module.types), mapper.writeValueAsString(manifest.types))
-        assertEquals(7, manifest.formatVersion)
+        assertEquals(8, manifest.formatVersion)
         assertFalse(module.types.any { it.name.endsWith("IdentityProvider") || it.name == "IdentityTemplate" })
         val context = IdentityProviderContext("city", "name", emptyList())
         assertEquals("city", KotlinIdentityProvider().provide(context).details.address.city)

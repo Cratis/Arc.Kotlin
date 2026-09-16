@@ -64,10 +64,14 @@ ksp {
     arg("arc.moduleName", arcModuleName)
     arg("arc.fluentValidationMetadata", fluentIndex.map { it.asFile.toURI().toASCIIString() })
     arg("arc.fluentValidationRoot", "true")
+    arg("arc.validationClasspath", providers.provider {
+        configurations.compileClasspath.get().files.filter(File::exists).map { it.toURI().toASCIIString() }.sorted().joinToString("|")
+    })
 }
 tasks.matching { it.name == "kspKotlin" }.configureEach {
     dependsOn(extractFluentIndex)
     inputs.file(fluentIndex).withPropertyName("arcFluentValidationMetadata").withPathSensitivity(PathSensitivity.NONE)
+    inputs.files(configurations.compileClasspath).withPropertyName("arcValidationClasspath").withNormalizer(ClasspathNormalizer::class.java)
 }
 
 tasks.named<BootJar>("bootJar") {

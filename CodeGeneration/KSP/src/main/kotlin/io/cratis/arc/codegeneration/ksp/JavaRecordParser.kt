@@ -20,7 +20,10 @@ internal fun parseJavaRecordProperties(source: String, recordName: String): List
     val closingParenthesis = findMatchingParenthesis(withoutComments, openingParenthesis) ?: return emptyList()
     val header = withoutComments.substring(openingParenthesis + 1, closingParenthesis)
     if (header.isBlank()) return emptyList()
-    return splitTopLevel(header).mapNotNull(::parseRecordComponent)
+    val importsIgnore = Regex("\\bimport\\s+io\\.cratis\\.arc\\.validation\\.(?:IgnoreValidation|\\*)\\s*;")
+        .containsMatchIn(withoutComments)
+    val resolvedHeader = if (importsIgnore) header.replace(Regex("@IgnoreValidation\\b"), "@io.cratis.arc.validation.IgnoreValidation") else header
+    return splitTopLevel(resolvedHeader).mapNotNull(::parseRecordComponent)
 }
 
 private fun parseRecordComponent(component: String): JavaRecordProperty? {
@@ -172,6 +175,7 @@ private fun JavaSourceAnnotation.toValidationAnnotation(): SourceValidationAnnot
             name.startsWith("org.hibernate.validator.constraints.") -> name
         name == "Valid" -> "jakarta.validation.Valid"
         simpleName in VALIDATION_CONSTRAINT_NAMES -> "jakarta.validation.constraints.$simpleName"
+        name == "io.cratis.arc.validation.IgnoreValidation" -> "io.cratis.arc.validation.IgnoreValidation"
         simpleName in ARC_VALIDATION_CONSTRAINT_NAMES -> "io.cratis.arc.validation.$simpleName"
         simpleName in HIBERNATE_VALIDATION_CONSTRAINT_NAMES ->
             "org.hibernate.validator.constraints.$simpleName"

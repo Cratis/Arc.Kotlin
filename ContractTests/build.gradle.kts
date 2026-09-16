@@ -69,10 +69,16 @@ ksp {
     arg("arc.moduleName", "ContractTests")
     arg("arc.fluentValidationMetadata", fluentIndex.map { it.asFile.toURI().toASCIIString() })
     arg("arc.fluentValidationRoot", "true")
+    arg("arc.validationClasspath", providers.provider {
+        configurations.getByName("testFixturesCompileClasspath").files.filter(File::exists)
+            .map { it.toURI().toASCIIString() }.sorted().joinToString("|")
+    })
 }
 tasks.matching { it.name == "kspTestFixturesKotlin" }.configureEach {
     dependsOn(extractFluentIndex)
     inputs.file(fluentIndex).withPropertyName("arcFluentValidationMetadata").withPathSensitivity(PathSensitivity.NONE)
+    inputs.files(configurations.getByName("testFixturesCompileClasspath")).withPropertyName("arcValidationClasspath")
+        .withNormalizer(ClasspathNormalizer::class.java)
 }
 
 val typeScriptDirectory = layout.projectDirectory.dir("TypeScript")

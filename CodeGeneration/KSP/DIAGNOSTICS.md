@@ -38,5 +38,6 @@ Arc KSP prefixes every compile-time diagnostic with a stable code. Errors stop c
 | `ARCKSP0308` | Error | Unsupported fluent validation declaration |
 | `ARCKSP0309` | Error | Invalid or unrepresentable fluent validation rule |
 | `ARCKSP0310` | Error | Missing or conflicting fluent validation compiler metadata |
+| `ARCKSP0311` | Error | Unsupported or ambiguous validation ignore member |
 | `ARCKSP0400` | Warning | Java/Kotlin interoperability hazard |
 | `ARCKSP9999` | Error | Unclassified Arc KSP diagnostic |

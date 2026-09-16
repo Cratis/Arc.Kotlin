@@ -39,7 +39,7 @@ public abstract class FluentModelValidator<T : Any> protected constructor(
             }).also { frozen = it }
         }
 
-    /** Selects one public Kotlin property, Java record component or public field; paths are not selectors. */
+    /** Selects one public readable runtime member; compiler-supported shared declarations remain separately restricted. */
     protected fun ruleFor(member: String): FluentRuleBuilder = synchronized(lock) {
         checkMutable()
         require(member.matches(Regex("[A-Za-z_$][A-Za-z0-9_$]*"))) { "Fluent member '$member' must be a direct member name." }
@@ -77,6 +77,8 @@ public abstract class FluentModelValidator<T : Any> protected constructor(
         val results = mutableListOf<ValidationResult>()
         for (member in snapshot) {
             checkActive()
+            // Effective execution policy only: the frozen declaration and compiler fingerprint retain every rule.
+            if (ValidationMemberPolicy.isIgnored(modelType, member.member)) continue
             val value = accessors.getValue(member.member).read(model)
             for (rule in member.rules) {
                 checkActive()
@@ -91,6 +93,7 @@ public abstract class FluentModelValidator<T : Any> protected constructor(
     private fun checkMutable() = check(frozen == null) { "Fluent validator '${javaClass.name}' is frozen; author all rules in its constructor." }
 
     private fun resolve(member: String): Member {
+        ValidationMemberPolicy.isIgnored(modelType, member) // Check metadata ambiguity, never read a value.
         if (modelType.isRecord) {
             val component = modelType.recordComponents.firstOrNull { it.name == member && Modifier.isPublic(it.accessor.modifiers) }
             if (component != null) return Member(component.type) { component.accessor.invoke(it) }
@@ -104,6 +107,9 @@ public abstract class FluentModelValidator<T : Any> protected constructor(
                 property.isAccessible = true
                 return Member(type) { property.getter.call(it) }
             }
+            val getter = ValidationMemberPolicy.javaGetters(modelType)
+                .firstOrNull { ValidationMemberPolicy.sameMember(modelType, it.first, member) }?.second
+            if (getter != null) return Member(getter.returnType) { getter.invoke(it) }
             val field = modelType.fields.firstOrNull { it.name == member && !Modifier.isStatic(it.modifiers) }
             if (field != null) return Member(field.type) { field.get(it) }
         }

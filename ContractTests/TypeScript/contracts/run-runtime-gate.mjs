@@ -19,6 +19,12 @@ const tapSummaryFields = [
 ];
 const childRuns = [
     {
+        label: "ignore validation runtime contract [UTC]",
+        contract: "contracts/runtime.ignore-validation.contract.ts",
+        timeZone: "UTC",
+        expectedTests: 4,
+    },
+    {
         label: "shared fluent runtime contract [UTC]",
         contract: "contracts/runtime.fluent.contract.ts",
         timeZone: "UTC",

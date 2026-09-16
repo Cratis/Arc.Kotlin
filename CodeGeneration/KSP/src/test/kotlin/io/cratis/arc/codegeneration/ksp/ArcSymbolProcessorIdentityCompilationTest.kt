@@ -309,7 +309,7 @@ internal class ArcSymbolProcessorIdentityCompilationTest {
         assertEquals(names.map { if ('.' in it) it else "identity.$it" }.toSet(), module.types.map { it.fullyQualifiedName }.toSet())
         val mapper = ArcObjectMapper.create()
         assertEquals(mapper.writeValueAsString(module.types), mapper.writeValueAsString(manifest.types))
-        assertEquals(7, manifest.formatVersion)
+        assertEquals(8, manifest.formatVersion)
         assertTrue(module.commandHandlers.isEmpty())
         assertTrue(module.queryPerformers.isEmpty())
     }

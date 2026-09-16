@@ -1,0 +1,12 @@
+// Copyright (c) Cratis. All rights reserved.
+// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+package io.cratis.arc.contracts.negative;
+
+@io.cratis.arc.artifacts.ExportedType
+public final class HiddenIgnoredField extends HiddenIgnoredBase {
+    public String name;
+}
+class HiddenIgnoredBase {
+    @io.cratis.arc.validation.IgnoreValidation public String name;
+}

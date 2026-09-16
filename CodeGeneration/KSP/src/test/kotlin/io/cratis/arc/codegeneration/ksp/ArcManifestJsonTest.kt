@@ -77,6 +77,15 @@ internal class ArcManifestJsonTest {
     }
 
     @Test
+    fun `explicit validation ignore metadata is byte equivalent without Kotlin reflection`() {
+        val property = PropertyDescriptor("ignored", TypeShapeDescriptor.value("kotlin.String"), false, emptyList(), false, emptyList(), null, true)
+        val manifest = ArcArtifactManifest("Ignored", commands = listOf(CommandDescriptor("Run", "fixture.Run", properties = listOf(property))))
+        val root = assertEquivalent(manifest)
+        assertEquals(8, root["formatVersion"].intValue())
+        assertTrue(root["commands"][0]["properties"][0]["ignoreValidation"].booleanValue())
+    }
+
+    @Test
     fun `full optional metadata retains Kotlin wire names and constructor property ordering`() {
         val root = assertEquivalent(fullManifest())
         assertEquals(
@@ -92,7 +101,7 @@ internal class ArcManifestJsonTest {
             keys(root["enums"][0])
         )
         val property = root["commands"][0]["properties"][0]
-        assertEquals(listOf("name", "shape", "isCommandKey", "validationRules", "validateRecursively", "derivatives"), keys(property))
+        assertEquals(listOf("name", "shape", "isCommandKey", "validationRules", "validateRecursively", "ignoreValidation", "derivatives"), keys(property))
         assertEquals(listOf("ruleName", "arguments", "message"), keys(property["validationRules"][0]))
         assertEquals("ID", property["name"].stringValue())
         assertEquals(true, property["isCommandKey"].booleanValue())

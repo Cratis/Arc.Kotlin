@@ -58,7 +58,12 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
     private val fluentTrace: ((String) -> Unit)? = if (environment.options["arc.fluentValidationTrace"] == "true")
         { message -> environment.logger.info(message) } else null
     private var fluentRound = 0
-    private var metadataCollector = MetadataCollector(graphLogger)
+    private val binaryRecords = try { BinaryRecordMetadata(environment.options[BinaryRecordMetadata.OPTION]) }
+        catch (exception: Exception) {
+            logger.error(ArcDiagnostic.CONFIGURATION, "KSP option '${BinaryRecordMetadata.OPTION}' is invalid: ${exception.message}; supply compile classpath file URIs joined by '|'.")
+            BinaryRecordMetadata(null)
+        }
+    private var metadataCollector = MetadataCollector(graphLogger, binaryRecords = binaryRecords)
     private val commandNames = sortedSetOf<String>()
     private val readModelNames = sortedSetOf<String>()
     private val exportedTypeNames = sortedSetOf<String>()
@@ -89,6 +94,8 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
     private val emittedCommands = mutableSetOf<String>()
     private val emittedQueries = mutableSetOf<String>()
     private val inspectedCommandLikeTypes = mutableSetOf<String>()
+    private val ignoreValidationOwners = sortedSetOf<String>()
+    private val ignoreValidationTopLevelProperties = sortedSetOf<String>()
     private val queryNames = mutableSetOf<String>()
     private val explicitQueryRoutes = mutableSetOf<String>()
     private val declarativeHandledResponseTypes = sortedSetOf<String>()
@@ -111,12 +118,13 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
         exportRoots.clear()
         queryNames.clear()
         explicitQueryRoutes.clear()
-        metadataCollector = MetadataCollector(graphLogger)
+        metadataCollector = MetadataCollector(graphLogger, binaryRecords = binaryRecords)
         hasDeferredInputs = false
         latestRoundFiles = resolver.getAllFiles().toList()
         val deferred = mutableListOf<KSAnnotated>()
         try {
             reportInvalidConfiguration()
+            IgnoreValidationPolicy.validateTargets(resolver, graphLogger, ignoreValidationOwners, ignoreValidationTopLevelProperties)
             fluentTrace?.invoke("[ARC-FLUENT-ROUND] ${++fluentRound}")
             val fluent = FluentValidationDiscovery(graphLogger, fluentTrace).discover(resolver, fluentNames, importedFluent, fluentIndexOption != null)
             deferred += fluent.deferred
@@ -124,7 +132,7 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
             val fluentRules = fluentSnapshot.all.flatMap { declaration -> declaration.members.map { member ->
                 "${declaration.model}.${member.name}" to member.rules.map { ValidationRuleModel(it.ruleName, it.arguments, it.message) }
             } }.groupBy({ it.first }, { it.second }).mapValues { (_, rules) -> rules.flatten() }
-            metadataCollector = MetadataCollector(graphLogger, fluentRules)
+            metadataCollector = MetadataCollector(graphLogger, fluentRules, binaryRecords)
             deferred += discoverDeclarativeHandledResponseTypes(resolver)
             inspectCommandLikeTypes(resolver)
             val commandSymbols = discoverRoots(resolver, COMMAND_ANNOTATION, commandNames)
@@ -178,11 +186,12 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
             val name = declaration.qualifiedName?.asString() ?: return
             if (name.startsWith("kotlin.") || name.startsWith("java.")) { type.arguments.mapNotNull { it.type?.resolve() }.forEach(::visit); return }
             if (declarations.putIfAbsent(name, declaration) != null) return
-            val members = declaration.getAllProperties().filter { it.isPublic() && Modifier.JAVA_STATIC !in it.modifiers }.toList()
+            val members = declaration.getAllProperties().filter { it.isPublic() && Modifier.JAVA_STATIC !in it.modifiers }
+                .filterNot { IgnoreValidationPolicy.isIgnored(listOfNotNull(it, it.getter), it, resolver, graphLogger) }.toList()
             fun leaf(type: KSType): KSType = if (type.declaration.qualifiedName?.asString() in setOf("kotlin.Array", "kotlin.collections.List", "kotlin.collections.Set", "kotlin.collections.Collection", "java.util.List", "java.util.Set", "java.util.Collection"))
                 type.arguments.singleOrNull()?.type?.resolve() ?: type else type
             edges[name] = (members.mapNotNull { member -> leaf(member.type.resolve()).declaration.qualifiedName?.asString()?.let { member.simpleName.asString() to it } } +
-                metadataCollector.propertiesFor(name).orEmpty().map { it.name to (it.elementTypeName ?: it.typeName) }).distinct()
+                metadataCollector.propertiesFor(name).orEmpty().filterNot { it.ignoreValidation }.map { it.name to (it.elementTypeName ?: it.typeName) }).distinct()
             members.forEach { visit(leaf(it.type.resolve())) }
             edges[name].orEmpty().forEach { (_, child) -> resolver.getClassDeclarationByName(resolver.getKSNameFromString(child))?.let { visit(it.asStarProjectedType()) } }
         }
@@ -2554,7 +2563,7 @@ public class $className : io.cratis.arc.artifacts.ArcArtifactModule(
                 "isCommandKey = ${property.isCommandKey}, " +
                 "validationRules = ${renderValidationRules(property.validationRules)}, " +
                 "validateRecursively = ${property.validateRecursively}, derivatives = listOf($derivatives), " +
-                "summary = ${quoteOrNull(property.summary)})"
+                "summary = ${quoteOrNull(property.summary)}, ignoreValidation = ${property.ignoreValidation})"
         }
     }
 
@@ -2666,7 +2675,8 @@ public class $className : io.cratis.arc.artifacts.ArcArtifactModule(
         property.validationRules.map(::toValidationRuleDescriptor),
         property.validateRecursively,
         property.derivatives,
-        property.summary
+        property.summary,
+        property.ignoreValidation
     )
 
     private fun renderTypeShape(shape: TypeShapeDescriptor): String = when (shape.kind) {

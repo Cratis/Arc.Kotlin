@@ -1422,9 +1422,11 @@ public final class io/cratis/arc/metadata/PropertyDescriptor {
 	public fun <init> (Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;ZLjava/util/List;ZLjava/util/List;)V
 	public synthetic fun <init> (Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;ZLjava/util/List;ZLjava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun <init> (Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;ZLjava/util/List;ZLjava/util/List;Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Lio/cratis/arc/metadata/TypeShapeDescriptor;ZLjava/util/List;ZLjava/util/List;Ljava/lang/String;Z)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Boolean;Ljava/lang/Boolean;Ljava/lang/Boolean;Ljava/lang/String;Ljava/util/List;Ljava/lang/Boolean;Ljava/util/List;Lio/cratis/arc/metadata/TypeShapeDescriptor;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Boolean;Ljava/lang/Boolean;Ljava/lang/Boolean;Ljava/lang/String;Ljava/util/List;Ljava/lang/Boolean;Ljava/util/List;Lio/cratis/arc/metadata/TypeShapeDescriptor;Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Boolean;Ljava/lang/Boolean;Ljava/lang/Boolean;Ljava/lang/String;Ljava/util/List;Ljava/lang/Boolean;Ljava/util/List;Lio/cratis/arc/metadata/TypeShapeDescriptor;Ljava/lang/String;Ljava/lang/Boolean;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Z)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;ZZ)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;ZZZ)V
@@ -1436,6 +1438,7 @@ public final class io/cratis/arc/metadata/PropertyDescriptor {
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getDerivatives ()Ljava/util/List;
 	public final fun getElementTypeName ()Ljava/lang/String;
+	public final fun getIgnoreValidation ()Z
 	public final fun getName ()Ljava/lang/String;
 	public final fun getShape ()Lio/cratis/arc/metadata/TypeShapeDescriptor;
 	public final fun getSummary ()Ljava/lang/String;
@@ -2811,6 +2814,31 @@ public final class io/cratis/arc/validation/FluentValidatorRegistration {
 	public final fun getValidator ()Lio/cratis/arc/validation/FluentModelValidator;
 }
 
+public abstract interface annotation class io/cratis/arc/validation/IgnoreValidation : java/lang/annotation/Annotation {
+}
+
+public final class io/cratis/arc/validation/IgnoreValidationTraversableResolver : jakarta/validation/TraversableResolver {
+	public fun <init> (Ljakarta/validation/TraversableResolver;)V
+	public fun isCascadable (Ljava/lang/Object;Ljakarta/validation/Path$Node;Ljava/lang/Class;Ljakarta/validation/Path;Ljava/lang/annotation/ElementType;)Z
+	public fun isReachable (Ljava/lang/Object;Ljakarta/validation/Path$Node;Ljava/lang/Class;Ljakarta/validation/Path;Ljava/lang/annotation/ElementType;)Z
+}
+
+public final class io/cratis/arc/validation/IgnoreValidationValidator : jakarta/validation/Validator {
+	public static final field Companion Lio/cratis/arc/validation/IgnoreValidationValidator$Companion;
+	public synthetic fun <init> (Ljakarta/validation/Validator;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun forExecutables ()Ljakarta/validation/executable/ExecutableValidator;
+	public static final fun fromFactory (Ljakarta/validation/ValidatorFactory;)Lio/cratis/arc/validation/IgnoreValidationValidator;
+	public fun getConstraintsForClass (Ljava/lang/Class;)Ljakarta/validation/metadata/BeanDescriptor;
+	public fun unwrap (Ljava/lang/Class;)Ljava/lang/Object;
+	public fun validate (Ljava/lang/Object;[Ljava/lang/Class;)Ljava/util/Set;
+	public fun validateProperty (Ljava/lang/Object;Ljava/lang/String;[Ljava/lang/Class;)Ljava/util/Set;
+	public fun validateValue (Ljava/lang/Class;Ljava/lang/String;Ljava/lang/Object;[Ljava/lang/Class;)Ljava/util/Set;
+}
+
+public final class io/cratis/arc/validation/IgnoreValidationValidator$Companion {
+	public final fun fromFactory (Ljakarta/validation/ValidatorFactory;)Lio/cratis/arc/validation/IgnoreValidationValidator;
+}
+
 public final class io/cratis/arc/validation/ModelValidationContext {
 	public fun <init> (Lio/cratis/arc/commands/CommandContext;Ljava/lang/String;)V
 	public fun <init> (Lio/cratis/arc/queries/QueryContext;Ljava/lang/String;)V
@@ -2855,5 +2883,10 @@ public final class io/cratis/arc/validation/UrlValidator : jakarta/validation/Co
 
 public abstract interface class io/cratis/arc/validation/ValidationFailure {
 	public abstract fun getValidationResults ()Ljava/util/List;
+}
+
+public final class io/cratis/arc/validation/ValidationMemberPolicy {
+	public static final field INSTANCE Lio/cratis/arc/validation/ValidationMemberPolicy;
+	public static final fun isIgnored (Ljava/lang/Class;Ljava/lang/String;)Z
 }
 

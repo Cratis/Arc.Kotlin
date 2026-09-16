@@ -19,7 +19,8 @@ internal data class SourceValidationAnnotation(
 
 internal data class ValidationMetadata(
     val rules: List<ValidationRuleModel>,
-    val validateRecursively: Boolean
+    val validateRecursively: Boolean,
+    val ignoreValidation: Boolean = false
 )
 
 /** Extracts only Jakarta constraints that have an exact rule in the installed @cratis validator vocabulary. */
