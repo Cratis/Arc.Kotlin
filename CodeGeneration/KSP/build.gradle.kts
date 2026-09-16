@@ -7,13 +7,13 @@ plugins {
     id("com.vanniktech.maven.publish")
 }
 
-val kspVersion = "2.3.11"
+val kspVersion = "2.3.12"
 val springDataVersion = "4.1.1"
 
 dependencies {
     implementation(project(":Source"))
     implementation("com.google.devtools.ksp:symbol-processing-api:$kspVersion")
-    testImplementation("dev.zacsweers.kctfork:ksp:0.13.0")
+    testImplementation("dev.zacsweers.kctfork:ksp:0.14.0")
     testImplementation("jakarta.validation:jakarta.validation-api:3.1.1")
     testImplementation("org.hibernate.validator:hibernate-validator:9.1.3.Final")
     testImplementation("org.springframework.data:spring-data-commons:$springDataVersion")

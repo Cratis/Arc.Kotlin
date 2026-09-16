@@ -111,10 +111,10 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
             derivedTypeNames += resolver.getSymbolsWithAnnotation("io.cratis.arc.polymorphism.DerivedType")
                 .filterIsInstance<KSClassDeclaration>().mapNotNull { it.qualifiedName?.asString() }
             metadataCollector.useResolver(resolver, derivedTypeNames)
-            deferred += (commandSymbols + readModelSymbols + exportedTypeSymbols).filterNot(KSAnnotated::validate)
-            commandSymbols.filter(KSAnnotated::validate).forEach { processCommand(it, resolver) }
-            readModelSymbols.filter(KSAnnotated::validate).forEach { processReadModel(it, resolver) }
-            exportedTypeSymbols.filter(KSAnnotated::validate).forEach { processExportedType(it) }
+            deferred += (commandSymbols + readModelSymbols + exportedTypeSymbols).filterNot(KSAnnotated::validateForProcessing)
+            commandSymbols.filter(KSAnnotated::validateForProcessing).forEach { processCommand(it, resolver) }
+            readModelSymbols.filter(KSAnnotated::validateForProcessing).forEach { processReadModel(it, resolver) }
+            exportedTypeSymbols.filter(KSAnnotated::validateForProcessing).forEach { processExportedType(it) }
             hasDeferredInputs = hasDeferredInputs || deferred.isNotEmpty()
             return deferred.distinct()
         } finally {
@@ -875,7 +875,7 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
             }
             val values = declaration.annotationsNamed(HANDLES_COMMAND_RESPONSE_VALUES_ANNOTATION)
                 .flatMap { it.argumentValues("value").asSequence() }.mapNotNull { it as? KSType }.toList()
-            if (!declaration.validate() || values.any(KSType::isError)) {
+            if (!declaration.validateForProcessing() || values.any(KSType::isError)) {
                 hasDeferredInputs = true
                 invalid("has unresolved annotation or SPI types")
                 return@forEach
@@ -897,8 +897,8 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
                 if (it == null) hasDeferredInputs = true
             }
         } + discovered.filter { it !is KSClassDeclaration || it.qualifiedName == null }
-        val deferred = symbols.filterNot(KSAnnotated::validate).toMutableList()
-        symbols.filter(KSAnnotated::validate)
+        val deferred = symbols.filterNot(KSAnnotated::validateForProcessing).toMutableList()
+        symbols.filter(KSAnnotated::validateForProcessing)
             .filterIsInstance<KSClassDeclaration>()
             .sortedBy { declaration -> declaration.qualifiedName?.asString().orEmpty() }
             .forEach { declaration ->
@@ -2747,3 +2747,10 @@ public class $className : io.cratis.arc.artifacts.ArcArtifactModule(
         val UNSUPPORTED_STREAM_TYPES = setOf("org.reactivestreams.Publisher")
     }
 }
+
+/**
+ * Validates a symbol the way the deprecated single-predicate [KSNode.validate] overload did, using the new
+ * overload that makes the choice explicit: the default always-true predicate and no new validation features.
+ * KSP 2.3.12 deprecated the single-predicate form and this repository compiles with warnings as errors.
+ */
+private fun KSAnnotated.validateForProcessing(): Boolean = validate({ _, _ -> true }, enableNewFeatures = false)

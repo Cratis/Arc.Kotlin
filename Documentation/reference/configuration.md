@@ -20,7 +20,7 @@ description: Arc Spring Boot properties, Gradle plugin extension fields, default
 
 Local builds default to `0.0.0-SNAPSHOT`; `-Pversion=<version>` overrides it. A local coordinate is not automatically available in a consumer build until it is published or supplied by a composite build.
 
-## Host-neutral tenancy options
+## Arc tenancy options
 
 `Source` exposes immutable `TenancyOptions` for request adapters and tests. The defaults match Arc on .NET:
 
