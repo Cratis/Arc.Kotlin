@@ -1,0 +1,454 @@
+---
+title: Share fluent validation with generated clients
+description: Declare Kotlin and Java input rules, reject invalid commands before handling, and display the same feedback in generated TypeScript clients.
+---
+
+## Set up shared validation
+
+Use `FluentModelValidator<T>` when a literal member rule must run on the server and in generated
+TypeScript. Keep service-dependent checks, asynchronous work, arbitrary predicates, cross-member
+conditions and warning/information feedback in ordinary `ModelValidator`, `CommandValidator` or
+`QueryValidator` implementations. Those remain server-only. This is a bounded authoring surface over
+Arc's existing pipeline, not full FluentValidation compatibility.
+
+Start with the [Kotlin](../get-started/index.md#configure-gradle) or
+[Java](../get-started/java.md#configure-gradle) application setup: JDK 17, Gradle 8.14.4,
+Kotlin 2.4.20, KSP 2.3.12 and Spring Boot 4.1.x. The `io.cratis.arc` plugin supplies `io.cratis:arc`,
+the `arc-ksp` processor and the verified dependency index required by shared validation. Add
+`io.cratis:arc-spring-boot-starter:<version>` and `spring-boot-starter-webmvc` to the application.
+Java applications still need Kotlin/KSP because Arc generates Kotlin adapters for Java declarations.
+The local workspace version is `0.0.0-SNAPSHOT`; use a released version for published dependencies.
+
+Set an explicit module identity and proxy output directory. The following configuration is an
+adaptation of the plugin setup exercised by `ArcFluentValidationNativeFunctionalTest`, using the
+package and identity of the runnable sample below; this exact combined build snippet is not a
+separately compiled tutorial:
+
+```kotlin
+cratisArc {
+    moduleName.set("KotlinSpringBootSample")
+    dependencyVersion.set("<version>")
+    endpoints {
+        segmentsToSkip.set(6)
+        enableQueryHttpMethod.set(true)
+    }
+    proxies {
+        outputDirectory.set(layout.buildDirectory.dir("generated/arc-proxies"))
+        segmentsToSkip.set(6)
+    }
+}
+```
+
+An unset proxy output directory skips generation. Match route settings in
+`src/main/resources/application.properties`:
+
+```properties
+cratis.arc.endpoints.segments-to-skip-for-route=6
+cratis.arc.endpoints.enable-query-http-method=true
+```
+
+For the client, the repository contract pins `@cratis/arc` and `@cratis/arc.react` to **22.10.4**,
+`@cratis/fundamentals` to **7.18.4**, React to **19.2.8**, and TypeScript to **7.0.2**, running on
+Node 22. See [proxy setup](typescript-proxies.md) for compiler settings; use the pinned packages
+rather than assuming another runtime has the same rules. Jakarta validation is independent: add a
+Jakarta provider, such as `spring-boot-starter-validation`, if you also use Jakarta constraints.
+Shared fluent rules themselves do not require Jakarta.
+
+## Author the input and command
+
+The primary walkthrough uses the actual runnable `Samples/Kotlin/SpringBoot` application, not
+unpublished `ContractTests` fixture imports. Its `runtime.fluent.contract.ts` exercises these
+sources against a real Spring host. Work in that sample to run the unchanged example:
+
+```bash
+./gradlew :Samples:Kotlin:SpringBoot:bootRun
+```
+
+The sample has its own manual build wiring; do not replace it with the plugin adaptation above.
+Its module is `KotlinSpringBootSample`, producing
+`io.cratis.arc.generated.KotlinSpringBootSampleArcArtifactModule` and
+`META-INF/cratis/arc/KotlinSpringBootSample.json`. Spring discovers the generated module through
+`ServiceLoader`; do **not** add a second validator bean. See the
+[registration and library contract](../reference/validation.md#registration-and-library-packaging)
+when splitting the application into modules.
+
+### Declare Kotlin rules
+
+The following files are under
+`Samples/Kotlin/SpringBoot/src/main/kotlin/io/cratis/arc/samples/kotlin/springboot/`.
+Each nullable input slot isolates a validation rule from JSON binding requirements.
+
+`FluentInput.kt`:
+
+```kotlin
+package io.cratis.arc.samples.kotlin.springboot
+
+data class FluentInput(
+    val required: String?, val nonempty: String?, val minimum: String?, val maximum: String?, val range: String?,
+    val email: String?, val phone: String?, val url: String?, val pattern: String?,
+    val greater: Double?, val atLeast: Double?, val less: Double?, val atMost: Double?
+)
+```
+
+`FluentInputRules.kt`:
+
+```kotlin
+package io.cratis.arc.samples.kotlin.springboot
+
+import io.cratis.arc.validation.FluentModelValidator
+
+class FluentInputRules : FluentModelValidator<FluentInput>(FluentInput::class.java) {
+    init {
+        ruleFor("required").notNull()
+        ruleFor("nonempty").notEmpty().withMessage("{PropertyName} must have text; {PropertyName}")
+        ruleFor("minimum").minLength(2)
+        ruleFor("maximum").maxLength(2)
+        ruleFor("range").length(1, 3)
+        ruleFor("email").emailAddress()
+        ruleFor("phone").phone()
+        ruleFor("url").url()
+        ruleFor("pattern").matches("^([A-Z]+|[\\]]+)$")
+        ruleFor("greater").greaterThan(2)
+        ruleFor("atLeast").greaterThanOrEqual(2)
+        ruleFor("less").lessThan(2)
+        ruleFor("atMost").lessThanOrEqual(2)
+    }
+}
+```
+
+Use a public final top-level validator, one concrete model class and one public no-argument
+constructor. Kotlin's default public/final modifiers suffice. The single `init` block may contain
+only direct chains with literal arguments. Select one public readable member, not a dotted path
+or index. KSP checks the complete restricted body without executing application constructors.
+See the [declaration limits](../reference/validation.md#declaration-and-member-contract) before
+adding helpers, computed accessors or additional members.
+
+### Add ordinary Java rules
+
+These two files coexist with the Kotlin sources; they are not alternative definitions of the same
+types. Put them under
+`Samples/Kotlin/SpringBoot/src/main/java/io/cratis/arc/samples/kotlin/springboot/`.
+
+`JavaFluentInput.java`:
+
+```java
+package io.cratis.arc.samples.kotlin.springboot;
+
+public record JavaFluentInput(String name) { }
+```
+
+`JavaFluentInputRules.java`:
+
+```java
+package io.cratis.arc.samples.kotlin.springboot;
+
+import io.cratis.arc.validation.FluentModelValidator;
+
+public final class JavaFluentInputRules extends FluentModelValidator<JavaFluentInput> {
+    public JavaFluentInputRules() {
+        super(JavaFluentInput.class);
+        ruleFor("name").notEmpty();
+    }
+}
+```
+
+Java uses an ordinary constructor and method calls, with no Kotlin lambda or `Continuation`.
+Records with default or source-proved identity accessors and public fields are supported.
+
+### Connect the model to a command
+
+Back in the Kotlin source directory, `FluentGroup.kt` shows a shared child without its own validator
+or Jakarta `@Valid` marker:
+
+```kotlin
+package io.cratis.arc.samples.kotlin.springboot
+
+data class FluentGroup(val child: FluentInput)
+```
+
+`ValidateFluent.kt` supplies the command handler:
+
+```kotlin
+package io.cratis.arc.samples.kotlin.springboot
+
+import io.cratis.arc.artifacts.Command
+import io.cratis.arc.authorization.AllowAnonymous
+
+@Command
+@AllowAnonymous
+data class ValidateFluent(
+    val input: FluentInput?,
+    val siblings: List<FluentInput>,
+    val javaInput: JavaFluentInput?,
+    val group: FluentGroup? = null
+) {
+    fun handle(): String = "accepted"
+}
+```
+
+Shared rules are applied to present nested nodes automatically, including collection siblings.
+A null `input` creates no model node: its child's `required.notNull()` does not require the parent
+object itself. Put a presence rule on the parent member when the parent is required.
+
+## Execute and inspect rejection
+
+First distinguish the three operations:
+
+| Operation | What runs | Does the handler run? |
+| --- | --- | --- |
+| `JavaFluentInputRules().validate(model)` | This declaration's direct member rules only; relative paths such as `name` | No pipeline or handler |
+| `CommandPipeline.validate(command, options)` | Configured command filters, including authorization and validation; nested paths such as `javaInput.name` | No handler, execution scopes or response handling |
+| `CommandPipeline.execute(command, options)` | Normal execution, including validation | Only if validation and the other gates permit it |
+
+A successful preflight is not permission to skip validation during execution; the input or
+server-side policy may have changed. The in-process APIs do not replace HTTP binding.
+
+With the sample running, send the all-valid command used by `runtime.fluent.contract.ts`
+(the shell request is an adaptation of its `post` helper):
+
+```bash
+curl -sS -X POST http://localhost:8080/api/validate-fluent \
+  -H 'Content-Type: application/json' \
+  -d '{"input":{"required":"ok","nonempty":"ok","minimum":"ab","maximum":"ab","range":"ab","email":"a@b.c","phone":"+47 123","url":"HTTPS://a","pattern":"ABC","greater":3,"atLeast":2,"less":1,"atMost":2},"siblings":[],"javaInput":{"name":"ok"}}'
+```
+
+Expect `isSuccess: true`, an empty `validationResults` array and the handler's `"accepted"` response.
+Repeat with `"pattern":"bad"` in place of `"pattern":"ABC"`: expect `isSuccess: false` and
+`validationResults` containing message `'pattern' is not in the correct format.` with
+`members: ["input.pattern"]`. This is server enforcement even though curl bypasses the client.
+
+### Invoke from Kotlin or Java
+
+These two usage adaptations combine the sample command with the published pipeline APIs exercised
+by `BlockingPipelineJavaConformanceTest` and `ScenarioFluentValidationTests`. They are not newly
+compiled sample files. Both deliberately use the sample's `@AllowAnonymous` endpoint, no tenant and
+a fresh correlation ID. In a real application, capture the intended identity, tenant and
+`ServiceResolver` at entry; do not infer them from thread locals or untrusted input.
+
+For Kotlin, place `FluentOperations.kt` in the same sample package. Supply the Spring-injected
+`CommandPipeline` and `ServiceResolver`, and call from a coroutine:
+
+```kotlin
+package io.cratis.arc.samples.kotlin.springboot
+
+import io.cratis.arc.authorization.ArcPrincipal
+import io.cratis.arc.commands.CommandExecutionOptions
+import io.cratis.arc.commands.CommandPipeline
+import io.cratis.arc.commands.ServiceResolver
+import java.util.UUID
+
+suspend fun checkFluent(commands: CommandPipeline, services: ServiceResolver) {
+    val options = CommandExecutionOptions(
+        UUID.randomUUID(), ArcPrincipal.anonymous(), services, null, null, null, false
+    )
+    val rules = JavaFluentInputRules()
+    check(rules.validate(JavaFluentInput("ok")).isEmpty())
+    check(rules.validate(JavaFluentInput("")).single().members == listOf("name"))
+
+    val accepted = ValidateFluent(null, emptyList(), JavaFluentInput("ok"), null)
+    check(commands.validate(accepted, options).isSuccess) // No handler invocation.
+    check(commands.execute(accepted, options).response == "accepted")
+    val rejected = commands.execute(accepted.copy(javaInput = JavaFluentInput("")), options)
+    check(!rejected.isSuccess)
+    check(rejected.validationResults.single().members == listOf("javaInput.name"))
+    check(rejected.validationResults.single().message == "'name' must not be empty.")
+}
+```
+
+For ordinary Java, put `FluentOperations.java` in that package. This is an imperative caller,
+not an Arc handler or coroutine: supply Spring's `BlockingCommandPipeline` bean and service resolver.
+All four Kotlin command constructor arguments and all seven options arguments are explicit.
+
+```java
+package io.cratis.arc.samples.kotlin.springboot;
+
+import io.cratis.arc.authorization.ArcPrincipal;
+import io.cratis.arc.commands.CommandExecutionOptions;
+import io.cratis.arc.commands.ServiceResolver;
+import io.cratis.arc.java.BlockingCommandPipeline;
+import java.util.List;
+import java.util.UUID;
+
+public final class FluentOperations {
+    public static void check(BlockingCommandPipeline commands, ServiceResolver services) {
+        var options = new CommandExecutionOptions(
+            UUID.randomUUID(), ArcPrincipal.anonymous(), services, null, null, null, false);
+        var rules = new JavaFluentInputRules();
+        if (!rules.validate(new JavaFluentInput("ok")).isEmpty()) throw new AssertionError();
+        if (!rules.validate(new JavaFluentInput("")).get(0).getMembers().equals(List.of("name"))) {
+            throw new AssertionError();
+        }
+        var accepted = new ValidateFluent(null, List.of(), new JavaFluentInput("ok"), null);
+        if (!commands.validate(accepted, options).isSuccess()) throw new AssertionError();
+        if (!"accepted".equals(commands.execute(accepted, options).getResponse())) throw new AssertionError();
+        var rejected = commands.execute(
+            new ValidateFluent(null, List.of(), new JavaFluentInput(""), null), options);
+        if (rejected.isSuccess()) throw new AssertionError();
+        var feedback = rejected.getValidationResults().get(0);
+        if (!feedback.getMembers().equals(List.of("javaInput.name"))) throw new AssertionError();
+        if (!feedback.getMessage().equals("'name' must not be empty.")) throw new AssertionError();
+    }
+}
+```
+
+The blocking facade occupies the caller thread. See its [context and interruption limits](../get-started/java.md#blocking-interruption-and-limits).
+For tests without a host, add `testImplementation("io.cratis:arc-testing:<version>")` and use
+`CommandScenario(KotlinSpringBootSampleArcArtifactModule(), ValidateFluent::class.java)` or Java's
+closeable `BlockingCommandScenario`; see [in-process testing](testing.md). Do not import
+`io.cratis.arc.contracts.fixtures`: `ContractTests` is unpublished.
+
+The actual runnable HTTP contract accepts the all-valid input shown in the client section below.
+Changing only `pattern` to `"bad"` rejects with message `'pattern' is not in the correct format.`
+and member `input.pattern`. Empty Java `name` rejects with `'name' must not be empty.` and
+`javaInput.name`. Shared feedback has error severity. `ScenarioFluentValidationTests` explicitly
+counts zero handler invocations on rejection and proves that even successful `validate` does not
+invoke the handler; that repository test uses a manual module illustration, not the sample handler.
+The sample's real HTTP acceptance/rejection is covered separately by `runtime.fluent.contract.ts`.
+
+## Display generated client feedback
+
+Generate, rather than hand-maintain, the validators:
+
+```bash
+./gradlew :Samples:Kotlin:SpringBoot:generateArcProxies
+```
+
+The plugin-based application uses `./gradlew generateArcProxies`. The sample generates into
+`Samples/Kotlin/SpringBoot/build/generated/arc-proxies`; the contract copies that output to
+`ContractTests/TypeScript/generated/runtime`.
+
+**Generated excerpt**, from `FluentInput.ts` inside the generated validator constructor:
+
+```typescript
+this.arcRules0.ruleFor(c => c.minimum).minLength(2);
+this.arcRules0.ruleFor(c => c.nonempty).notEmpty().withMessage('{PropertyName} must have text; {PropertyName}');
+this.arcRules0.ruleFor(c => c.pattern).matches(/^([A-Z]+|[\]]+)$/);
+```
+
+`ValidateFluent.ts` exports `ValidateFluentValidator` and a `ValidateFluent` command whose
+`validation` property uses it. That validator composes `FluentInputValidator`,
+`JavaFluentInputValidator` and `FluentGroupValidator`, qualifying nested member paths.
+
+**Handwritten caller**, adapted from `runtime.fluent.contract.ts`. These import paths assume a file
+under `ContractTests/TypeScript/contracts`; change only the generated-directory prefix in your app.
+Use your host origin if it is not the local sample's port 8080:
+
+```typescript
+import { Globals } from '@cratis/arc';
+import type { FluentInput } from '../generated/runtime/FluentInput';
+import { ValidateFluent } from '../generated/runtime/ValidateFluent';
+
+Globals.origin = 'http://localhost:8080';
+Globals.apiBasePath = '';
+
+const input: FluentInput = {
+    required: 'ok', nonempty: 'ok', minimum: 'ab', maximum: 'ab', range: 'ab',
+    email: 'a@b.c', phone: '+47 123', url: 'HTTPS://a', pattern: 'ABC',
+    greater: 3, atLeast: 2, less: 1, atMost: 2
+};
+const command = new ValidateFluent();
+command.input = input;
+command.siblings = [];
+command.javaInput = { name: 'ok' };
+const accepted = await command.execute(); // isSuccess === true
+
+command.input = { ...input, pattern: 'bad' };
+const rejected = await command.execute(); // isSuccess === false; no HTTP request
+for (const feedback of rejected.validationResults) {
+    console.log(feedback.members, feedback.message);
+    // ['input.pattern'], "'pattern' is not in the correct format."
+}
+```
+
+The contract explicitly asserts zero transport calls for that rejected `execute()`. The server
+separately rejects invalid requests that bypass the client. Browser feedback never authorizes a
+request or replaces binding, authentication, authorization, Jakarta or server-only validation.
+For a nested example, an invalid `group.child.maximum`, `input.minimum`, `javaInput.name` and second
+sibling's `pattern` produce paths `group.child.maximum`, `input.minimum`, `javaInput.name` and
+`siblings[1].pattern` in the runnable contract.
+
+## Validate a supplied query model
+
+Use request-response RFC QUERY and explicit `@QueryHttpMethod(QueryHttpMethodType.QUERY)` preference
+for shared model arguments. Enable QUERY in both host and proxy configuration, as in setup.
+Shared-model GET and observable proxy transport reject rather than dropping validation.
+
+Here is the complete existing `FluentView.kt` in the same Kotlin sample package. The argument model
+and its ordinary Java validator are the files already shown above:
+
+```kotlin
+package io.cratis.arc.samples.kotlin.springboot
+
+import io.cratis.arc.artifacts.ReadModel
+import io.cratis.arc.authorization.AllowAnonymous
+import io.cratis.arc.queries.Path
+import io.cratis.arc.queries.QueryHttpMethod
+import io.cratis.arc.queries.QueryHttpMethodType
+import io.cratis.arc.queries.QueryRequest
+
+@ReadModel
+@AllowAnonymous
+data class FluentView(val value: String) {
+    companion object {
+        @Path("/api/fluent")
+        @QueryHttpMethod(QueryHttpMethodType.QUERY)
+        fun checkFluent(input: JavaFluentInput? = JavaFluentInput("default")): FluentView =
+            FluentView(input?.name ?: "null")
+
+        @Path("/api/fluent-batch")
+        @QueryHttpMethod(QueryHttpMethodType.QUERY)
+        fun checkFluentBatch(inputs: Array<JavaFluentInput>? = null, request: QueryRequest): FluentView =
+            FluentView(inputs?.size?.toString() ?: if (request.arguments.containsKey("inputs")) "null" else "omitted")
+    }
+}
+```
+
+Send a complete QUERY envelope, not a bare model:
+
+```bash
+curl -sS -X QUERY http://localhost:8080/api/fluent \
+  -H 'Content-Type: application/json' \
+  -d '{"arguments":{"input":{"name":"ok"}}}'
+```
+
+Replace the body to exercise the cases asserted by `runtime.fluent.contract.ts`:
+
+| JSON body | Result |
+| --- | --- |
+| `{"arguments":{}}` | Success; `data.value` is `"default"` |
+| `{"arguments":{"input":null}}` | Success; `data.value` is `"null"` |
+| `{"arguments":{"input":{"name":"ok"}}}` | Success; `data.value` is `"ok"` |
+| `{"arguments":{"input":{"name":""}}}` | Failure before invocation; member `input.name`, message `'name' must not be empty.` |
+
+Omission stays absent in `QueryRequest.arguments` and executes the Kotlin default only at the model
+boundary. Explicit null retains its key and creates no node; it is permitted because the argument
+is nullable. A supplied object binds to the concrete model and is validated before invocation.
+Returned query data is not input validation. Scalar arguments still reject object/array payloads.
+
+For `/api/fluent-batch`, bodies with `arguments` equal to `{}`, `{"inputs":null}`, `{"inputs":[]}`
+and `{"inputs":[{"name":" a "}]}` return `"omitted"`, `"null"`, `"0"` and `"1"` respectively.
+Two supplied empty names reject at `inputs[0].name` and `inputs[1].name`. Generated
+`CheckFluentBatchParameters` uses `inputs?: JavaFluentInput[] | null`: null applies to the container,
+not its entries. The contract also calls `new CheckFluentBatch().perform(arguments)` for these
+accepted shapes.
+
+The Java model and validator participate here, but the query method is Kotlin. Java query methods
+are static and have no Arc default-argument feature. This walkthrough does not claim an executed
+ordinary-Java shared-query invocation; see [Java queries](queries.md) for the available surface.
+
+## Migrate deliberately
+
+| Existing approach | Shared alternative | Keep in mind |
+| --- | --- | --- |
+| Imperative `ModelValidator`, `CommandValidator` or `QueryValidator` | Move literal representable member rules to `FluentModelValidator` | Keep service-dependent, asynchronous and cross-member policy server-only; remove old copies only if duplicate feedback is unwanted |
+| Manually registered validator bean | Let the generated module contribute it | An equivalent fluent bean is deduplicated by exact declaration class; a missing compiler contribution or rule mismatch fails registration |
+| Jakarta annotations | Retain them, optionally adding fluent rules | Annotation and DSL metadata conjoin, not override; Jakarta still runs separately on the server, so this is not cross-engine feedback deduplication |
+| Implicit required values | Choose `notNull` or `notEmpty` explicitly | Other shared rules pass null; format rules also pass empty strings; a null parent creates no child node |
+| Jakarta/localized or imperative messages | Use literal `withMessage` for a shared message | It changes only the preceding rule and replaces only the first `{PropertyName}`; the sample emits `nonempty must have text; {PropertyName}` |
+| Server-only constraints with no client equivalent | Retain server enforcement | New shared `creditCard()` rejects; existing Jakarta credit-card metadata remains server-only |
+| Handwritten client checks | Regenerate model, command and supported query validators | Generated feedback is early assistance, never a server-validation bypass |
+
+Continue with the [exact rules, numeric failures and tooling reference](../reference/validation.md).
+No shared OpenAPI projection is claimed by this walkthrough; existing annotation/default behavior
+is documented separately in the [OpenAPI guide](openapi.md). These are JVM-specific shared-validation
+contracts, not a claim of full Arc .NET parity.

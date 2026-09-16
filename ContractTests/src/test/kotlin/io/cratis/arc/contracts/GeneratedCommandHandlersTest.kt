@@ -95,13 +95,14 @@ internal class GeneratedCommandHandlersTest {
         val explicit = ContractTestsArcArtifactModule()
         val loaded = ServiceLoader.load(ArcArtifactModule::class.java).toList()
 
-        assertEquals(30, explicit.commandHandlers.size)
+        assertEquals(31, explicit.commandHandlers.size)
         assertEquals(33, explicit.queryPerformers.size)
         assertEquals(listOf(ContractTestsArcArtifactModule::class.java), loaded.map(Any::javaClass))
         assertEquals(
             listOf(
                 ChronicleScopedResponseCommand::class.java.name,
                 "io.cratis.arc.contracts.fixtures.EventCommand",
+                "io.cratis.arc.contracts.fixtures.FluentContractCommand",
                 "io.cratis.arc.contracts.fixtures.ImplicitVisibilityCommand",
                 JavaAsyncCommand::class.java.name,
                 "io.cratis.arc.contracts.fixtures.JavaExclusionCommand",

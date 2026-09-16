@@ -31,6 +31,8 @@ internal object ArcResponseHandlerMetadataDiscovery {
         .enable(DeserializationFeature.FAIL_ON_READING_DUP_TREE_KEY, DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
         .build()
 
+    internal fun isSafeModuleName(name: String): Boolean = identifier.matches(name) && name !in kotlinKeywords
+
     fun extract(artifacts: Iterable<File>): ByteArray {
         val documents = mutableListOf<Pair<String, JsonNode>>()
         artifacts.forEach { file ->
@@ -56,7 +58,7 @@ internal object ArcResponseHandlerMetadataDiscovery {
                 val version = root.path("formatVersion")
                 require(version.isIntegralNumber && version.canConvertToInt() && version.intValue() == 1) { "expected formatVersion=1" }
                 val name = root.path("moduleName")
-                require(name.isString && identifier.matches(name.stringValue()) && name.stringValue() !in kotlinKeywords) {
+                require(name.isString && isSafeModuleName(name.stringValue())) {
                     "moduleName must be a safe identifier"
                 }
                 val module = name.stringValue()

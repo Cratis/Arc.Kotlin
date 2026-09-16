@@ -19,6 +19,12 @@ const tapSummaryFields = [
 ];
 const childRuns = [
     {
+        label: "shared fluent runtime contract [UTC]",
+        contract: "contracts/runtime.fluent.contract.ts",
+        timeZone: "UTC",
+        expectedTests: 4,
+    },
+    {
         label: "calendar runtime contract [UTC]",
         contract: "contracts/runtime.calendar.contract.ts",
         timeZone: "UTC",

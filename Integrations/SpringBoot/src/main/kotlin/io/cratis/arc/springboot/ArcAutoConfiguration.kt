@@ -92,6 +92,15 @@ public class ArcAutoConfiguration {
     private var modelValidators: ObjectProvider<ModelValidator<*>>? = null
 
     @Autowired
+    private var validationArtifactModules: ObjectProvider<ArcArtifactModules>? = null
+
+    private fun registeredModelValidators(): List<ModelValidator<*>> =
+        ArcArtifactModuleRegistry.modelValidators(
+            validationArtifactModules?.getObject()?.validationModules.orEmpty(),
+            modelValidators?.orderedStream()?.toList().orEmpty()
+        )
+
+    @Autowired
     private var conceptExclusions: ObjectProvider<ConceptValidationExclusion>? = null
 
     // Resolve lazily at the existing factory to preserve its published descriptor and mapper authority/backoff.
@@ -216,7 +225,7 @@ public class ArcAutoConfiguration {
     ): DefaultCommandValidationFilter = DefaultCommandValidationFilter(
         validators.orderedStream().toList(),
         conceptValidators?.orderedStream()?.toList().orEmpty(),
-        modelValidators?.orderedStream()?.toList().orEmpty(),
+        registeredModelValidators(),
         conceptExclusions?.orderedStream()?.toList().orEmpty()
     )
 
@@ -236,7 +245,7 @@ public class ArcAutoConfiguration {
     ): DefaultQueryValidationFilter = DefaultQueryValidationFilter(
         validators.orderedStream().toList(),
         conceptValidators?.orderedStream()?.toList().orEmpty(),
-        modelValidators?.orderedStream()?.toList().orEmpty(),
+        registeredModelValidators(),
         conceptExclusions?.orderedStream()?.toList().orEmpty()
     )
 

@@ -29,7 +29,10 @@ import io.cratis.arc.metadata.TypeShapeKind
 import java.io.File
 
 /** Collects the closed, language-neutral model graph used by generated modules and manifests. */
-internal class MetadataCollector(private val logger: ArcDiagnosticReporter) {
+internal class MetadataCollector(
+    private val logger: ArcDiagnosticReporter,
+    private val fluentRules: Map<String, List<ValidationRuleModel>> = emptyMap()
+) {
     private val validationExtractor = ValidationMetadataExtractor(logger)
     private val collectedTypes = linkedMapOf<String, TypeModel>()
     private val collectedInterfaces = linkedMapOf<String, InterfaceModel>()
@@ -789,7 +792,8 @@ internal class MetadataCollector(private val logger: ArcDiagnosticReporter) {
             identity,
             node,
             sourceAnnotations,
-            conceptRules
+            conceptRules,
+            fluentRules[identity].orEmpty()
         )
     }
 

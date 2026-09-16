@@ -139,7 +139,7 @@ public class ObservableQueryScenario<TData> private constructor(
         policies.forEach(policyRegistry::register)
         val builtIns = listOf<QueryFilter>(
             QueryAuthorizationFilter(artifacts.queryPerformers, AuthorizationEvaluator(policyRegistry)),
-            DefaultQueryValidationFilter(validators, conceptValidators, modelValidators, conceptExclusions)
+            DefaultQueryValidationFilter(validators, conceptValidators, artifacts.modelValidators(modelValidators), conceptExclusions)
         )
         val pipeline = DefaultObservableQueryPipeline(
             artifacts.queryPerformers,

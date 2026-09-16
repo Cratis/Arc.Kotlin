@@ -7,5 +7,7 @@
       href: configuration.md
     - name: HTTP contract
       href: http-contract.md
+    - name: Shared fluent validation
+      href: validation.md
     - name: Feature parity
       href: parity.md

@@ -55,6 +55,9 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
     private val configuredModuleName = environment.options[MODULE_NAME_OPTION]
     private val moduleName = validateModuleName(configuredModuleName)
     private val graphLogger = ArcDiagnosticReporter(environment.logger, buffered = true)
+    private val fluentTrace: ((String) -> Unit)? = if (environment.options["arc.fluentValidationTrace"] == "true")
+        { message -> environment.logger.info(message) } else null
+    private var fluentRound = 0
     private var metadataCollector = MetadataCollector(graphLogger)
     private val commandNames = sortedSetOf<String>()
     private val readModelNames = sortedSetOf<String>()
@@ -71,6 +74,17 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
             emptyList()
         }
     }.orEmpty()
+    private val fluentNames = sortedSetOf<String>()
+    private val fluentIndexOption = environment.options[FluentValidationMetadata.OPTION]
+    private val fluentRootCompilation = environment.options["arc.fluentValidationRoot"] == "true"
+    private val importedFluent = fluentIndexOption?.let { option ->
+        try { FluentValidationMetadata.readIndex(option) } catch (exception: Exception) {
+            logger.error(ArcDiagnostic.FLUENT_METADATA,
+                "KSP option '${FluentValidationMetadata.OPTION}' cannot read '$option': ${exception.message}; supply a verified format-1 dependency index.")
+            emptyList()
+        }
+    }.orEmpty()
+    private var fluentSnapshot = FluentValidationDiscovery.Snapshot(emptyList(), emptyList(), emptyList())
     private val exportedHandlers = sortedMapOf<String, List<String>>()
     private val emittedCommands = mutableSetOf<String>()
     private val emittedQueries = mutableSetOf<String>()
@@ -103,6 +117,14 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
         val deferred = mutableListOf<KSAnnotated>()
         try {
             reportInvalidConfiguration()
+            fluentTrace?.invoke("[ARC-FLUENT-ROUND] ${++fluentRound}")
+            val fluent = FluentValidationDiscovery(graphLogger, fluentTrace).discover(resolver, fluentNames, importedFluent, fluentIndexOption != null)
+            deferred += fluent.deferred
+            fluentSnapshot = fluent.copy(deferred = emptyList())
+            val fluentRules = fluentSnapshot.all.flatMap { declaration -> declaration.members.map { member ->
+                "${declaration.model}.${member.name}" to member.rules.map { ValidationRuleModel(it.ruleName, it.arguments, it.message) }
+            } }.groupBy({ it.first }, { it.second }).mapValues { (_, rules) -> rules.flatten() }
+            metadataCollector = MetadataCollector(graphLogger, fluentRules)
             deferred += discoverDeclarativeHandledResponseTypes(resolver)
             inspectCommandLikeTypes(resolver)
             val commandSymbols = discoverRoots(resolver, COMMAND_ANNOTATION, commandNames)
@@ -115,16 +137,77 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
             commandSymbols.filter(KSAnnotated::validateForProcessing).forEach { processCommand(it, resolver) }
             readModelSymbols.filter(KSAnnotated::validateForProcessing).forEach { processReadModel(it, resolver) }
             exportedTypeSymbols.filter(KSAnnotated::validateForProcessing).forEach { processExportedType(it) }
+            fluentSnapshot.local.map { it.model }.distinct().forEach { name ->
+                val model = resolver.getClassDeclarationByName(resolver.getKSNameFromString(name))
+                if (model == null) hasDeferredInputs = true
+                else if (!model.validate({ _, _ -> true }, enableNewFeatures = false)) deferred += model
+                else if (metadataCollector.collectDeclaration(model, name)) {
+                    if (metadataCollector.propertiesFor(name) == null) graphLogger.error(ArcDiagnostic.FLUENT_DECLARATION,
+                        "Fluent model '$name' has no concrete model-property metadata; use a plain model or a server-only ModelValidator for scalar/concept targets.", model)
+                    else exportRoots += name
+                }
+            }
             deferred += IdentityDetailsDiscovery(graphLogger) { declaration ->
                 val name = requireNotNull(declaration.qualifiedName).asString()
                 metadataCollector.collectDeclaration(declaration, name).also { collected ->
                     if (collected) exportRoots += name
                 }
             }.discover(latestRoundFiles.asSequence().flatMap { it.declarations })
+            validateSharedWireEdges(resolver)
+            fluentSnapshot.all.forEach { declaration ->
+                val properties = metadataCollector.propertiesFor(declaration.model)
+                if (properties != null) declaration.members.filter { member -> properties.none { it.name == member.name } }.forEach { member ->
+                    graphLogger.error(ArcDiagnostic.FLUENT_RULE,
+                        "Fluent validator '${declaration.validator}', member '${member.name}' is not a readable generated wire member; remove the ignored or unsupported selector.",
+                        resolver.getClassDeclarationByName(resolver.getKSNameFromString(declaration.validator)))
+                }
+            }
             hasDeferredInputs = hasDeferredInputs || deferred.isNotEmpty()
             return deferred.distinct()
         } finally {
             metadataCollector.releaseSymbols()
+        }
+    }
+
+    private fun validateSharedWireEdges(resolver: Resolver) {
+        if (fluentSnapshot.all.isEmpty()) return
+        val declarations = mutableMapOf<String, KSClassDeclaration>()
+        val edges = mutableMapOf<String, List<Pair<String, String>>>()
+        fun visit(type: KSType) {
+            val declaration = type.declaration as? KSClassDeclaration ?: return
+            val name = declaration.qualifiedName?.asString() ?: return
+            if (name.startsWith("kotlin.") || name.startsWith("java.")) { type.arguments.mapNotNull { it.type?.resolve() }.forEach(::visit); return }
+            if (declarations.putIfAbsent(name, declaration) != null) return
+            val members = declaration.getAllProperties().filter { it.isPublic() && Modifier.JAVA_STATIC !in it.modifiers }.toList()
+            fun leaf(type: KSType): KSType = if (type.declaration.qualifiedName?.asString() in setOf("kotlin.Array", "kotlin.collections.List", "kotlin.collections.Set", "kotlin.collections.Collection", "java.util.List", "java.util.Set", "java.util.Collection"))
+                type.arguments.singleOrNull()?.type?.resolve() ?: type else type
+            edges[name] = (members.mapNotNull { member -> leaf(member.type.resolve()).declaration.qualifiedName?.asString()?.let { member.simpleName.asString() to it } } +
+                metadataCollector.propertiesFor(name).orEmpty().map { it.name to (it.elementTypeName ?: it.typeName) }).distinct()
+            members.forEach { visit(leaf(it.type.resolve())) }
+            edges[name].orEmpty().forEach { (_, child) -> resolver.getClassDeclarationByName(resolver.getKSNameFromString(child))?.let { visit(it.asStarProjectedType()) } }
+        }
+        (metadataCollector.types.map { it.fullyQualifiedName } + fluentSnapshot.all.map { it.model }).distinct().forEach { name ->
+            resolver.getClassDeclarationByName(resolver.getKSNameFromString(name))?.let { visit(it.asStarProjectedType()) }
+        }
+        val active = fluentSnapshot.all.map { it.model }.toMutableSet()
+        var changed: Boolean
+        do {
+            changed = false
+            edges.forEach { (name, members) -> if (name !in active && members.any { it.second in active }) { active += name; changed = true } }
+        } while (changed)
+        active.forEach { name ->
+            val declaration = declarations[name] ?: return@forEach
+            if (Modifier.OPEN in declaration.modifiers || Modifier.SEALED in declaration.modifiers || Modifier.ABSTRACT in declaration.modifiers)
+                graphLogger.error(ArcDiagnostic.FLUENT_RULE, "Shared validation graph '$name' is open, abstract or polymorphic; use concrete final shared input models or server-only validators.", declaration)
+            edges[name].orEmpty().filter { it.second in active }.forEach { (member, _) ->
+                try { FluentValidationDiscovery.requireWireMember(declaration, member) }
+                catch (exception: IllegalArgumentException) { graphLogger.error(ArcDiagnostic.FLUENT_RULE,
+                    "Shared validation edge '$name.$member': ${exception.message}.", declaration) }
+            }
+            val wire = metadataCollector.propertiesFor(name).orEmpty().map { it.name }.toSet()
+            edges[name].orEmpty().filter { it.second in active && it.first !in wire }.forEach { (member, _) ->
+                graphLogger.error(ArcDiagnostic.FLUENT_RULE, "Shared validation edge '$name.$member' is not a generated wire member; remove the ignored/inherited edge or use a server-only validator.", declaration)
+            }
         }
     }
 
@@ -144,6 +227,12 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
         val configuredName = moduleName
         if (!logger.hasErrors && !graphLogger.hasErrors && !hasDeferredInputs && !moduleGenerated &&
             configuredName != null) {
+            if (fluentSnapshot.local.isNotEmpty()) {
+                codeGenerator.createNewFileByPath(Dependencies(true, *latestRoundFiles.toTypedArray()),
+                    "${FluentValidationMetadata.PREFIX}$configuredName.json", "").bufferedWriter(Charsets.UTF_8).use {
+                    it.write(FluentValidationMetadata.document(configuredName, fluentSnapshot.local))
+                }
+            }
             if (exportedHandlers.isNotEmpty()) {
                 codeGenerator.createNewFileByPath(
                     Dependencies(true, *latestRoundFiles.toTypedArray()),
@@ -152,7 +241,7 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
                     it.write(ResponseHandlerMetadata.document(configuredName, exportedHandlers))
                 }
             }
-            if (commands.isNotEmpty() || queries.isNotEmpty() || exportRoots.isNotEmpty()) {
+            if (commands.isNotEmpty() || queries.isNotEmpty() || exportRoots.isNotEmpty() || fluentRootCompilation && fluentSnapshot.all.isNotEmpty()) {
                 generateModule(configuredName)
             }
             moduleGenerated = true
@@ -2309,6 +2398,36 @@ ${factories.joinToString("\n\n")}
         }
     }
 
+    private fun renderFluentContributions(): String {
+        if (fluentSnapshot.all.isEmpty()) return ""
+        val registrations = fluentSnapshot.all.sortedBy { it.validator }.joinToString(",\n        ") { declaration ->
+            val members = declaration.members.joinToString(", ") { member ->
+                val rules = member.rules.map { ValidationRuleModel(it.ruleName, it.arguments, it.message) }
+                "io.cratis.arc.validation.FluentValidationMember(${quote(member.name)}, ${renderFluentMemberType(member.runtimeType)}, ${renderValidationRules(rules)})"
+            }
+            "io.cratis.arc.validation.FluentValidatorRegistration(${renderQualifiedName(declaration.validator)}(), " +
+                "${renderQualifiedName(declaration.model)}::class.java, listOf($members))"
+        }
+        return " {\n    override val fluentValidators: List<io.cratis.arc.validation.FluentValidatorRegistration> = listOf(\n        $registrations\n    )\n}"
+    }
+
+    private fun renderFluentMemberType(name: String): String {
+        val boxed = mapOf("java.lang.Boolean" to "kotlin.Boolean", "java.lang.Byte" to "kotlin.Byte", "java.lang.Character" to "kotlin.Char",
+            "java.lang.Short" to "kotlin.Short", "java.lang.Integer" to "kotlin.Int", "java.lang.Long" to "kotlin.Long",
+            "java.lang.Float" to "kotlin.Float", "java.lang.Double" to "kotlin.Double")
+        boxed[name]?.let { return "$it::class.javaObjectType" }
+        if (name.startsWith('[')) {
+            val element = name.substring(1)
+            val type = if (element.startsWith('L')) element.substring(1, element.length - 1) else
+                mapOf("Z" to "boolean", "B" to "byte", "C" to "char", "S" to "short", "I" to "int", "J" to "long", "F" to "float", "D" to "double")[element] ?: element
+            return "java.lang.reflect.Array.newInstance(${renderFluentMemberType(type)}, 0).javaClass"
+        }
+        val mapped = when (name) { "java.lang.String" -> "kotlin.String"; "java.util.List" -> "kotlin.collections.List";
+            "java.util.Set" -> "kotlin.collections.Set"; "java.util.Collection" -> "kotlin.collections.Collection";
+            "java.util.Map" -> "kotlin.collections.Map"; else -> name.replace('$', '.') }
+        return "${renderClassLiteralType(mapped)}::class.java"
+    }
+
     private fun generateModule(moduleName: String) {
         val sortedCommands = commands.sortedBy(CommandModel::qualifiedName)
         val sortedQueries = queries.sortedBy(QueryModel::fullyQualifiedName)
@@ -2320,6 +2439,11 @@ ${factories.joinToString("\n\n")}
         // Preserve all current source associations and the aggregating wildcard, including later generated artifacts.
         val dependencies = Dependencies(aggregating = true, *latestRoundFiles.toTypedArray())
         generateMetadataFactories(moduleName, sortedCommands, sortedQueries, dependencies)
+        // A separate scope receipt distinguishes verified compile-time contributions from runtime-only
+        // discovery, without adding origin fields to the artifact manifest or re-exporting declarations.
+        val scope = FluentValidationMetadata.scopeDocument(moduleName, fluentIndexOption != null, fluentSnapshot.all.map { it.validator })
+        codeGenerator.createNewFileByPath(dependencies, "META-INF/cratis/arc-fluent-validation-scope/$moduleName.json", "")
+            .bufferedWriter(Charsets.UTF_8).use { it.write(scope) }
         val className = moduleClassName(moduleName)
         val handlers = renderModuleArtifacts(
             sortedCommands.map { command -> "$GENERATED_COMMANDS_PACKAGE.${command.handlerClassName}()" }
@@ -2348,7 +2472,7 @@ public class $className : io.cratis.arc.artifacts.ArcArtifactModule(
     interfaces = $interfaces,
     concepts = $concepts,
     derivedTypes = $derivedTypes
-)
+)${renderFluentContributions()}
 """
         codeGenerator.createNewFile(dependencies, GENERATED_PACKAGE, className).bufferedWriter().use { writer ->
             writer.write(source)

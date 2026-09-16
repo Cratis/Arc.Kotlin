@@ -26,7 +26,10 @@ internal class ConceptValidation(
     exclusions: Iterable<ConceptValidationExclusion> = emptyList()
 ) {
     private val validators = java.util.List.copyOf(validators.toList())
-    private val modelValidators = java.util.List.copyOf(modelValidators.toList())
+    private val modelValidators = java.util.List.copyOf(modelValidators.toList()).also { snapshot ->
+        // Freeze fluent declarations at filter registration, not on a later request.
+        snapshot.filterIsInstance<FluentModelValidator<*>>().forEach { it.rules }
+    }
     private val exclusions = java.util.List.copyOf(exclusions.toList())
 
     // Internal legacy concept-only entry. Iterates the same graph strategy, without a coroutine bridge.

@@ -71,6 +71,8 @@ ordinary build/check. It is not full server parity; paging totals and framework 
 
 ## Current limits
 
+[Shared fluent validation](Documentation/guides/validation.md) supports thirteen bounded constructor-authored Kotlin/Java rules, generated registration and concrete acyclic nested client validation. Arbitrary predicates, async/service-dependent conditions, warning severity, polymorphic/cyclic graphs, shared-model GET/observable arguments and new shared credit-card rules are outside this surface. Existing imperative validators and legacy annotation credit-card enforcement remain server-only. Complete compiler dependency metadata is required; the Kotlin 2.4.10 parser is a KSP-only dependency, not application runtime code.
+
 The optional [platform identity bridge](Documentation/guides/security.md#establish-trust-before-accepting-platform-headers)
 is default-off and requires an explicit trusted-ingress policy plus authenticated, header-rewriting
 and isolated ingress. Unsigned base64 headers never prove sender identity. Application Spring Security

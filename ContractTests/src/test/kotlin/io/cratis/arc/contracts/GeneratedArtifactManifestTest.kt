@@ -34,6 +34,7 @@ internal class GeneratedArtifactManifestTest {
             listOf(
                 "ChronicleScopedResponseCommand",
                 "EventCommand",
+                "FluentContractCommand",
                 "ImplicitVisibilityCommand",
                 "JavaAsyncCommand",
                 "JavaExclusionCommand",

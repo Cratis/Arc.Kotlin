@@ -42,6 +42,7 @@ public abstract class io/cratis/arc/artifacts/ArcArtifactModule {
 	public final fun getConcepts ()Ljava/util/List;
 	public final fun getDerivedTypes ()Ljava/util/List;
 	public final fun getEnums ()Ljava/util/List;
+	public fun getFluentValidators ()Ljava/util/List;
 	public final fun getInterfaces ()Ljava/util/List;
 	public final fun getQueryPerformers ()Ljava/util/List;
 	public final fun getTypes ()Ljava/util/List;
@@ -49,6 +50,9 @@ public abstract class io/cratis/arc/artifacts/ArcArtifactModule {
 
 public final class io/cratis/arc/artifacts/ArcArtifactModuleRegistry {
 	public static final field INSTANCE Lio/cratis/arc/artifacts/ArcArtifactModuleRegistry;
+	public static final fun modelValidators (Ljava/lang/Iterable;)Ljava/util/List;
+	public static final fun modelValidators (Ljava/lang/Iterable;Ljava/lang/Iterable;)Ljava/util/List;
+	public static synthetic fun modelValidators$default (Ljava/lang/Iterable;Ljava/lang/Iterable;ILjava/lang/Object;)Ljava/util/List;
 	public static final fun register (Lio/cratis/arc/artifacts/ArcArtifactModule;Lio/cratis/arc/commands/CommandHandlerRegistry;Lio/cratis/arc/queries/QueryPerformerRegistry;)V
 	public static final fun registerDerivedTypes (Lio/cratis/arc/artifacts/ArcArtifactModule;Lio/cratis/arc/polymorphism/DerivedTypeRegistry;)V
 }
@@ -2761,6 +2765,50 @@ public final class io/cratis/arc/validation/CreditCardValidator : jakarta/valida
 	public fun <init> ()V
 	public fun isValid (Ljava/lang/CharSequence;Ljakarta/validation/ConstraintValidatorContext;)Z
 	public synthetic fun isValid (Ljava/lang/Object;Ljakarta/validation/ConstraintValidatorContext;)Z
+}
+
+public abstract class io/cratis/arc/validation/FluentModelValidator : io/cratis/arc/validation/ModelValidator {
+	protected fun <init> (Ljava/lang/Class;)V
+	public final fun getModelType ()Ljava/lang/Class;
+	public final fun getRules ()Ljava/util/List;
+	protected final fun ruleFor (Ljava/lang/String;)Lio/cratis/arc/validation/FluentRuleBuilder;
+	public final fun validate (Ljava/lang/Object;)Ljava/util/List;
+	public final fun validate (Ljava/lang/Object;Lio/cratis/arc/validation/ModelValidationContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/validation/FluentRuleBuilder {
+	public synthetic fun <init> (Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun creditCard ()Lio/cratis/arc/validation/FluentRuleBuilder;
+	public final fun emailAddress ()Lio/cratis/arc/validation/FluentRuleBuilder;
+	public final fun greaterThan (Ljava/lang/Number;)Lio/cratis/arc/validation/FluentRuleBuilder;
+	public final fun greaterThanOrEqual (Ljava/lang/Number;)Lio/cratis/arc/validation/FluentRuleBuilder;
+	public final fun length (II)Lio/cratis/arc/validation/FluentRuleBuilder;
+	public final fun lessThan (Ljava/lang/Number;)Lio/cratis/arc/validation/FluentRuleBuilder;
+	public final fun lessThanOrEqual (Ljava/lang/Number;)Lio/cratis/arc/validation/FluentRuleBuilder;
+	public final fun matches (Ljava/lang/String;)Lio/cratis/arc/validation/FluentRuleBuilder;
+	public final fun maxLength (I)Lio/cratis/arc/validation/FluentRuleBuilder;
+	public final fun minLength (I)Lio/cratis/arc/validation/FluentRuleBuilder;
+	public final fun notEmpty ()Lio/cratis/arc/validation/FluentRuleBuilder;
+	public final fun notNull ()Lio/cratis/arc/validation/FluentRuleBuilder;
+	public final fun phone ()Lio/cratis/arc/validation/FluentRuleBuilder;
+	public final fun url ()Lio/cratis/arc/validation/FluentRuleBuilder;
+	public final fun withMessage (Ljava/lang/String;)Lio/cratis/arc/validation/FluentRuleBuilder;
+}
+
+public final class io/cratis/arc/validation/FluentValidationMember {
+	public fun <init> (Ljava/lang/String;Ljava/lang/Class;Ljava/util/List;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getMember ()Ljava/lang/String;
+	public final fun getMemberType ()Ljava/lang/Class;
+	public final fun getRules ()Ljava/util/List;
+	public fun hashCode ()I
+}
+
+public final class io/cratis/arc/validation/FluentValidatorRegistration {
+	public fun <init> (Lio/cratis/arc/validation/FluentModelValidator;Ljava/lang/Class;Ljava/util/List;)V
+	public final fun getExpectedRules ()Ljava/util/List;
+	public final fun getModelType ()Ljava/lang/Class;
+	public final fun getValidator ()Lio/cratis/arc/validation/FluentModelValidator;
 }
 
 public final class io/cratis/arc/validation/ModelValidationContext {

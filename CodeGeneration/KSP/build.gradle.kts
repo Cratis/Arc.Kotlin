@@ -13,6 +13,8 @@ val springDataVersion = "4.1.1"
 dependencies {
     implementation(project(":Source"))
     implementation("com.google.devtools.ksp:symbol-processing-api:$kspVersion")
+    // Whole-body syntax parsing only, exact production compiler baseline. Never an application dependency.
+    implementation("org.jetbrains.kotlin:kotlin-compiler-embeddable:2.4.20")
     testImplementation("dev.zacsweers.kctfork:ksp:0.14.0")
     testImplementation("jakarta.validation:jakarta.validation-api:3.1.1")
     testImplementation("org.hibernate.validator:hibernate-validator:9.1.3.Final")
@@ -21,7 +23,22 @@ dependencies {
 
 tasks.test {
     systemProperty("arc.ksp.projectDir", projectDir.absolutePath)
+    providers.gradleProperty("arc.prototype.evidence").orNull?.let { systemProperty("arc.prototype.evidence", it) }
+    providers.gradleProperty("arc.fluent.evidence").orNull?.let { systemProperty("arc.fluent.evidence", it) }
     systemProperty("arc.contractNegativeFixtures", rootProject.project(":ContractTests").file("src/negativeFixtures").absolutePath)
+}
+
+// Deliberately not a publication/variant or runtime dependency: only the native prototype test uses this JAR.
+// Reuse the embedded proof's helpers, excluding its JUnit/compile-testing test class and all other tests.
+val fluentValidationPrototypeJar by tasks.registering(Jar::class) {
+    dependsOn(tasks.named("testClasses"))
+    archiveClassifier.set("fluent-validation-prototype-test-only")
+    from(sourceSets["test"].output.classesDirs) {
+        include("io/cratis/arc/codegeneration/ksp/Prototype*.class")
+        include("io/cratis/arc/codegeneration/ksp/ArcFluentValidationNativePrototypeProvider*.class")
+        include("io/cratis/arc/codegeneration/ksp/ArcFluentValidationExtractionPrototypeCompilationTestKt.class")
+    }
+    from("src/test/resources/prototype-native")
 }
 
 mavenPublishing {

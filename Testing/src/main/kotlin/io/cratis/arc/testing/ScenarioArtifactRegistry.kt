@@ -11,6 +11,7 @@ import io.cratis.arc.polymorphism.ConcurrentDerivedTypeRegistry
 import io.cratis.arc.queries.ConcurrentQueryPerformerRegistry
 import io.cratis.arc.queries.FullyQualifiedQueryName
 import io.cratis.arc.queries.QueryPerformer
+import io.cratis.arc.validation.ModelValidator
 
 /** Clear setup failure raised before a scenario enters an Arc pipeline. */
 public class ScenarioSetupException(message: String, cause: Throwable? = null) : IllegalStateException(message, cause)
@@ -24,6 +25,10 @@ public class ScenarioArtifactRegistry {
     internal val commandHandlers = ConcurrentCommandHandlerRegistry()
     internal val queryPerformers = ConcurrentQueryPerformerRegistry()
     internal val derivedTypes = ConcurrentDerivedTypeRegistry()
+    private val validationModules = mutableListOf<ArcArtifactModule>()
+
+    internal fun modelValidators(validators: Iterable<ModelValidator<*>>): List<ModelValidator<*>> =
+        ArcArtifactModuleRegistry.modelValidators(validationModules, validators)
 
     /**
      * Registers every command and query in [module], rejecting duplicate exact identities.
@@ -31,8 +36,13 @@ public class ScenarioArtifactRegistry {
      */
     public fun register(module: ArcArtifactModule): ScenarioArtifactRegistry {
         try {
+            val snapshot = object : ArcArtifactModule(emptyList(), emptyList()) {
+                override val fluentValidators = java.util.List.copyOf(module.fluentValidators)
+            }
+            ArcArtifactModuleRegistry.modelValidators(validationModules + snapshot)
             ArcArtifactModuleRegistry.register(module, commandHandlers, queryPerformers)
             ArcArtifactModuleRegistry.registerDerivedTypes(module, derivedTypes)
+            validationModules.add(snapshot)
         } catch (exception: IllegalStateException) {
             throw ScenarioSetupException(
                 "The Arc artifact module '${module.javaClass.name}' could not be registered: ${exception.message}",

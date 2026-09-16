@@ -50,8 +50,29 @@ dependencies {
     add(chronicleRealKernelTest.runtimeOnlyConfigurationName, "org.junit.platform:junit-platform-launcher")
 }
 
+val fluentCompilerTools by configurations.creating { isCanBeConsumed = false; isCanBeResolved = true }
+dependencies { fluentCompilerTools(project(":GradlePlugin")) }
+val fluentIndex = layout.buildDirectory.file("arc/fluent-validation/testFixtures.json")
+val extractFluentIndex by tasks.registering(JavaExec::class) {
+    classpath = fluentCompilerTools
+    mainClass.set("io.cratis.arc.gradle.ExtractArcFluentValidationMetadataCli")
+    fun jars(configuration: Configuration) = configuration.incoming.artifactView {
+        attributes.attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, objects.named(LibraryElements::class.java, LibraryElements.JAR))
+    }.files
+    val compile = jars(configurations.getByName("testFixturesCompileClasspath"))
+    val runtime = jars(configurations.getByName("testFixturesRuntimeClasspath"))
+    inputs.files(compile, runtime)
+    outputs.file(fluentIndex)
+    doFirst { args(compile.asPath, runtime.asPath, fluentIndex.get().asFile.absolutePath) }
+}
 ksp {
     arg("arc.moduleName", "ContractTests")
+    arg("arc.fluentValidationMetadata", fluentIndex.map { it.asFile.toURI().toASCIIString() })
+    arg("arc.fluentValidationRoot", "true")
+}
+tasks.matching { it.name == "kspTestFixturesKotlin" }.configureEach {
+    dependsOn(extractFluentIndex)
+    inputs.file(fluentIndex).withPropertyName("arcFluentValidationMetadata").withPathSensitivity(PathSensitivity.NONE)
 }
 
 val typeScriptDirectory = layout.projectDirectory.dir("TypeScript")

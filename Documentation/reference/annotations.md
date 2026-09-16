@@ -50,6 +50,8 @@ Previously omitted implicit-public properties now contribute fields, keys, valid
 
 ## Validation annotations
 
+[Shared fluent validators](../guides/validation.md) are discovered from public final direct `FluentModelValidator<T>` declarations, not a replacement annotation. They add validated explicit rules to the existing metadata graph and generated runtime registration. `ARCKSP0308` rejects unsupported constructor bodies, `ARCKSP0309` rejects unrepresentable rules, and `ARCKSP0310` rejects missing/conflicting compiler metadata. New shared `creditCard()` is rejected; the legacy annotation boundary below is unchanged.
+
 | Annotation | Target | Contract |
 | --- | --- | --- |
 | `@Phone` | Field, property getter, value parameter, annotation class | Accepts empty values or strings containing only ASCII digits, JavaScript whitespace, parentheses, plus, and hyphen; use a presence constraint when empty is invalid. |

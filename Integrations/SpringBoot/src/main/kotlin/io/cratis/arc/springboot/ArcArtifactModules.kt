@@ -19,6 +19,9 @@ public class ArcArtifactModules internal constructor(
     /** Modules deduplicated by concrete module class and ordered by fully qualified class name. */
     public val modules: List<ArcArtifactModule>
 
+    // Snapshot once at discovery so command/query factories cannot observe different mutable contributions.
+    internal val validationModules: List<ArcArtifactModule>
+
     init {
         val byClass = linkedMapOf<Class<out ArcArtifactModule>, ArcArtifactModule>()
         ServiceLoader.load(ArcArtifactModule::class.java, applicationContext.classLoader)
@@ -29,6 +32,11 @@ public class ArcArtifactModules internal constructor(
             .forEach { module -> byClass[module.javaClass] = module }
 
         modules = java.util.List.copyOf(byClass.values.sortedBy { it.javaClass.name })
+        validationModules = modules.map { module ->
+            object : ArcArtifactModule(emptyList(), emptyList()) {
+                override val fluentValidators = java.util.List.copyOf(module.fluentValidators)
+            }
+        }
         modules.forEach { module ->
             ArcArtifactModuleRegistry.register(module, commandHandlers, queryPerformers)
         }

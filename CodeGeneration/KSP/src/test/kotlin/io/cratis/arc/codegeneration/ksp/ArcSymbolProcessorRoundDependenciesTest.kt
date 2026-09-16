@@ -106,7 +106,8 @@ internal class ArcSymbolProcessorRoundDependenciesTest {
                 "RoundDependenciesArcArtifactModule",
                 "RoundDependenciesArcArtifactMetadata",
                 "META-INF/services/io.cratis.arc.artifacts.ArcArtifactModule",
-                "META-INF/cratis/arc/RoundDependencies.json"
+                "META-INF/cratis/arc/RoundDependencies.json",
+                "META-INF/cratis/arc-fluent-validation-scope/RoundDependencies.json"
             ),
             aggregateDependencies.keys
         )
@@ -124,6 +125,8 @@ internal class ArcSymbolProcessorRoundDependenciesTest {
             "io.cratis.arc.generated.RoundDependenciesArcArtifactModule\n",
             resources.resolve("META-INF/services/io.cratis.arc.artifacts.ArcArtifactModule").readText()
         )
+        assertEquals("{\"formatVersion\":1,\"moduleName\":\"RoundDependencies\",\"indexed\":false,\"validators\":[]}\n",
+            resources.resolve("META-INF/cratis/arc-fluent-validation-scope/RoundDependencies.json").readText())
         val manifest = ArcObjectMapper.create().readTree(
             resources.resolve("META-INF/cratis/arc/RoundDependencies.json")
         )

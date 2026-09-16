@@ -10,6 +10,7 @@ import io.cratis.arc.metadata.InterfaceDescriptor
 import io.cratis.arc.metadata.TypeDescriptor
 import io.cratis.arc.polymorphism.DerivedTypeRegistration
 import io.cratis.arc.queries.QueryPerformer
+import io.cratis.arc.validation.FluentValidatorRegistration
 
 /** Immutable build-time generated collection of Arc artifacts contributed by one compilation module. */
 public abstract class ArcArtifactModule @JvmOverloads protected constructor(
@@ -21,6 +22,9 @@ public abstract class ArcArtifactModule @JvmOverloads protected constructor(
     concepts: List<ConceptDescriptor> = emptyList(),
     derivedTypes: List<DerivedTypeRegistration> = emptyList()
 ) {
+    /** Compiler-verified fluent validators. Default empty preserves existing generated modules and constructors. */
+    public open val fluentValidators: List<FluentValidatorRegistration> = emptyList()
+
     /** Generated command handlers in deterministic command-name order. */
     public val commandHandlers: List<CommandHandler> = java.util.List.copyOf(commandHandlers)
 

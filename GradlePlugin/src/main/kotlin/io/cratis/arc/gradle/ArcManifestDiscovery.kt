@@ -19,7 +19,8 @@ import java.io.File
 import java.util.jar.JarFile
 import org.gradle.api.GradleException
 
-internal data class DiscoveredArcManifest(val source: String, val manifest: ArcArtifactManifest)
+internal data class DiscoveredArcManifest(val source: String, val manifest: ArcArtifactManifest,
+    val sharedValidators: List<SharedValidatorDescriptor> = emptyList())
 
 internal data class MergedArcArtifacts(
     val commands: List<CommandDescriptor>,
@@ -27,7 +28,8 @@ internal data class MergedArcArtifacts(
     val types: List<TypeDescriptor>,
     val enums: List<EnumDescriptor>,
     val interfaces: List<InterfaceDescriptor> = emptyList(),
-    val concepts: List<ConceptDescriptor> = emptyList()
+    val concepts: List<ConceptDescriptor> = emptyList(),
+    val sharedValidators: List<SharedValidatorDescriptor> = emptyList()
 )
 
 internal object ArcManifestDiscovery {
@@ -39,7 +41,7 @@ internal object ArcManifestDiscovery {
         "java.lang.String", "boolean", "byte", "char", "int", "short", "String", "Boolean"
     )
 
-    fun discover(classpath: Iterable<File>): List<DiscoveredArcManifest> {
+    fun discover(classpath: Iterable<File>, rootModule: String? = null): List<DiscoveredArcManifest> {
         val mapper = ArcObjectMapper.create()
         val discovered = mutableListOf<DiscoveredArcManifest>()
         classpath.map(File::getAbsoluteFile).distinctBy { it.normalize().path }.sortedBy(File::getPath).forEach { entry ->
@@ -49,22 +51,84 @@ internal object ArcManifestDiscovery {
             }
         }
         validate(discovered)
-        return discovered.sortedWith(compareBy({ it.manifest.moduleName }, { it.source }))
+        val fluent = ArcFluentValidationMetadataDiscovery.inventory(classpath.filter(File::exists))
+        if (fluent.validators.isNotEmpty()) {
+            val scope = rootModule?.let(fluent.scopes::get)
+            if (scope == null || !scope.indexed || scope.validators != fluent.classes) throw GradleException(
+                "Shared fluent classpath has no complete verified root scope for '$rootModule'; use the Arc plugin or --module-name with a matching compiled root module and dependency index. " +
+                    "Missing declarations: ${fluent.classes - scope?.validators.orEmpty()}.")
+        }
+        validateFluentAgreement(discovered, fluent)
+        val shared = fluent.validators.values.map { declaration ->
+            SharedValidatorDescriptor(declaration.path("validatorTypeName").asString(), declaration.path("modelTypeName").asString(),
+                declaration.path("members").toList().map { member ->
+                    SharedValidationMember(member.path("member").asString(), member.path("memberTypeName").asString(),
+                        member.path("rules").toList().map { rule -> io.cratis.arc.metadata.ValidationRuleDescriptor(
+                            rule.path("ruleName").asString(), rule.path("arguments").toList().map { argument ->
+                                if (argument.isNumber) argument.numberValue() else argument.asString()
+                            }, rule.path("message").takeUnless { it.isNull }?.asString()) })
+                })
+        }
+        return discovered.sortedWith(compareBy({ it.manifest.moduleName }, { it.source })).map { it.copy(sharedValidators = shared) }
+    }
+
+    private fun validateFluentAgreement(discovered: List<DiscoveredArcManifest>, fluent: ArcFluentValidationMetadataDiscovery.Inventory) {
+        fun arguments(values: List<Any>): List<String> = values.map { value ->
+            if (value is Number) value.toString().toBigDecimal().stripTrailingZeros().toPlainString() else value.toString()
+        }
+        val represented = discovered.flatMap { document -> document.manifest.types.map { it.fullyQualifiedName } + document.manifest.commands.map { it.typeName } }.toSet()
+        fluent.validators.values.forEach { declaration ->
+            if (declaration.path("modelTypeName").asString() !in represented) throw GradleException(
+                "Shared fluent model '${declaration.path("modelTypeName").asString()}' has no artifact metadata; rebuild its producer with Arc KSP.")
+        }
+        discovered.forEach documentLoop@ { document ->
+            val models = document.manifest.types.map { it.fullyQualifiedName } + document.manifest.commands.map { it.typeName }
+            val relevant = fluent.validators.filterValues { it.path("modelTypeName").asString() in models }
+            if (relevant.isNotEmpty()) {
+                val scope = fluent.scopes[document.manifest.moduleName]
+                if (scope == null || !scope.indexed) {
+                    if (document.manifest.moduleName !in fluent.documents) return@documentLoop // Legacy annotation-only dependency; the complete root was verified above.
+                    throw GradleException("Shared fluent metadata in ${document.source} has no verified compiler scope; rebuild with the Arc fluent dependency-index task before generating clients.")
+                }
+                // A producer cannot know downstream validators. Verify what this compilation actually
+                // promised; the shared declaration transport remains available for final graph composition.
+                relevant.filterKeys { it in scope.validators }.values.forEach { declaration ->
+                    val model = declaration.path("modelTypeName").asString()
+                    val properties = document.manifest.types.filter { it.fullyQualifiedName == model }.map { it.properties } +
+                        document.manifest.commands.filter { it.typeName == model }.map { it.properties }
+                    properties.forEach { members -> declaration.path("members").forEach { expected ->
+                        val member = expected.path("member").asString()
+                        val actual = members.singleOrNull { it.name == member }
+                        expected.path("rules").forEach { rule ->
+                            val expectedArgs = rule.path("arguments").toList().map { if (it.isNumber) it.numberValue() else it.asString() }
+                            val message = rule.path("message").takeUnless { it.isNull }?.asString()
+                            if (actual == null || actual.validationRules.none { it.ruleName == rule.path("ruleName").asString() &&
+                                    arguments(it.arguments) == arguments(expectedArgs) && it.message == message }) {
+                                throw GradleException("Shared fluent rule for '$model.$member' is missing from ${document.source}; " +
+                                    "recompile consumers with the verified fluent dependency index and matching compile/runtime dependencies.")
+                            }
+                        }
+                    } }
+                }
+            }
+        }
     }
 
     fun merge(discovered: Iterable<DiscoveredArcManifest>): MergedArcArtifacts {
-        val manifests = discovered.map(DiscoveredArcManifest::manifest)
+        val snapshots = discovered.toList()
+        val manifests = snapshots.map(DiscoveredArcManifest::manifest)
         return MergedArcArtifacts(
             manifests.flatMap(ArcArtifactManifest::commands).sortedBy(CommandDescriptor::typeName),
             manifests.flatMap(ArcArtifactManifest::queries).sortedBy(QueryDescriptor::fullyQualifiedName),
-            manifests.flatMap(ArcArtifactManifest::types).sortedBy(TypeDescriptor::fullyQualifiedName),
+            manifests.flatMap(ArcArtifactManifest::types).groupBy(TypeDescriptor::fullyQualifiedName).toSortedMap()
+                .map { (name, values) -> ValidationDescriptorMerge.merge(values, TypeDescriptor::class.java, name) },
             manifests.flatMap(ArcArtifactManifest::enums).sortedBy(EnumDescriptor::fullyQualifiedName),
-            manifests.flatMap(ArcArtifactManifest::interfaces)
-                .sortedBy(InterfaceDescriptor::fullyQualifiedName)
-                .distinctBy(InterfaceDescriptor::fullyQualifiedName),
+            manifests.flatMap(ArcArtifactManifest::interfaces).groupBy(InterfaceDescriptor::fullyQualifiedName).toSortedMap()
+                .map { (name, values) -> ValidationDescriptorMerge.merge(values, InterfaceDescriptor::class.java, name) },
             manifests.flatMap(ArcArtifactManifest::concepts)
                 .sortedBy(ConceptDescriptor::fullyQualifiedName)
-                .distinctBy(ConceptDescriptor::fullyQualifiedName)
+                .distinctBy(ConceptDescriptor::fullyQualifiedName),
+            snapshots.flatMap { it.sharedValidators }.distinct().sortedBy { it.identity }
         )
     }
 

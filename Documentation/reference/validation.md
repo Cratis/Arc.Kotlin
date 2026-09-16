@@ -1,0 +1,257 @@
+---
+title: Shared fluent validation contract
+description: Check the supported rules, declaration restrictions, registration resources and failure stages for shared Kotlin and Java validation.
+---
+
+## Declaration and member contract
+
+Follow the [validation walkthrough](../guides/validation.md) for setup, complete sample declarations,
+command invocation, client feedback and QUERY requests.
+
+A shared declaration is a public final top-level `FluentModelValidator<T>` with one concrete model
+type and a public no-argument constructor. Kotlin permits one `init` block; Java requires
+`super(Model.class)` followed by direct fluent chains. The compiler parses the complete restricted
+body; it does not execute application constructors. Runtime registration may construct validators
+and checks their frozen rules against compiler metadata.
+
+- Use direct public readable member names matching `[A-Za-z_$][A-Za-z0-9_$]*`, not paths or indexes.
+- Declare rules alongside the model's source. New selectors over binary-only or inherited members
+  fail closed; indexed dependency rules retain their producer's proof.
+- Accessors must preserve the wire value: a default getter, Kotlin `get() = field` or Java
+  `return this.name` is supported. `field.trim()` or a transforming record accessor is not.
+  A backing field alone does not prove identity.
+- Do not add fields, initializers outside the allowed body, helper methods, extra constructors,
+  local variables, branches, aliases, extension calls, lambdas, interpolated strings or computed
+  arguments. Do not shadow Kotlin's standard `Model::class.java` mapping.
+- Reading `rules`, registering or evaluating freezes the declaration. Escaped builders cannot
+  mutate it afterward. Direct evaluation requires the exact model runtime class.
+
+## Rule signatures, types and default messages
+
+All rules produce error severity. `withMessage(value: String)` (Java `String`) accepts a literal
+message and changes only the immediately preceding rule. Only the first `{PropertyName}` is replaced
+with the selected member name, not the qualified nested path. No localization or dynamic message
+expression is implied.
+
+In this table, **length-capable** means `String`, a supported collection, or array; **numeric** means
+Kotlin `Byte`, `Short`, `Int`, `Long`, `Double`, or JVM `BigInteger`/`BigDecimal`, including Java
+primitive/boxed equivalents where applicable. Float members reject. A runtime-supported type must
+also satisfy KSP's model/wire-shape contract; the table does not widen supported arrays or graphs.
+`n`, `min` and `max` in messages below stand for rendered argument values.
+
+| Signature | Member type and acceptance | Default message |
+| --- | --- | --- |
+| `notNull()` | Any supported readable member; rejects null (and client undefined) | `'{PropertyName}' must not be empty.` |
+| `notEmpty()` | Length-capable; rejects null, empty containers and ECMAScript-trimmed empty strings | `'{PropertyName}' must not be empty.` |
+| `minLength(min: Int)` | Length-capable; inclusive lower bound; null passes | `'{PropertyName}' must be at least min characters.` |
+| `maxLength(max: Int)` | Length-capable; inclusive upper bound; null passes | `'{PropertyName}' must be at most max characters.` |
+| `length(min: Int, max: Int)` | Length-capable; inclusive bounds; null passes | `'{PropertyName}' must be between min and max characters.` |
+| `emailAddress()` | `String`; null and empty pass; otherwise bounded email check below | `'{PropertyName}' is not a valid email address.` |
+| `phone()` | `String`; null and empty pass; otherwise ASCII digits, ECMAScript whitespace and `()+-` only | `'{PropertyName}' is not a valid phone number.` |
+| `url()` | `String`; null and empty pass; otherwise HTTP(S) prefix check below | `'{PropertyName}' is not a valid URL.` |
+| `matches(pattern: String)` | `String`; null and empty pass; searches with the portable regex subset below | `'{PropertyName}' is not in the correct format.` |
+| `greaterThan(n: Number)` | Numeric; exclusive lower bound; null passes | `'{PropertyName}' must be greater than n.` |
+| `greaterThanOrEqual(n: Number)` | Numeric; inclusive lower bound; null passes | `'{PropertyName}' must be greater than or equal to n.` |
+| `lessThan(n: Number)` | Numeric; exclusive upper bound; null passes | `'{PropertyName}' must be less than n.` |
+| `lessThanOrEqual(n: Number)` | Numeric; inclusive upper bound; null passes | `'{PropertyName}' must be less than or equal to n.` |
+
+Java length parameters are `int`; numeric parameters are `Number`. Length bounds must be literal
+nonnegative Int values, from 0 through 2147483647, not Long or Double bounds. Strings count UTF-16
+code units, so one supplementary character counts as two; collections/arrays count elements.
+
+The email check requires exactly one `@`, at least one character before it, no ECMAScript whitespace,
+and a dot with at least one character between `@` and the dot and at least one after the dot.
+It is not Jakarta email validation. Phone allows whitespace-only strings; add `notEmpty` if needed.
+URL requires a case-insensitive `http://` or `https://` prefix with at least one following character
+that is not LF, CR, U+2028 or U+2029. It does not parse a URI or validate the rest of the string:
+`http://a` followed by a newline passes, while a newline immediately after the prefix fails.
+
+ECMAScript whitespace here is U+0009, U+000B, U+000C, U+0020, U+00A0, U+1680, U+2000–U+200A,
+U+202F, U+205F, U+3000, U+FEFF, LF, CR, U+2028 and U+2029. It is not Kotlin `isBlank` or Java `\s`;
+U+0085 is not in this set. The sample's vectors exercise these distinctions.
+
+### Numeric bounds and values
+
+Although the API accepts `Number`, shared source declarations accept **numeric literals**, not
+`BigDecimal("2")`, `new BigInteger("2")`, constants, arithmetic or factory calls. Kotlin's restricted
+syntax accepts decimal integer, fractional and exponent forms, an optional leading minus, and
+`L`/`f`/`F` suffixes; it does not accept hexadecimal or underscore-separated numbers. Java uses
+ordinary parser-proved numeric literals. A Float literal bound may normalize safely; that does not
+make a Float **member** safe. Prefer integer or Double literals for clarity.
+
+Both normalized bounds and evaluated values must be finite, within **±9007199254740991**, not
+nonzero JavaScript subnormals (absolute value below `Double.MIN_NORMAL`), and decimal-round-trippable
+through a JavaScript number. BigDecimal and BigInteger **members** are permitted only within this
+bounded domain: this does not promise arbitrary-precision client equality.
+
+A direct JVM validator call throws `IllegalArgumentException` for an out-of-domain numeric value,
+for example `9007199254740992L` or `BigDecimal("0.100000000000000001")`, rather than returning a
+normal comparison violation. Inside the existing model-validation pipeline, the failed declaration
+becomes sanitized error feedback: message `The value could not be validated.`, reason
+`validatorFailed`, and the **model path**, such as `input`, not the numeric member path
+`input.greater`. A root model has an empty members list. Generated validators guard the client
+number domain and return the corresponding failure. This is distinct from a valid-domain number
+that simply violates `greaterThan(2)`, which reports its ordinary rule message and member.
+Cancellation and fatal errors retain the pipeline's existing propagation behavior.
+
+### Portable patterns
+
+`matches` searches; use anchors for a whole-string condition. The allowed subset is printable ASCII
+literals, nonempty positive ASCII character classes, grouping, alternation, quantifiers, anchors,
+and `\d`, `\w`, `\s`. `\s` uses the ECMAScript set above. `$` enforces the end of input, including
+rejection of a trailing newline for an anchored pattern.
+
+Escape literal closing brackets: regex `^[\]]+$`, written as `"^[\\]]+$"` in Kotlin or Java,
+accepts `]` and `]]` but rejects `a`, `]a` and `]` followed by a newline. Ambiguous `[]]`, empty
+classes and unescaped closing brackets reject. Also unsupported: dot outside a class, negated or
+nested classes, lookarounds, flags, backreferences, Unicode/property escapes, intersections and
+possessive quantifiers. This is a portability boundary, not a regex execution-time guarantee.
+Existing annotation regex screening is unchanged.
+
+### Conjunction, duplication and contradictions
+
+Rules conjoin; there is no last-declaration override. Exact rule/argument/message duplicates within
+one declaration run once after canonicalization; distinct messages and distinct validator classes
+remain separate feedback sources. Annotation and DSL metadata form a union of constraints, not a
+choice of validation engine. Jakarta still evaluates its own constraints on the server; shared rules
+do not replay them or deduplicate all Jakarta feedback.
+
+Within a declaration, length chains must have a nonempty intersection: `minLength(3)` with
+`maxLength(2)`, or `notEmpty()` with `maxLength(0)`, rejects. Numeric lower/upper bounds reject when
+reversed or when equal with an exclusive endpoint. Inclusive equal endpoints are allowed.
+This bounded check is not a solver for contradictions across arbitrary patterns, annotations or
+separate validator classes. Generated descriptor merging also requires structurally compatible
+models; it unions validation metadata instead of silently choosing one producer's definition.
+
+New shared `creditCard()` rejects because pinned `@cratis/arc` 22.10.4 has no such rule. Existing
+Jakarta `@CreditCard` and Hibernate `@CreditCardNumber` metadata and server enforcement remain
+unchanged and server-only.
+
+## Supported graph and presence boundaries
+
+The shared graph must be concrete, final and acyclic. Generated command/query validators compose
+active nested model rules, including supported collection siblings and indexed paths, without
+requiring Jakarta `@Valid`. Annotation-only client behavior is unchanged; `validateRecursively`
+metadata alone does not promise general recursive Jakarta client execution.
+
+Inherited/polymorphic graphs, cycles, erased inline-value members, scalar/concept shared roots,
+opaque `Any`/`Object` input edges, ignored/computed shared edges and external mappings of active
+shared models reject. Maps containing models remain outside the existing wire-shape contract.
+Existing Java object-array property restrictions still apply; supported Kotlin arrays and Java
+lists are separate contracts. Use server-only validators for unsupported graphs.
+
+Identity tracking runs once per node within a command or a supplied query-argument root. Separate
+query arguments have independent tracking. JSON does not preserve aliases: serializing one aliased
+object twice creates two server nodes, so feedback paths may differ from pre-serialization in-memory
+validation. Arbitrary JavaScript getters/prototypes, custom Jackson serialization and mutated values
+outside the declared wire shape are not a cross-runtime equivalence promise.
+
+Shared query model arguments require request-response RFC QUERY preference and host support.
+Omitted Kotlin defaults stay absent before invocation; explicit null is supplied and requires a
+nullable parameter. Neither creates a model node to validate before invocation. Supplied objects
+are validated, not returned data. See the [complete QUERY example](../guides/validation.md#validate-a-supplied-query-model).
+
+## Registration and library packaging
+
+The Arc Gradle plugin supplies a verified compile/runtime dependency index automatically. Generated
+artifact modules contribute shared validators to Spring and published in-process scenarios. A
+matching bean is deduplicated by exact declaration class; mismatched rules or a fluent bean without
+its compiler contribution fail registration. Ordinary imperative validator order and multiplicity
+remain unchanged. Direct instantiation alone does not register a shared validator.
+
+Publish library declarations with their model's source producer, compiled classes and generated
+resources together. For a module named `Producer`, the relevant inventory is:
+
+| JAR entry | Purpose |
+| --- | --- |
+| Model and validator `.class` files | Runtime types and bytecode inventory |
+| `META-INF/cratis/arc-fluent-validation/Producer.json` | Format-1 declarations authored by this producer; imports are not re-exported |
+| `META-INF/cratis/arc-fluent-validation-scope/Producer.json` | Format-1 compilation scope, recording its complete declaration set and index status |
+| `io/cratis/arc/generated/ProducerArcArtifactModule.class` | Compiled module with runtime validator linkage |
+| `META-INF/services/io.cratis.arc.artifacts.ArcArtifactModule` | ServiceLoader entry naming that module |
+| `META-INF/cratis/arc/Producer.json` when artifact metadata is emitted | Format-7 artifact descriptors; not a substitute for declaration or scope metadata |
+
+Validator-only libraries still need the generated module, declaration resource and ServiceLoader
+registration; an imported-only root needs a scope and runtime contributions, not a re-exported
+local declaration resource. Keep these libraries on **both compile and runtime** dependency
+classpaths, normally via `implementation` (or `api` when their types are part of your library API).
+Neither `compileOnly` nor `runtimeOnly` alone is sufficient.
+
+Scanning reads bytecode headers and constant-pool linkage without loading application classes.
+Missing/conflicting metadata, missing module or service entries and mismatched compile/runtime
+inventories fail closed. The compiler parser is packaged with `arc-ksp`, pinned to Kotlin compiler
+2.4.20 on JDK 17; it is not an application runtime dependency.
+
+### Manual build tooling
+
+Prefer the plugin. If you maintain manual KSP wiring, use the actual
+[Spring Boot sample build](../../Samples/Kotlin/SpringBoot/build.gradle.kts): its `extractFluentIndex`,
+`ksp` and `kspKotlin` configuration form one recipe. It resolves compile/runtime **JAR** artifacts,
+registers those as extraction inputs, declares the output index, makes KSP depend on extraction,
+passes `fluentIndex.map { it.asFile.toURI().toASCIIString() }`, and registers that file as the
+nonincremental `arcFluentValidationMetadata` task input with `PathSensitivity.NONE`.
+Do not copy only `ksp { arg("arc.moduleName", ...) }` from a basic onboarding build for shared rules.
+
+The CLI has exactly **three positional arguments**, no named flags:
+
+```bash
+java -cp "$ARC_TOOL_CLASSPATH" io.cratis.arc.gradle.ExtractArcFluentValidationMetadataCli \
+  "$COMPILE_DEPENDENCY_CLASSPATH" "$RUNTIME_DEPENDENCY_CLASSPATH" "$INDEX_FILE"
+```
+
+These variables describe inputs you resolve from your build: `ARC_TOOL_CLASSPATH` contains
+`arc-gradle-plugin` and its tool dependencies; the next two are platform-path-separator-delimited
+classpath strings for actual compile and runtime dependency artifacts; `INDEX_FILE` is an absolute
+output filename. This is the CLI invocation shape, not a standalone dependency resolver. The linked
+sample supplies the actual Gradle resolution/task wiring. Include associated compilation classes
+and resources when extracting for test or other associated compilations. Do not fabricate an empty
+index, even when you expect no dependency rules.
+
+Pass the resulting **absolute file URI**, not a raw path, as `arc.fluentValidationMetadata`.
+Set `arc.fluentValidationRoot=true` for main roots, including imported-only applications. The
+[production native fixture](../../GradlePlugin/src/test/kotlin/io/cratis/arc/gradle/ArcFluentValidationNativeFunctionalTest.kt)
+exercises the plugin's producer/consumer/aggregation wiring, dependency changes and recovery.
+
+Dependency extraction and proxy discovery have **different inputs**. Extraction runs before KSP on
+compile and runtime dependency inventories. Proxy generation runs after compilation and needs the
+complete compiled **root**: its classes/resources and dependency artifacts on
+`--manifest-classpath`, plus `--module-name` identifying the root module. A manifest-only directory
+cannot prove runtime registration. The sample's `generateArcProxies` task shows the complete CLI
+wiring using main output plus runtime classpath. Root-scope and descriptor checks precede rendering.
+
+## Diagnose by failure stage
+
+Do not assume every metadata failure carries a KSP code. Read the failing task first.
+
+| Stage | Failure and correction |
+| --- | --- |
+| Dependency-index extraction, **before KSP** | An actionable, **uncoded `GradleException`** reports missing/unindexed/conflicting declarations, missing artifacts or runtime registration, or compile/runtime mismatch. Rebuild/repackage producers and supply complete matching dependency inventories. KSP has not run, so this is not `ARCKSP0310`. |
+| KSP, `ARCKSP0310` | Missing or unusable supplied index, or unavailable parser/configuration. Supply the extracted absolute index URI and nonincremental task input; restore the processor's packaged parser dependencies. |
+| KSP, `ARCKSP0308` | Unsupported constructor grammar or potentially shadowed Kotlin class mapping. Use only the restricted body and standard `Model::class.java`; remove/rename conflicting declarations or imports. |
+| KSP, `ARCKSP0309` | Unsupported member/rule/bound, contradictions, computed or unproved wire members/edges, or ambiguous regex grammar. Use source-proved unchanged members and supported literals, or keep the rule server-only. |
+| Proxy generation, `ARCVALIDATION_GRAPH` | Unsupported shared graph or query transport. Use the bounded concrete graph and RFC QUERY, or server-only rules. |
+| Proxy discovery/root verification | Incomplete root scope, runtime inventory or incompatible descriptors. Supply the complete compiled root and matching dependencies, not manifest-only files. |
+| Registration/startup | Runtime declaration rules disagree with compiler metadata, or a fluent bean has no generated contribution. Regenerate and register the matching module. |
+| Runtime, ordinary violation | Inspect the rule message and qualified member path. `execute` rejects before the handler; `validate` never invokes it. |
+| Runtime, numeric-domain failure | Direct validator throws; the model pipeline returns sanitized `validatorFailed` at the model path, as described above. Do not treat it as an ordinary comparison violation. |
+
+Rejected compilation does not publish current partial declaration/manifest aggregates. Extraction
+does not execute constructors or shadowing extension getters.
+
+## Evidence and limits
+
+The executable sources behind the walkthrough are the Kotlin/Java fluent files in
+`Samples/Kotlin/SpringBoot` and `ContractTests/TypeScript/contracts/runtime.fluent.contract.ts`.
+`Source`'s `FluentModelValidatorTest` supplies the exact semantic vectors, contradiction and
+numeric-domain checks. `ArcFluentValidationCompilationTest` proves the restricted Kotlin/Java
+source grammar, rejected accessors and generated registration. `FluentValidationContractTest`
+uses the unpublished repository fixtures to exercise generated contributions through the published
+`CommandScenario` API. `ScenarioFluentValidationTests` counts handler nonexecution in manual-module
+repository illustrations; it is not a generated-query transport example.
+
+`ArcFluentValidationMetadataDiscoveryTest` asserts `GradleException` extraction failures;
+`ArcFluentValidationNativeFunctionalTest` exercises the production parser and plugin across real
+producer/consumer compilations. `SharedValidationRenderingTest` covers generated validator naming
+and composition. These named checks are provenance, not a claim that a documentation verifier runs
+them. The Kotlin/Java blocking usage adaptations in the guide have not been compiled together as a
+new tutorial; the documentation gate is a source/link check, not a compiler or runtime gate.

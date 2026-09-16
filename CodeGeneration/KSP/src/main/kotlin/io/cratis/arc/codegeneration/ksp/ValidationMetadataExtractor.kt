@@ -30,7 +30,8 @@ internal class ValidationMetadataExtractor(private val logger: ArcDiagnosticRepo
         identity: String,
         node: KSNode,
         sourceAnnotations: List<SourceValidationAnnotation> = emptyList(),
-        inheritedRules: List<ValidationRuleModel> = emptyList()
+        inheritedRules: List<ValidationRuleModel> = emptyList(),
+        fluentRules: List<ValidationRuleModel> = emptyList()
     ): ValidationMetadata? {
         val kspAnnotations = annotated.flatMap { it.annotations.toList() }
             .mapNotNull { annotation -> annotation.toSourceValidationAnnotation() }
@@ -39,7 +40,9 @@ internal class ValidationMetadataExtractor(private val logger: ArcDiagnosticRepo
         val annotations = kspAnnotations + sourceAnnotations
             .filterNot { annotation -> annotation.qualifiedName in kspNames }
             .distinctBy { annotation -> annotation.identity() }
-        val rules = inheritedRules.toMutableList()
+        if (!validateExplicitRules(inheritedRules, shape, identity, node, false) ||
+            !validateExplicitRules(fluentRules, shape, identity, node, true)) return null
+        val rules = (inheritedRules + fluentRules).toMutableList()
         var recursively = false
 
         for (annotation in annotations) {
@@ -120,14 +123,50 @@ internal class ValidationMetadataExtractor(private val logger: ArcDiagnosticRepo
         if (recursively && !shape.canValidateRecursively()) {
             return unsupported(identity, VALID, "cannot recursively validate this scalar, enum, abstract, or polymorphic value", node)
         }
-        val distinctRules = rules.distinct().sortedWith(
+        val canonicalRules = if (fluentRules.isEmpty()) rules else rules.map { rule ->
+            if (rule.ruleName in setOf("greaterThan", "greaterThanOrEqual", "lessThan", "lessThanOrEqual"))
+                rule.copy(arguments = rule.arguments.map {
+                    representNumber(it.toString().toBigDecimal().stripTrailingZeros().toPlainString())
+                        ?: return invalid(identity, rule.ruleName, "is outside the shared safe numeric domain", node)
+                }) else rule
+        }
+        val distinctRules = canonicalRules.distinct().sortedWith(
             compareBy<ValidationRuleModel> { rule -> RULE_ORDER.indexOf(rule.ruleName).takeIf { it >= 0 } ?: Int.MAX_VALUE }
                 .thenBy(ValidationRuleModel::ruleName)
                 .thenBy { rule -> rule.arguments.joinToString("\u0000") }
+                .thenBy { rule -> if (fluentRules.isEmpty()) false else rule.message != null }
                 .thenBy { rule -> rule.message.orEmpty() }
         )
-        if (!validateContradictions(identity, distinctRules, node)) return null
+        if (!validateContradictions(identity, distinctRules, node, fluentRules.isNotEmpty())) return null
         return ValidationMetadata(distinctRules, recursively)
+    }
+
+    private fun validateExplicitRules(
+        rules: List<ValidationRuleModel>, shape: TypeShape, identity: String, node: KSNode, fluent: Boolean
+    ): Boolean {
+        for (rule in rules) {
+            val expected = when (rule.ruleName) {
+                "notNull", "notEmpty", "emailAddress", "phone", "url", "creditCard" -> 0
+                "minLength", "maxLength", "matches", "greaterThan", "greaterThanOrEqual", "lessThan", "lessThanOrEqual" -> 1
+                "length" -> 2
+                else -> -1
+            }
+            val valid = expected >= 0 && rule.arguments.size == expected && when (rule.ruleName) {
+                "notNull" -> true
+                "notEmpty" -> shape.acceptsLength()
+                "minLength", "maxLength", "length" -> shape.acceptsLength() && rule.arguments.all { it is Int && it >= 0 }
+                "emailAddress", "phone", "url" -> shape.isString()
+                "creditCard" -> !fluent && shape.isString()
+                "matches" -> shape.isString() && rule.arguments.single() is String && isRepresentablePattern(rule.arguments.single() as String)
+                else -> shape.isNumeric() && rule.arguments.single() is Number && representNumber(rule.arguments.single().toString()) != null
+            }
+            if (!valid) {
+                logger.error(if (fluent) ArcDiagnostic.FLUENT_RULE else ArcDiagnostic.VALIDATION,
+                    "Invalid ${if (fluent) "fluent" else "inherited"} rule '${rule.ruleName}' on '$identity'; use representable typed literal arguments.", node)
+                return false
+            }
+        }
+        return true
     }
 
     private fun numericRule(
@@ -191,7 +230,7 @@ internal class ValidationMetadataExtractor(private val logger: ArcDiagnosticRepo
         return ValidationRuleModel(ruleName, listOf(value), message)
     }
 
-    private fun validateContradictions(identity: String, rules: List<ValidationRuleModel>, node: KSNode): Boolean {
+    private fun validateContradictions(identity: String, rules: List<ValidationRuleModel>, node: KSNode, fluent: Boolean): Boolean {
         var numericLower: Boundary? = null
         var numericUpper: Boundary? = null
         var lengthLower = if (rules.any { it.ruleName == "notEmpty" }) 1 else 0
@@ -219,8 +258,8 @@ internal class ValidationMetadataExtractor(private val logger: ArcDiagnosticRepo
             val comparison = numericLower.value.compareTo(numericUpper.value)
             if (comparison > 0 || comparison == 0 && (!numericLower.inclusive || !numericUpper.inclusive)) {
                 logger.error(
-                    ArcDiagnostic.VALIDATION,
-                    "Validation annotations on '$identity' declare contradictory numeric bounds.",
+                    if (fluent) ArcDiagnostic.FLUENT_RULE else ArcDiagnostic.VALIDATION,
+                    "Validation ${if (fluent) "rules" else "annotations"} on '$identity' declare contradictory numeric bounds.",
                     node
                 )
                 return false
@@ -228,8 +267,8 @@ internal class ValidationMetadataExtractor(private val logger: ArcDiagnosticRepo
         }
         if (lengthLower > lengthUpper) {
             logger.error(
-                ArcDiagnostic.VALIDATION,
-                "Validation annotations on '$identity' declare contradictory length bounds.",
+                if (fluent) ArcDiagnostic.FLUENT_RULE else ArcDiagnostic.VALIDATION,
+                "Validation ${if (fluent) "rules" else "annotations"} on '$identity' declare contradictory length bounds.",
                 node
             )
             return false

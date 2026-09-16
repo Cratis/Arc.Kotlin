@@ -65,7 +65,7 @@ public abstract class GenerateArcProxies : DefaultTask() {
     @TaskAction
     public fun generate() {
         if (!generationEnabled.get() || !outputDirectory.isPresent) return
-        val manifests = ArcManifestDiscovery.discover(manifestClasspath.files)
+        val manifests = ArcManifestDiscovery.discover(manifestClasspath.files, moduleName.get())
         val artifacts = ArcManifestDiscovery.merge(manifests)
         TypeScriptProxyGenerator(
             artifacts,

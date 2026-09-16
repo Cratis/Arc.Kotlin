@@ -69,15 +69,17 @@ private data class TypeScriptType(
 private data class ValidationTarget(
     val propertyName: String,
     val rules: List<ValidationRuleDescriptor>,
-    val skipWhenUndefined: Boolean = false
+    val skipWhenUndefined: Boolean = false,
+    val sharedEdge: Boolean = false
 ) {
-    val hasRules: Boolean = rules.isNotEmpty()
+    val hasRules: Boolean = rules.isNotEmpty() || sharedEdge
 }
 
 internal class TypeScriptProxyGenerator(
     private val artifacts: MergedArcArtifacts,
     private val options: ProxyGenerationOptions
 ) {
+    private val shared = SharedValidationGraph(artifacts)
     private val commandTypeNames = artifacts.commands.map(CommandDescriptor::typeName).toSet()
 
     /**
@@ -105,6 +107,17 @@ internal class TypeScriptProxyGenerator(
         validateOutputTree()
         validateMappings()
         validateArtifacts()
+        val sharedTargets = targets.filter { shared.contains(it.sourceName) || it.kind == ArtifactKind.QUERY &&
+            artifacts.queries.single { query -> query.fullyQualifiedName == it.sourceName }.parameters.any { parameter -> shared.reaches(parameter.shape) } }
+        sharedTargets.forEach { target ->
+            if (targets.any { it.sourceName != target.sourceName && it.typeScriptName == target.typeScriptName + "Validator" })
+                throw GradleException("[ARCVALIDATION_GRAPH] Generated validator '${target.typeScriptName}Validator' collides with another artifact; rename the artifact.")
+        }
+        if (!options.endpointOptions.enableQueryHttpMethod && artifacts.queries.any { query -> query.parameters.any { shared.reaches(it.shape) } })
+            throw GradleException("[ARCVALIDATION_GRAPH] Shared model query arguments require enabled RFC QUERY transport.")
+        artifacts.types.filter { shared.contains(it.fullyQualifiedName) }.forEach { type ->
+            if (isExternallyMapped(type.fullyQualifiedName)) throw GradleException("[ARCVALIDATION_GRAPH] Shared model '${type.fullyQualifiedName}' cannot be externally mapped; generate its validator locally.")
+        }
         val generated = linkedMapOf<String, Pair<String, String>>()
         val commandNamespaces = EndpointRouteHelper.groupByNamespace(
             artifacts.commands,
@@ -339,7 +352,10 @@ internal class TypeScriptProxyGenerator(
         }
         val valueImports = types.flatMap { type -> type.recursiveTypes() }
             .mapNotNull(TypeScriptType::valueImport).distinct()
-        val frameworkNames = when (current.kind) {
+        val sharedFrameworkNames = if (shared.contains(current.sourceName)) setOf("ArcSharedValidator", "ArcSharedResult", "ArcSharedSeverity", "${current.typeScriptName}Validator") else emptySet()
+        if (current.typeScriptName in sharedFrameworkNames || imported.any { it.typeScriptName in sharedFrameworkNames })
+            throw GradleException("[ARCVALIDATION_GRAPH] Shared validator scaffolding name collision in '${current.sourceName}'; rename the model.")
+        val frameworkNames = sharedFrameworkNames + when (current.kind) {
             ArtifactKind.COMMAND -> setOf("Command", "CommandValidator", "PropertyDescriptor", "useCommand", "SetCommandValues", "ClearCommandValues", "I${current.typeScriptName}", "${current.typeScriptName}Validator")
             ArtifactKind.QUERY -> setOf("QueryFor", "ObservableQueryFor", "QueryResultWithState", "QueryValidator", "ParameterDescriptor", "Sorting", "Paging", "SortingActions", "SortingActionsForQuery", "SortingActionsForObservableQuery", "QueryHttpMethod", "QueryWhen", "ObservableQueryWhen", "ChangeSet", "PerformQuery", "SetSorting", "SetPage", "SetPageSize", "useQuery", "useQueryWithPaging", "useSuspenseQuery", "useSuspenseQueryWithPaging", "useObservableQuery", "useObservableQueryWithPaging", "useSuspenseObservableQuery", "useSuspenseObservableQueryWithPaging", "useChangeStream", "${current.typeScriptName}Parameters", "${current.typeScriptName}Validator", "${current.typeScriptName}SortBy", "${current.typeScriptName}SortByWithoutQuery")
             ArtifactKind.TYPE -> setOf("field", "derivedType")
@@ -402,8 +418,10 @@ internal class TypeScriptProxyGenerator(
         val imports = customImports(referencedTypes, referencedTypes)
         val interfaceName = "I${command.name}"
         val validationTargets = command.properties.map { property ->
-            ValidationTarget(lowerCamel(property.name), property.validationRules.clientRepresentable())
+            ValidationTarget(lowerCamel(property.name), property.validationRules.clientRepresentable().filterNot { rule -> shared.rules(command.typeName, property.name).any { sameRule(rule, it) } })
         }.filter(ValidationTarget::hasRules).sortedBy(ValidationTarget::propertyName)
+        val sharedValidation = shared.contains(command.typeName)
+        val hasValidation = validationTargets.isNotEmpty() || sharedValidation
         val requestParameters = routeParameters(route, command.properties)
         val requiresStringMapGuard = command.properties.any { property -> property.shape.containsMap() }
         return buildString {
@@ -411,11 +429,12 @@ internal class TypeScriptProxyGenerator(
             append("/* eslint-disable sort-imports */\n")
             append("/* eslint-disable @typescript-eslint/no-empty-interface */\n")
             append("// eslint-disable-next-line header/header\n")
-            append("import { Command${if (validationTargets.isNotEmpty()) ", CommandValidator" else ""} } from '@cratis/arc/commands';\n")
+            append("import { Command${if (hasValidation) ", CommandValidator" else ""} } from '@cratis/arc/commands';\n")
             append("import { useCommand, type SetCommandValues, type ClearCommandValues } from '@cratis/arc.react/commands';\n")
             append("import { PropertyDescriptor } from '@cratis/arc/reflection';\n")
             appendPackageImports(referencedTypes)
             appendCustomImports(imports, target)
+            if (sharedValidation) appendSharedImports(target, command.properties.map { it.shape })
             append("\n")
             if (requiresStringMapGuard) {
                 appendStringMapGuard()
@@ -427,14 +446,16 @@ internal class TypeScriptProxyGenerator(
                 append("    ${lowerCamel(property.name)}?: ${propertyTypeName(property, target)};\n")
             }
             append("}\n\n")
-            appendValidator("${command.name}Validator", "CommandValidator", interfaceName, validationTargets)
+            if (sharedValidation) appendSharedValidator("${command.name}Validator", "CommandValidator", interfaceName, command.typeName,
+                command.properties, validationTargets, target)
+            else appendValidator("${command.name}Validator", "CommandValidator", interfaceName, validationTargets)
             val responseGeneric = response?.let {
                 ", ${it.name}${if (command.responseIsEnumerable) "[]" else ""}"
             }.orEmpty()
             appendDocumentation(command.summary)
             append("export class ${command.name} extends Command<$interfaceName$responseGeneric> implements $interfaceName {\n")
             append("    readonly route: string = '${escape(route)}';\n")
-            if (validationTargets.isNotEmpty()) {
+            if (hasValidation) {
                 append("    readonly validation: CommandValidator = new ${command.name}Validator();\n")
             }
             append("    readonly treatWarningsAsErrors: boolean = ${command.treatWarningsAsErrors};\n")
@@ -535,6 +556,7 @@ internal class TypeScriptProxyGenerator(
             }
             appendPackageImports(referencedTypes, fundamentals)
             appendCustomImports(imports, target)
+            if (shared.contains(type.fullyQualifiedName)) appendSharedImports(target, type.properties.map { it.shape })
             append("\n")
             appendDocumentation(type.summary)
             type.derivedTypeId?.let { append("@derivedType('${escape(it)}')\n") }
@@ -553,6 +575,11 @@ internal class TypeScriptProxyGenerator(
                 append("    ${lowerCamel(property.name)}$marker: ${propertyTypeName(property, target)};\n")
             }
             append("}\n")
+            if (shared.contains(type.fullyQualifiedName)) {
+                append("\n")
+                appendSharedValidator("${type.name}Validator", "ArcSharedValidator", type.name, type.fullyQualifiedName,
+                    type.properties, emptyList(), target)
+            }
         }
     }
 
@@ -587,19 +614,17 @@ internal class TypeScriptProxyGenerator(
         if (enum.isFlags) append("\nexport const all${enum.name} = ${enum.allFlagsExpression};\n")
     }
 
+    private fun queryValidationTargets(parameters: List<ParameterDescriptor>): List<ValidationTarget> = parameters.map { parameter ->
+        ValidationTarget(lowerCamel(parameter.name), parameter.validationRules.clientRepresentable(), parameter.hasDefault, shared.reaches(parameter.shape))
+    }.filter(ValidationTarget::hasRules)
+
     private fun renderQuery(query: QueryDescriptor, target: ArtifactTarget, route: String): String {
         if (query.transport == QueryTransportType.OBSERVABLE) {
             return renderObservableQuery(query, target, route)
         }
         val parameters = query.parameters.filter { parameter -> parameter.source == QueryParameterSource.CLIENT }
             .sortedBy(ParameterDescriptor::name)
-        val validationTargets = parameters.map { parameter ->
-            ValidationTarget(
-                lowerCamel(parameter.name),
-                parameter.validationRules.clientRepresentable(),
-                parameter.hasDefault
-            )
-        }.filter(ValidationTarget::hasRules)
+        val validationTargets = queryValidationTargets(parameters)
         val model = resolveType(query.returnTypeName, target)
         val parameterTypes = parameters.map { resolveParameterType(it, target) }
         val referencedTypes = listOf(model) + parameterTypes
@@ -649,14 +674,14 @@ internal class TypeScriptProxyGenerator(
                 append("export interface ${className}Parameters {\n")
                 parameters.forEach { parameter ->
                     val optional = if (parameter.isNullable || parameter.hasDefault) "?" else ""
-                    val array = if (parameter.isEnumerable) "[]" else ""
+                    val array = parameterArraySuffix(parameter)
                     appendDocumentation(parameter.summary, "    ")
                     append("    ${lowerCamel(parameter.name)}$optional: ${resolveParameterType(parameter, target).name}$array;\n")
                 }
                 append("}\n")
             }
             if (validationTargets.isNotEmpty()) append("\n")
-            appendValidator("${className}Validator", "QueryValidator", "${className}Parameters", validationTargets)
+            appendQueryValidator(query, target, validationTargets)
             val classSpacing = when {
                 query.isEnumerable && parameters.isEmpty() && validationTargets.isEmpty() -> "\n"
                 !query.isEnumerable && parameters.isEmpty() && validationTargets.isEmpty() -> "\n\n\n"
@@ -693,7 +718,7 @@ internal class TypeScriptProxyGenerator(
             append("    ];\n\n")
             parameters.forEach { parameter ->
                 val optional = if (parameter.hasDefault) "?" else "!"
-                val array = if (parameter.isEnumerable) "[]" else ""
+                val array = parameterArraySuffix(parameter)
                 append("    ${lowerCamel(parameter.name)}$optional: ${resolveParameterType(parameter, target).name}$array;\n")
             }
             if (!query.isEnumerable) append("\n")
@@ -709,13 +734,7 @@ internal class TypeScriptProxyGenerator(
     private fun renderObservableQuery(query: QueryDescriptor, target: ArtifactTarget, route: String): String {
         val parameters = query.parameters.filter { parameter -> parameter.source == QueryParameterSource.CLIENT }
             .sortedBy(ParameterDescriptor::name)
-        val validationTargets = parameters.map { parameter ->
-            ValidationTarget(
-                lowerCamel(parameter.name),
-                parameter.validationRules.clientRepresentable(),
-                parameter.hasDefault
-            )
-        }.filter(ValidationTarget::hasRules)
+        val validationTargets = queryValidationTargets(parameters)
         val model = resolveType(query.returnTypeName, target)
         val parameterTypes = parameters.map { resolveParameterType(it, target) }
         val referencedTypes = listOf(model) + parameterTypes
@@ -771,14 +790,14 @@ internal class TypeScriptProxyGenerator(
                 parameters.forEach { parameter ->
                     append("    \n")
                     val optional = if (parameter.isNullable || parameter.hasDefault) "?" else ""
-                    val array = if (parameter.isEnumerable) "[]" else ""
+                    val array = parameterArraySuffix(parameter)
                     appendDocumentation(parameter.summary, "    ")
                     append("    ${lowerCamel(parameter.name)}$optional: ${resolveParameterType(parameter, target).name}$array;\n")
                 }
                 append("}\n")
             }
             if (validationTargets.isNotEmpty()) append("\n")
-            appendValidator("${className}Validator", "QueryValidator", "${className}Parameters", validationTargets)
+            appendQueryValidator(query, target, validationTargets)
             val classSpacing = when {
                 query.isEnumerable && parameters.isEmpty() && validationTargets.isEmpty() -> "\n"
                 !query.isEnumerable && parameters.isEmpty() && validationTargets.isEmpty() -> "\n\n\n"
@@ -815,7 +834,7 @@ internal class TypeScriptProxyGenerator(
             append("    ];\n\n")
             parameters.forEach { parameter ->
                 val optional = if (parameter.hasDefault) "?" else "!"
-                val array = if (parameter.isEnumerable) "[]" else ""
+                val array = parameterArraySuffix(parameter)
                 append("    ${lowerCamel(parameter.name)}$optional: ${resolveParameterType(parameter, target).name}$array;\n")
             }
             if (!query.isEnumerable) append("\n")
@@ -826,6 +845,103 @@ internal class TypeScriptProxyGenerator(
             appendObservableQueryHooks(query, className, model.name, parameters.isNotEmpty())
             append("}\n")
         }
+    }
+
+    private fun StringBuilder.appendSharedImports(target: ArtifactTarget, shapes: List<TypeShapeDescriptor>) {
+        append("import { Validator as ArcSharedValidator, ValidationResult as ArcSharedResult, ValidationResultSeverity as ArcSharedSeverity } from '@cratis/arc/validation';\n")
+        shapes.flatMap(shared::leaves).filter { shared.contains(it) && it != target.sourceName }.distinct().sorted().forEach { name ->
+            val nested = targetBySource[name] ?: throw GradleException("[ARCVALIDATION_GRAPH] Missing shared model '$name'.")
+            append("import { ${nested.typeScriptName}Validator as ${sharedAlias(name)} } from '${relativeImport(target.directory, nested)}';\n")
+        }
+    }
+
+    private fun sameRule(left: ValidationRuleDescriptor, right: ValidationRuleDescriptor): Boolean =
+        left.ruleName == right.ruleName && left.message == right.message && left.arguments.size == right.arguments.size &&
+            left.arguments.zip(right.arguments).all { (a, b) ->
+                if (a is Number && b is Number) a.toString().toBigDecimal().compareTo(b.toString().toBigDecimal()) == 0 else a == b
+            }
+
+    private fun sharedAlias(name: String): String = "ArcNested" + MessageDigest.getInstance("SHA-256")
+        .digest(name.toByteArray()).take(6).joinToString("") { "%02x".format(it) }
+
+    /** Emit each declaration independently to preserve runtime declaration order and feedback multiplicity. */
+    private fun StringBuilder.appendSharedValidator(
+        className: String, base: String, targetType: String, model: String?, properties: List<PropertyDescriptor>,
+        legacy: List<ValidationTarget>, target: ArtifactTarget, query: Boolean = false
+    ) {
+        val declarations = model?.let { shared.declarations[it] }.orEmpty()
+        append("export class $className extends $base<$targetType> {\n")
+        declarations.forEachIndexed { index, _ -> append("    private readonly arcRules$index = new ArcSharedValidator<$targetType>();\n") }
+        append("    constructor() {\n        super();\n")
+        legacy.forEach { member -> member.rules.forEach { rule -> appendRule("this", member.propertyName, rule) } }
+        declarations.forEachIndexed { index, declaration -> declaration.members.forEach { member ->
+            member.rules.forEach { appendRule("this.arcRules$index", member.name, it) }
+        } }
+        append("    }\n\n")
+        append("    validate(value: $targetType, arcPath = '', arcSeen = new WeakSet<object>()): ArcSharedResult[] {\n")
+        append("        if (value == null) return [];\n")
+        if (!query) append("        if (arcSeen.has(value)) return [];\n        arcSeen.add(value);\n")
+        append("        const results: ArcSharedResult[] = super.validate(value).filter(result => !(")
+        val optional = legacy.filter { it.skipWhenUndefined }
+        append(if (optional.isEmpty()) "false" else optional.joinToString(" || ") {
+            "value.${it.propertyName} === undefined && result.members.includes('${it.propertyName}')"
+        })
+        append("));\n")
+        declarations.forEachIndexed { index, declaration ->
+            val numeric = declaration.members.filter { member -> member.rules.any { it.ruleName in setOf("greaterThan", "greaterThanOrEqual", "lessThan", "lessThanOrEqual") } }
+            val condition = numeric.joinToString(" || ") { member ->
+                val access = "value.${member.name}"
+                "($access != null && (!Number.isFinite($access) || Math.abs($access) > Number.MAX_SAFE_INTEGER || ($access !== 0 && Math.abs($access) < 2.2250738585072014e-308)))"
+            }
+            if (condition.isNotEmpty()) append("        if ($condition) {\n            results.push(new ArcSharedResult(ArcSharedSeverity.Error, 'The value could not be validated.', [], null, 'validatorFailed'));\n        } else {\n")
+            append("        results.push(...this.arcRules$index.validate(value));\n")
+            if (condition.isNotEmpty()) append("        }\n")
+        }
+        append("        const qualified = results.map(result => new ArcSharedResult(result.severity, result.message,\n")
+        append("            result.members.length === 0 ? (arcPath ? [arcPath] : []) : result.members.map(member => arcPath ? (member.startsWith('[') ? arcPath + member : arcPath + '.' + member) : member), result.state, result.reason, result.reasonDetail));\n")
+        properties.sortedBy { it.name }.forEach { property ->
+            if (shared.reaches(property.shape)) {
+                val access = "value.${lowerCamel(property.name)}"
+                val path = "(arcPath ? arcPath + '.${escape(property.name)}' : '${escape(property.name)}')"
+                val seen = if (query) "arcSeen${sharedAlias(property.name)}" else "arcSeen"
+                if (query) append("        const $seen = new WeakSet<object>();\n")
+                appendSharedEdge(property.shape, access, path, seen, target)
+            }
+        }
+        append("        return qualified;\n    }\n}\n\n")
+    }
+
+    private fun StringBuilder.appendRule(receiver: String, member: String, rule: ValidationRuleDescriptor) {
+        append("        $receiver.ruleFor(c => c.$member).${rule.ruleName}(${renderValidationArguments(rule)})")
+        rule.message?.let { append(".withMessage(${typescriptString(it)})") }
+        append(";\n")
+    }
+
+    private fun StringBuilder.appendSharedEdge(shape: TypeShapeDescriptor, access: String, path: String, seen: String, target: ArtifactTarget) {
+        when (shape.kind) {
+            TypeShapeKind.VALUE -> {
+                val name = requireNotNull(shape.typeName)
+                if (name == target.sourceName) throw GradleException("[ARCVALIDATION_GRAPH] Recursive shared edge '$name'.")
+                append("        if ($access != null) qualified.push(...new ${sharedAlias(name)}().validate($access, $path, $seen));\n")
+            }
+            TypeShapeKind.SEQUENCE -> {
+                val leaf = requireNotNull(shape.elementShape)
+                val name = requireNotNull(leaf.typeName)
+                append("        $access?.forEach((entry, index) => {\n")
+                append("            qualified.push(...new ${sharedAlias(name)}().validate(entry, $path + '[' + index + ']', $seen));\n        });\n")
+            }
+            TypeShapeKind.MAP -> throw GradleException("[ARCVALIDATION_GRAPH] Shared model maps are unsupported.")
+        }
+    }
+
+    private fun StringBuilder.appendQueryValidator(query: QueryDescriptor, target: ArtifactTarget, targets: List<ValidationTarget>) {
+        val className = "${target.typeScriptName}Validator"
+        val targetType = "${target.typeScriptName}Parameters"
+        val parameters = query.parameters.filter { it.source == QueryParameterSource.CLIENT }
+        if (parameters.any { shared.reaches(it.shape) }) {
+            appendSharedValidator(className, "QueryValidator", targetType, null,
+                parameters.map { PropertyDescriptor(it.name, it.shape) }, targets, target, query = true)
+        } else appendValidator(className, "QueryValidator", targetType, targets)
     }
 
     private fun StringBuilder.appendValidator(
@@ -1184,6 +1300,11 @@ internal class TypeScriptProxyGenerator(
     }
 
     private fun StringBuilder.appendCustomImports(imports: Collection<TypeScriptImport>, current: ArtifactTarget) {
+        if (current.kind == ArtifactKind.QUERY) {
+            val shapes = artifacts.queries.single { it.fullyQualifiedName == current.sourceName }.parameters
+                .filter { it.source == QueryParameterSource.CLIENT }.map { it.shape }
+            if (shapes.any(shared::reaches)) appendSharedImports(current, shapes)
+        }
         imports.filterNot { it.target.sourceName == current.sourceName }.sortedWith(
             compareBy<TypeScriptImport, String>(String.CASE_INSENSITIVE_ORDER) { import ->
                 relativeImport(current.directory, import.target).substringAfterLast('/')
@@ -1212,7 +1333,8 @@ internal class TypeScriptProxyGenerator(
         }
 
     private fun propertyTypeName(property: PropertyDescriptor, current: ArtifactTarget): String =
-        resolvePropertyType(property, current).name + if (property.isEnumerable) "[]" else ""
+        resolvePropertyType(property, current).name + (if (property.isEnumerable) "[]" else "") +
+            if (shared.contains(current.sourceName) && property.isNullable) " | null" else ""
 
     private fun resolveMapShape(
         shape: TypeShapeDescriptor,
@@ -1262,8 +1384,13 @@ internal class TypeScriptProxyGenerator(
         nested -> nested.recursiveTypes()
     }
 
-    private fun resolveParameterType(parameter: ParameterDescriptor, current: ArtifactTarget): TypeScriptType =
-        resolveType(if (parameter.isEnumerable) requireElementType(parameter.name, parameter.elementTypeName) else parameter.typeName, current)
+    private fun parameterArraySuffix(parameter: ParameterDescriptor): String =
+        if (!parameter.isEnumerable) "" else "[]" + if (parameter.isNullable && shared.reaches(parameter.shape)) " | null" else ""
+
+    private fun resolveParameterType(parameter: ParameterDescriptor, current: ArtifactTarget): TypeScriptType {
+        val type = resolveType(if (parameter.isEnumerable) requireElementType(parameter.name, parameter.elementTypeName) else parameter.typeName, current)
+        return if (parameter.isNullable && shared.reaches(parameter.shape) && !parameter.isEnumerable) type.copy(name = type.name + " | null") else type
+    }
 
     private fun resolveDerivatives(property: PropertyDescriptor, current: ArtifactTarget): List<TypeScriptType> =
         property.derivatives.map { derivativeName ->

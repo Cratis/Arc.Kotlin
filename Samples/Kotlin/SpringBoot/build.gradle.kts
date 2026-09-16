@@ -47,8 +47,27 @@ dependencyManagement {
     }
 }
 
+val fluentIndex = layout.buildDirectory.file("arc/fluent-validation/main.json")
+val extractFluentIndex by tasks.registering(JavaExec::class) {
+    classpath = arcProxyGenerator
+    mainClass.set("io.cratis.arc.gradle.ExtractArcFluentValidationMetadataCli")
+    fun jars(configuration: Configuration) = configuration.incoming.artifactView {
+        attributes.attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, objects.named(LibraryElements::class.java, LibraryElements.JAR))
+    }.files
+    val compile = jars(configurations.compileClasspath.get())
+    val runtime = jars(configurations.runtimeClasspath.get())
+    inputs.files(compile, runtime)
+    outputs.file(fluentIndex)
+    doFirst { args(compile.asPath, runtime.asPath, fluentIndex.get().asFile.absolutePath) }
+}
 ksp {
     arg("arc.moduleName", arcModuleName)
+    arg("arc.fluentValidationMetadata", fluentIndex.map { it.asFile.toURI().toASCIIString() })
+    arg("arc.fluentValidationRoot", "true")
+}
+tasks.matching { it.name == "kspKotlin" }.configureEach {
+    dependsOn(extractFluentIndex)
+    inputs.file(fluentIndex).withPropertyName("arcFluentValidationMetadata").withPathSensitivity(PathSensitivity.NONE)
 }
 
 tasks.named<BootJar>("bootJar") {
@@ -58,17 +77,19 @@ tasks.named<BootJar>("bootJar") {
 val generateArcProxies by tasks.registering(JavaExec::class) {
     group = "verification"
     description = "Generates TypeScript proxies from the Kotlin sample's real KSP manifest"
-    dependsOn(tasks.named("kspKotlin"))
+    dependsOn(tasks.named("classes"))
     classpath = arcProxyGenerator
     mainClass.set("io.cratis.arc.gradle.GenerateArcProxiesCli")
     args(
-        "--manifest-classpath", arcManifestDirectory.get().asFile.absolutePath,
+        "--module-name", arcModuleName,
         "--output-directory", arcProxyDirectory.get().asFile.absolutePath,
         "--route-prefix", "api",
         "--route-segments-to-skip", "6",
         "--proxy-segments-to-skip", "6"
     )
-    inputs.file(arcManifestDirectory.map { it.file("META-INF/cratis/arc/$arcModuleName.json") })
+    val proxyInputs = files(sourceSets.main.get().output, configurations.runtimeClasspath)
+    inputs.files(proxyInputs)
+    doFirst { args("--manifest-classpath", proxyInputs.asPath) }
     outputs.dir(arcProxyDirectory)
     doLast {
         listOf(

@@ -3,6 +3,8 @@
   items:
     - name: Commands
       href: commands.md
+    - name: Shared validation
+      href: validation.md
     - name: Queries
       href: queries.md
     - name: Authentication and authorization

@@ -191,7 +191,7 @@ public class QueryScenario<TData> private constructor(
         policies.forEach(policyRegistry::register)
         val builtInFilters = listOf<QueryFilter>(
             QueryAuthorizationFilter(artifacts.queryPerformers, AuthorizationEvaluator(policyRegistry)),
-            DefaultQueryValidationFilter(validators, conceptValidators, modelValidators, conceptExclusions)
+            DefaultQueryValidationFilter(validators, conceptValidators, artifacts.modelValidators(modelValidators), conceptExclusions)
         )
         return DefaultQueryPipeline(
             artifacts.queryPerformers,

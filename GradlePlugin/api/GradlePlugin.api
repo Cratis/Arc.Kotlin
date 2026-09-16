@@ -18,6 +18,13 @@ public abstract class io/cratis/arc/gradle/ArcExtension {
 	public final fun proxies (Lorg/gradle/api/Action;)V
 }
 
+public abstract class io/cratis/arc/gradle/ArcFluentValidationMetadataArgumentProvider : org/gradle/process/CommandLineArgumentProvider {
+	public fun <init> ()V
+	public fun asArguments ()Ljava/lang/Iterable;
+	public abstract fun getMetadataFile ()Lorg/gradle/api/file/RegularFileProperty;
+	public abstract fun getRootCompilation ()Lorg/gradle/api/provider/Property;
+}
+
 public final class io/cratis/arc/gradle/ArcGradlePlugin : org/gradle/api/Plugin {
 	public fun <init> ()V
 	public synthetic fun apply (Ljava/lang/Object;)V
@@ -41,6 +48,19 @@ public abstract class io/cratis/arc/gradle/ArcResponseHandlerMetadataArgumentPro
 	public fun <init> ()V
 	public fun asArguments ()Ljava/lang/Iterable;
 	public abstract fun getMetadataFile ()Lorg/gradle/api/file/RegularFileProperty;
+}
+
+public abstract class io/cratis/arc/gradle/ExtractArcFluentValidationMetadata : org/gradle/api/DefaultTask {
+	public fun <init> ()V
+	public final fun extract ()V
+	public abstract fun getCompileArtifacts ()Lorg/gradle/api/file/ConfigurableFileCollection;
+	public abstract fun getOutputFile ()Lorg/gradle/api/file/RegularFileProperty;
+	public abstract fun getRuntimeArtifacts ()Lorg/gradle/api/file/ConfigurableFileCollection;
+}
+
+public final class io/cratis/arc/gradle/ExtractArcFluentValidationMetadataCli {
+	public static final field INSTANCE Lio/cratis/arc/gradle/ExtractArcFluentValidationMetadataCli;
+	public static final fun main ([Ljava/lang/String;)V
 }
 
 public abstract class io/cratis/arc/gradle/ExtractArcResponseHandlerMetadata : org/gradle/api/DefaultTask {

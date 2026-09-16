@@ -31,6 +31,7 @@ public class ArcGradlePlugin : Plugin<Project> {
         configureArcDependencies(project, extension)
         configureJvm(project)
         configureResponseHandlerMetadata(project)
+        configureFluentValidationMetadata(project)
         project.extensions.configure(KspExtension::class.java) { ksp ->
             ksp.arg("arc.moduleName", extension.moduleName)
         }
@@ -78,6 +79,42 @@ public class ArcGradlePlugin : Plugin<Project> {
                     // NOT @Incremental: metadata changes require all source roots, not just a KSP task rerun.
                     task.inputs.file(provider.metadataFile).withPropertyName("arcResponseHandlerMetadata")
                         .withPathSensitivity(PathSensitivity.NONE)
+                }
+            }
+        }
+    }
+
+    private fun configureFluentValidationMetadata(project: Project) {
+        val kotlin = project.extensions.getByType(KotlinJvmProjectExtension::class.java)
+        kotlin.target.compilations.configureEach { compilation ->
+            fun artifacts(configuration: String) = project.configurations.getByName(configuration).incoming.artifactView { view ->
+                view.attributes.attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE,
+                    project.objects.named(LibraryElements::class.java, LibraryElements.JAR))
+            }.files
+            val suffix = compilation.name.replaceFirstChar { it.uppercase() }
+            val extract = project.tasks.register("extract${suffix}ArcFluentValidationMetadata", ExtractArcFluentValidationMetadata::class.java) { task ->
+                task.group = "arc"
+                task.compileArtifacts.from(artifacts(compilation.compileDependencyConfigurationName))
+                task.runtimeArtifacts.from(artifacts(compilation.runtimeDependencyConfigurationName))
+                // Associated main/test-fixture outputs are on KSP's classpath but are not resolved
+                // dependency artifacts. Include their classes AND resources after their owning tasks.
+                val associated = project.provider {
+                    compilation.allAssociatedCompilations.map { it.output.allOutputs.filter { file -> file.exists() } }
+                }
+                task.compileArtifacts.from(associated)
+                task.runtimeArtifacts.from(associated)
+                task.dependsOn(project.provider { compilation.allAssociatedCompilations.map { project.tasks.named(it.compileAllTaskName) } })
+                task.outputFile.convention(project.layout.buildDirectory.file("arc/fluent-validation/${compilation.name}.json"))
+            }
+            val kspTaskName = "ksp" + compilation.compileKotlinTaskName.removePrefix("compile")
+            project.tasks.withType(KspAATask::class.java).configureEach { task ->
+                if (task.name == kspTaskName) {
+                    val provider = project.objects.newInstance(ArcFluentValidationMetadataArgumentProvider::class.java)
+                    provider.metadataFile.set(extract.flatMap { it.outputFile })
+                    provider.rootCompilation.set(compilation.name == "main")
+                    task.commandLineArgumentProviders.add(provider)
+                    // Nonincremental input: changed dependency rules rebuild every unchanged source root.
+                    task.inputs.file(provider.metadataFile).withPropertyName("arcFluentValidationMetadata").withPathSensitivity(PathSensitivity.NONE)
                 }
             }
         }

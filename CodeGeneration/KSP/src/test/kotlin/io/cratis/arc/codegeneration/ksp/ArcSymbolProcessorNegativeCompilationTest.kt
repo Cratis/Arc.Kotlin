@@ -68,8 +68,19 @@ internal class ArcSymbolProcessorNegativeCompilationTest {
             "ARCKSP0305",
             "ARCKSP0306",
             "ARCKSP0307",
+            "ARCKSP0308",
+            "ARCKSP0309",
             "ARCKSP0400"
         ).forEach { code -> assertTrue("[$code]" in result.messages, "Missing $code in:\n${result.messages}") }
+        for (language in listOf("Kotlin", "Java")) {
+            assertTrue("[ARCKSP0308] Fluent validator 'io.cratis.arc.contracts.negative.Invalid${language}FluentBody': allow only direct fluent" in result.messages, result.messages)
+            assertTrue("[ARCKSP0309] Fluent validator 'io.cratis.arc.contracts.negative.Invalid${language}FluentRule': member 'name', call 'creditCard'" in result.messages, result.messages)
+        }
+        for (owner in listOf("ComputedFluentMemberRules", "ComputedFluentRecordRules")) {
+            assertTrue("[ARCKSP0309] Fluent validator 'io.cratis.arc.contracts.negative.$owner': member 'name' is computed" in result.messages, result.messages)
+        }
+        assertTrue("class mapping may be shadowed" in result.messages, result.messages)
+        assertTrue("Fluent matches requires nonempty classes and escaped literal closing brackets" in result.messages, result.messages)
         for (owner in listOf("ComputedBodyInput", "ComputedBodyChild")) {
             assertTrue("[ARCKSP0300] Artifact/property 'io.cratis.arc.contracts.negative.$owner.calculated' is computed command input; " +
                 "use a backed property, @JsonIgnore, or a separate output model." in result.messages, result.messages)
@@ -480,7 +491,8 @@ internal class ArcSymbolProcessorNegativeCompilationTest {
         // Java sealed fixtures require Java 17 in this embedded compilation, independently of the test task's target.
         jvmTarget = "17"
         symbolProcessorProviders = mutableListOf(ArcSymbolProcessorProvider())
-        kspProcessorOptions = mutableMapOf("arc.moduleName" to "NegativeContracts")
+        val index = workingDir.resolve("fluent-index.json").apply { parentFile.mkdirs(); writeText("{\"formatVersion\":1,\"modules\":[]}") }
+        kspProcessorOptions = mutableMapOf("arc.moduleName" to "NegativeContracts", FluentValidationMetadata.OPTION to index.toURI().toASCIIString())
         kspWithCompilation = true
         messageOutputStream = System.out
     }.compile()

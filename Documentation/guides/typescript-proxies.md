@@ -3,6 +3,10 @@ title: Generate TypeScript proxies
 description: Configure the Arc Gradle plugin to generate command, one-shot query, observable query, model, interface, and enum proxies.
 ---
 
+## Share model validation
+
+[Fluent validation](validation.md) contributes verified declarations to the existing renderer. Active models export `<Model>Validator`; command and supported RFC QUERY validators compose nested shared rules, including indexed siblings. Structurally equal duplicate model descriptors merge validation conjunctions; incompatible structures reject. Annotation-only output and its differential boundary are unchanged. Manual shared-generation CLI calls require `--module-name` and the complete compiled root/dependency classpath, not only manifest resources. Follow the [generated excerpt and handwritten caller](validation.md#display-generated-client-feedback), or consult the [dependency extraction and root inventory contract](../reference/validation.md#manual-build-tooling).
+
 ## Configure generation
 
 Use the `io.cratis.arc` plugin and set an output directory. Endpoint values must match the Spring host settings because the generator calculates the same routes.

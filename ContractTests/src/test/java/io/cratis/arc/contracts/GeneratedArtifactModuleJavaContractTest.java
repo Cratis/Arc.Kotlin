@@ -38,9 +38,23 @@ final class GeneratedArtifactModuleJavaContractTest {
         ArcArtifactModule explicit = new ContractTestsArcArtifactModule();
         long discovered = ServiceLoader.load(ArcArtifactModule.class).stream().count();
 
-        assertEquals(30, explicit.getCommandHandlers().size());
+        assertEquals(31, explicit.getCommandHandlers().size());
         assertEquals(33, explicit.getQueryPerformers().size());
         assertEquals(1L, discovered);
+    }
+
+    @Test
+    void generatedFluentContributionsAreExecutableFromOrdinaryJava() {
+        var module = new ContractTestsArcArtifactModule();
+        var rules = ArcArtifactModuleRegistry.modelValidators(java.util.List.of(module));
+        assertEquals(2, rules.size());
+        var validator = module.getFluentValidators().stream()
+            .map(io.cratis.arc.validation.FluentValidatorRegistration::getValidator)
+            .filter(value -> value instanceof io.cratis.arc.contracts.fixtures.JavaFluentContractRules)
+            .map(value -> (io.cratis.arc.contracts.fixtures.JavaFluentContractRules) value)
+            .findFirst().orElseThrow();
+        assertEquals(java.util.List.of("name"), validator.validate(new io.cratis.arc.contracts.fixtures.JavaFluentContractInput("")).get(0).getMembers());
+        assertEquals(0, validator.validate(new io.cratis.arc.contracts.fixtures.JavaFluentContractInput("ok")).size());
     }
 
     @Test

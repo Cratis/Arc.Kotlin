@@ -12,7 +12,7 @@ public object GenerateArcProxiesCli {
     @JvmStatic
     public fun main(arguments: Array<String>) {
         val options = parseArguments(arguments)
-        val manifests = ArcManifestDiscovery.discover(options.manifestClasspath)
+        val manifests = ArcManifestDiscovery.discover(options.manifestClasspath, options.moduleName)
         val artifacts = ArcManifestDiscovery.merge(manifests)
         TypeScriptProxyGenerator(
             artifacts,
@@ -63,7 +63,8 @@ public object GenerateArcProxiesCli {
             values.boolean("--remove-stale-generated-files", true),
             values.integer("--proxy-segments-to-skip", 0),
             values.remove("--type-to-typescript").orEmpty(),
-            values.remove("--package-to-npm").orEmpty()
+            values.remove("--package-to-npm").orEmpty(),
+            values.single("--module-name")
         )
         require(result.routeSegmentsToSkip >= 0) { "--route-segments-to-skip cannot be negative." }
         require(result.proxySegmentsToSkip >= 0) { "--proxy-segments-to-skip cannot be negative." }
@@ -94,6 +95,7 @@ public object GenerateArcProxiesCli {
         val removeStaleGeneratedFiles: Boolean,
         val proxySegmentsToSkip: Int,
         val typeMappings: List<String> = emptyList(),
-        val packageMappings: List<String> = emptyList()
+        val packageMappings: List<String> = emptyList(),
+        val moduleName: String? = null
     )
 }

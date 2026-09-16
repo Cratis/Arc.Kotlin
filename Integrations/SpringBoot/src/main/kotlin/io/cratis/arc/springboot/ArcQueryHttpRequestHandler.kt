@@ -567,11 +567,16 @@ private class ArcQueryArgumentConverter(
                 createArray(values.map { item -> convertScalar(item, target.elementType) }, target)
             }
             is TargetType.Scalar -> {
-                if (value.isArray || value.isObject) throw MalformedQueryRequestException()
+                if (value.isArray || value.isObject && !isConcreteArgumentModel(target.type)) throw MalformedQueryRequestException()
                 convertScalar(value, target)
             }
         }
     }
+
+    private fun isConcreteArgumentModel(type: Class<*>): Boolean =
+        !type.isInterface && !java.lang.reflect.Modifier.isAbstract(type.modifiers) &&
+            !type.isEnum && !type.isArray && !type.packageName.startsWith("java.") &&
+            !type.packageName.startsWith("kotlin.") && !ConceptAs::class.java.isAssignableFrom(type)
 
     private fun convertScalar(value: JsonNode, target: TargetType.Scalar): Any {
         if (value.isNull) throw MalformedQueryRequestException()

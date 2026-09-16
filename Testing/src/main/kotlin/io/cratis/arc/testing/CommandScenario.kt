@@ -274,7 +274,7 @@ public class CommandScenario<TCommand : Any> private constructor(
         policies.forEach(policyRegistry::register)
         val builtInFilters = listOf<CommandFilter>(
             CommandAuthorizationFilter(artifacts.commandHandlers, AuthorizationEvaluator(policyRegistry)),
-            DefaultCommandValidationFilter(validators, conceptValidators, modelValidators, conceptExclusions)
+            DefaultCommandValidationFilter(validators, conceptValidators, artifacts.modelValidators(modelValidators), conceptExclusions)
         )
         return DefaultCommandPipeline(
             artifacts.commandHandlers,

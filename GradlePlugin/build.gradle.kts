@@ -133,6 +133,7 @@ tasks.test {
     inputs.dir(functionalRepository)
     systemProperty("arc.functional.repository", functionalRepository.get().asFile.absolutePath)
     systemProperty("arc.functional.version", project.version.toString())
+    providers.gradleProperty("arc.fluent.evidence").orNull?.let { systemProperty("arc.fluent.evidence", it) }
     systemProperty("arc.functional.gradleHome", requireNotNull(gradle.gradleHomeDir).absolutePath)
     systemProperty("arc.functional.work", layout.buildDirectory.dir("functional-tests").get().asFile.absolutePath)
     val capturedDifferential = layout.projectDirectory.dir("src/test/resources/differential/captured")
@@ -145,6 +146,15 @@ tasks.test {
         systemProperty("arc.functional.pluginClasspath", functionalPluginClasspath.asPath)
         systemProperty("arc.functional.pluginJar", functionalPluginJar.get().archiveFile.get().asFile.absolutePath)
     }
+}
+
+// Private service-loaded processor: never added to the plugin or published KSP runtime classpath.
+val fluentValidationPrototypeJar = project(":CodeGeneration:KSP").tasks.named<Jar>("fluentValidationPrototypeJar")
+tasks.test {
+    dependsOn(fluentValidationPrototypeJar)
+    inputs.file(fluentValidationPrototypeJar.flatMap { it.archiveFile })
+    systemProperty("arc.prototype.processorJar", fluentValidationPrototypeJar.get().archiveFile.get().asFile.absolutePath)
+    providers.gradleProperty("arc.prototype.evidence").orNull?.let { systemProperty("arc.prototype.evidence", it) }
 }
 
 // Onboarding resolves the published marker, not TestKit's injected plugin classpath.
@@ -198,7 +208,9 @@ val contractProxyDirectory = rootProject.layout.projectDirectory.dir("ContractTe
 val contractProxySnapshot = layout.buildDirectory.file("contract-tests/type-script-proxy-hashes.txt")
 
 fun proxyArguments(): List<String> = listOf(
-    "--manifest-classpath", contractManifestDirectory.asFile.absolutePath,
+    "--module-name", "ContractTests",
+    "--manifest-classpath", listOf("ContractTests/build/classes/kotlin/testFixtures", "ContractTests/build/classes/java/testFixtures",
+        "ContractTests/build/resources/testFixtures").joinToString(File.pathSeparator) { rootProject.file(it).absolutePath },
     "--output-directory", contractProxyDirectory.asFile.absolutePath,
     "--route-prefix", "api",
     "--route-segments-to-skip", "5",
@@ -221,7 +233,7 @@ fun proxyHashes(): String = contractProxyDirectory.asFile.walkTopDown()
 val generateContractTestProxies by tasks.registering(JavaExec::class) {
     group = "verification"
     description = "Generates TypeScript proxies from the real ContractTests KSP manifest"
-    dependsOn(tasks.named("classes"), ":ContractTests:kspTestFixturesKotlin")
+    dependsOn(tasks.named("classes"), ":ContractTests:testFixturesClasses")
     classpath = sourceSets["main"].runtimeClasspath
     mainClass.set("io.cratis.arc.gradle.GenerateArcProxiesCli")
     args(proxyArguments())
