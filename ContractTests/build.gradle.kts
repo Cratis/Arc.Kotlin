@@ -15,7 +15,7 @@ plugins {
 val springDataVersion = "4.1.1"
 val testcontainersVersion = "2.0.5"
 val defaultChronicleKernelImage =
-    "cratis/chronicle:16.44.1-development@sha256:3e0216892632f87e5386649cf8c1a189573cf82999abf14b7f6031863a6e545f"
+    "cratis/chronicle:18.4.0-development@sha256:0437a1a60e237b104b747eea94a57a947690e0abaff5a719212d095c0787517c"
 
 val chronicleRealKernelTest by sourceSets.creating {
     compileClasspath += sourceSets.main.get().output

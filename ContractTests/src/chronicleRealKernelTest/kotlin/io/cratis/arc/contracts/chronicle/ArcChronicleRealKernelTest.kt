@@ -131,6 +131,7 @@ class ArcChronicleRealKernelTest {
                 val accepted = tenantAEvents.single { it.content.contains("Accepted title") }
                 val acceptedContent = objectMapper.readTree(accepted.content)
                 assertEquals("Tenant A title", acceptedContent.path("previousTitle").asString())
+                // SDK 5.1.0 forwards stream type/ID but not eventSourceType; this proves stream filtering only.
                 val metadataFiltered = tenantAStore.eventLog.getForEventSourceIdAndEventTypes(
                     eventSourceId = taskId,
                     eventTypes = emptyList(),
@@ -154,8 +155,15 @@ class ArcChronicleRealKernelTest {
             val eventStoreResult = connection.services.eventStores.ensureEventStore(
                 Eventstores.EnsureEventStoreRequest.newBuilder().setName(eventStoreName).build()
             )
-            check(eventStoreResult.validationResultsCount == 0 && eventStoreResult.exceptionMessagesCount == 0) {
-                "Could not provision event store '$eventStoreName': " +
+            // Kernel 18.3.1 and earlier omitted `IsAuthorized` from the wire whenever it was true,
+            // which a proto3 client decodes as false - every authorized command then looked denied.
+            // Kernel 18.4.0 serializes it unconditionally, so this assertion is meaningful again and
+            // pins the behaviour the JVM client depends on.
+            check(eventStoreResult.isAuthorized &&
+                eventStoreResult.validationResultsCount == 0 && eventStoreResult.exceptionMessagesCount == 0
+            ) {
+                "Could not provision event store '$eventStoreName' (authorized=${eventStoreResult.isAuthorized}, " +
+                    "authorizationFailureReason='${eventStoreResult.authorizationFailureReason}'): " +
                     (eventStoreResult.exceptionMessagesList + eventStoreResult.validationResultsList.map { it.message })
                         .joinToString()
             }
@@ -166,8 +174,12 @@ class ArcChronicleRealKernelTest {
                         .setNamespace(namespace)
                         .build()
                 )
-                check(namespaceResult.validationResultsCount == 0 && namespaceResult.exceptionMessagesCount == 0) {
-                    "Could not provision namespace '$namespace': " +
+                // Same authorization guarantee as the event store check above.
+                check(namespaceResult.isAuthorized &&
+                    namespaceResult.validationResultsCount == 0 && namespaceResult.exceptionMessagesCount == 0
+                ) {
+                    "Could not provision namespace '$namespace' (authorized=${namespaceResult.isAuthorized}, " +
+                        "authorizationFailureReason='${namespaceResult.authorizationFailureReason}'): " +
                         (namespaceResult.exceptionMessagesList + namespaceResult.validationResultsList.map { it.message })
                             .joinToString()
                 }

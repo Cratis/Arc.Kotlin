@@ -35,6 +35,15 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-starter-test")
 }
 
+// Boot manages coroutines 1.10.2, but Arc and Chronicle 5.1 compile against 1.11.0.
+// Match the Java Chronicle sample so the packaged runtime preserves that binary API.
+dependencyManagement {
+    dependencies {
+        dependency("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
+        dependency("org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.11.0")
+    }
+}
+
 ksp {
     arg("arc.moduleName", arcModuleName)
 }

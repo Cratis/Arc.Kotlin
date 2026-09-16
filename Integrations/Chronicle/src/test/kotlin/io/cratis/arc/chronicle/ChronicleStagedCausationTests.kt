@@ -3,8 +3,8 @@
 
 package io.cratis.arc.chronicle
 
-import Cratis.Chronicle.Contracts.EventSequences.EventSequencesGrpcKt
-import Cratis.Chronicle.Contracts.EventSequences.Eventsequences
+import Cratis.Chronicle.Contracts.Sequences.EventSequencesGrpcKt
+import Cratis.Chronicle.Contracts.Sequences.Sequences
 import io.cratis.arc.authorization.ArcPrincipal
 import io.cratis.arc.commands.CommandContext
 import io.cratis.arc.commands.CommandExecutionOptions
@@ -58,7 +58,7 @@ internal class ChronicleStagedCausationTests {
         assertTrue(batch.eventsList[1].content.contains("second"))
         assertEquals(1, batch.causationCount)
         assertEquals("source", batch.causationList.single().propertiesMap["commandKey"])
-        coVerify(exactly = 1) { fixture.stub.appendMany(any(), any()) }
+        coVerify(exactly = 1) { fixture.stub.appendManyForEventSources(any(), any()) }
     }
 
     @Test
@@ -80,14 +80,47 @@ internal class ChronicleStagedCausationTests {
         val fixture = fixture(registry)
         val result = fixture.pipeline.execute(StagedCommand(), options())
         assertFalse(result.isSuccess)
-        coVerify(exactly = 0) { fixture.stub.appendMany(any(), any()) }
+        coVerify(exactly = 0) { fixture.stub.appendManyForEventSources(any(), any()) }
     }
 
-    private fun fixture(registry: ConcurrentCommandHandlerRegistry): Fixture {
-        val request = slot<Eventsequences.AppendManyRequest>()
+    @Test
+    fun `SDK authorization and exception envelopes fail staged command completion`(): Unit = runBlocking {
+        val registry = ConcurrentCommandHandlerRegistry().apply {
+            register(object : CommandHandler {
+                override val commandType: Class<*> = StagedCommand::class.java
+                override val metadata = CommandDescriptor("StagedCommand", commandType.name)
+                override fun resolveCommandKey(command: Any): Any = "source"
+                override suspend fun invoke(context: CommandContext): Any = StagedEvent("rejected")
+            })
+        }
+        val responses = listOf(
+            Sequences.CommandResult_AppendManyResponse.newBuilder()
+                .setIsAuthorized(false)
+                .setAuthorizationFailureReason("Append denied")
+                .build(),
+            Sequences.CommandResult_AppendManyResponse.newBuilder()
+                .setIsAuthorized(true)
+                .addExceptionMessages("Append failed")
+                .build()
+        )
+        responses.forEach { response ->
+            val fixture = fixture(registry, response)
+            val result = fixture.pipeline.execute(StagedCommand(), options())
+            assertFalse(result.isSuccess)
+            coVerify(exactly = 1) { fixture.stub.appendManyForEventSources(any(), any()) }
+        }
+    }
+
+    private fun fixture(
+        registry: ConcurrentCommandHandlerRegistry,
+        response: Sequences.CommandResult_AppendManyResponse = Sequences.CommandResult_AppendManyResponse.newBuilder()
+            .setIsAuthorized(true)
+            .setResponse(Sequences.AppendManyResponse.newBuilder().addSequenceNumbers(1).addSequenceNumbers(2))
+            .build()
+    ): Fixture {
+        val request = slot<Sequences.AppendManyForEventSourcesRequest>()
         val stub = mockk<EventSequencesGrpcKt.EventSequencesCoroutineStub>()
-        coEvery { stub.appendMany(capture(request), any()) } returns Eventsequences.AppendManyResponse.newBuilder()
-            .addSequenceNumbers(1).addSequenceNumbers(2).build()
+        coEvery { stub.appendManyForEventSources(capture(request), any()) } returns response
         val log = EventLog("fixture", "default", stub, unitOfWorkManager = mockk())
         val store = mockk<IEventStore>()
         every { store.namespace } returns "default"
@@ -105,7 +138,7 @@ internal class ChronicleStagedCausationTests {
 
     private data class Fixture(
         val pipeline: DefaultCommandPipeline,
-        val request: io.mockk.CapturingSlot<Eventsequences.AppendManyRequest>,
+        val request: io.mockk.CapturingSlot<Sequences.AppendManyForEventSourcesRequest>,
         val stub: EventSequencesGrpcKt.EventSequencesCoroutineStub
     )
 
