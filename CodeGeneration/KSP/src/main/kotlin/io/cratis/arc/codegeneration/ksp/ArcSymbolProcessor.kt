@@ -115,6 +115,12 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
             commandSymbols.filter(KSAnnotated::validateForProcessing).forEach { processCommand(it, resolver) }
             readModelSymbols.filter(KSAnnotated::validateForProcessing).forEach { processReadModel(it, resolver) }
             exportedTypeSymbols.filter(KSAnnotated::validateForProcessing).forEach { processExportedType(it) }
+            deferred += IdentityDetailsDiscovery(graphLogger) { declaration ->
+                val name = requireNotNull(declaration.qualifiedName).asString()
+                metadataCollector.collectDeclaration(declaration, name).also { collected ->
+                    if (collected) exportRoots += name
+                }
+            }.discover(latestRoundFiles.asSequence().flatMap { it.declarations })
             hasDeferredInputs = hasDeferredInputs || deferred.isNotEmpty()
             return deferred.distinct()
         } finally {

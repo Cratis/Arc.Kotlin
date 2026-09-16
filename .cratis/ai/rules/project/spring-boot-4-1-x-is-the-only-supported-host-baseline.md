@@ -25,8 +25,10 @@ require another host, stop and raise it rather than starting one.
 Static resources and SPA fallback belong to application-configured Spring facilities, not Arc.
 `@FromRequest` is not planned: existing `QueryRequest`/`QueryContext` injection and Spring binding
 cover supported inputs, without promising arbitrary request injection. `@IgnoreAutoRegistration`
-is unnecessary for annotated command/query generation entry points; do not claim that reachable-type
-traversal or diagnostic discovery is annotation-only. Runtime `ArcOneOf` is not `@GenerateOneOf` union
+is unnecessary for annotated command/query entry points. Public concrete source identity providers
+and typed factory returns also contribute automatic details roots, independently of annotations;
+reachable-type traversal and diagnostic discovery are not annotation-only. Identity discovery does
+not infer runtime bean registration or scan dependency-only providers wholesale. Runtime `ArcOneOf` is not `@GenerateOneOf` union
 generation; the latter is not planned. Screenplay is not planned; in-process scenarios are not its
 JVM equivalent. These dispositions change no behavior or parity/precision/cross-store guarantees.
 
