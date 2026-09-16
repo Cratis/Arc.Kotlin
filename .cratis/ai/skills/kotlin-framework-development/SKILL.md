@@ -29,10 +29,12 @@ grep -n "project(\":" Source/build.gradle.kts Integrations/SpringBoot/build.grad
 
 Decision point — where does the change belong?
 
-- Host-agnostic behavior (pipelines, results, metadata, validation, concepts) → `Source`.
-  `Source/build.gradle.kts` declares Jackson, coroutines, jakarta-validation, kotlin-reflect and
-  slf4j only. **A Spring import in `Source` is an architecture violation, not a build error to
-  fix with a dependency.**
+- Arc runtime behavior (pipelines, results, metadata, validation, concepts) → `Source`.
+  Arc targets Spring Boot; keep the existing modules and coordinates. **Compiled artifacts,
+  metadata, JSON, actual KSP/Gradle-consumed types and transitive local references must stay
+  Spring-free.** Run `./gradlew checkSpringBoundary` for that boundary; see the
+  [project dependency rule](../../rules/project/dependency-direction-is-one-way.md).
+  This does not authorize adding a dependency merely to fix compilation.
 - Auto-configuration, HTTP/WebSocket transport, properties, bean wiring →
   `Integrations/SpringBoot`, where web, websocket, security and validation stay `compileOnly` so
   they remain optional for consumers.
@@ -165,7 +167,7 @@ Add the proxy and TypeScript runtime gates only when generated proxies could hav
 - A warning anywhere in the affected modules. Kotlin runs `allWarningsAsErrors`, Java runs
   `-Xlint:all -Werror`; suppressing the warning to get green is not fixing it.
 - A placeholder, no-op stub, or fake implementation added so a gate passes.
-- A Spring, Chronicle, or host-framework type reachable from `Source`.
+- Spring linkage across the compiler/Gradle-consumed boundary, or an optional Chronicle dependency leaking into `Source`.
 - `ThreadLocal` holding state that a coroutine is expected to observe.
 - A new one-off `CompletableFuture`/`Flow` bridge next to the ones in step 5.
 - An `.api` diff you did not read, or an `apiDump` committed separately from the change.

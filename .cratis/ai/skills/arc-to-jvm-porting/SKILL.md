@@ -93,14 +93,15 @@ a plausible reading become a parity claim later.
 
 ## 3. Map responsibilities to the correct JVM modules
 
-Module boundaries are a framework contract, stated in [`AGENTS.md`](../../../AGENTS.md):
-`Source` is host-agnostic and must not depend on Spring Boot or Chronicle; `GradlePlugin` must
-not depend on Spring Boot; web, security, WebSocket, and Chronicle seams stay optional. Decide
-placement deliberately — do not let a port drag ASP.NET concepts into `Source`.
+Module boundaries are a framework contract in the [project dependency rule](../../rules/project/dependency-direction-is-one-way.md):
+Arc targets Spring Boot with unchanged modules and coordinates. Compiled artifacts, metadata,
+JSON, actual KSP/Gradle-consumed types and their transitive local references must remain
+Spring-free (`./gradlew checkSpringBoundary`). Chronicle, web, security, and WebSocket seams
+stay optional. Decide placement deliberately — do not drag ASP.NET concepts into `Source`.
 
 | If the .NET behavior is… | It belongs in |
 | --- | --- |
-| A host-independent pipeline, contract, or policy | `Source` |
+| An Arc pipeline, contract, or policy | `Source` |
 | ASP.NET model binding, endpoint mapping, or middleware | `Integrations/SpringBoot` |
 | An EF Core or MongoDB persistence seam | `Integrations/SpringDataJpa`, `Integrations/SpringDataMongo` |
 | Chronicle-specific staging, concurrency, or read models | `Integrations/Chronicle` (optional) |
@@ -110,8 +111,8 @@ placement deliberately — do not let a port drag ASP.NET concepts into `Source`
 | Reusable in-process test support | `Testing` |
 | Proof only, never product code | `ContractTests` and `Samples` |
 
-A behavior that seems to need Spring inside `Source` almost always decomposes into a
-host-neutral contract in `Source` plus a thin adapter in the integration. Split it that way.
+Keep Spring adaptation in the integration and preserve the compiler/build-tool classpath
+boundary. This is dependency discipline for the Spring Boot product, not a second-host goal.
 
 ## 4. Choose idiomatic JVM equivalents, and reuse the existing adapters
 

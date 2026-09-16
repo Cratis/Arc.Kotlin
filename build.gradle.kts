@@ -81,6 +81,8 @@ subprojects {
     }
 }
 
+apply(from = "gradle/verification/spring-boundary.gradle.kts")
+
 apiValidation {
     ignoredProjects.addAll(listOf("ContractTests", "Samples", "Kotlin", "Java"))
 }

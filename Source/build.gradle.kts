@@ -42,7 +42,7 @@ mavenPublishing {
 
     pom {
         name.set("Arc for Kotlin and Java")
-        description.set("Host-agnostic Arc runtime for Kotlin and Java")
+        description.set("Arc runtime for Kotlin and Java applications on Spring Boot")
         url.set("https://github.com/Cratis/Arc.Kotlin")
         licenses {
             license {
