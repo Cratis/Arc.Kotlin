@@ -1,0 +1,20 @@
+{
+  "dotnetSdk": "10.0.400",
+  "files": {
+    "Arc/Kotlin/Differential/Fixture/Address.ts": "720AC3C51653E05A4D03CC3F8CD041BB654147731A4597CEEB67EDA41E8EA623",
+    "Arc/Kotlin/Differential/Fixture/AllOrders.ts": "8AE0A0A91F37933C766F1D0ABDB0F6020C82C0BB0F3D78874B690F81C13F28B5",
+    "Arc/Kotlin/Differential/Fixture/OrderById.ts": "8C36CE9DF6862375B619BBF7DC6F77B63BFC69B39F62ED007B5AF64AF5DD87A2",
+    "Arc/Kotlin/Differential/Fixture/OrderKind.ts": "EBE516353772B92F602E902A507608558326B96EE8EEED2287375196A407BF3E",
+    "Arc/Kotlin/Differential/Fixture/OrderView.ts": "4CA44E10E3BFC066C433BCFDFF410E85473E1C52E83742534E8E162877177967",
+    "Arc/Kotlin/Differential/Fixture/PlaceOrder.ts": "49992DA2C999EC1D2E9107348FED5E449538F16D9ECE29ED23CE7DBBBC5BBFC1",
+    "Arc/Kotlin/Differential/Fixture/index.ts": "F71A1009F3EB51884FC32183AC65E8760CCEEFC61B278D8FB11A0BF0A4B6C141"
+  },
+  "formatVersion": 1,
+  "normalizations": [
+    "Removed the generator wall-clock \"Time:\" header field, which the JVM generator does not emit."
+  ],
+  "packages": {
+    "Cratis.Arc": "22.14.0",
+    "Cratis.Arc.ProxyGenerator": "22.14.0"
+  }
+}

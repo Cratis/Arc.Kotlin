@@ -9,12 +9,14 @@ import tools.jackson.databind.SerializationFeature
 import tools.jackson.databind.cfg.DateTimeFeature
 import tools.jackson.databind.json.JsonMapper
 import io.cratis.arc.artifacts.ArcArtifactModule
+import io.cratis.arc.json.ArcCamelCase
 import io.cratis.arc.metadata.ApiEndpointOptions
 import io.cratis.arc.metadata.AuthorizationMetadata
 import io.cratis.arc.metadata.CommandDescriptor
 import io.cratis.arc.metadata.ConceptDescriptor
 import io.cratis.arc.metadata.EndpointRouteHelper
 import io.cratis.arc.metadata.EnumDescriptor
+import io.cratis.arc.metadata.InterfaceDescriptor
 import io.cratis.arc.metadata.MapKeyCodec
 import io.cratis.arc.metadata.ParameterDescriptor
 import io.cratis.arc.metadata.PropertyDescriptor
@@ -109,6 +111,9 @@ public class ArcOpenApiGenerator @JvmOverloads constructor(
         }
         snapshot.types.forEach { descriptor ->
             components.addSchemas(names.forType(descriptor.fullyQualifiedName), modelSchema(descriptor, names))
+        }
+        snapshot.interfaces.forEach { descriptor ->
+            components.addSchemas(names.forType(descriptor.fullyQualifiedName), propertiesSchema(descriptor.properties, names))
         }
         snapshot.commands.forEach { descriptor ->
             if (snapshot.types.none { type -> type.fullyQualifiedName == descriptor.typeName }) {
@@ -228,8 +233,9 @@ public class ArcOpenApiGenerator @JvmOverloads constructor(
         val schema = objectSchema()
         val required = mutableListOf<String>()
         properties.forEach { property ->
-            schema.addProperty(property.name, schemaFor(property.shape, names))
-            if (!property.isNullable) required.add(property.name)
+            val wireName = requireNotNull(ArcCamelCase.convert(property.name))
+            schema.addProperty(wireName, schemaFor(property.shape, names))
+            if (!property.isNullable) required.add(wireName)
         }
         if (required.isNotEmpty()) schema.required = required
         return schema
@@ -571,6 +577,7 @@ public class ArcOpenApiGenerator @JvmOverloads constructor(
         val commands: List<CommandDescriptor>,
         val queries: List<QueryDescriptor>,
         val types: List<TypeDescriptor>,
+        val interfaces: List<InterfaceDescriptor>,
         val enums: List<EnumDescriptor>,
         val concepts: List<ConceptDescriptor>
     ) {
@@ -584,6 +591,8 @@ public class ArcOpenApiGenerator @JvmOverloads constructor(
                         .distinctBy(QueryDescriptor::fullyQualifiedName).sortedBy(QueryDescriptor::fullyQualifiedName),
                     ordered.flatMap { module -> module.types }.distinctBy(TypeDescriptor::fullyQualifiedName)
                         .sortedBy(TypeDescriptor::fullyQualifiedName),
+                    ordered.flatMap { module -> module.interfaces }.distinctBy(InterfaceDescriptor::fullyQualifiedName)
+                        .sortedBy(InterfaceDescriptor::fullyQualifiedName),
                     ordered.flatMap { module -> module.enums }.distinctBy(EnumDescriptor::fullyQualifiedName)
                         .sortedBy(EnumDescriptor::fullyQualifiedName),
                     ordered.flatMap { module -> module.concepts }.distinctBy(ConceptDescriptor::fullyQualifiedName)
@@ -600,6 +609,7 @@ public class ArcOpenApiGenerator @JvmOverloads constructor(
         init {
             val fullNames = (
                 snapshot.types.map(TypeDescriptor::fullyQualifiedName) +
+                    snapshot.interfaces.map(InterfaceDescriptor::fullyQualifiedName) +
                     snapshot.enums.map(EnumDescriptor::fullyQualifiedName) +
                     snapshot.concepts.map(ConceptDescriptor::fullyQualifiedName) +
                     snapshot.commands.map(CommandDescriptor::typeName)

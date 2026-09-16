@@ -42,6 +42,286 @@ interface TaskViewRepository : JpaRepository<TaskView, String>
 
 The same pattern works with `MongoRepository`, repository fragments, and application query services. An application bean replaces an auto-configured adapter bean of the same integration contract.
 
+## Map JPA concepts explicitly in the application
+
+`ConceptAs<T>` is not a persistence mapping or an automatic converter registration. Own each
+concrete mapping in the application, configure it before creating and certifying each persistence
+unit, and keep converters stateless and tenant-independent. Arc does not install converters during
+lookup or infer concept constructors.
+
+### Convert ordinary attributes
+
+Use a concrete `AttributeConverter<SpecificConcept, Scalar>` with `@Converter(autoApply = false)`
+and apply it with `@Convert` to each ordinary attribute. Preserve null in both directions; construct
+non-null values explicitly and let invalid values fail rather than substituting a default:
+
+```kotlin
+data class TextValue(private val scalar: String) : ConceptAs<String> {
+    init { require(scalar.isNotBlank()) { "Text concept must not be blank." } }
+    override fun value(): String = scalar
+}
+
+@Converter(autoApply = false)
+class TextConverter : AttributeConverter<TextValue, String> {
+    override fun convertToDatabaseColumn(attribute: TextValue?): String? = attribute?.value()
+    override fun convertToEntityAttribute(dbData: String?): TextValue? = dbData?.let(::TextValue)
+}
+```
+
+The ordinary Java equivalent uses an explicit concrete record converter, not a generic erased
+`ConceptAs` converter:
+
+```java
+public record TextValue(String value) implements ConceptAs<String> {
+    public TextValue {
+        Objects.requireNonNull(value);
+        if (value.isBlank()) throw new IllegalArgumentException("Text concept must not be blank.");
+    }
+}
+
+@Converter(autoApply = false)
+public class TextConverter implements AttributeConverter<TextValue, String> {
+    @Override
+    public String convertToDatabaseColumn(TextValue attribute) {
+        return attribute == null ? null : attribute.value();
+    }
+
+    @Override
+    public TextValue convertToEntityAttribute(String dbData) {
+        return dbData == null ? null : new TextValue(dbData);
+    }
+}
+```
+
+The executable recipes also provide concrete UUID-to-UUID and Long-to-Long converters. Their H2
+columns are `UUID`, `CHARACTER VARYING`, and `BIGINT`, not serialized wrapper objects. Numeric
+coverage is signed 64-bit `Long` only, including both boundaries and values beyond JavaScript's
+exact integer range; it does not establish another numeric type or a client numeric contract.
+
+### Use a one-column embedded concept identifier
+
+For concept identifiers, use `@Embeddable` and `@EmbeddedId` with one scalar attribute, an explicit
+column override, and value equality. This is an **embedded identifier** recipe, not a claim that
+an attribute converter on a basic `@Id` is portable. The Kotlin fixture supplies a JPA no-argument
+constructor through defaults and mutable scalar slots for field hydration; never mutate an
+identifier after assigning it to a managed entity:
+
+```kotlin
+@Embeddable
+data class UuidId(var scalar: UUID = UUID(0, 0)) : ConceptAs<UUID>, Serializable {
+    override fun value(): UUID = scalar
+}
+
+@Entity
+@ReadModel
+open class UuidRow(
+    @field:EmbeddedId
+    @field:AttributeOverride(name = "scalar", column = Column(name = "concept_id"))
+    open var id: UuidId = UuidId()
+) {
+    @field:Convert(converter = TextConverter::class)
+    @field:Column(name = "text_field")
+    open var textField: TextValue? = null
+}
+```
+
+The ordinary Java fixtures execute UUID, String, and Long **record embeddables** on Hibernate
+7.4.5.Final with H2 2.5.250. Record support here is evidence for that provider/database combination,
+not certification of other JPA providers:
+
+```java
+@Embeddable
+public record UuidId(UUID value) implements ConceptAs<UUID>, Serializable { }
+
+@Entity
+@ReadModel
+public class UuidRow {
+    @EmbeddedId
+    @AttributeOverride(name = "value", column = @Column(name = "concept_id"))
+    public UuidId id;
+
+    @Convert(converter = TextConverter.class)
+    @Column(name = "text_field")
+    public TextValue textField;
+
+    public UuidRow() { }
+}
+```
+
+Declare the repository identifier as the concept type, for example
+`JpaRepository<UuidRow, UuidId>`, and supply `new UuidId(value)` from Java or `UuidId(value)` from
+Kotlin. Concept-valued derived predicates bind through the ordinary attribute's converter. A
+managed entity's ordinary concept attributes can be replaced and flushed without another `save`;
+reload from a fresh persistence context to verify storage rather than the first-level cache.
+
+### Evidence and routing boundary
+
+`Integrations/SpringDataJpa` tests `io.cratis.arc.persistence.recipes.jpa.JpaConceptStorageTests`
+and `JavaJpaConceptStorageTests` execute real in-process H2 storage with explicit per-unit mappings,
+repository `findById`, concept-valued predicates, raw SQL column values and types, flush/clear and
+fresh reload, nullable fields, dirty replacement, malformed stored values, and signed Long
+boundaries. Missing `@Convert` fails factory creation even with a registered non-auto-applying
+converter; that is an application mapping omission control, not an Arc product defect.
+
+The tests first assert the provider's `hasSingleIdAttribute()` and embedded `idType`, then pass
+that exact concept key through the existing contextual Arc resolver. The same keys with different
+values in two certified H2 factories remain isolated; unknown tenants, wrong namespaces, mismatched
+certificates, raw scalar keys, and a different concept class fail without a fixed-store retry.
+Configure all mappings before issuing the `JpaPersistenceUnit` certificate. Repository injection
+itself is still ordinary Spring dependency injection, not tenant routing. These application-owned
+recipes add no Arc API, automatic persistence feature, or Arc .NET parity claim; other databases
+and providers remain unverified.
+
+Run the bounded recipe checks with:
+
+```shell
+./gradlew :Integrations:SpringDataJpa:test --tests '*JpaConceptStorageTests'
+```
+
+## Map MongoDB concepts explicitly in the application
+
+MongoDB concept storage is also an **application-owned recipe**, not Arc autodiscovery. Register
+concrete, stateless `@WritingConverter`/`@ReadingConverter` pairs for each concept and scalar in
+one authoritative `MongoCustomConversions.create` configuration. A bare Spring `Converter` bean
+is not this registration. Configure the application's mapping context and converter before
+creating templates, repositories, or tenant certificates; Arc must not mutate an application-owned
+custom `MongoConverter` during lookup.
+
+### Register concrete scalar pairs
+
+For the `TextValue` concept above, the Kotlin pair is:
+
+```kotlin
+@WritingConverter
+class TextWrite : Converter<TextValue, String> {
+    override fun convert(source: TextValue): String = source.value()
+}
+
+@ReadingConverter
+class TextRead : Converter<String, TextValue> {
+    override fun convert(source: String): TextValue = TextValue(source)
+}
+```
+
+The ordinary Java equivalent constructs the record explicitly:
+
+```java
+@WritingConverter
+public class TextWrite implements Converter<TextValue, String> {
+    @Override
+    public String convert(TextValue source) { return source.value(); }
+}
+
+@ReadingConverter
+public class TextRead implements Converter<String, TextValue> {
+    @Override
+    public TextValue convert(String source) { return new TextValue(source); }
+}
+```
+
+Here `Converter` means Spring's `org.springframework.core.convert.converter.Converter`, not the
+JPA annotation. The executable recipes provide equivalent concrete UUID-to-UUID and Long-to-Long
+pairs named `UuidWrite`/`UuidRead` and `LongWrite`/`LongRead`. Do not replace them with an erased
+`Converter<ConceptAs<?>, ?>` or infer constructors reflectively. Install all six together:
+
+```kotlin
+val conversions = MongoCustomConversions.create { adapter ->
+    adapter.registerConverter(UuidWrite())
+    adapter.registerConverter(UuidRead())
+    adapter.registerConverter(TextWrite())
+    adapter.registerConverter(TextRead())
+    adapter.registerConverter(LongWrite())
+    adapter.registerConverter(LongRead())
+}
+```
+
+```java
+var conversions = MongoCustomConversions.create(adapter -> {
+    adapter.registerConverter(new UuidWrite());
+    adapter.registerConverter(new UuidRead());
+    adapter.registerConverter(new TextWrite());
+    adapter.registerConverter(new TextRead());
+    adapter.registerConverter(new LongWrite());
+    adapter.registerConverter(new LongRead());
+});
+```
+
+For programmatically owned templates, use that same configuration in both places, in this order
+(the complete `RecipeMongoStore` fixture also owns and closes its client):
+
+```java
+var mappingContext = new MongoMappingContext();
+mappingContext.setSimpleTypeHolder(conversions.getSimpleTypeHolder());
+mappingContext.setInitialEntitySet(Set.of(UuidRow.class, TextRow.class, LongRow.class));
+mappingContext.afterPropertiesSet();
+
+var factory = new SimpleMongoClientDatabaseFactory(client, database);
+var converter = new MappingMongoConverter(new DefaultDbRefResolver(factory), mappingContext);
+converter.setCustomConversions(conversions);
+converter.afterPropertiesSet();
+var template = new MongoTemplate(factory, converter);
+var repository = new MongoRepositoryFactory(template).getRepository(TextRows.class);
+```
+
+Configure the client explicitly with
+`MongoClientSettings.builder().uuidRepresentation(UuidRepresentation.STANDARD)` before building
+it. The tests read raw `BsonDocument` values and assert UUID binary **subtype 4**, BSON string,
+and BSON int64 for IDs and ordinary fields, not nested wrappers or numeric strings.
+
+### Choose identifier and null mappings deliberately
+
+The recipes use Spring Data `@Id` for UUID and Long concept identifiers, with the concrete pairs
+above. For the String concept identifier, use `@MongoId(FieldType.STRING)` explicitly: the tested
+24-hex value `507f1f77bcf86cd799439011` stays a BSON string instead of becoming an `ObjectId`.
+Do not substitute an unqualified `@MongoId` for these mappings; its implicit target is not the
+same conversion policy. Declare repository IDs as the concrete concept type, for example
+`MongoRepository<TextRow, TextValue>`.
+
+Kotlin documents use constructor-bound concept IDs and mutable ordinary fields. Ordinary Java
+documents use no-argument construction and field hydration, with immutable concept records as
+their values; this avoids relying on Java constructor parameter-name compiler metadata. Do not
+change an identifier after saving a document.
+
+Spring bypasses these scalar converters for null. Apply `@Field(write = Field.Write.ALWAYS)`
+(`@field:Field(write = Field.Write.ALWAYS)` in Kotlin) when a nullable concept field must be
+written as explicit BSON null. Without it, the tested null field is absent. Both read as null;
+the tests separately remove an explicitly written field and verify absent-field hydration.
+Non-null blank text fails in the concept constructor. A stored String in the Long field fails
+with `ConverterNotFoundException` rather than becoming a default Long concept; the configured
+reading pair accepts Long, not arbitrary malformed storage types.
+
+MongoDB documents are not JPA managed entities: changing a loaded field alone does not persist
+it. Call repository `save` explicitly or use a mapped `MongoTemplate.updateFirst` with a
+concept-valued query and update. Verify with another read through a fresh template/converter.
+
+### MongoDB recipe evidence and limits
+
+`Integrations/SpringDataMongo` tests `io.cratis.arc.persistence.recipes.mongodb.MongoConceptStorageTests`
+and `JavaMongoConceptStorageTests` execute configured repositories, concept `findById` and equality
+predicates, fresh class reconstruction, explicit save/update, distinct null/absent BSON shapes,
+malformed-value failures, and exact signed Long boundaries including values beyond JavaScript's
+exact integer range. The missing-registration control stores a nested concept document instead
+of a scalar; adding the application registration produces the asserted scalar. This is an
+application omission control, not an existing Arc product bug.
+
+Each language stores the same UUID, String, and Long concept keys with different values in two
+databases. Templates are fully configured before issuing `TenantMongoOperations` certificates.
+The existing contextual resolver rejects unknown tenants, mismatched certificates, missing/blank
+tenants, scalar keys, and a different concept key class. Exact resolver-call and driver `find`
+command counts prove no retry or fallback database read. Mongo certificates certify `tenantId`,
+not JPA's tenant namespace; no Mongo namespace-isolation claim follows. Repository injection
+alone remains ordinary Spring dependency injection, not tenant routing.
+
+This evidence uses Spring Data MongoDB 5.1.1 and Mongo Java driver 5.8.1 against the existing
+**mongo-java-server 1.47.0 `MemoryBackend` emulator**, not a real MongoDB server, Testcontainers,
+or an external database. It does not certify production MongoDB, other providers or BSON types,
+change streams, replica sets, transactions, optimistic locking, or Arc .NET parity. No provider
+dependency or Arc API is added by the recipes.
+
+```shell
+./gradlew :Integrations:SpringDataMongo:test --tests '*MongoConceptStorageTests'
+```
+
 ## Consume paging and sorting
 
 Arc carries zero-based paging and one sort field in `QueryRequest`. A model-bound query can declare the exact non-null Spring Data Commons `Pageable` and `Sort` types. Generated performers create both values directly from the captured query request; they do not use request scope, thread-local state, or a request-scoped bean.

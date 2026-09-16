@@ -30,7 +30,11 @@ internal data class ProxyGenerationOptions(
     val outputDirectory: File,
     val endpointOptions: ApiEndpointOptions,
     val removeStaleGeneratedFiles: Boolean,
-    val segmentsToSkip: Int
+    val segmentsToSkip: Int,
+    /** Configured JVM type to TypeScript type mappings, keyed by fully qualified JVM type name. */
+    val typeMappings: Map<String, ProxyTypeMapping> = emptyMap(),
+    /** JVM package to npm package mappings; matching types are imported instead of generated. */
+    val packageMappings: Map<String, String> = emptyMap()
 )
 
 private enum class ArtifactKind { COMMAND, TYPE, INTERFACE, ENUM, QUERY }
@@ -44,7 +48,11 @@ private data class ArtifactTarget(
     val relativePath: String = (directory + "$typeScriptName.ts").joinToString("/")
 }
 
-private data class TypeScriptValueImport(val packageName: String, val name: String)
+private data class TypeScriptValueImport(
+    val packageName: String,
+    val name: String,
+    val typeOnly: Boolean = false
+)
 
 private enum class TypeScriptImportKind { TYPE, VALUE }
 
@@ -71,7 +79,22 @@ internal class TypeScriptProxyGenerator(
     private val options: ProxyGenerationOptions
 ) {
     private val commandTypeNames = artifacts.commands.map(CommandDescriptor::typeName).toSet()
-    private val emittedTypes = artifacts.types.filterNot { it.fullyQualifiedName in commandTypeNames }
+
+    /**
+     * A type answered by configuration is never also generated.
+     *
+     * Emitting it as well would put a local declaration and an external import of the same name in scope, so a
+     * configured mapping has to remove the type from output the way Arc .NET excludes types from a mapped assembly.
+     */
+    private fun isExternallyMapped(typeName: String): Boolean =
+        typeName in options.typeMappings ||
+            ProxyTypeMappings.npmPackageFor(typeName, options.packageMappings) != null
+
+    private val emittedTypes = artifacts.types
+        .filterNot { it.fullyQualifiedName in commandTypeNames }
+        .filterNot { isExternallyMapped(it.fullyQualifiedName) }
+    private val emittedInterfaces = artifacts.interfaces.filterNot { isExternallyMapped(it.fullyQualifiedName) }
+    private val emittedEnums = artifacts.enums.filterNot { isExternallyMapped(it.fullyQualifiedName) }
     private val queryTargets = buildQueryTargets()
     private val conceptsBySource = artifacts.concepts.associateBy { concept -> concept.fullyQualifiedName }
     private val targets = buildTargets()
@@ -80,6 +103,7 @@ internal class TypeScriptProxyGenerator(
     fun generate(): List<File> {
         require(options.segmentsToSkip >= 0) { "Proxy segmentsToSkip cannot be negative." }
         validateOutputTree()
+        validateMappings()
         validateArtifacts()
         val generated = linkedMapOf<String, Pair<String, String>>()
         val commandNamespaces = EndpointRouteHelper.groupByNamespace(
@@ -117,12 +141,12 @@ internal class TypeScriptProxyGenerator(
             val target = targetBySource.getValue(type.fullyQualifiedName)
             generated[target.relativePath] = type.fullyQualifiedName to renderType(type, target)
         }
-        artifacts.interfaces.forEach { interfaceDescriptor ->
+        emittedInterfaces.forEach { interfaceDescriptor ->
             val target = targetBySource.getValue(interfaceDescriptor.fullyQualifiedName)
             generated[target.relativePath] = interfaceDescriptor.fullyQualifiedName to
                 renderInterface(interfaceDescriptor, target)
         }
-        artifacts.enums.forEach { enum ->
+        emittedEnums.forEach { enum ->
             val target = targetBySource.getValue(enum.fullyQualifiedName)
             generated[target.relativePath] = enum.fullyQualifiedName to renderEnum(enum)
         }
@@ -151,10 +175,10 @@ internal class TypeScriptProxyGenerator(
         emittedTypes.forEach {
             result += ArtifactTarget(it.fullyQualifiedName, it.name, outputDirectory(it.location), ArtifactKind.TYPE)
         }
-        artifacts.interfaces.forEach {
+        emittedInterfaces.forEach {
             result += ArtifactTarget(it.fullyQualifiedName, it.name, outputDirectory(it.location), ArtifactKind.INTERFACE)
         }
-        artifacts.enums.forEach {
+        emittedEnums.forEach {
             result += ArtifactTarget(it.fullyQualifiedName, it.name, outputDirectory(it.location), ArtifactKind.ENUM)
         }
         artifacts.queries.forEach { result += queryTarget(it) }
@@ -173,6 +197,22 @@ internal class TypeScriptProxyGenerator(
     private fun queryTarget(query: QueryDescriptor): ArtifactTarget = queryTargets.getValue(query.fullyQualifiedName)
 
     private fun outputDirectory(location: List<String>): List<String> = location.drop(options.segmentsToSkip)
+
+    private fun validateMappings() {
+        options.typeMappings.forEach { (sourceName, mapping) ->
+            if (!JVM_TYPE_NAME.matches(sourceName) || sourceName != mapping.typeName) {
+                throw GradleException("Invalid Arc proxy mapping source '$sourceName'; use a fully qualified JVM type name.")
+            }
+            if (sourceName in conceptsBySource || sourceName in commandTypeNames) {
+                throw GradleException("Arc proxy mapping '$sourceName' targets a concept or command; map a concept's underlying type or a command's properties/response instead.")
+            }
+            mappedType(sourceName, mapping.typeScriptType, mapping.npmPackage)
+        }
+        options.packageMappings.forEach { (prefix, npmPackage) ->
+            if (!JVM_TYPE_NAME.matches(prefix)) throw GradleException("Invalid Arc proxy package prefix '$prefix'.")
+            mappedType("$prefix.Model", "Model", npmPackage)
+        }
+    }
 
     private fun validateArtifacts() {
         targets.forEach(::validateTarget)
@@ -234,7 +274,7 @@ internal class TypeScriptProxyGenerator(
                 listOfNotNull(type.baseTypeName?.let { resolveBaseType(it, current) })
             validateImportedTypeNames(current, referencedTypes, referencedTypes)
         }
-        artifacts.interfaces.forEach { interfaceDescriptor ->
+        emittedInterfaces.forEach { interfaceDescriptor ->
             val current = targetBySource.getValue(interfaceDescriptor.fullyQualifiedName)
             validateImportedTypeNames(
                 current,
@@ -299,6 +339,15 @@ internal class TypeScriptProxyGenerator(
         }
         val valueImports = types.flatMap { type -> type.recursiveTypes() }
             .mapNotNull(TypeScriptType::valueImport).distinct()
+        val frameworkNames = when (current.kind) {
+            ArtifactKind.COMMAND -> setOf("Command", "CommandValidator", "PropertyDescriptor", "useCommand", "SetCommandValues", "ClearCommandValues", "I${current.typeScriptName}", "${current.typeScriptName}Validator")
+            ArtifactKind.QUERY -> setOf("QueryFor", "ObservableQueryFor", "QueryResultWithState", "QueryValidator", "ParameterDescriptor", "Sorting", "Paging", "SortingActions", "SortingActionsForQuery", "SortingActionsForObservableQuery", "QueryHttpMethod", "QueryWhen", "ObservableQueryWhen", "ChangeSet", "PerformQuery", "SetSorting", "SetPage", "SetPageSize", "useQuery", "useQueryWithPaging", "useSuspenseQuery", "useSuspenseQueryWithPaging", "useObservableQuery", "useObservableQueryWithPaging", "useSuspenseObservableQuery", "useSuspenseObservableQueryWithPaging", "useChangeStream", "${current.typeScriptName}Parameters", "${current.typeScriptName}Validator", "${current.typeScriptName}SortBy", "${current.typeScriptName}SortByWithoutQuery")
+            ArtifactKind.TYPE -> setOf("field", "derivedType")
+            else -> emptySet()
+        }
+        valueImports.firstOrNull { it.name in frameworkNames }?.let { reference ->
+            throw GradleException("External TypeScript import '${reference.name}' in '${current.sourceName}' collides with generated framework scaffolding.")
+        }
         valueImports.groupBy(TypeScriptValueImport::name).filterValues { imports ->
             imports.map(TypeScriptValueImport::packageName).distinct().size > 1
         }.forEach { (name, collisions) ->
@@ -333,6 +382,9 @@ internal class TypeScriptProxyGenerator(
                     "TypeScript global runtime constructor '$constructor' in '${current.sourceName}' is shadowed by " +
                         "the generated artifact with the same name."
                 )
+            }
+            valueImports.firstOrNull { it.name == constructor }?.let { reference ->
+                throw GradleException("TypeScript global runtime constructor '$constructor' in '${current.sourceName}' is shadowed by the value import '${reference.packageName}'.")
             }
             valueImportedTargets.firstOrNull { it.typeScriptName == constructor }?.let { artifact ->
                 throw GradleException(
@@ -552,7 +604,7 @@ internal class TypeScriptProxyGenerator(
         val parameterTypes = parameters.map { resolveParameterType(it, target) }
         val referencedTypes = listOf(model) + parameterTypes
         val imports = customImports(referencedTypes, referencedTypes)
-        val sortableProperties = parameters.map(ParameterDescriptor::name)
+        val sortableProperties = returnedSortProperties(query)
         val className = target.typeScriptName
         val modelType = model.name + if (query.isEnumerable) "[]" else ""
         val parameterType = if (parameters.isEmpty()) "" else ", ${className}Parameters"
@@ -668,7 +720,7 @@ internal class TypeScriptProxyGenerator(
         val parameterTypes = parameters.map { resolveParameterType(it, target) }
         val referencedTypes = listOf(model) + parameterTypes
         val imports = customImports(referencedTypes, referencedTypes)
-        val sortableProperties = parameters.map(ParameterDescriptor::name)
+        val sortableProperties = returnedSortProperties(query)
         val className = target.typeScriptName
         val modelType = model.name + if (query.isEnumerable) "[]" else ""
         val parameterType = if (parameters.isEmpty()) "" else ", ${className}Parameters"
@@ -862,40 +914,38 @@ internal class TypeScriptProxyGenerator(
         .replace("\r", "\\r")
         .replace("\n", "\\n") + "'"
 
+    /** Select only declared return-row fields; request arguments are not sortable row members. */
+    private fun returnedSortProperties(query: QueryDescriptor): List<String> {
+        if (!query.isEnumerable || !query.supportsSorting) return emptyList()
+        val names = sortedSetOf<String>()
+        val visited = mutableSetOf<String>()
+        var typeName: String? = query.returnTypeName
+        while (typeName != null) {
+            if (!visited.add(typeName)) {
+                throw GradleException("Cyclic Arc return-model inheritance for '${query.fullyQualifiedName}' at '$typeName'.")
+            }
+            val model = artifacts.types.firstOrNull { it.fullyQualifiedName == typeName }
+            if (model == null) {
+                // Interface inheritance is not represented by the manifest; do not invent missing members.
+                artifacts.interfaces.firstOrNull { it.fullyQualifiedName == typeName }?.properties?.forEach {
+                    names += lowerCamel(it.name)
+                }
+                break
+            }
+            model.properties.forEach { names += lowerCamel(it.name) }
+            typeName = model.baseTypeName
+        }
+        names.firstOrNull { it == "constructor" || !TYPESCRIPT_IDENTIFIER.matches(it) }?.let { name ->
+            throw GradleException("Cannot generate Arc sorting helper '${query.fullyQualifiedName}.$name'; rename that return-model member or expose a different result contract.")
+        }
+        return names.toList()
+    }
+
     private fun StringBuilder.appendObservableSortHelpers(
         className: String,
         model: String,
         properties: List<String>
-    ) {
-        append("\nclass ${className}SortBy {\n")
-        properties.forEach { property ->
-            append("    private _${lowerCamel(property)}: SortingActionsForObservableQuery<$model[]>;\n")
-        }
-        append("\n    constructor(readonly query: $className) {\n")
-        properties.forEach { property ->
-            val name = lowerCamel(property)
-            append("        this._$name = new SortingActionsForObservableQuery<$model[]>('$name', query);\n")
-        }
-        append("    }\n")
-        if (properties.isNotEmpty()) append("\n")
-        properties.forEach { property ->
-            val name = lowerCamel(property)
-            append("    get $name(): SortingActionsForObservableQuery<$model[]> {\n        return this._$name;\n    }\n")
-        }
-        if (properties.isEmpty()) append("\n")
-        append("}\n\nclass ${className}SortByWithoutQuery {\n")
-        properties.forEach { property ->
-            val name = lowerCamel(property)
-            append("    private _$name: SortingActions  = new SortingActions('$name');\n")
-        }
-        append("\n")
-        properties.forEach { property ->
-            val name = lowerCamel(property)
-            append("    get $name(): SortingActions {\n        return this._$name;\n    }\n")
-        }
-        append("}\n")
-        if (properties.isEmpty()) append("\n")
-    }
+    ) = appendSortHelpers(className, model, properties, "SortingActionsForObservableQuery")
 
     private fun StringBuilder.appendObservableQueryHooks(
         query: QueryDescriptor,
@@ -973,32 +1023,40 @@ internal class TypeScriptProxyGenerator(
         }
     }
 
-    private fun StringBuilder.appendSortHelpers(className: String, model: String, properties: List<String>) {
-        append("\nclass ${className}SortBy {\n")
-        properties.forEach { property ->
-            append("    private _${lowerCamel(property)}: SortingActionsForQuery<$model[]>;\n")
-        }
-        append("\n    constructor(readonly query: $className) {\n")
-        properties.forEach { property ->
+    private fun StringBuilder.appendSortHelpers(
+        className: String,
+        model: String,
+        properties: List<String>,
+        actions: String = "SortingActionsForQuery"
+    ) {
+        // `_name` and `name` are both valid row fields. Private storage must not collide with either
+        // public accessor, nor with another private slot (including collisions inherited from a base).
+        val reserved = properties.map(::lowerCamel).toMutableSet()
+        val storage = properties.associate { property ->
             val name = lowerCamel(property)
-            append("        this._$name = new SortingActionsForQuery<$model[]>('$name', query);\n")
+            var slot = "_$name"
+            while (!reserved.add(slot)) slot = "_$slot"
+            name to slot
+        }
+        append("\nclass ${className}SortBy {\n")
+        storage.values.forEach { append("    private $it: $actions<$model[]>;\n") }
+        append("\n    constructor(query: $className) {\n")
+        storage.forEach { (name, slot) ->
+            append("        this.$slot = new $actions<$model[]>('$name', query);\n")
         }
         append("    }\n")
         if (properties.isNotEmpty()) append("\n")
-        properties.forEach { property ->
-            val name = lowerCamel(property)
-            append("    get $name(): SortingActionsForQuery<$model[]> {\n        return this._$name;\n    }\n")
+        storage.forEach { (name, slot) ->
+            append("    get $name(): $actions<$model[]> {\n        return this.$slot;\n    }\n")
         }
         if (properties.isEmpty()) append("\n")
         append("}\n\nclass ${className}SortByWithoutQuery {\n")
-        properties.forEach { property ->
-            val name = lowerCamel(property)
-            append("    private _$name: SortingActions  = new SortingActions('$name');\n")
+        storage.forEach { (name, slot) ->
+            append("    private $slot: SortingActions  = new SortingActions('$name');\n")
         }
         append("\n")
-        properties.forEach { property ->
-            val name = lowerCamel(property)
-            append("    get $name(): SortingActions {\n        return this._$name;\n    }\n")
+        storage.forEach { (name, slot) ->
+            append("    get $name(): SortingActions {\n        return this.$slot;\n    }\n")
         }
         append("}\n")
         if (properties.isEmpty()) append("\n")
@@ -1103,7 +1161,9 @@ internal class TypeScriptProxyGenerator(
                     }
                 }.thenBy(String.CASE_INSENSITIVE_ORDER, TypeScriptValueImport::name)
                     .thenBy(TypeScriptValueImport::name)
-            ).map(TypeScriptValueImport::name)
+            ).groupBy(TypeScriptValueImport::name).map { (name, references) ->
+                if (references.all(TypeScriptValueImport::typeOnly)) "type $name" else name
+            }
             append("import { ${names.joinToString(", ")} } from '$packageName';\n")
         }
     }
@@ -1171,7 +1231,13 @@ internal class TypeScriptProxyGenerator(
                         "Map property '$propertyName' entry path '$path' has unsupported value leaf '$typeName'."
                     )
                 }
-                primitiveTypes[typeName] ?: throw GradleException(
+                val override = options.typeMappings[typeName]?.let { mapping ->
+                    if (mapping.npmPackage != null || mapping.typeScriptType !in setOf("string", "number", "boolean")) {
+                        throw GradleException("Map property '$propertyName' entry path '$path' cannot hydrate an external or non-scalar override for '$typeName'.")
+                    }
+                    mappedType(typeName, mapping.typeScriptType, null)
+                }
+                override ?: primitiveTypes[typeName] ?: throw GradleException(
                     "Map property '$propertyName' entry path '$path' has no TypeScript primitive mapping for '$typeName'."
                 )
             }
@@ -1230,16 +1296,28 @@ internal class TypeScriptProxyGenerator(
         concepts: MutableSet<String>
     ): TypeScriptType {
         val typeName = rawTypeName.removeSuffix("?")
-        val primitiveType = primitiveTypes[typeName]
-        if (primitiveType != null) return primitiveType
+        if (typeName.contains('<') || typeName.contains('>') || isMapType(typeName)) {
+            throw GradleException("Unsupported generic or map type '$rawTypeName' in '${current.sourceName}'.")
+        }
+        // Concepts unwrap first, then configuration, then the built-in map, matching the order Arc .NET's
+        // TypeExtensions.GetTargetType uses. Concepts and primitives never share a key, so moving the concept
+        // branch above the primitive lookup changes nothing on its own.
         conceptsBySource[typeName]?.let { concept ->
             if (!concepts.add(typeName)) {
                 throw GradleException("Cyclic Arc concept metadata for '$typeName' in '${current.sourceName}'.")
             }
             return resolveType(concept.underlyingTypeName, current, concepts)
         }
-        if (typeName.contains('<') || typeName.contains('>') || isMapType(typeName)) {
-            throw GradleException("Unsupported generic or map type '$rawTypeName' in '${current.sourceName}'.")
+        // Ahead of the built-in map, which is what lets a mapping correct an existing type rather than only
+        // declare one the generator has never seen.
+        options.typeMappings[typeName]?.let { mapping ->
+            return mappedType(typeName, mapping.typeScriptType, mapping.npmPackage)
+        }
+        val primitiveType = primitiveTypes[typeName]
+        if (primitiveType != null) return primitiveType
+        ProxyTypeMappings.npmPackageFor(typeName, options.packageMappings)?.let { npmPackage ->
+            val simpleName = typeName.substringAfterLast('.')
+            return mappedType(typeName, simpleName, npmPackage)
         }
         val target = targetBySource[typeName]
             ?: throw GradleException("Unsupported Arc proxy type '$rawTypeName' in '${current.sourceName}'.")
@@ -1251,15 +1329,38 @@ internal class TypeScriptProxyGenerator(
         return TypeScriptType(target.typeScriptName, constructor, target)
     }
 
+    private fun mappedType(sourceName: String, name: String, npmPackage: String?): TypeScriptType {
+        if (npmPackage == null) {
+            val constructor = MAPPED_GLOBAL_TYPES[name] ?: throw GradleException(
+                "Arc proxy mapping '$sourceName=$name' has no supported runtime constructor; " +
+                    "use string, number, boolean, object or Date, or supply an npm package and exported name."
+            )
+            return TypeScriptType(name, constructor)
+        }
+        if (!TYPESCRIPT_IDENTIFIER.matches(name) || name in RESERVED_MAPPING_NAMES || !NPM_IMPORT_PATH.matches(npmPackage) ||
+            npmPackage.split('/').any { it == "." || it == ".." }
+        ) {
+            throw GradleException("Unsafe Arc proxy mapping '$sourceName=$name=$npmPackage'; use an exported identifier and npm package path.")
+        }
+        val isEnum = artifacts.enums.any { it.fullyQualifiedName == sourceName }
+        val isInterface = artifacts.interfaces.any { it.fullyQualifiedName == sourceName }
+        val constructor = when {
+            isEnum -> "Number"
+            isInterface -> "Object"
+            else -> name
+        }
+        return TypeScriptType(name, constructor, valueImport = TypeScriptValueImport(npmPackage, name, isEnum || isInterface))
+    }
+
     private fun TypeScriptType.globalRuntimeConstructor(): String? {
-        if (constructor !in GLOBAL_RUNTIME_CONSTRUCTORS) return null
+        if (constructor !in GLOBAL_RUNTIME_CONSTRUCTORS || valueImport?.typeOnly == false) return null
         return constructor.takeIf {
             target == null || target.kind == ArtifactKind.INTERFACE || target.kind == ArtifactKind.ENUM
         }
     }
 
     private fun isMapType(typeName: String): Boolean =
-        typeName == "kotlin.collections.Map" || typeName == "java.util.Map" || typeName.endsWith("Map")
+        typeName == "kotlin.collections.Map" || typeName == "kotlin.collections.MutableMap" || typeName == "java.util.Map"
 
     /**
      * Emits one source documentation summary as a single-line JSDoc comment.
@@ -1451,6 +1552,18 @@ internal class TypeScriptProxyGenerator(
         val INDEX_EXPORT = Regex("^\\s*export\\s+\\*\\s+from\\s+['\"](.+)['\"]\\s*;?\\s*$")
         val ROUTE_PARAMETER = Regex("\\{([^}:]+)(?::[^}]+)?}")
         val GLOBAL_RUNTIME_CONSTRUCTORS = setOf("Boolean", "Date", "Number", "Object", "String")
+        val MAPPED_GLOBAL_TYPES = mapOf("string" to "String", "number" to "Number", "boolean" to "Boolean", "object" to "Object", "Date" to "Date")
+        val NPM_IMPORT_PATH = Regex("^(?:@[a-z0-9_.-]+/)?[a-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*$")
+        val JVM_TYPE_NAME = Regex("^[A-Za-z_$][A-Za-z0-9_$]*(?:\\.[A-Za-z_$][A-Za-z0-9_$]*)*$")
+        val RESERVED_MAPPING_NAMES = setOf(
+            "string", "number", "boolean", "object", "any", "unknown", "never", "undefined", "constructor",
+            "break", "case", "catch", "class", "const", "continue", "debugger", "default", "delete", "do", "else",
+            "enum", "export", "extends", "false", "finally", "for", "function", "if", "import", "in", "instanceof",
+            "new", "null", "return", "super", "switch", "this", "throw", "true", "try", "typeof", "var", "void",
+            "while", "with", "yield", "await", "implements", "interface", "let", "package", "private", "protected",
+            "public", "static", "abstract", "as", "asserts", "async", "declare", "from", "get", "infer", "is",
+            "keyof", "module", "namespace", "of", "readonly", "require", "set", "symbol", "type", "unique"
+        )
         val MAP_STRING_TYPE_NAMES = setOf("kotlin.String", "java.lang.String", "String")
         val MAP_SAFE_PRIMITIVE_TYPE_NAMES = setOf(
             "kotlin.Boolean", "kotlin.Byte", "kotlin.Char", "kotlin.Int", "kotlin.Short", "kotlin.String",

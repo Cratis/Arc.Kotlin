@@ -26,6 +26,9 @@ import io.cratis.arc.results.CommandResult
 import io.cratis.arc.results.ValidationResultSeverity
 import io.cratis.arc.tenancy.TenantIdResolver
 import io.cratis.arc.tenancy.TenantResolutionContext
+import io.cratis.arc.validation.ConceptValidator
+import io.cratis.arc.validation.ConceptValidationExclusion
+import io.cratis.arc.validation.ModelValidator
 import java.util.LinkedHashMap
 import java.util.ServiceLoader
 import java.util.UUID
@@ -41,11 +44,14 @@ public class CommandScenario<TCommand : Any> private constructor(
     private val responseHandlers = mutableListOf<CommandResponseValueHandler>()
     private val contextValuesProviders = mutableListOf<CommandContextValuesProvider>()
     private val validators = mutableListOf<CommandValidator<*>>()
+    private val conceptValidators = mutableListOf<ConceptValidator<*>>()
+    private val modelValidators = mutableListOf<ModelValidator<*>>()
+    private val conceptExclusions = mutableListOf<ConceptValidationExclusion>()
     private val readModelResolvers = mutableListOf<CanResolveReadModelForCommand>()
     private val pinnedReadModels = mutableListOf<PinnedReadModel>()
     private val policies = LinkedHashMap<String, AuthorizationPolicy>()
     private val extensions = LinkedHashMap<Class<out CommandScenarioExtender>, CommandScenarioExtender>()
-    private val objectMapper: ObjectMapper = ArcObjectMapper.create()
+    private val objectMapper: ObjectMapper = ArcObjectMapper.create(artifacts.derivedTypes)
     private var services: ScenarioServiceResolver = ScenarioServiceResolver.empty()
     private var principal: ArcPrincipal = ArcPrincipal.anonymous()
     private var tenantId: String? = null
@@ -114,6 +120,15 @@ public class CommandScenario<TCommand : Any> private constructor(
 
     /** Adds a typed command validator and returns this scenario. */
     public fun addValidator(validator: CommandValidator<*>): CommandScenario<TCommand> = apply { validators.add(validator) }
+
+    /** Adds a reusable concept rule and returns this scenario. */
+    public fun addConceptValidator(validator: ConceptValidator<*>): CommandScenario<TCommand> = apply { conceptValidators.add(validator) }
+
+    /** Adds a reusable exact model rule and returns this scenario. */
+    public fun addModelValidator(validator: ModelValidator<*>): CommandScenario<TCommand> = apply { modelValidators.add(validator) }
+
+    /** Excludes concept rules on one direct member, retaining all other validation. */
+    public fun addConceptExclusion(exclusion: ConceptValidationExclusion): CommandScenario<TCommand> = apply { conceptExclusions.add(exclusion) }
 
     /** Adds a command-side read-model resolver and returns this scenario. */
     public fun addReadModelResolver(resolver: CanResolveReadModelForCommand): CommandScenario<TCommand> = apply {
@@ -259,7 +274,7 @@ public class CommandScenario<TCommand : Any> private constructor(
         policies.forEach(policyRegistry::register)
         val builtInFilters = listOf<CommandFilter>(
             CommandAuthorizationFilter(artifacts.commandHandlers, AuthorizationEvaluator(policyRegistry)),
-            DefaultCommandValidationFilter(validators)
+            DefaultCommandValidationFilter(validators, conceptValidators, modelValidators, conceptExclusions)
         )
         return DefaultCommandPipeline(
             artifacts.commandHandlers,

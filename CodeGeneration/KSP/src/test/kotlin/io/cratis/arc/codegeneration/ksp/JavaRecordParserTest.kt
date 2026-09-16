@@ -37,6 +37,22 @@ internal class JavaRecordParserTest {
     }
 
     @Test
+    fun `sequence element annotations survive parsing independently of outer nullability`() {
+        val source = """
+            public record Sequences(
+                @Nullable java.util.List<String> outer,
+                java.util.List<@Nullable String> elements,
+                java.util.Collection<@example.CheckForNull String> checked,
+                java.util.List<String> platform
+            ) { }
+        """.trimIndent()
+        val properties = requireNotNull(parseJavaRecordProperties(source, "Sequences"))
+        assertEquals(listOf(true, false, false, false), properties.map { it.isNullable })
+        assertEquals(listOf("java.util.List<String>", "java.util.List<@Nullable String>",
+            "java.util.Collection<@example.CheckForNull String>", "java.util.List<String>"), properties.map { it.typeName })
+    }
+
+    @Test
     fun `Arc and optional Hibernate annotations retain exact validation identities and messages`() {
         val source = """
             package sample;

@@ -38,7 +38,7 @@ class ValidationFiltersTest {
     }
 
     @Test
-    fun `validator failures retain exception as validatorFailed and cancellation is rethrown`() = runBlocking {
+    fun `validator failures retain exception as validatorFailed and cancellation is rethrown`(): Unit = runBlocking {
         val failure = IllegalStateException("private detail")
         val failing = object : CommandValidator<TestCommand> {
             override val commandType = TestCommand::class.java

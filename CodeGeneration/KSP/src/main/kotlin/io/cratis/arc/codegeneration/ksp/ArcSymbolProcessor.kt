@@ -4,6 +4,7 @@
 package io.cratis.arc.codegeneration.ksp
 
 import com.google.devtools.ksp.getAllSuperTypes
+import com.google.devtools.ksp.isPublic
 import com.google.devtools.ksp.getDeclaredFunctions
 import com.google.devtools.ksp.processing.CodeGenerator
 import com.google.devtools.ksp.processing.Dependencies
@@ -57,8 +58,20 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
     private var metadataCollector = MetadataCollector(graphLogger)
     private val commandNames = sortedSetOf<String>()
     private val readModelNames = sortedSetOf<String>()
+    private val exportedTypeNames = sortedSetOf<String>()
     private val derivedTypeNames = sortedSetOf<String>()
     private val responseHandlerNames = sortedSetOf<String>()
+    private val importedHandlers = environment.options[ResponseHandlerMetadata.OPTION]?.let { option ->
+        try {
+            ResponseHandlerMetadata.read(option)
+        } catch (exception: Exception) {
+            logger.error(ArcDiagnostic.CONFIGURATION,
+                "KSP option '${ResponseHandlerMetadata.OPTION}' cannot read '$option': ${exception.message}; " +
+                    "supply a valid format-1 dependency handler index as an absolute file URI.")
+            emptyList()
+        }
+    }.orEmpty()
+    private val exportedHandlers = sortedMapOf<String, List<String>>()
     private val emittedCommands = mutableSetOf<String>()
     private val emittedQueries = mutableSetOf<String>()
     private val inspectedCommandLikeTypes = mutableSetOf<String>()
@@ -68,6 +81,7 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
     private val handledTypeContributions = mutableMapOf<String, List<String>>()
     private val commands = mutableListOf<CommandModel>()
     private val queries = mutableListOf<QueryModel>()
+    private val exportRoots = sortedSetOf<String>()
     private var configurationReported = false
     private var moduleGenerated = false
     private var latestRoundFiles: List<KSFile> = emptyList()
@@ -80,6 +94,7 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
         latestRoundFiles = emptyList()
         commands.clear()
         queries.clear()
+        exportRoots.clear()
         queryNames.clear()
         explicitQueryRoutes.clear()
         metadataCollector = MetadataCollector(graphLogger)
@@ -92,12 +107,14 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
             inspectCommandLikeTypes(resolver)
             val commandSymbols = discoverRoots(resolver, COMMAND_ANNOTATION, commandNames)
             val readModelSymbols = discoverRoots(resolver, READ_MODEL_ANNOTATION, readModelNames)
+            val exportedTypeSymbols = discoverRoots(resolver, EXPORTED_TYPE_ANNOTATION, exportedTypeNames)
             derivedTypeNames += resolver.getSymbolsWithAnnotation("io.cratis.arc.polymorphism.DerivedType")
                 .filterIsInstance<KSClassDeclaration>().mapNotNull { it.qualifiedName?.asString() }
             metadataCollector.useResolver(resolver, derivedTypeNames)
-            deferred += (commandSymbols + readModelSymbols).filterNot(KSAnnotated::validateForProcessing)
+            deferred += (commandSymbols + readModelSymbols + exportedTypeSymbols).filterNot(KSAnnotated::validateForProcessing)
             commandSymbols.filter(KSAnnotated::validateForProcessing).forEach { processCommand(it, resolver) }
             readModelSymbols.filter(KSAnnotated::validateForProcessing).forEach { processReadModel(it, resolver) }
+            exportedTypeSymbols.filter(KSAnnotated::validateForProcessing).forEach { processExportedType(it) }
             hasDeferredInputs = hasDeferredInputs || deferred.isNotEmpty()
             return deferred.distinct()
         } finally {
@@ -120,8 +137,18 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
         graphLogger.flush()
         val configuredName = moduleName
         if (!logger.hasErrors && !graphLogger.hasErrors && !hasDeferredInputs && !moduleGenerated &&
-            configuredName != null && (commands.isNotEmpty() || queries.isNotEmpty())) {
-            generateModule(configuredName)
+            configuredName != null) {
+            if (exportedHandlers.isNotEmpty()) {
+                codeGenerator.createNewFileByPath(
+                    Dependencies(true, *latestRoundFiles.toTypedArray()),
+                    "${ResponseHandlerMetadata.PREFIX}$configuredName.json", ""
+                ).bufferedWriter(Charsets.UTF_8).use {
+                    it.write(ResponseHandlerMetadata.document(configuredName, exportedHandlers))
+                }
+            }
+            if (commands.isNotEmpty() || queries.isNotEmpty() || exportRoots.isNotEmpty()) {
+                generateModule(configuredName)
+            }
             moduleGenerated = true
         }
         latestRoundFiles = emptyList()
@@ -149,9 +176,9 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
                     .toList()
                 val commandLikeHandle = handles.firstOrNull { function ->
                     function.functionKind == FunctionKind.MEMBER && Modifier.JAVA_STATIC !in function.modifiers &&
-                        Modifier.PUBLIC in function.modifiers
+                        function.isPublic()
                 }
-                val hasPublicState = declaration.getAllProperties().any { property -> Modifier.PUBLIC in property.modifiers }
+                val hasPublicState = declaration.getAllProperties().any { property -> property.isPublic() }
                 if (commandLikeHandle != null && hasPublicState) {
                     logger.warn(
                         ArcDiagnostic.MISSING_COMMAND,
@@ -162,7 +189,7 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
                 }
                 handles.filter { function ->
                     function.functionKind == FunctionKind.MEMBER && Modifier.JAVA_STATIC !in function.modifiers &&
-                        Modifier.PUBLIC in function.modifiers && function.parameters.any { parameter ->
+                        function.isPublic() && function.parameters.any { parameter ->
                             (parameter.type.resolve().declaration as? KSClassDeclaration)?.hasAnnotation(COMMAND_ANNOTATION) == true
                         }
                 }.forEach { function ->
@@ -213,6 +240,68 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
         }
     }
 
+    private fun processExportedType(symbol: KSAnnotated) {
+        val declaration = symbol as? KSClassDeclaration
+        if (declaration == null) {
+            logger.error(
+                ArcDiagnostic.EXPORTED_TYPE_TARGET,
+                "@$EXPORTED_TYPE_SIMPLE_NAME can only be applied to a class, enum class or interface.",
+                symbol
+            )
+            return
+        }
+        val qualifiedName = declaration.qualifiedName?.asString()
+        if (qualifiedName == null || declaration.parentDeclaration != null) {
+            logger.error(
+                ArcDiagnostic.EXPORTED_TYPE_TARGET,
+                "@$EXPORTED_TYPE_SIMPLE_NAME types must be top-level; nested and local types are not supported.",
+                declaration
+            )
+            return
+        }
+        if (!validateExportedTypeShape(declaration, qualifiedName)) return
+        if (metadataCollector.collectDeclaration(declaration, qualifiedName)) exportRoots += qualifiedName
+    }
+
+    private fun validateExportedTypeShape(declaration: KSClassDeclaration, qualifiedName: String): Boolean {
+        if (!declaration.isPublic()) {
+            logger.error(
+                ArcDiagnostic.EXPORTED_TYPE_TARGET,
+                "Exported type '$qualifiedName' must be public so generated clients can use it.",
+                declaration
+            )
+            return false
+        }
+        if (declaration.typeParameters.isNotEmpty()) {
+            logger.error(
+                ArcDiagnostic.EXPORTED_TYPE_TARGET,
+                "Exported type '$qualifiedName' must not declare type parameters; " +
+                    "a generic definition has no single shape to generate.",
+                declaration
+            )
+            return false
+        }
+        val kind = declaration.classKind
+        if (kind != ClassKind.CLASS && kind != ClassKind.ENUM_CLASS && kind != ClassKind.INTERFACE) {
+            logger.error(
+                ArcDiagnostic.EXPORTED_TYPE_TARGET,
+                "Exported type '$qualifiedName' must be a class, enum class or interface.",
+                declaration
+            )
+            return false
+        }
+        if (kind == ClassKind.CLASS && Modifier.ABSTRACT in declaration.modifiers) {
+            logger.error(
+                ArcDiagnostic.EXPORTED_TYPE_TARGET,
+                "Exported type '$qualifiedName' must not be abstract; " +
+                    "export the concrete derived types instead.",
+                declaration
+            )
+            return false
+        }
+        return true
+    }
+
     private fun registerQuery(model: QueryModel, source: KSFunctionDeclaration): Boolean {
         if (!queryNames.add(model.fullyQualifiedName)) {
             logger.error(
@@ -260,7 +349,7 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
             logger.error("Command '$qualifiedName' must be a concrete class.", command)
             return null
         }
-        if (Modifier.PUBLIC !in command.modifiers) {
+        if (!command.isPublic()) {
             logger.error("Command '$qualifiedName' must be public so its generated handler can invoke it.", command)
             return null
         }
@@ -283,7 +372,7 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
             return null
         }
         val handler = namedHandlers.single()
-        if (Modifier.PUBLIC !in handler.modifiers) {
+        if (!handler.isPublic()) {
             logger.error("Handler '$qualifiedName.$HANDLER_NAME' must be public.", handler)
             return null
         }
@@ -313,7 +402,7 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
         }
         val provideMethod = namedProvides.singleOrNull()
         val provide = provideMethod?.let { method ->
-            if (Modifier.PUBLIC !in method.modifiers) {
+            if (!method.isPublic()) {
                 logger.error("Provide method '$qualifiedName.$PROVIDE_NAME' must be public.", method)
                 return null
             }
@@ -770,11 +859,39 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
     }
 
     private fun discoverDeclarativeHandledResponseTypes(resolver: Resolver): List<KSAnnotated> {
-        // KSP exposes annotated source declarations here, but not arbitrary dependency declarations. Classpath scanning
-        // would be nondeterministic, so dependency contracts are used only if a future KSP resolver exposes them.
+        // Only stable names cross rounds. Revalidate binary annotations and SPI through this resolver.
+        handledTypeContributions.clear()
+        exportedHandlers.clear()
+        importedHandlers.forEach { imported ->
+            val declaration = resolver.getClassDeclarationByName(resolver.getKSNameFromString(imported.handler))
+            fun invalid(reason: String) {
+                graphLogger.error(ArcDiagnostic.COMMAND_HANDLER,
+                    "Dependency handler '${imported.handler}' in ${imported.resource} $reason; rebuild the producer " +
+                        "and dependency handler index.")
+            }
+            if (declaration == null) {
+                invalid("cannot be resolved on the compilation classpath")
+                return@forEach
+            }
+            val values = declaration.annotationsNamed(HANDLES_COMMAND_RESPONSE_VALUES_ANNOTATION)
+                .flatMap { it.argumentValues("value").asSequence() }.mapNotNull { it as? KSType }.toList()
+            if (!declaration.validateForProcessing() || values.any(KSType::isError)) {
+                hasDeferredInputs = true
+                invalid("has unresolved annotation or SPI types")
+                return@forEach
+            }
+            if (!declaration.isPublic() || declaration.parentDeclaration != null ||
+                !isSupportedResponseValueHandler(declaration) || !values.all(::isExportableResponseType) ||
+                values.mapNotNull { it.declaration.qualifiedName?.asString() }.distinct().sorted() != imported.values) {
+                invalid("does not agree with its public top-level annotation and supported handler SPI")
+                return@forEach
+            }
+            handledTypeContributions[imported.handler] = imported.values
+        }
         val discovered = resolver.getSymbolsWithAnnotation(HANDLES_COMMAND_RESPONSE_VALUES_ANNOTATION, inDepth = true)
             .toList()
-        responseHandlerNames += discovered.filterIsInstance<KSClassDeclaration>().mapNotNull { it.qualifiedName?.asString() }
+        responseHandlerNames += discovered.filterIsInstance<KSClassDeclaration>()
+            .filter { it.containingFile != null }.mapNotNull { it.qualifiedName?.asString() }
         val symbols = responseHandlerNames.mapNotNull { name ->
             resolver.getClassDeclarationByName(resolver.getKSNameFromString(name)).also {
                 if (it == null) hasDeferredInputs = true
@@ -824,11 +941,27 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
                     )
                     return@forEach
                 }
+                val imported = importedHandlers.firstOrNull { it.handler == qualifiedName }
+                if (imported != null && imported.values != handledTypes.distinct().sorted()) {
+                    graphLogger.error(ArcDiagnostic.COMMAND_HANDLER,
+                        "Handler '$qualifiedName' conflicts with ${imported.resource}; remove the conflicting declaration.", declaration)
+                    return@forEach
+                }
                 handledTypeContributions[qualifiedName] = handledTypes
+                if (declaration.containingFile != null && declaration.isPublic() && declaration.parentDeclaration == null &&
+                    ResponseHandlerMetadata.exportableName(qualifiedName) && handledTypeSymbols.all(::isExportableResponseType)) {
+                    exportedHandlers[qualifiedName] = handledTypes.distinct().sorted()
+                }
             }
         declarativeHandledResponseTypes.clear()
         declarativeHandledResponseTypes += handledTypeContributions.values.flatten()
         return deferred
+    }
+
+    private fun isExportableResponseType(value: KSType): Boolean {
+        val type = value.declaration as? KSClassDeclaration ?: return false
+        return type.isPublic() && type.parentDeclaration == null &&
+            type.qualifiedName?.asString()?.let(ResponseHandlerMetadata::exportableName) == true
     }
 
     private fun isSupportedResponseValueHandler(declaration: KSClassDeclaration): Boolean =
@@ -1002,7 +1135,7 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
             logger.error("Read model '$qualifiedName' must be a concrete class.", readModel)
             return false
         }
-        if (Modifier.PUBLIC !in readModel.modifiers) {
+        if (!readModel.isPublic()) {
             logger.error("Read model '$qualifiedName' must be public so generated performers can use it.", readModel)
             return false
         }
@@ -1102,7 +1235,7 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
             if (Modifier.JAVA_STATIC !in function.modifiers) {
                 logger.error("Java query '$qualifiedName.$methodName' must be static.", function)
                 valid = false
-            } else if (Modifier.PUBLIC !in function.modifiers) {
+            } else if (!function.isPublic()) {
                 logger.error("Java query '$qualifiedName.$methodName' must be public.", function)
                 valid = false
             } else {
@@ -1154,8 +1287,17 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
         val declaringTypeName = requireNotNull(readModel.qualifiedName).asString()
         val methodName = function.simpleName.asString()
         val identity = "$declaringTypeName.$methodName"
-        if (Modifier.PUBLIC !in function.modifiers) {
+        if (!function.isPublic()) {
             logger.error("Query '$identity' must be public.", function)
+            return null
+        }
+        // Only actual Kotlin query candidates reach this point; unrelated private companions are not artifacts.
+        if (readModel.origin != Origin.JAVA && function.parentDeclaration?.isPublic() != true) {
+            logger.error(
+                ArcDiagnostic.QUERY_DECLARATION,
+                "Query '$identity' must be declared in a public companion object; make the companion public.",
+                function
+            )
             return null
         }
         if (Modifier.ABSTRACT in function.modifiers) {
@@ -1894,8 +2036,15 @@ $keyResolution$preparation
         }
         val argumentBindings = query.parameters.mapIndexedNotNull { index, parameter ->
             if (parameter.source != QueryParameterSource.CLIENT) return@mapIndexedNotNull null
-            val requiresGenericCast = parameter.renderedTypeName.removeSuffix("?") != parameter.erasedTypeName
-            val checkedValue = """(_argument${index}Value as? ${parameter.erasedTypeName}
+            // Concrete object arrays have a reifiable JVM component type; a raw Kotlin Array
+            // is not compilable and Array<*> would discard the generated component check.
+            val checkedType = if (parameter.erasedTypeName == "kotlin.Array") {
+                parameter.renderedTypeName.removeSuffix("?")
+            } else {
+                parameter.erasedTypeName
+            }
+            val requiresGenericCast = parameter.renderedTypeName.removeSuffix("?") != checkedType
+            val checkedValue = """(_argument${index}Value as? $checkedType
                 ?: io.cratis.arc.queries.QueryArgumentResolver.wrongType(
                     ${quote(parameter.name)},
                     ${quote(parameter.typeName)}
@@ -2488,6 +2637,7 @@ public class $className : io.cratis.arc.artifacts.ArcArtifactModule(
     ) {
         is List<*> -> value
         is Array<*> -> value.toList()
+        is KSType -> listOf(value) // Java's single-element annotation array shorthand.
         else -> emptyList<Any>()
     }
 
@@ -2511,6 +2661,8 @@ public class $className : io.cratis.arc.artifacts.ArcArtifactModule(
         const val COMMAND_KEY_ANNOTATION = "io.cratis.arc.artifacts.CommandKey"
         const val READ_MODEL_ANNOTATION = "io.cratis.arc.artifacts.ReadModel"
         const val READ_MODEL_SIMPLE_NAME = "ReadModel"
+        const val EXPORTED_TYPE_ANNOTATION = "io.cratis.arc.artifacts.ExportedType"
+        const val EXPORTED_TYPE_SIMPLE_NAME = "ExportedType"
         const val FROM_SERVICES_ANNOTATION = "io.cratis.arc.artifacts.FromServices"
         const val TREAT_WARNINGS_AS_ERRORS_ANNOTATION = "io.cratis.arc.artifacts.TreatWarningsAsErrors"
         const val AUTHORIZE_ANNOTATION = "io.cratis.arc.authorization.Authorize"

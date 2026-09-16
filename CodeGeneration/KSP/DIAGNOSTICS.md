@@ -33,5 +33,6 @@ Arc KSP prefixes every compile-time diagnostic with a stable code. Errors stop c
 | `ARCKSP0303` | Error | Missing or blank @DerivedType identifier |
 | `ARCKSP0304` | Error | Unsupported @DerivedType declaration target |
 | `ARCKSP0305` | Error | Concrete polymorphic base used as a property type |
+| `ARCKSP0306` | Error | Unsupported @ExportedType declaration target |
 | `ARCKSP0400` | Warning | Java/Kotlin interoperability hazard |
 | `ARCKSP9999` | Error | Unclassified Arc KSP diagnostic |

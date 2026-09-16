@@ -67,7 +67,7 @@ internal class ArcAuthenticationFilter(
             return
         }
         if (!httpRequest.isAsyncSupported) {
-            writeUnauthorized(httpResponse)
+            writeUnauthorized(httpResponse, correlationId.toString())
             return
         }
 
@@ -83,18 +83,18 @@ internal class ArcAuthenticationFilter(
                     httpRequest.setAttribute(AUTHENTICATION_DISPATCHED_ATTRIBUTE, true)
                     asyncContext.dispatch()
                 } else {
-                    writeUnauthorized(httpResponse)
+                    writeUnauthorized(httpResponse, correlationId.toString())
                     asyncContext.complete()
                 }
             } catch (exception: CancellationException) {
                 throw exception
             } catch (_: Exception) {
-                writeUnauthorized(httpResponse)
+                writeUnauthorized(httpResponse, correlationId.toString())
                 asyncContext.complete()
             }
         }
         if (job == null) {
-            writeServiceUnavailable(httpResponse)
+            writeServiceUnavailable(httpResponse, correlationId.toString())
             asyncContext.complete()
             return
         }
@@ -124,9 +124,10 @@ internal class ArcAuthenticationFilter(
         }
     }
 
-    private fun writeServiceUnavailable(response: HttpServletResponse) {
+    private fun writeServiceUnavailable(response: HttpServletResponse, correlationId: String) {
         if (response.isCommitted) return
         response.reset()
+        response.setHeader(properties.correlationHeader, correlationId)
         response.status = HttpServletResponse.SC_SERVICE_UNAVAILABLE
         response.setHeader("Retry-After", properties.overloadRetryAfterSeconds.toString())
         response.contentType = "text/plain"
@@ -135,9 +136,10 @@ internal class ArcAuthenticationFilter(
         response.writer.flush()
     }
 
-    private fun writeUnauthorized(response: HttpServletResponse) {
+    private fun writeUnauthorized(response: HttpServletResponse, correlationId: String) {
         if (response.isCommitted) return
         response.reset()
+        response.setHeader(properties.correlationHeader, correlationId)
         response.status = HttpServletResponse.SC_UNAUTHORIZED
         response.contentType = "text/plain"
         response.characterEncoding = StandardCharsets.UTF_8.name()

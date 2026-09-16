@@ -34,6 +34,53 @@ cratisArc {
 }
 ```
 
+## Share types with an existing npm package
+
+A type can be answered by configuration instead of being generated, so a model already published in a
+TypeScript package is imported rather than duplicated.
+
+```kotlin
+proxies {
+    // A JVM type that should cross the wire as a plain TypeScript type.
+    mapType("java.time.Duration", "string")
+
+    // A JVM type that is imported from an npm package.
+    mapType("io.acme.shared.Money", "Money", "@acme/models")
+
+    // Every model type under a JVM package, imported by its simple name.
+    mapPackage("io.acme.shared.model", "@acme/models")
+}
+```
+
+Type mappings are consulted **ahead of** the generator's built-in type map, so an entry can correct an
+existing mapping as well as declare one the generator has never seen. Concepts are unwrapped first, so
+map the concept's underlying type rather than the concept.
+
+A mapped type is **not generated**. Emitting it as well would put a local declaration and an external
+import of the same name in scope. For a package mapping the longest matching JVM package wins, so a
+nested package can override a broader one.
+
+Unpackaged overrides support `string`, `number`, `boolean`, `object`, and `Date`, with their actual
+JavaScript runtime constructors (`String`, `Number`, `Boolean`, `Object`, and `Date`). Packaged
+mappings require a named export. Manifest interfaces use type-only imports and `Object` descriptors;
+manifest numeric enums use type-only imports and `Number` descriptors. Other mapped types must export
+a constructible class with fields registered using Fundamentals `@field` decorators. A plain,
+undecorated class is not a hydration contract: its payload fields may be lost. Mappings change client
+generation, not server serialization; the package must honor the existing JSON wire shape.
+
+A missing or blank mapping component is named in a build warning and skipped. Nonblank but unsafe or
+unrepresentable mappings, import collisions, and overrides of command or concept declarations fail
+before output is written. Map the properties/response of a command or the underlying value of a concept
+instead. Arbitrary TypeScript expressions, unions, arrays in a type name, and ambient undeclared
+constructors are not supported. Map values only support primitive overrides; external map-value
+hydration and externally mapped polymorphic bases/derivatives are not supported.
+
+The standalone CLI takes the same values as repeatable `--type-to-typescript
+<FullyQualifiedTypeName>=<TypeScriptType>[=<NpmPackage>]` and `--package-to-npm <JvmPackage>=<NpmPackage>`
+options. The value is split on at most two separators. Anything after the second stays in the package
+field and is validated as part of its import path; it is never silently discarded. Neither the exported
+identifier nor the npm import path may contain an `=`.
+
 ## Run the task
 
 ```bash
@@ -56,6 +103,27 @@ graph LR
 A manifest query with `OBSERVABLE` transport generates an `ObservableQueryFor` class. Enumerable queries include React hooks for observable snapshots, suspense, paging, sorting, and change streams; single-model queries include observable and suspense hooks. Generated `when` helpers conditionally subscribe, and client query parameters retain validation and HTTP preference metadata. Infrastructure-owned service, `QueryRequest`, and `QueryContext` parameters are omitted from one-shot and observable parameter interfaces, descriptors, required-argument lists, properties, validators, sorting helpers, React hooks, and imports.
 
 The generated clients use the Spring host's direct or multiplexed observable transports provided by `@cratis/arc`. See [Expose one-shot and observable queries](queries.md) for the HTTP, SSE, and WebSocket contracts.
+
+## Sort by returned-row fields
+
+For enumerable queries whose metadata advertises sorting, `sortBy` helpers name properties of the
+**returned model**, including class-base properties already represented in the manifest. Request-only
+arguments such as `filter` do not become sort keys. Parameterless queries can therefore expose useful
+row-field helpers too. Both one-shot and observable clients follow this rule.
+
+This does not grant new paging or sorting capabilities, infer database indexes, or guarantee that every
+field is sortable by a custom provider. The renderer/provider still determines which keys it supports;
+use an explicit `Sorting` value for provider-specific keys not present in result metadata. Scalar and
+empty result models have no named field helpers. Interface inheritance not represented in the manifest
+is not invented by the generator.
+
+Regenerate clients when upgrading: helpers for request-only arguments disappear, and the helper's old
+public `query` owner reference is no longer emitted, allowing a result field named `query` to have its
+own sorting helper. Private helper storage is collision-safe for fields such as `_name` and `name`,
+including inherited fields. A member named `constructor` cannot be emitted as a class accessor and
+fails generation with an actionable error; expose a different result contract for that case.
+Arc .NET at `v22.14.0` also derives model-bound helper names from method parameters;
+using result fields here is a deliberate JVM correctness divergence, not matching raw .NET output.
 
 ## Use JVM temporal and UUID types
 
@@ -100,6 +168,20 @@ Arc accepts and emits `LocalTime` values with up to seven fractional digits for 
 `LocalDateTime`, `Instant`, `OffsetDateTime`, and `ZonedDateTime` remain JavaScript `Date`. A `LocalDateTime` has no zone, so constructing a JavaScript instant invents one. `OffsetDateTime` and `ZonedDateTime` can preserve the represented instant but not their original offset or zone identity. Use an application-owned representation when those distinctions are part of the domain contract.
 
 Concept wrapper classes are not emitted or imported into the client. Imports are retained for generated underlying enums and model classes when Arc needs them for typing or runtime result construction. Type-only generated interfaces use `import type` where appropriate, and the strict contract enables `verbatimModuleSyntax` so accidental runtime imports fail compilation. The OpenAPI starter continues to describe `UUID`, `LocalDate`, and `LocalTime` as `string`/`uuid`, `string`/`date`, and `string`/`time`; the richer classes are generated-client types, not new wire shapes.
+
+## Include declared body properties
+
+Generated command and model metadata preserves public constructor-property order and appends remaining eligible public declared Kotlin properties sorted by name. Backed body `var`, backed `val`, and private-setter `var` state uses the existing shape, key, constraint, summary, and reachable-model machinery. Member `@JsonIgnore` and nonpublic Kotlin state are excluded. A model's inherited state remains in its separate base model, with declared overrides retained; inherited command state is not established by this change.
+
+Computed getters remain available on output-only models, but computed or explicitly read-only Kotlin state in command input graphs fails with `ARCKSP0300`, also when the root is a Java record. Unrepresentable body Jackson renames, write-only access, or split ignore/property annotations likewise fail rather than emitting falsely writable or wrongly named fields. Use default Arc wire names, backed input properties, and separate output models; see [command body state](commands.md#declare-body-state-explicitly). Arbitrary application Jackson overrides are not inferred by KSP.
+
+This corrects previously missing generated fields, body command keys, and validation; review the resulting client changes. Body initializers are not copied as TypeScript defaults. Manifest format 7 and the existing descriptor schema remain unchanged. Native contract fixtures assert real Jackson wire names, generated Kotlin and ordinary-Java invocation, manifest/discovery metadata, and TypeScript text; incremental add/remove and invalid-to-valid builds assert byte-stable regenerated artifacts. These checks do not establish broader Arc .NET parity.
+
+## Declare nonnullable sequence elements
+
+Command, model, interface, and read-model properties may use nullable outer `List<T>?`, `Collection<T>?`, and `Array<T>?` containers with nonnullable elements. The manifest retains outer nullability and the sequence kind; generated model fields remain optional `T[]` fields. Nullable entries such as `List<T?>`, `Collection<T?>?`, and `Array<T?>?` are unsupported and now fail at the member with `ARCKSP0300`, before an incompatible manifest can reach proxy discovery.
+
+Java `List<@Nullable T>` and `List<@CheckForNull T>` entries are explicitly nullable, including record components handled through source fallback. Ordinary unannotated Java platform elements remain accepted; platform types are not explicit nullable declarations. This tightens source acceptance: previously accepted nullable-entry declarations must change to nonnullable elements. It does not change manifest format 7, expand collection-interface query support, or relax existing Java array and generic-variance restrictions.
 
 ## Use string-keyed map properties
 
@@ -164,6 +246,60 @@ The `:ContractTests:typeScriptRuntimeTest` gate then builds the executable Kotli
 
 Recursive type shapes and source summaries were introduced in artifact manifest format 6. Current format 7 adds optional typed command `eventMetadata` while preserving immutable Java-friendly `TypeShapeDescriptor` metadata, legacy JVM constructor descriptors, and compatibility getters. A command without event defaults omits `eventMetadata`; the reader accepts exactly the current format so a classpath cannot silently mix metadata generations. Generated format 7 query parameter nodes include an explicit canonical value `source`; canonical file discovery requires it while legacy programmatic `ParameterDescriptor` constructors still project to `CLIENT` or `SERVICE` and serialize canonically. Unversioned, legacy-only, contradictory, or unsupported-context manifests fail. The temporal/UUID generated TypeScript type changes remain source-breaking for client consumers as described above.
 
-A separate differential test generates a shared JVM artifact fixture and compares its complete sorted output path set and bodies exactly with a repository-local expected fixture intended for source control. Exact comparison occurs after CRLF-to-LF and volatile generated-header normalization, the expected fixture's capture-time namespace and query-name casing transformations, and expected-side .NET import rewrites required by `verbatimModuleSyntax`. Those rewrites mark `SetCommandValues`, `ClearCommandValues`, and query helper types including `PerformQuery`, `SetSorting`, `SetPage`, `SetPageSize`, and `ChangeSet` as type-only imports. One expected-side correction in that repository-local fixture at `Commands/CreateFixtures.ts` also changes the exact declaration `Command<ICreateFixtures, FixtureModel>` to `Command<ICreateFixtures, FixtureModel[]>`. Current .NET output already calls `super(FixtureModel, true)` and is enumerable at runtime, so the scalar generic is a known typing defect. The .NET-derived `FixtureModel.labelsByCategory` capture already contains `@field(Object)` and `Record<string, string>` and receives no dictionary rewrite; after the documented line-ending/header and import normalization, that exact declaration is compared byte-for-byte. It proves only this string-key/string-value Record fixture, not non-string keys, nullable entries, typed model values, `ValueMap`, or broader dictionary parity. The guarded normalizations leave actual JVM output untouched, so a JVM scalar regression still fails. Covered shapes include commands, one-shot and observable queries, models, interfaces, derived types, enums, flags, validators, indexes, and that bounded Record fixture. The current .NET fixture contains no `Guid`, `DateOnly`, or `TimeOnly`, so the temporal/UUID mapping itself is covered by focused generator and contract tests rather than this differential. The gate detects drift from the normalized fixture; it does not establish exact raw-output compatibility or broader Arc .NET parity. Capture-time fixture preparation still needs reproducible tooling.
+The separate `ArcGradlePluginTest` test `raw jvm proxy bytes equal the prepared expected fixture` generates a shared JVM artifact fixture and compares all regular files against the repository-local .NET-derived fixture under `GradlePlugin/src/test/resources/differential/dotnet/`. It compares sorted relative paths (only path separators are normalized), then untouched JVM bytes with `assertArrayEquals`, including headers, whitespace, line endings, and terminal newlines. Expected preparation never reads actual output or calls the production hash helper. Failures report byte lengths and the first differing byte offset. Mutation tests use this same reader, expected preparer, and comparator, rejecting altered bytes and paths, including a changed body with an internally valid recomputed hash.
+
+This remains a drift gate for the normalized fixture, not an exact raw .NET-output comparison; capture-time fixture preparation is not yet reproducible tooling. Capture SDK and tool versions remain unverified. The .NET-derived `FixtureModel.labelsByCategory` capture already contains `@field(Object)` and `Record<string, string>` and receives no dictionary-shape rewrite, although its file receives the formatting preparation below. It proves only this string-key/string-value Record fixture, not non-string keys, nullable entries, typed model values, `ValueMap`, or broader dictionary parity. Covered shapes include commands, one-shot and observable queries, models, derived types, enums, flags, validators, indexes, and that bounded Record fixture. `Contracts/Shape.ts` is a class, not proof of interface emission. The current .NET fixture contains no `Guid`, `DateOnly`, or `TimeOnly`, so the temporal/UUID mapping itself is covered by focused generator and contract tests rather than this differential. Overall Arc .NET parity remains Partial.
+
+### Verify the separate captured baseline offline
+
+The seven-file `differential/captured` comparison is separate from the nineteen-file historical fixture
+above. `:GradlePlugin:verifyCapturedProxyBaseline` runs before `:GradlePlugin:test` and binds that
+seven-file snapshot to the reviewed capture-input hashes and SDK/runtime/package/tool pins. Mutation
+tests prove that stale scripts/lockfiles, changed proxy bytes, renewed snapshot checksums, and malformed
+or incomplete metadata fail. Normal verification reads local repository files only; it requires Python
+but no .NET SDK, network, package cache, or retained session capture.
+
+The baseline receipt is a consistency check, not cryptographic proof that a publisher's tool ran.
+After changing a generation input, use the capture harness's explicit pinned-package capture and
+`verify_baseline.py --candidate <full-capture>` workflow, review the normalized diff, then update the
+receipt and fixture together where necessary. The candidate command verifies raw-to-normalized bytes
+and current input pins, and prints JSON without changing either reviewed fixture. See the harness
+README under `GradlePlugin/src/test/resources/differential/capture/` for the exact commands and safety
+boundaries. Do not update hashes alone to clear stale-input failures. Overall parity remains Partial.
+
+### Expected-only differential preparation
+
+Historical capture-time namespace and query-name casing transformations and removal of timestamps/hashes are already embedded in the 19 checked-in files; this test does not reproduce that capture. Its executable preparation is limited to:
+
+1. Decode expected UTF-8, convert CRLF to LF, remove trailing whitespace on each expected line, and finish with one terminal LF.
+2. In `Models/FixtureModel.ts`, replace double quotes with single quotes and three-space indentation with four spaces; preserve the Record declaration.
+3. In `Commands/CreateFixtures.ts`, replace double quotes with single quotes, flatten the multiline React command import, change `this.ruleFor((c) =>` to `this.ruleFor(c =>`, expand the empty request-parameter array layout, and flatten the class declaration and static hook declaration/call.
+4. At exactly one known `CreateFixtures` class declaration, correct `Command<ICreateFixtures, FixtureModel>` to `Command<ICreateFixtures, FixtureModel[]>`. The captured command already calls `super(FixtureModel, true)`; its scalar generic contradicts enumerable runtime behavior.
+5. At exactly the known `CreateFixtures` static hook return, insert the `eslint-disable-next-line @typescript-eslint/ban-ts-comment` and `@ts-ignore` pair. Only the complete pair immediately before the exact return is accepted if already present; missing/duplicate hooks or misplaced/incomplete/additional suppressions fail preparation. This is not a type-soundness claim for ignored hook calls.
+6. Apply five literal type-only import rewrites for `verbatimModuleSyntax`: React command `SetCommandValues`/`ClearCommandValues`; pageable one-shot `PerformQuery`/`SetSorting`/`SetPage`/`SetPageSize`; non-pageable one-shot `PerformQuery`/`SetSorting`; observable `ChangeSet`; and observable React `SetSorting`/`SetPage`/`SetPageSize`. Some are no-ops on the current capture; the one-shot rewrites remain active.
+7. Only in `Models/Observe.ts`, require exactly one literal `ObserveParameters` interface block with a zero-space blank line immediately before its four-space-indented `filter: string;` member. Replace that blank line with exactly four spaces. This is a parameter-bearing interface, not an empty interface; `ObserveOne.ts` has no parameter interface and is not included. Missing/duplicate anchors fail preparation, other paths/blocks stay untouched, and wrong actual whitespace still fails the comparison.
+8. For exactly `Models/All.ts`, `Models/Search.ts`, and `Models/Observe.ts`, replace the two parameter-derived sort-helper classes with return-field helpers for the literal list `identifier`, `labelsByCategory`, `permissions`, `state`, `updatedAt`. Their constructor no longer stores a public `query` field. `ExpectedSortHelperPreparation` checks unique class/end anchors and a fixed SHA-256 of each original block before changing it; the literal field list is cross-checked against fixture model metadata, never actual output. Only `All.ts` gains the previously absent `SortingActions`/`SortingActionsForQuery` imports. Request parameters, routes, hooks, and capability flags are untouched. Missing/duplicate/changed source blocks fail, and an actual helper pointing to `filter` instead of `identifier` fails the byte comparison. This is an explicit semantic correction for the JVM result-field behavior, not source-output parity.
+9. Validate each captured source-only first line against the independent source table below, cross-checked against the JVM fixture descriptors. Remove only that validated expected header, SHA-256 hash the prepared expected body as UTF-8 (including the DO NOT EDIT banner and terminal LF), and prepend `// @generated by Cratis. Source: <source>. Hash: <64 uppercase hex>` plus LF. The independent hash test asserts the fixed `abc` vector `BA7816BF8F01CFEA414140DE5DAE2223B00361A396177A9CB410FF61F20015AD`. Unknown paths, wrong sources, and missing/duplicate markers fail preparation.
+
+No normalization transforms JVM output. The three indexes `Commands/index.ts`, `Contracts/index.ts`, and `Models/index.ts` stay headerless. The 16 artifact identities are literal expected data, not values inferred from actual headers. Queries use their declaring model, not their query fully qualified name.
+
+| Fixture path | Expected source identity |
+| --- | --- |
+| `Commands/CreateFixtures.ts` | `differential.fixture.commands.CreateFixtures` |
+| `Contracts/Shape.ts` | `differential.fixture.contracts.Shape` |
+| `Models/All.ts` | `differential.fixture.models.FixtureModel` |
+| `Models/ById.ts` | `differential.fixture.models.FixtureModel` |
+| `Models/Circle.ts` | `differential.fixture.models.Circle` |
+| `Models/EmptyModel.ts` | `differential.fixture.models.EmptyModel` |
+| `Models/FixtureModel.ts` | `differential.fixture.models.FixtureModel` |
+| `Models/FixturePermissions.ts` | `differential.fixture.models.FixturePermissions` |
+| `Models/FixtureState.ts` | `differential.fixture.models.FixtureState` |
+| `Models/GetEmpty.ts` | `differential.fixture.models.EmptyModel` |
+| `Models/GetShapes.ts` | `differential.fixture.models.ShapeHolder` |
+| `Models/Observe.ts` | `differential.fixture.models.FixtureModel` |
+| `Models/ObserveOne.ts` | `differential.fixture.models.FixtureModel` |
+| `Models/Search.ts` | `differential.fixture.models.FixtureModel` |
+| `Models/ShapeBase.ts` | `differential.fixture.models.ShapeBase` |
+| `Models/ShapeHolder.ts` | `differential.fixture.models.ShapeHolder` |
 
 Published Kotlin APIs are also guarded by checked-in binary-compatibility baselines. `apiCheck` covers the runtime integrations and testing module as well as `arc-ksp` and `arc-gradle-plugin`, so compiler and build-tool contracts cannot drift without an intentional baseline update.

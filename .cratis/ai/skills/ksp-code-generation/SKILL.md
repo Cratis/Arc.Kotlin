@@ -6,8 +6,10 @@ description: Use when changing the Arc KSP symbol processor or anything it emits
 # Change the KSP processor or what it generates
 
 `:CodeGeneration:KSP` turns annotated Kotlin and Java sources into reflection-free command
-handlers, query performers, an artifact module, and one JSON manifest per compilation. The
-Gradle plugin consumes that manifest to render TypeScript proxies. A processor change is
+handlers, query performers, an artifact module, and one JSON manifest per command/query compilation.
+It also exports supported public top-level source response-handler declarations as a separate
+format-1 resource, including in handler-only compilations. The Gradle plugin consumes the artifact
+manifest to render TypeScript proxies. A processor change is
 therefore never local: it moves generated code, a versioned transport contract, and possibly
 a compile-time diagnostic at once.
 
@@ -25,6 +27,7 @@ The whole processor lives under
 | `ArcSymbolProcessor.kt` | Round discovery, invocation generation, final metadata factories, validation, and module generation |
 | `MetadataCollector.kt` | Current-round reachable type/interface/enum/concept graph |
 | `ArcManifestJson.kt` | Reflection-independent, runtime-byte-equivalent manifest serialization |
+| `ResponseHandlerMetadata.kt` | Separate format-1 dependency handler index reader and source declaration writer |
 | `ValidationMetadataExtractor.kt` | Jakarta constraint translation |
 | `EnumValueParser.kt`, `JavaRecordParser.kt`, `Naming.kt` | Focused helpers |
 | `ArcDiagnostics.kt` | The stable `ARCKSP` catalog and the reporter |
@@ -37,7 +40,7 @@ Constants that define the contract are in the `private companion object` at the 
 `page`, `pagesize`, `sortby`, `sortdirection`. Read them rather than assuming.
 
 Handlers and performers are emitted during processing with explicit descriptor types. Their
-factories are finalized after source discovery; do not freeze response classification or property
+factories are finalized after source and indexed dependency discovery; do not freeze response classification or property
 derivatives into early invokers. Rebuild metadata from stable discovered names with the current
 resolver, and retain genuine deferrals.
 
@@ -48,6 +51,17 @@ with a configured module name and at least one command or query, it writes four 
 - the generated artifact module class in the generated package;
 - `META-INF/services/io.cratis.arc.artifacts.ArcArtifactModule`;
 - `META-INF/cratis/arc/<moduleName>.json`, the manifest.
+
+Independently of commands and queries, a valid resolved snapshot with exportable source handlers
+writes `META-INF/cratis/arc-response-handlers/<moduleName>.json`. Handler-only compilations emit
+that resource without an artifact module or manifest; imported declarations are not re-exported.
+The optional `arc.responseHandlerMetadata` option accepts an absolute file URI for a format-1
+index extracted from dependency declaration resources by the Gradle plugin. Both internal readers
+use the `Naming.validateModuleName` contract: ASCII identifiers outside its declared keyword set,
+not a broader ban on context-sensitive words. Their shared module-name cases live in
+`CodeGeneration/KSP/src/test/resources/response-handler-module-names.csv` and run in both modules.
+Unindexed libraries remain undiscoverable; compile-time declarations do not register runtime handlers.
+The format-1 index is separate from the format-7 artifact manifest.
 
 ## 2. Treat the manifest as a versioned transport contract
 
@@ -160,7 +174,7 @@ Generated code and manifests flow outward. After the processor change compiles:
 ./gradlew :GradlePlugin:verifyContractTestProxyDeterminism --no-configuration-cache
 ```
 
-`:ContractTests:test` covers the generated Kotlin and Java artifacts, the format-5 manifest
+`:ContractTests:test` covers the generated Kotlin and Java artifacts, the format-7 manifest
 (`GeneratedArtifactManifestTest.kt`), and the generated proxy text
 (`GeneratedTypeScriptProxiesTest.kt`). If manifest content moved at all, continue with the
 **typescript-proxy-contracts** skill — the proxy renderer reads exactly what you changed.

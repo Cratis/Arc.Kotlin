@@ -46,13 +46,36 @@ This is the caveat most likely to be overstated. `parity.md` says, verbatim:
 
 Never describe `:GradlePlugin:test`'s `.NET`-derived comparison as "byte-identical to .NET output",
 "proves proxy parity", or "the generated TypeScript matches Arc .NET". What it actually compares is
-the sorted output path set and bodies of JVM output against a **repository-local expected fixture**,
-after CRLF-to-LF and generated-header normalization, the fixture's capture-time namespace and
-query-name casing transformations, and expected-side .NET import rewrites required by
-`verbatimModuleSyntax`. It also carries one deliberate expected-side correction at
+the sorted relative paths of all regular output files and untouched JVM bytes, including headers,
+against a **prepared repository-local expected fixture**. Only path separators are normalized on the
+actual side. The expected side validates 16 literal source identities, cross-checked with fixture
+descriptors (queries use declaring models), independently reconstructs uppercase SHA-256 headers
+from prepared expected bodies, and leaves three indexes headerless. The fixed `abc` hash vector and
+byte/path mutations, including a changed body with a valid recomputed hash, guard that comparison.
+
+The complete expected-only inventory is in
+[`Documentation/guides/typescript-proxies.md`](../../../../Documentation/guides/typescript-proxies.md#expected-only-differential-preparation):
+LF/per-line trailing whitespace and terminal newline preparation; FixtureModel quote/indent
+formatting; CreateFixtures quote/import/request-array/class/hook formatting; five literal type-only
+import rewrites for `verbatimModuleSyntax`; exactly one enumerable generic correction at
 `Commands/CreateFixtures.ts` (`Command<ICreateFixtures, FixtureModel>` to
-`Command<ICreateFixtures, FixtureModel[]>`), because the .NET side already calls
-`super(FixtureModel, true)`. `parity.md` further limits what the map fixture proves:
+`Command<ICreateFixtures, FixtureModel[]>`, because the captured command already calls
+`super(FixtureModel, true)`); and the exact-site eslint/ts-ignore hook pair, not arbitrary suppression.
+Only `Models/Observe.ts` also changes the zero-space blank line immediately before its four-space-
+indented `filter: string;` member in exactly one known `ObserveParameters` block to four spaces.
+This is not an empty interface, and `ObserveOne.ts` is excluded. The three captured helper pairs in
+`Models/All.ts`, `Models/Search.ts`, and `Models/Observe.ts` additionally receive an explicit
+expected-side result-field correction: fixed SHA-256 block digests and unique anchors are checked
+before replacing parameter-derived helper fields with the literal returned-model field inventory;
+only All gains the corresponding SortingActions imports. The constructor no longer stores a public
+`query` owner property. Request parameters, routes, hooks and capability flags are not changed.
+This semantic JVM correction is not raw .NET source-output parity. Missing/duplicate correction
+anchors and misplaced suppressions fail preparation. No type-soundness claim is made for ignored
+hook calls. `Contracts/Shape.ts` is a class, not interface-emission proof.
+
+Historical capture-time namespace/query-name casing transformations and removed timestamps/hashes
+remain embedded in the fixture, not reproducible capture tooling. Capture SDK/tool versions remain
+unverified. `parity.md` further limits what the map fixture proves:
 
 > It proves that one string-key/string-value Record fixture, not non-string keys, nullable entries,
 > typed model values, `ValueMap`, or broader dictionary parity.

@@ -53,6 +53,12 @@ data class CreateTask(@CommandKey val id: String, val title: String) {
 
 Without a usable `@CommandKey`, Arc returns an error validation result with `reason: "rule"` and `reasonDetail: "commandKey"`; it does not guess an event-source identifier.
 
+The command pipeline captures that key before validation and execution. Returned plain events use
+`CommandContext.commandKey`, not a second call to the provider after the handler may have mutated state.
+Mixed responses preserve the explicit identifiers of routed events. A manually constructed context
+must capture a `CommandKeyProvider` value through its constructor or explicitly supply a handler-resolved
+`commandKey`; a null key fails closed rather than falling back to the handler registry.
+
 ## Declare command event defaults
 
 Declare optional event metadata on the command when its returned events share stable Chronicle routing or compliance defaults:
@@ -85,6 +91,13 @@ Per-source concurrency scopes remain explicit: use `EventsWithConcurrencyScopes`
 The Spring integration starts one `ChronicleCommandTransaction` for the outermost command-execution root before filters. Nested commands executed in the same structured coroutine, or with `CommandExecutionOptions.nested(parentContext)`, receive distinct frame tokens but enroll in that same root. Child completion never appends. If any child or the root fails or is canceled—even when an outer handler ignores the child result—the root becomes rollback-only and discards every staged event.
 
 A successful root commits the selected event store's ordered events with exactly one `appendMany` call and the root correlation identifier. One root may use only one event-store object and namespace; attempts to switch stores, join with another correlation/namespace, enroll after sealing, or handle transactionally without active state fail closed. The public response-handler constructors without a transaction remain explicitly nontransactional and may append immediately.
+
+The pinned Chronicle client accepts only one causation chain per batch. Arc reuses one generated
+command link across separate enrollments from the same execution frame. Explicit wrapper lineage and
+nested-command frames remain distinct: heterogeneous chains are rejected before the gRPC append,
+not silently flattened or split into non-atomic batches. Supporting multiple command lineages in one
+batch remains a separate integration/protocol gap. The SDK preflight is exercised by
+`ChronicleStagedCausationTests`; these tests mock the transport and do not certify a real kernel.
 
 There are no nested savepoints. Arc seals the root before any execution scope completes, rejects late joins, and fails when an unawaited child remains live. Cancellation first supplies a failed cleanup result to every begun scope, performs reverse cleanup, and only then rethrows the original cancellation.
 

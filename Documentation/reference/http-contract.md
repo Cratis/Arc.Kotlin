@@ -26,6 +26,30 @@ description: Exact Arc servlet routes, methods, headers, envelopes, statuses, id
 
 Unsupported methods return 405 with an `Allow` header. Conventional routes use the configured prefix, skipped package segments, kebab case, and artifact name. Explicit query `@Path` values are preserved exactly.
 
+Default observable emission guards now reconstruct [bounded per-dispatch argument copies](../guides/queries.md#bound-emission-guard-arguments). Unsupported or uncopyable guarded arguments terminate with the existing unauthorized result before any guard executes; this is behavioral tightening, not a wire-schema change. No guards means no argument-copy validation. Query opening and result-data ownership are unchanged.
+
+## Paired HTTP conformance evidence
+
+The explicit `:ContractTests:httpConformanceTest` gate exercises the real generated Kotlin and Java
+Spring Boot task-board samples alongside a repository-authored ASP.NET Core task board using published
+`Cratis.Arc` 22.14.0. It requires JDK 17, pinned .NET SDK 10.0.400 and runtime 10.0.11, and an explicit
+lifecycle-owned output location; it is not part of ordinary `build` or `check`. Run instructions live
+in `ContractTests/HttpConformance/README.md`.
+
+Nine cases run independently on each host: initial empty query, two distinct typed create responses,
+GET and RFC QUERY identifier binding, enumerable snapshots, successful validation without execution,
+completion response/state, malformed command JSON without mutation, and unknown-route status. The
+harness checks complete two-task snapshots, success flags and correlation UUIDs, QUERY `no-store`,
+and malformed-command validation classification without parser details. It preserves raw responses;
+it does not normalize them into claimed byte equality.
+
+This is selected task-board HTTP evidence, not a guarantee that all declarations or features match.
+The Java array and .NET plain enumerable queries do not count rows like the Kotlin iterable query,
+so their paging totals remain outside the common assertions. Framework-generated 404 bodies differ;
+only their status is compared. Authentication/authorization rejection, custom validation-rule parity,
+null/default handling, temporal precision, paging requests, streaming and database behavior remain
+outside this fixture. See the [parity reference](parity.md).
+
 ## Request headers
 
 | Header | Behavior |
@@ -101,7 +125,15 @@ An observable query HTTP snapshot returns 200 with the current value when the qu
 
 Direct SSE writes exactly `data: {QueryResult}\n\n`. Direct WebSocket data uses a `Data` frame with the `QueryResult` in `data`; `Ping` and `Pong` carry `timestamp`.
 
+When a direct producer completes, fails during opening, or emits an unauthorized terminal result, the transport stops accepting frames and cancels heartbeats, then writes already accepted frames in order before closing. Connection capacity and health remain registered until those writes finish. Final draining uses `cratis.arc.request-timeout` (30 seconds by default) as the asynchronous request-completion budget, measured from producer completion; values below one millisecond use one millisecond rather than permitting an unlimited drain. The separate SSE connection-lifetime timeout still applies and can abort earlier.
+
+Disconnect, transport error, outbound overflow, application shutdown, or expiry of that drain budget aborts instead: queued frames are discarded, upstream work is cancelled, and connection capacity and health are released once. WebSocket outbound overflow retains close code 1013 rather than being replaced by normal closure. Lifecycle calls do not wait for blocking writes or native container closure, and native close is requested outside lifecycle locks. This bounds logical drain time, not writer-thread termination or peer acknowledgement: cancellation cannot interrupt arbitrary blocking servlet/socket I/O, and an in-progress write or native close may outlive the budget under the container's own I/O timeouts.
+
 Hub JSON uses exact PascalCase types: `Connected`, `Subscribe`, `Unsubscribe`, `QueryResult`, `Unauthorized`, `Error`, `Ping`, and `Pong`. `queryId` and a positive JavaScript-safe `revision` are echoed on result and terminal messages. `Connected` includes `keepAliveIntervalMs` and `supportsSubscriptionRevisions: true`. Subscription payloads accept `queryName`, string `arguments`, paging, sorting, and an optional `transferMode` (`full` or `delta`). `full` sends the snapshot without a `changeSet`, `delta` sends the full first snapshot and then only a `changeSet`, and omitting the field selects the legacy behavior of a snapshot plus a `changeSet` on every result.
+
+If an opening finishes after its subscription has already been replaced or unsubscribed, both hubs discard its opening failure instead of emitting `Error` or `Unauthorized`. Current-operation failures retain their terminal envelopes and revisions. This ownership check does not retract already queued frames or make socket writes atomic with subscription changes.
+
+Both hubs defensively capture the subscription's original string-or-null arguments. They validate those arguments before reserving subscription state, then bind the captured input again against the same query metadata on the asynchronous runner. This preserves declared scalar and boxed-array types, omitted Kotlin defaults, and explicit nulls; it is not arbitrary JVM object cloning. Application converters therefore run twice and must be deterministic and independent of request-thread state. Canonical `Collection` and `MutableCollection` metadata can be bound by the host, but generated collection-interface query parameters remain rejected by KSP; manual metadata support does not establish generated collection support. Explicit validation severity is retained, and an omitted severity uses the subscribed query's `TreatWarningsAsErrors` default.
 
 A subscription's `transferMode` is matched case-insensitively, and it is a preference about how much of each snapshot travels rather than part of what the subscription means. A textual value outside the known ones therefore names no mode the host knows and is served exactly as a subscription that sent no `transferMode` at all, instead of being refused. A `transferMode` that is neither a JSON string nor `null` is a malformed payload: the WebSocket hub answers `Error` and the SSE subscribe route answers 400.
 
@@ -159,6 +191,10 @@ When `AuthenticationHandler` or Java `AsyncAuthenticationHandler` beans are regi
 | Pipeline or host exception | 500 |
 | Unsupported method | 405 |
 
+Command exceptions implementing [`ValidationFailure`](../guides/commands.md#convert-application-exceptions-to-command-validation) with a usable payload become validation results at the default command pipeline's ordinary exception boundaries, including context/filter failures on `/validate`. Pure blocking validation returns 400 with empty exception messages and stack trace; ordinary exceptions remain 500 with the existing production/development redaction policy. In mixed command results, authorization failure takes precedence (403), then validation failure (400), then ordinary exceptions (500). Failed results never expose a response.
+
+The payload's message, members, severity, reason, `reasonDetail`, and `state` are application-supplied client-visible data, not automatically redacted exception details. Keep secrets out of every payload field. Cancellation never becomes validation feedback. Parser, admission, transport timeout, and query exception behavior are unchanged; severity filtering remains [stage-specific](../guides/commands.md#convert-application-exceptions-to-command-validation).
+
 ## Identity contract
 
 `/.cratis/me` returns 401 for an unauthenticated principal, 403 when the details provider rejects the caller, and 200 with `id`, `name`, `isAuthenticated`, `isAuthorized`, `roles`, and application-specific `details` on success.
@@ -166,6 +202,10 @@ When `AuthenticationHandler` or Java `AsyncAuthenticationHandler` beans are regi
 A successful response sets `.cratis-identity` to Base64-encoded response JSON. The cookie is client-readable (`HttpOnly=false`), `SameSite=Lax`, and `Path=/`. Its `Secure` attribute follows `identity-cookie-secure-policy`: `always`, `never`, or `auto`. `auto` secures it for HTTPS requests and, by default, for all non-development profiles.
 
 ## Validation result
+
+[Direct concept exclusions](../guides/commands.md#exclude-a-direct-concept-rule-edge) affect only concept rules on a matching owner/member edge. They do not bypass Jakarta or model validation or change any HTTP envelope/status policy. Command execution, command validation, one-shot queries, and observable HTTP snapshots still reject blocking feedback from remaining rules. This is not a claim that streaming openings return HTTP 400.
+
+Server-only [`ModelValidator` rules](../guides/commands.md#reuse-model-validation) use this same envelope and severity policy. Blocking feedback returns HTTP 400 for command execution, command validation, one-shot queries, and observable HTTP snapshots; valid inputs keep their existing outcomes. Streaming opening failures retain their existing envelopes: direct SSE sends failed `QueryResult` data on the established HTTP stream, direct WebSocket sends a `Data` frame, and hubs send `Error` messages. Relative model paths are prefixed with the bound node path. Registration adds no manifest, client-validation, or OpenAPI schema fields. Only supplied query arguments are validated, not omitted defaults, infrastructure, or observable result data.
 
 Each result has numeric `severity`, `message`, `members`, optional `state`, `reason`, and optional `reasonDetail`.
 

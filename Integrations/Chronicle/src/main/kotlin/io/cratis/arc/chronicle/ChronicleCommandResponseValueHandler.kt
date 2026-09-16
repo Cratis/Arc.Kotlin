@@ -16,7 +16,10 @@ import io.cratis.chronicle.eventSequences.EventForEventSourceId
 import io.cratis.chronicle.events.EventType
 import kotlinx.coroutines.CancellationException
 
-/** Appends Chronicle events returned by Arc command handlers. */
+/**
+ * Appends Chronicle events returned by Arc command handlers using the captured [CommandContext.commandKey].
+ * Manually constructed contexts must capture or explicitly supply that key for plain events; routing never resolves it again.
+ */
 public class ChronicleCommandResponseValueHandler(
     private val eventStoreResolver: TenantEventStoreResolver,
     private val commandHandlers: CommandHandlerRegistry,
@@ -68,8 +71,7 @@ public class ChronicleCommandResponseValueHandler(
         eventStore: IEventStore,
         events: List<Any>
     ): CommandResult<*> {
-        val commandHandler = commandHandlers.find(context.commandType)
-        val eventSourceId = commandHandler?.resolveCommandKey(context.command).toChronicleKey()
+        val eventSourceId = context.commandKey.toChronicleKey()
             ?: return missingCommandKey(context)
         val routedEvents = events.map { event -> EventForEventSourceId(eventSourceId, event) }
         if (transactions != null) {
@@ -91,8 +93,7 @@ public class ChronicleCommandResponseValueHandler(
         items: List<Any>
     ): CommandResult<*> {
         val plainEventSourceId = if (items.any { it !is EventForEventSourceId }) {
-            val commandHandler = commandHandlers.find(context.commandType)
-            commandHandler?.resolveCommandKey(context.command).toChronicleKey()
+            context.commandKey.toChronicleKey()
                 ?: return missingCommandKey(context)
         } else {
             null

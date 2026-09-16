@@ -11,7 +11,11 @@ dependencies {
 }
 ```
 
-`arc-testing` uses the real `DefaultCommandPipeline` and `DefaultQueryPipeline`. It does not start Spring Boot or replace generated behavior with fake handlers. This is in-process testing for the Spring Boot product, not a supported non-Spring application host or a JVM Screenplay implementation; Screenplay is not planned. JSON round trips are enabled by default.
+`arc-testing` uses the real command, one-shot query, and observable-query pipelines. It does not start Spring Boot or replace generated behavior with fake handlers. This is in-process testing for the Spring Boot product, not a supported non-Spring application host or a JVM Screenplay implementation; Screenplay is not planned. `CommandScenario` and `QueryScenario` enable JSON round trips by default; `ObservableQueryScenario` exercises the pipeline without those opening-argument or result-data JSON round trips. Its default emission guards independently reconstruct [supported arguments per dispatch](queries.md#bound-emission-guard-arguments), using an Arc mapper with the scenario's actual derived-type registry for concrete scalar concepts. That does not enable polymorphic argument cloning; unsupported guarded shapes terminate unauthorized before any guard runs.
+
+`CommandScenario` and `QueryScenario` register the supplied module's `derivedTypes` in a scenario-local Arc JSON registry before reading values. Command properties and nested query data declared as registered interfaces or base classes therefore retain their concrete types through the round trip. Registrations do not leak between scenarios; a manual handler or performer alone contributes no derived-type registrations.
+
+For direct query values and list entries, `QueryScenario` uses the descriptor's declared registered base type rather than reading an annotated derivative as its runtime class. Unknown or missing `_derivedTypeId` values still fail; scenarios do not infer registrations or silently accept unknown identifiers. This is not an arbitrary generic graph-cloning API: erased generic roots, undeclared polymorphic roots, and other container shapes retain the existing runtime-class round-trip limitations. Ordinary model properties use their Jackson-declared types. Serialization failures propagate to the test rather than becoming successful pipeline results.
 
 ## Test with Kotlin
 
@@ -24,7 +28,9 @@ val result = CommandScenario(module, CreateTask::class.java)
 result.shouldSucceed().shouldHaveResponse(TaskCreated::class.java)
 ```
 
-Select queries with `FullyQualifiedQueryName` and use `QueryScenario<T>`. Add services, validators, policies, filters, renderers, read-model interceptors, a principal, tenant, correlation ID, paging, or sorting through scenario methods. Use `ObservableQueryScenario<T>` to collect an explicitly bounded emission count with a timeout and to add per-emission guards. Disable serialization round trips only when the test intentionally bypasses the wire boundary.
+Select queries with `FullyQualifiedQueryName` and use `QueryScenario<T>`. Add services, validators, policies, filters, renderers, read-model interceptors, a principal, tenant, correlation ID, paging, or sorting through scenario methods. Disable command or one-shot query serialization round trips only when the test intentionally bypasses the wire boundary.
+
+All three scenario classes expose `addModelValidator(ModelValidator<?>)`, `addConceptValidator(ConceptValidator<?>)`, and `addConceptExclusion(ConceptValidationExclusion)`, returning the configured scenario. They compose with existing `addValidator` rules through the real default validation filter, without replacing it. Register Java blocking or asynchronous model adapters on that scenario before constructing its Java bridge. Model rules run on command inputs or supplied query arguments, not services, omitted defaults, or returned data; see [reusable model validation](commands.md#reuse-model-validation). Default command/query JSON round trips may turn a shared source identity into separate model instances, so validation follows the prepared graph's identities. Register [direct concept exclusions](commands.md#exclude-a-direct-concept-rule-edge) before creating the existing blocking or asynchronous Java scenario bridge. An exclusion suppresses only concept rules on that owner/member edge, never model rules or other filters. To prove that an ignored-first shared instance still validates on a required edge, use an additional in-process check with command or query argument serialization disabled; JSON duplication alone cannot prove alias handling.
 
 Command and query results carry matching positive and negative assertions, so a test can pin which stage rejected an operation instead of only that it failed. `shouldBeAuthorized` and `shouldBeUnauthorized` cover authorization, `shouldBeValid` and `shouldBeInvalid` cover validation feedback, and `shouldHaveErrors` and `shouldHaveNoErrors` cover retained exception messages. Chaining `shouldBeAuthorized().shouldBeInvalid()` states that authorization passed and validation rejected the command, which `shouldFail` alone does not.
 
@@ -42,6 +48,14 @@ val result = CommandScenario(module, CreateTask::class.java)
 ```
 
 `QueryScenario` and `ObservableQueryScenario` expose the same `withTenantResolution` method.
+
+## Test observable queries
+
+Use `ObservableQueryScenario<T>.collect(maximumEmissions, timeoutMillis)` to collect at most the requested number of emissions through the real observable-query pipeline. One timeout budget covers both opening (including suspending authorization, filters, and performer creation) and collection. Timeout and caller cancellation propagate to the Kotlin caller and cancel cooperative upstream work; they are not successful scenario results.
+
+`maximumEmissions` is a cap, not a required count. A finite stream may complete early or empty, and `shouldSucceed()` alone does not require an emission. Chain `shouldHaveEmissionCount(expected)` whenever the test requires an exact count. Reaching the cap stops upstream collection. Add per-emission guards with `addEmissionGuard`; opening rejection is available through `shouldFail()`, while a terminal guard denial is an unauthorized emission checked with `shouldTerminateUnauthorized()`.
+
+Like command and one-shot query scenarios, the observable scenario derives its default validation threshold from the selected descriptor: `TreatWarningsAsErrors` makes warnings blocking while allowing information. `withAllowedValidationSeverity` explicitly overrides that default, including `null`, which restores error-only blocking. The observable scenario does not currently provide the command/one-shot argument and result-data JSON round trips; collecting values is not a serialization-contract check.
 
 ## Pin a command-side read model
 
@@ -120,7 +134,27 @@ try (BlockingCommandScenario<RegisterCustomer> scenario =
 chronicle.shouldHaveAppendedEvent(customerId, CustomerRegistered.class);
 ```
 
-For nonblocking tests, construct `AsyncCommandScenario`, `AsyncQueryScenario`, or `AsyncObservableQueryScenario` with a caller-owned bounded `CoroutineScope`. Their methods return `CompletionStage`; canceling the future cancels its child coroutine.
+For asynchronous tests, construct `AsyncCommandScenario`, `AsyncQueryScenario`, or `AsyncObservableQueryScenario` with a `JavaAsyncScope`. No Kotlin coroutine imports are needed. Command and one-shot query bridges accept a configured scenario, a manual handler/performer, or a module plus the command class/query name. The observable bridge accepts a configured `ObservableQueryScenario<T>`.
+
+```java
+ExecutorService executor = Executors.newSingleThreadExecutor();
+try (JavaAsyncScope owner = JavaAsyncScope.owningExecutorService(executor)) {
+    AsyncCommandScenario<CreateTask> commands =
+        new AsyncCommandScenario<>(configured, owner);
+    commands.execute(new CreateTask("Try Arc"))
+        .toCompletableFuture().get(5, TimeUnit.SECONDS).shouldSucceed();
+}
+```
+
+Use `JavaAsyncScope.usingExecutor(executor)` to borrow an executor without shutting it down, or `owningExecutorService(executor)` to transfer shutdown responsibility. All three asynchronous scenarios **borrow** the owner: they neither implement `AutoCloseable` nor close it. Close the owner explicitly after the test. Closing it cancels its Core and Testing operations; cancellation cleans up cooperative upstream work, not arbitrary blocking code.
+
+`execute`, `validate`, and `perform` return `CompletionStage`. `AsyncObservableQueryScenario.collectAsync(maximumEmissions)` also returns a `CompletionStage<ObservableQueryScenarioResult<T>>`; overloads accept a timeout (default 5,000 milliseconds), arguments, paging, sorting, and transfer mode (default `FULL`). The same opening-and-collection timeout budget and emission cap apply. Timeout and cancellation cancel the stage rather than returning a successful result. Canceling `toCompletableFuture()` cancels only that child operation, not the owner or siblings. Stages can complete before coroutine cleanup has finished; tests that require cleanup must observe the upstream cleanup signal too.
+
+Supply an executor with nonblocking submission for prompt asynchronous return. Direct or inlining executors can execute on the calling thread; a blocking executor or blocking user operation is not covered by an unconditional concurrency or interruption promise. Existing scenario instances return canceled stages or inert callback handles after owner close without executing user code. Constructing a scenario with an already-closed owner is allowed, but Core facade factories such as `owner.commands(...)` still reject a closed owner synchronously.
+
+The existing `collect(...)` method remains callback/handle-based and returns `ObservableQueryScenarioHandle`; `cancel()` cancels upstream work. Cancellation, including internal timeout, invokes neither callback. A success-callback exception is passed to the failure callback on the same coroutine; a failure-callback exception escapes that coroutine. Do not use callback delivery alone as a timeout completion signal; use `collectAsync` when stage termination is needed.
+
+The existing `CoroutineScope` constructors and Kotlin default calls remain available. Adding owner overloads can make an untyped `null` scope argument ambiguous in Java; a null owner/scope is not supported. For Kotlin integration modules, `JavaAsyncScope.launchStage`, `JavaAsyncScope.launch`, and `CoroutineScope.launchStage` (in `io.cratis.arc.java`, JVM holder `CoroutineCompletionStages`) are supported public Kotlin/JVM SPI. Their `@JvmSynthetic` methods are hidden from Java source, not reflection. The shared stage helper catches ordinary `Exception` failures into the stage without failing an ordinary parent job; other throwables retain coroutine parent-failure semantics. These are JVM-specific bridges, not an Arc .NET parity claim.
 
 ## Use manual artifacts only for framework tests
 

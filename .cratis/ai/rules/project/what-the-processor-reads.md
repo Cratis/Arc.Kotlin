@@ -7,8 +7,9 @@ applyTo: "**/*"
 `process(resolver)` replaces its metadata graph and provisional diagnostics each round:
 
 1. Validate configuration and inspect command-like types with the existing diagnostics.
-2. Accumulate stable command, read-model, derivative, and source-visible response-handler names;
-   resolve them through the current resolver rather than retaining earlier-round semantic symbols.
+2. Accumulate stable command, read-model, derivative, and response-handler names from source or the
+   dependency handler index; resolve them through the current resolver rather than retaining
+   earlier-round semantic symbols.
 3. Emit each valid invocation implementation once, while rebuilding response classification and the
    reachable metadata graph against the current discoveries. Handled-only response graphs are not
    retained unless another retained root reaches them.

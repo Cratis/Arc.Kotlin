@@ -30,7 +30,7 @@ pluginManagement {
 }
 ```
 
-The preferred setup is the Arc plugin. It applies Kotlin/JVM and KSP, adds `io.cratis:arc` and `io.cratis:arc-ksp`, targets JDK 17, and treats warnings as errors.
+The preferred setup is the Arc plugin. It applies Kotlin/JVM and KSP, adds `io.cratis:arc` and `io.cratis:arc-ksp`, targets JDK 17, and treats warnings as errors. Create `build.gradle.kts` with the following content. Its `repositories` block resolves application and processor dependencies; `pluginManagement.repositories` alone does not resolve them.
 
 ```kotlin
 plugins {
@@ -38,6 +38,10 @@ plugins {
     kotlin("plugin.spring") version "2.4.10"
     id("org.springframework.boot") version "4.1.1"
     id("io.spring.dependency-management") version "1.1.7"
+}
+
+repositories {
+    mavenCentral()
 }
 
 cratisArc {
@@ -72,6 +76,10 @@ dependencies {
     ksp("io.cratis:arc-ksp:<version>")
 }
 
+repositories {
+    mavenCentral()
+}
+
 ksp {
     arg("arc.moduleName", "TaskApplication")
 }
@@ -85,7 +93,7 @@ cratis.arc.endpoints.segments-to-skip-for-route=2
 
 ## Add the application model
 
-Create a Spring repository, a command, and a read model. Arc discovers the model and resolves parameters from Spring. `@AllowAnonymous` makes the tutorial endpoints callable without authentication.
+Create `src/main/kotlin/example/tasks/Tasks.kt` with a Spring repository, a command, and a read model. Arc discovers the model and resolves parameters from Spring. Use public model types, properties, and invocation methods. Kotlin's default public visibility is supported; the explicit `public` keywords below are style, not a compiler requirement. `@AllowAnonymous` makes the tutorial endpoints callable without authentication.
 
 ```kotlin
 package example.tasks
@@ -100,19 +108,19 @@ import java.util.concurrent.ConcurrentHashMap
 import org.springframework.stereotype.Repository
 
 @Repository
-class TaskRepository {
+public class TaskRepository {
     private val tasks = ConcurrentHashMap<String, TaskView>()
-    fun create(title: String): TaskView =
+    public fun create(title: String): TaskView =
         TaskView(UUID.randomUUID().toString(), title.trim()).also { tasks[it.id] = it }
-    fun all(): List<TaskView> = tasks.values.sortedBy(TaskView::title)
+    public fun all(): List<TaskView> = tasks.values.sortedBy(TaskView::title)
 }
 
-data class TaskCreated(val id: String, val title: String)
+public data class TaskCreated(public val id: String, public val title: String)
 
 @Command
 @AllowAnonymous
-data class CreateTask(val title: String) {
-    fun handle(repository: TaskRepository): TaskCreated {
+public data class CreateTask(public val title: String) {
+    public fun handle(repository: TaskRepository): TaskCreated {
         val task = repository.create(title)
         return TaskCreated(task.id, task.title)
     }
@@ -120,11 +128,11 @@ data class CreateTask(val title: String) {
 
 @ReadModel
 @AllowAnonymous
-data class TaskView(val id: String, val title: String) {
-    companion object {
+public data class TaskView(public val id: String, public val title: String) {
+    public companion object {
         @JvmStatic
         @Path("/api/tasks")
-        fun all(@FromServices repository: TaskRepository): List<TaskView> = repository.all()
+        public fun all(@FromServices repository: TaskRepository): List<TaskView> = repository.all()
     }
 }
 ```
@@ -176,7 +184,9 @@ curl -sS -X QUERY http://localhost:8080/api/tasks \
 The one-shot query returns the created task in a `QueryResult` envelope:
 
 ```json
-{"correlationId":"<uuid>","data":[{"id":"<task-id>","title":"Try Arc"}],"isReady":true,"isAuthorized":true,"validationResults":[],"exceptionMessages":[],"exceptionStackTrace":"","paging":{"page":0,"size":0,"totalItems":0,"totalPages":0},"isValid":true,"hasExceptions":false,"isSuccess":true}
+{"correlationId":"<uuid>","data":[{"id":"<task-id>","title":"Try Arc"}],"isReady":true,"isAuthorized":true,"validationResults":[],"exceptionMessages":[],"exceptionStackTrace":"","paging":{"page":0,"size":0,"totalItems":1,"totalPages":0},"isValid":true,"hasExceptions":false,"isSuccess":true}
 ```
+
+The repository's `:GradlePlugin:test --tests '*ArcOnboardingFunctionalTest'` check materializes the preferred Kotlin and Java tutorial files, resolves locally staged Arc plugin-marker and runtime publications, compiles generated artifacts, and sends these POST and QUERY requests to a real Spring Boot host on a random port. It substitutes only the Arc version and local Arc repository seams, with an added test probe; public transitive dependencies still use the documented repositories. This is separate from the source-only documentation snippet checker and does not compile every documentation snippet or execute the manual setup.
 
 Continue with the [commands guide](../guides/commands.md) and [queries guide](../guides/queries.md).

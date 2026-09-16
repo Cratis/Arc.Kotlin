@@ -95,7 +95,7 @@ class MongoIntegrationTests {
     }
 
     @Test
-    fun `contextual resolver and generated argument seam isolate the same identifier across real tenant databases`() =
+    fun `contextual resolver and generated argument seam isolate the same identifier across real tenant databases`(): Unit =
         runBlocking {
             val tenantA = MongoTemplate(client, "tenant-a")
             val tenantB = MongoTemplate(client, "tenant-b")

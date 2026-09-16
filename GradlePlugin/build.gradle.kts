@@ -18,6 +18,39 @@ dependencies {
     testImplementation(gradleTestKit())
 }
 
+// Offline capture consistency: no dotnet invocation, package restore, network, or snapshot regeneration.
+val captureHarness = layout.projectDirectory.dir("src/test/resources/differential/capture")
+val capturedBaseline = layout.projectDirectory.dir("src/test/resources/differential/captured")
+val testCapturedProxyBaseline by tasks.registering(Exec::class) {
+    group = "verification"
+    description = "Tests the offline capture consistency verifier against stale-input and tampering mutations"
+    inputs.dir(captureHarness)
+    inputs.dir(capturedBaseline)
+    val testWork = providers.gradleProperty("arc.captureBaseline.testWork")
+        .orElse(layout.buildDirectory.dir("capture-baseline-tests").map { it.asFile.absolutePath })
+    commandLine("python3", "-B", "-m", "unittest", "discover", "-s", captureHarness.asFile.absolutePath,
+        "-p", "test_baseline.py", "-v")
+    doFirst {
+        val directory = file(testWork.get())
+        check(directory.isDirectory || directory.mkdirs()) { "Cannot create capture verifier test workspace: $directory" }
+        environment("AI_WORK_OUTPUT", directory.absolutePath)
+    }
+}
+val verifyCapturedProxyBaseline by tasks.registering(Exec::class) {
+    group = "verification"
+    description = "Checks the seven-file captured baseline against current input hashes and reviewed SDK/runtime/package pins"
+    dependsOn(testCapturedProxyBaseline)
+    inputs.dir(captureHarness)
+    inputs.dir(capturedBaseline)
+    commandLine("python3", "-B", captureHarness.file("verify_baseline.py").asFile.absolutePath, "--check")
+}
+tasks.test { dependsOn(verifyCapturedProxyBaseline) }
+
+// Both internal readers exercise the same module-name cases without a compiler dependency.
+tasks.processTestResources {
+    from(rootProject.file("CodeGeneration/KSP/src/test/resources/response-handler-module-names.csv"))
+}
+
 tasks.withType<Jar>().configureEach {
     manifest.attributes["Implementation-Version"] = project.version.toString()
 }
@@ -71,7 +104,7 @@ val functionalPluginClasspath = files(functionalPluginJar.flatMap { it.archiveFi
 val prepareFunctionalRepository by tasks.registering(Sync::class) {
     into(functionalRepository)
 }
-listOf(":Source", ":CodeGeneration:KSP").forEach { modulePath ->
+listOf(":Source", ":CodeGeneration:KSP", ":Integrations:SpringBoot", ":Integrations:OpenApi").forEach { modulePath ->
     evaluationDependsOn(modulePath)
     val module = project(modulePath)
     val publication = module.extensions.getByType<org.gradle.api.publish.PublishingExtension>()
@@ -92,17 +125,70 @@ listOf(":Source", ":CodeGeneration:KSP").forEach { modulePath ->
     }
 }
 tasks.test {
-    dependsOn(prepareFunctionalRepository, functionalPluginJar)
+    dependsOn(prepareFunctionalRepository, functionalPluginJar, ":ContractTests:typeScriptInstall")
+    val mappingClient = rootProject.layout.projectDirectory.dir("ContractTests/TypeScript")
+    inputs.files(mappingClient.file("package.json"), mappingClient.file("package-lock.json"))
+    systemProperty("arc.mapping.nodeModules", mappingClient.dir("node_modules").asFile.absolutePath)
     inputs.files(functionalPluginClasspath)
     inputs.dir(functionalRepository)
     systemProperty("arc.functional.repository", functionalRepository.get().asFile.absolutePath)
     systemProperty("arc.functional.version", project.version.toString())
     systemProperty("arc.functional.gradleHome", requireNotNull(gradle.gradleHomeDir).absolutePath)
     systemProperty("arc.functional.work", layout.buildDirectory.dir("functional-tests").get().asFile.absolutePath)
+    val capturedDifferential = layout.projectDirectory.dir("src/test/resources/differential/captured")
+    inputs.dir(capturedDifferential)
+    systemProperty("arc.functional.capturedDifferential", capturedDifferential.asFile.absolutePath)
+    providers.gradleProperty("arc.handlerIndex.evidence").orNull?.let {
+        systemProperty("arc.handlerIndex.evidence", it)
+    }
     doFirst {
         systemProperty("arc.functional.pluginClasspath", functionalPluginClasspath.asPath)
         systemProperty("arc.functional.pluginJar", functionalPluginJar.get().archiveFile.get().asFile.absolutePath)
     }
+}
+
+// Onboarding resolves the published marker, not TestKit's injected plugin classpath.
+// Stage publication outputs only: no publish/sign tasks and no starter runtime dependency here.
+val onboardingRepository = layout.buildDirectory.dir("onboarding-fixtures/repository")
+val prepareOnboardingRepository by tasks.registering(Copy::class) {
+    into(onboardingRepository)
+}
+evaluationDependsOn(":Integrations:SpringBoot")
+gradle.projectsEvaluated {
+    listOf(project, project(":Source"), project(":CodeGeneration:KSP"), project(":Integrations:SpringBoot"))
+        .forEach { module ->
+            module.extensions.getByType<org.gradle.api.publish.PublishingExtension>().publications
+                .withType<org.gradle.api.publish.maven.MavenPublication>().forEach { publication ->
+                    val pomTaskName = "generatePomFileFor${publication.name.replaceFirstChar { it.uppercase() }}Publication"
+                    val pom = module.tasks.named<org.gradle.api.publish.maven.tasks.GenerateMavenPom>(pomTaskName)
+                    prepareOnboardingRepository.configure {
+                        dependsOn(pom)
+                        val gavPath = "${publication.groupId.replace('.', '/')}/${publication.artifactId}/${publication.version}"
+                        from(pom.map { it.destination }) {
+                            into(gavPath)
+                            rename { "${publication.artifactId}-${publication.version}.pom" }
+                        }
+                        if (!publication.name.endsWith("PluginMarkerMaven")) {
+                            val jar = module.tasks.named<Jar>("jar")
+                            dependsOn(jar)
+                            from(jar.flatMap { it.archiveFile }) {
+                                into(gavPath)
+                                rename { "${publication.artifactId}-${publication.version}.jar" }
+                            }
+                        }
+                    }
+                }
+        }
+}
+tasks.test {
+    dependsOn(prepareOnboardingRepository)
+    inputs.dir(rootProject.layout.projectDirectory.dir("Documentation/get-started"))
+    inputs.dir(onboardingRepository)
+    systemProperty("arc.onboarding.repository", onboardingRepository.get().asFile.absolutePath)
+    systemProperty("arc.onboarding.documentation", rootProject.file("Documentation/get-started").absolutePath)
+    systemProperty("arc.onboarding.gradleUserHome", gradle.gradleUserHomeDir.absolutePath)
+    systemProperty("arc.onboarding.work", providers.gradleProperty("arc.onboarding.work")
+        .getOrElse(layout.buildDirectory.dir("onboarding-tests").get().asFile.absolutePath))
 }
 
 val contractManifestDirectory = rootProject.layout.projectDirectory.dir(

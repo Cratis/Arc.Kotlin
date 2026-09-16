@@ -26,7 +26,9 @@ public object GenerateArcProxiesCli {
                     options.enableQueryHttpMethod
                 ),
                 options.removeStaleGeneratedFiles,
-                options.proxySegmentsToSkip
+                options.proxySegmentsToSkip,
+                ProxyTypeMappings.parseTypeMappings(options.typeMappings) { println("warning: $it") },
+                ProxyTypeMappings.parsePackageMappings(options.packageMappings) { println("warning: $it") }
             )
         ).generate()
     }
@@ -59,7 +61,9 @@ public object GenerateArcProxiesCli {
             values.boolean("--include-query-names", true),
             values.boolean("--enable-query-http-method", true),
             values.boolean("--remove-stale-generated-files", true),
-            values.integer("--proxy-segments-to-skip", 0)
+            values.integer("--proxy-segments-to-skip", 0),
+            values.remove("--type-to-typescript").orEmpty(),
+            values.remove("--package-to-npm").orEmpty()
         )
         require(result.routeSegmentsToSkip >= 0) { "--route-segments-to-skip cannot be negative." }
         require(result.proxySegmentsToSkip >= 0) { "--proxy-segments-to-skip cannot be negative." }
@@ -88,6 +92,8 @@ public object GenerateArcProxiesCli {
         val includeQueryNames: Boolean,
         val enableQueryHttpMethod: Boolean,
         val removeStaleGeneratedFiles: Boolean,
-        val proxySegmentsToSkip: Int
+        val proxySegmentsToSkip: Int,
+        val typeMappings: List<String> = emptyList(),
+        val packageMappings: List<String> = emptyList()
     )
 }

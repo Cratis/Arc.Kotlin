@@ -9,9 +9,44 @@ description: Exact Arc annotations available to Kotlin and Java application mode
 | --- | --- | --- |
 | `@Command` | Class | Marks a model-bound command with an instance `handle` method. |
 | `@ReadModel` | Class | Marks a model whose static or companion methods are queries. |
+| `@ExportedType` | Class | Makes a type an artifact root when no command or query references it. See [Exported types](#exported-types). |
 | `@CommandKey` | Property, field, value parameter, getter | Selects the command identity. Required for plain Chronicle event responses. |
 | `@FromServices` | Value parameter | Resolves a query parameter from the host service container instead of the request. Command handler dependencies are service-resolved by their generated signature. |
 | `@TreatWarningsAsErrors` | Class, function | Makes information and warning validation feedback blocking by default. |
+
+Generated command, model, read-model, and interface sequence properties require nonnullable elements. KSP reports `ARCKSP0300` for nullable entries, including Java record `List<@Nullable T>` type uses; nullable outer `List<T>?`, `Collection<T>?`, and `Array<T>?` remain supported. This is an earlier source rejection of an already unsupported manifest shape, not a source-compatible change. See [sequence properties](../guides/typescript-proxies.md#declare-nonnullable-sequence-elements).
+
+Public declared Kotlin body properties participate alongside constructor properties: body `@CommandKey`, field/getter constraints, `@Valid`, and summaries are retained. Multiple constructor/body keys fail with `ARCKSP0106`. Member `@JsonIgnore` excludes state; computed or explicitly read-only Kotlin command input and unrepresentable body Jackson names/access fail with `ARCKSP0300`. Separate output-only computed models remain supported. See [command body state](../guides/commands.md#declare-body-state-explicitly) for ordering, Jackson mutability, and inheritance boundaries.
+
+### Exported types
+
+Code generation normally reaches model types through `@Command` and `@ReadModel`. A module that
+contributes only identity detail types or shared data-transfer types has no such root, so it emits
+no manifest and no generated client. `@ExportedType` makes the annotated type a root: it and every
+type reachable from it are collected, and the compilation emits an artifact module and manifest
+even with no commands and no queries.
+
+Apply it to a public top-level concrete class, enum class, interface, or concept. Unsupported
+targets — abstract classes, generic definitions, nonpublic types, and nested types — fail with
+`ARCKSP0306`. Abstract bases are reached through their concrete derived types instead.
+
+```kotlin
+@ExportedType
+public data class SampleIdentityDetails(public val source: String)
+```
+
+This is a deliberate divergence from Arc .NET, which discovers identity detail types by runtime
+reflection over the classpath and exports whole assemblies with a `--library-mode` flag. KSP runs at
+compile time, cannot see into function bodies, and cannot enumerate dependency types, so Arc.Kotlin
+requires the marker rather than inferring roots and silently missing the ones it cannot observe.
+
+### Kotlin visibility
+
+KSP uses Kotlin visibility, not the presence of a `public` keyword. Implicit-public command/read-model classes, `handle`, `provide`, companion queries, constructor/body properties, and public interface overrides are supported. A public property with a private setter remains included; private, internal, and protected Kotlin state remains excluded. Generated framework declarations retain explicit `public` keywords.
+
+Artifacts must still be top-level public classes. Nonpublic command/read-model classes fail with `ARCKSP0101`/`ARCKSP0200`; nonpublic `handle`/`provide`/query methods fail with `ARCKSP0102`/`ARCKSP0103`/`ARCKSP0201`. An actual query in a private or internal companion also fails with `ARCKSP0201`; unrelated private companion helpers do not become queries. Java package visibility is not public, and existing Java record/property handling is unchanged. This does not add a constructor-visibility requirement or broaden supported nested model shapes.
+
+Previously omitted implicit-public properties now contribute fields, keys, validation, and reachable types to descriptors, manifests, and clients. Existing input-shape diagnostics also apply to them, including `ARCKSP0300` for computed command input. Implicit-public command-like methods and state now participate in the missing-`@Command` warning (`ARCKSP0100`), and implicit external handlers accepting an `@Command` are rejected with `ARCKSP0102`. Newly accepted `provide` methods retain the unused-value warning (`ARCKSP0107`); newly discovered duplicate keys fail with `ARCKSP0106`. Review regenerated clients and compiler diagnostics when upgrading; this is a source-acceptance correction with no ABI or manifest-format change.
 
 ## Validation annotations
 

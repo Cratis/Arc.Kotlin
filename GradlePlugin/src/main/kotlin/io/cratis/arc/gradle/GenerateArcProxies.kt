@@ -7,6 +7,8 @@ import io.cratis.arc.metadata.ApiEndpointOptions
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.provider.ListProperty
+import org.gradle.api.provider.MapProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.CacheableTask
 import org.gradle.api.tasks.Classpath
@@ -45,6 +47,14 @@ public abstract class GenerateArcProxies : DefaultTask() {
     @get:Input
     public abstract val proxySegmentsToSkip: Property<Int>
 
+    /** Repeatable `<FullyQualifiedTypeName>=<TypeScriptType>[=<NpmPackage>]` entries. */
+    @get:Input
+    public abstract val typeMappings: ListProperty<String>
+
+    /** JVM package to npm package mappings. */
+    @get:Input
+    public abstract val packageMappings: MapProperty<String, String>
+
     @get:Classpath
     public abstract val manifestClasspath: ConfigurableFileCollection
 
@@ -69,7 +79,11 @@ public abstract class GenerateArcProxies : DefaultTask() {
                     enableQueryHttpMethod.get()
                 ),
                 removeStaleGeneratedFiles.get(),
-                proxySegmentsToSkip.get()
+                proxySegmentsToSkip.get(),
+                ProxyTypeMappings.parseTypeMappings(typeMappings.get()) { logger.warn(it) },
+                ProxyTypeMappings.parsePackageMappings(
+                    packageMappings.get().map { (javaPackage, npmPackage) -> "$javaPackage=$npmPackage" }
+                ) { logger.warn(it) }
             )
         ).generate()
     }

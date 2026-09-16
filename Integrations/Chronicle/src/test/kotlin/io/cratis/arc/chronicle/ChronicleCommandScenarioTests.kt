@@ -82,7 +82,7 @@ class ChronicleCommandScenarioTests {
     }
 
     @Test
-    fun `can arrange and assert a constraint failure`() = runBlocking {
+    fun `can arrange and assert a constraint failure`(): Unit = runBlocking {
         val scenario = CommandScenario<ScenarioCommand>(
             ScenarioCommandHandler(listOf(ScenarioEvent("event"), ScenarioOtherEvent("second")))
         ).withSerializationRoundTrip(false)
@@ -99,7 +99,7 @@ class ChronicleCommandScenarioTests {
     }
 
     @Test
-    fun `can arrange and assert a concurrency failure`() = runBlocking {
+    fun `can arrange and assert a concurrency failure`(): Unit = runBlocking {
         val scenario = CommandScenario<ScenarioCommand>(ScenarioCommandHandler(listOf(ScenarioEvent("event"))))
             .withSerializationRoundTrip(false)
         scenario.chronicle().given().concurrencyViolation("source", 2, 3)

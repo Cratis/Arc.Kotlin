@@ -119,7 +119,92 @@ Published Kotlin APIs use checked `.api` baselines. The root `apiCheck` gate cov
 
 The runtime proxy harness has five wired unit tests plus 25 behavioral runtime tests. It runs 15 general tests in a UTC Node process, then five calendar tests in a separate UTC process and the same five in a separate `America/Los_Angeles` process. Counts are parsed from each TAP summary, which must report its exact expected test/pass total and zero fail, cancelled, skipped, or todo results. Spring process-spawn errors fail cleanly instead of hanging startup.
 
-Repository proxy verification has three distinct gates: deterministic generation plus strict TypeScript compilation with `verbatimModuleSyntax`, comparison with a repository-local semantically normalized .NET-derived expected fixture intended for source control, and `:ContractTests:typeScriptRuntimeTest` against the executable Kotlin Spring Boot sample. The differential's exact path and body comparison occurs after CRLF-to-LF and generated-header normalization, the expected fixture's capture-time namespace and query-name casing transformations, and expected-side .NET import rewrites required by `verbatimModuleSyntax`. `SetCommandValues`, `ClearCommandValues`, and query helper types such as `PerformQuery`, `SetSorting`, `SetPage`, `SetPageSize`, and `ChangeSet` become type-only imports. One additional expected-side correction at `Commands/CreateFixtures.ts` changes `Command<ICreateFixtures, FixtureModel>` to `Command<ICreateFixtures, FixtureModel[]>`. Current .NET output already calls `super(FixtureModel, true)`, so its scalar generic contradicts enumerable runtime behavior. The .NET-derived `FixtureModel.labelsByCategory` capture already uses `@field(Object)` and `Record<string, string>`; no dictionary normalization is applied to it, so that exact declaration is compared after only the documented line-ending/header and import normalization. It proves that one string-key/string-value Record fixture, not non-string keys, nullable entries, typed model values, `ValueMap`, or broader dictionary parity. No normalization transforms JVM output. The current .NET fixture contains no `Guid`, `DateOnly`, or `TimeOnly`, so focused generator and contract tests cover that mapping. See [Generate TypeScript proxies](../guides/typescript-proxies.md) for this boundary and the remaining capture-time reproducibility limitation.
+Repository proxy verification has three distinct gates: deterministic generation plus strict TypeScript compilation with `verbatimModuleSyntax`, comparison with a repository-local semantically normalized .NET-derived expected fixture intended for source control, and `:ContractTests:typeScriptRuntimeTest` against the executable Kotlin Spring Boot sample. The differential compares sorted paths for all regular files and untouched JVM bytes, including headers, against prepared expected bytes. Only the expected side receives LF/trailing-whitespace handling, FixtureModel quote/indent preparation, CreateFixtures quote/import/layout/hook preparation with exact-site suppression, and five literal type-only import rewrites for `verbatimModuleSyntax`. An independent literal source table, cross-checked against fixture descriptors, validates 16 artifacts; queries use their declaring model. Uppercase SHA-256 headers are reconstructed from prepared expected bodies, never actual output, and three indexes stay headerless. Historical capture-time namespace/query-name casing and removed timestamps/hashes remain embedded in the fixture. `SetCommandValues`, `ClearCommandValues`, and query helper types such as `PerformQuery`, `SetSorting`, `SetPage`, `SetPageSize`, and `ChangeSet` become type-only imports. One additional expected-side correction at `Commands/CreateFixtures.ts` changes `Command<ICreateFixtures, FixtureModel>` to `Command<ICreateFixtures, FixtureModel[]>`. The captured command already calls `super(FixtureModel, true)`, so its scalar generic contradicts enumerable runtime behavior. Only `Models/Observe.ts` also prepares the zero-space blank line immediately before the four-space-indented `filter: string;` member in exactly one known `ObserveParameters` block as four spaces; `ObserveOne.ts` is excluded. Missing/duplicate correction anchors and misplaced suppressions fail preparation. The .NET-derived `FixtureModel.labelsByCategory` capture already uses `@field(Object)` and `Record<string, string>`; no dictionary-shape rewrite is applied to it, although its file receives the documented formatting preparation. It proves that one string-key/string-value Record fixture, not non-string keys, nullable entries, typed model values, `ValueMap`, or broader dictionary parity. `Contracts/Shape.ts` is a class, not interface-emission proof. No normalization transforms JVM output. Capture SDK/tool versions remain unverified; this remains a normalized-fixture drift gate, not raw .NET-output equivalence, and overall parity remains Partial. The current .NET fixture contains no `Guid`, `DateOnly`, or `TimeOnly`, so focused generator and contract tests cover that mapping. See [Generate TypeScript proxies](../guides/typescript-proxies.md) for the complete rewrite inventory, source table, independent hash contract, and remaining capture-time reproducibility limitation.
+
+## Dependency response-handler metadata
+
+Arc KSP exports validated local `@HandlesCommandResponseValues` declarations to
+`META-INF/cratis/arc-response-handlers/<moduleName>.json`. This is a separate format-1
+compiler/build transport, not a field in the unchanged format-7 artifact manifest.
+A handler-only producer emits the declaration resource without manufacturing an artifact
+module, service entry, or artifact manifest. Imported declarations are never re-exported.
+
+The producer document has exactly `formatVersion`, `moduleName`, and `handlers`:
+
+```json
+{"formatVersion":1,"moduleName":"Audit","handlers":[{"handlerTypeName":"example.AuditHandler","handledTypeNames":["example.AuditEntry"]}]}
+```
+
+The aggregate index has exactly `formatVersion: 1` and `modules: [producer documents]`;
+no dependencies produces `{"formatVersion":1,"modules":[]}`. Output is canonical UTF-8,
+with fixed property order, sorted modules, handlers, and handled names, and one terminal
+newline. Paths and timestamps are not serialized. Identical module documents deduplicate;
+the same module name with different declarations fails. Identical handler claims may appear
+in different modules, but conflicting claims fail. Different handlers may handle the same
+value. Duplicate handler entries or handled names within one document, duplicate JSON
+fields, unknown fields, malformed types, and unsupported versions fail closed.
+
+Binary export initially supports public top-level handlers and public top-level handled
+types with ASCII canonical names. Other supported source-local declarations remain
+source-local. Consumers resolve indexed names through the current KSP resolver each round
+and verify their annotation and supported Kotlin/blocking/async handler SPI. Missing classes
+or disagreement fail with `ARCKSP0102`, naming the binary resource rather than inventing a
+source location. Invalid or unreadable `arc.responseHandlerMetadata` options fail with
+`ARCKSP0001`. The option accepts an absolute `file:` URI, including percent-encoded spaces;
+omitting it retains source-only discovery.
+
+The Arc plugin registers `extractMainArcResponseHandlerMetadata`,
+`extractTestArcResponseHandlerMetadata`, and corresponding tasks for other JVM compilations.
+Each resolves its compilation's dependency artifacts as JARs, not its own outputs. Main and
+test indexes are independent. Index wiring does not add a processor dependency to additional
+compilations: for generated test artifacts, also add `io.cratis:arc-ksp:<version>` to `kspTest`. `ExtractArcResponseHandlerMetadata.dependencyArtifacts` is
+`@Classpath` because resource changes matter, and the output is written only when its bytes
+change. `ArcResponseHandlerMetadataArgumentProvider.metadataFile` is path-insensitive.
+The index is also a **nonincremental task input**: a changed index requires complete KSP
+reclassification in that compilation and can rerun other processors there. Ordinary source
+edits and no-op builds retain the existing incremental behavior. Runtime registration and
+`canHandle` remain separate; missing or nonmatching runtime handlers still fail closed.
+
+For manual Gradle/KSP builds, put `io.cratis:arc-gradle-plugin:<version>` on the buildscript
+classpath without applying `io.cratis.arc`. The following Groovy wiring is exercised by the
+native producer/consumer contract; retain your runtime, KSP, and repository declarations.
+Use the same published Arc version throughout (the local workspace version is
+`0.0.0-SNAPSHOT`, available only after supplying its artifacts).
+
+```groovy
+buildscript {
+    repositories { mavenCentral(); gradlePluginPortal() }
+    dependencies { classpath 'io.cratis:arc-gradle-plugin:0.0.0-SNAPSHOT' }
+}
+plugins { id 'org.jetbrains.kotlin.jvm'; id 'com.google.devtools.ksp' }
+repositories { mavenCentral() }
+dependencies {
+    implementation 'io.cratis:arc:0.0.0-SNAPSHOT'
+    ksp 'io.cratis:arc-ksp:0.0.0-SNAPSHOT'
+}
+kotlin { jvmToolchain(17) }
+ksp { arg('arc.moduleName', 'Consumer') }
+def extract = tasks.register('extractHandlers', io.cratis.arc.gradle.ExtractArcResponseHandlerMetadata) {
+    dependencyArtifacts.from(configurations.compileClasspath.incoming.artifactView {
+        attributes.attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE,
+            objects.named(LibraryElements, LibraryElements.JAR))
+    }.files)
+    outputFile.set(layout.buildDirectory.file('handler index/main.json'))
+}
+tasks.withType(com.google.devtools.ksp.gradle.KspAATask).configureEach {
+    if (name == 'kspKotlin') {
+        def provider = objects.newInstance(io.cratis.arc.gradle.ArcResponseHandlerMetadataArgumentProvider)
+        provider.metadataFile.set(extract.flatMap { it.outputFile })
+        commandLineArgumentProviders.add(provider)
+        inputs.file(provider.metadataFile).withPropertyName('arcResponseHandlerMetadata')
+            .withPathSensitivity(PathSensitivity.NONE)
+    }
+}
+```
+
+Repeat this task-local wiring with the corresponding dependency configuration and a distinct
+output for each additional compilation. Do not use a global KSP argument provider for all
+source sets, include the compilation's own classes, or mark the index input incremental.
 
 ## Manual KSP setup
 

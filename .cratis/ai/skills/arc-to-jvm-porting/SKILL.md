@@ -201,10 +201,30 @@ accurately; never round them up.
 
 - **The .NET proxy comparison is a normalized captured fixture, not raw output equivalence.**
   The ".NET-derived proxy differential gate" row records that `:GradlePlugin:test` compares
-  against a repository-local expected fixture after CRLF-to-LF and generated-header
-  normalization, capture-time namespace and query-name casing transformations, expected-side
-  .NET import rewrites for `verbatimModuleSyntax`, and one expected-side correction at
-  `Commands/CreateFixtures.ts`. It states plainly: "This remains a drift gate for the
+  sorted paths of all regular files and untouched JVM bytes, including headers, against a prepared
+  repository-local expected fixture. Only actual path separators change. Sixteen literal source
+  identities are cross-checked with fixture descriptors (queries use declaring models); expected
+  uppercase SHA-256 headers are independently rebuilt from prepared expected bodies, with three
+  headerless indexes and a fixed `abc` hash-vector test. The complete inventory and source table
+  are in `Documentation/guides/typescript-proxies.md`, "Expected-only differential preparation":
+  expected LF/trailing-whitespace/terminal-newline preparation, FixtureModel quote/indent formatting,
+  CreateFixtures quote/import/request-array/class/hook formatting, exactly one enumerable generic
+  correction at `Commands/CreateFixtures.ts`, exact-site eslint/ts-ignore insertion, and five literal
+  type-only import rewrites. Only `Models/Observe.ts` also changes the zero-space blank line before
+  its four-space-indented `filter: string;` member in exactly one known `ObserveParameters` block to
+  four spaces; it is not an empty interface and `ObserveOne.ts` is excluded. Missing/duplicate
+  correction anchors and misplaced suppressions fail preparation. Ignored hook calls carry no
+  type-soundness claim. Three explicit expected-side helper corrections (`Models/All.ts`, `Search.ts`,
+  `Observe.ts`) now use independently declared returned-row fields instead of query arguments, guarded
+  by unique anchors and fixed original block hashes; only All gains SortingActions imports and the
+  helper owner is no longer exposed as `query`. Request parameters, routes, hooks and flags remain
+  untouched. This is a documented JVM correctness divergence, not raw .NET output parity.
+  Historical capture-time namespace/query casing and removed timestamps/hashes
+  remain embedded in the fixture; capture SDK/tool versions remain unverified. Actual byte/path
+  mutations include a changed body with a valid recomputed hash, through the same comparison path.
+  `Contracts/Shape.ts` is a class, not interface-emission proof. The Record fixture proves only
+  string keys/string values, not non-string keys, nullable entries, typed model values, `ValueMap`,
+  or broader dictionary parity. It states plainly: "This remains a drift gate for the
   normalized fixture, not an exact raw .NET-output comparison; capture-time fixture
   preparation is not yet reproducible tooling." No normalization touches JVM output, and the
   fixture contains no `Guid`, `DateOnly`, or `TimeOnly`.

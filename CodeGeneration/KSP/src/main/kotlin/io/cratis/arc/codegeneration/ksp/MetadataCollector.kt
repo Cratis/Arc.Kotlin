@@ -5,18 +5,23 @@ package io.cratis.arc.codegeneration.ksp
 
 import com.google.devtools.ksp.getDeclaredFunctions
 import com.google.devtools.ksp.getDeclaredProperties
+import com.google.devtools.ksp.isPublic
 import com.google.devtools.ksp.processing.Resolver
 import com.google.devtools.ksp.symbol.ClassKind
 import com.google.devtools.ksp.symbol.KSAnnotated
+import com.google.devtools.ksp.symbol.KSAnnotation
 import com.google.devtools.ksp.symbol.KSClassDeclaration
 import com.google.devtools.ksp.symbol.KSDeclaration
 import com.google.devtools.ksp.symbol.KSNode
+import com.google.devtools.ksp.symbol.KSPropertyDeclaration
 import com.google.devtools.ksp.symbol.KSType
 import com.google.devtools.ksp.symbol.KSTypeParameter
+import com.google.devtools.ksp.symbol.KSValueParameter
 import com.google.devtools.ksp.symbol.Modifier
 import com.google.devtools.ksp.symbol.Nullability
 import com.google.devtools.ksp.symbol.Origin
 import com.google.devtools.ksp.symbol.Variance
+import io.cratis.arc.json.ArcCamelCase
 import io.cratis.arc.metadata.MapKeyCodec
 import io.cratis.arc.metadata.SequenceKind
 import io.cratis.arc.metadata.TypeShapeDescriptor
@@ -95,6 +100,8 @@ internal class MetadataCollector(private val logger: ArcDiagnosticReporter) {
     fun isConcept(typeName: String): Boolean = collectedConcepts.containsKey(typeName)
 
     fun describeProperties(declaration: KSClassDeclaration, identity: String): List<PropertyModel>? {
+        // Validate roots before the Java record/interface fast paths as well as Kotlin property collection.
+        if (declaration.hasAnnotation(COMMAND_ANNOTATION) && !validateCommandInput(declaration, mutableSetOf())) return null
         val documentation = DocumentationSummaryParser.parse(declaration.docString)
         // A Kotlin class documents its properties with `@property`; a Java record or class uses `@param`.
         val declaredMemberTags = if (declaration.origin == Origin.JAVA) {
@@ -118,12 +125,20 @@ internal class MetadataCollector(private val logger: ArcDiagnosticReporter) {
                     val accessor = accessors[component.name]
                     val returnType = accessor?.returnType?.resolve()
                     val sourceBaseName = component.typeName.substringBefore('<').trim()
+                    val memberNode = propertyUseNode(declaration, component.name)
+                    // KSP can expose a platform accessor even when the record source explicitly annotates its element.
+                    val sourceElement = parseJavaGenericType(component.typeName)
+                        ?.takeIf { it.baseName in JAVA_COLLECTION_NAMES }?.arguments?.singleOrNull()
+                    if (sourceElement?.isNullable == true) {
+                        unsupportedSequenceElement("$identity.${component.name}", memberNode)
+                        return null
+                    }
                     val shape = (if (sourceBaseName in JAVA_MAP_NAMES) {
-                        describeJavaType(component.typeName, declaration, "$identity.${component.name}")
+                        describeJavaType(component.typeName, declaration, "$identity.${component.name}", memberNode)
                     } else if (accessor != null && returnType != null) {
                         describe(returnType, "$identity.${component.name}", accessor, allowMaps = true)
                     } else {
-                        describeJavaType(component.typeName, declaration, "$identity.${component.name}")
+                        describeJavaType(component.typeName, declaration, "$identity.${component.name}", memberNode)
                     }) ?: return null
                     val annotated = listOfNotNull(declarations[component.name], accessor)
                     val validation = extractValidation(
@@ -154,26 +169,14 @@ internal class MetadataCollector(private val logger: ArcDiagnosticReporter) {
         if (declaration.origin == Origin.JAVA && declaration.classKind == ClassKind.INTERFACE) {
             return describeJavaInterfaceProperties(declaration, identity, declaredMemberTags)
         }
-        val ordered = if (declaration.origin == Origin.JAVA) {
-            declarations.values.sortedBy { it.simpleName.asString() }
-        } else if (declaration.classKind == ClassKind.INTERFACE) {
-            declarations.values.toList()
-        } else {
-            val constructorNames = declaration.primaryConstructor?.parameters.orEmpty()
-                .filter { parameter -> parameter.isVal || parameter.isVar }
-                .mapNotNull { parameter -> parameter.name?.asString() }
-            if (constructorNames.isNotEmpty()) {
-                constructorNames.mapNotNull(declarations::get)
-            } else {
-                declarations.values.filter { property -> Modifier.PUBLIC in property.modifiers }
-                    .sortedBy { property -> property.simpleName.asString() }
-            }
-        }
+        val ordered = orderedDeclaredProperties(declaration)
 
         val properties = mutableListOf<PropertyModel>()
         for (property in ordered) {
-            if (Modifier.PUBLIC !in property.modifiers && declaration.origin != Origin.JAVA) continue
+            if (!property.isPublic() && declaration.origin != Origin.JAVA) continue
             val name = property.simpleName.asString()
+            if (!validateBodyWireAnnotations(property, constructorParameters[name], "$identity.$name")) return null
+            if (property.isWireIgnored()) continue
             val shape = describe(property.type.resolve(), "$identity.$name", property, allowMaps = true) ?: return null
             val annotated = listOfNotNull(property, property.getter, constructorParameters[name])
             val validation = extractValidation(annotated, shape, "$identity.$name", property) ?: return null
@@ -195,6 +198,129 @@ internal class MetadataCollector(private val logger: ArcDiagnosticReporter) {
             )
         }
         return properties
+    }
+
+    /** Constructor order is contractual; only the remaining declared state is name-sorted. */
+    private fun orderedDeclaredProperties(declaration: KSClassDeclaration): List<KSPropertyDeclaration> {
+        val properties = declaration.getDeclaredProperties().associateBy { it.simpleName.asString() }
+        if (declaration.origin == Origin.JAVA) return properties.values.sortedBy { it.simpleName.asString() }
+        if (declaration.classKind == ClassKind.INTERFACE) return properties.values.toList()
+        val constructorNames = declaration.primaryConstructor?.parameters.orEmpty()
+            .filter { it.isVal || it.isVar }.mapNotNull { it.name?.asString() }
+        return constructorNames.mapNotNull(properties::get) + properties.values
+            .filter { it.simpleName.asString() !in constructorNames }.sortedBy { it.simpleName.asString() }
+    }
+
+    private fun KSPropertyDeclaration.wireAnnotations(): List<KSAnnotation> =
+        listOfNotNull(this, getter, setter).flatMap { it.annotations.toList() }
+
+    private fun KSPropertyDeclaration.isWireIgnored(): Boolean = wireAnnotations().any { annotation ->
+        annotation.annotationType.resolve().declaration.qualifiedName?.asString() == JSON_IGNORE_ANNOTATION &&
+            annotation.arguments.firstOrNull { it.name?.asString() == "value" }?.value != false
+    }
+
+    /** The descriptor has a source name, not independent read/write names or access flags. */
+    private fun validateBodyWireAnnotations(
+        property: KSPropertyDeclaration,
+        constructorParameter: KSValueParameter?,
+        identity: String
+    ): Boolean {
+        if (property.origin != Origin.KOTLIN) return true
+        val annotations = property.wireAnnotations().filter {
+            it.annotationType.resolve().declaration.qualifiedName?.asString() == JSON_PROPERTY_ANNOTATION
+        }
+        for (annotation in annotations) {
+            val name = annotation.arguments.firstOrNull { it.name?.asString() == "value" }?.value as? String
+            val access = annotation.arguments.firstOrNull { it.name?.asString() == "access" }?.value?.toString()
+            val bodyProperty = constructorParameter?.let { it.isVal || it.isVar } != true
+            if (property.isWireIgnored() || (bodyProperty &&
+                    ((!name.isNullOrEmpty() && name != ArcCamelCase.convert(property.simpleName.asString())) ||
+                        (access != null && access.substringAfterLast('.') !in setOf("AUTO", "READ_ONLY", "READ_WRITE"))))
+            ) {
+                logger.error(
+                    ArcDiagnostic.PROXY_SHAPE,
+                    "Artifact/property '$identity' has body-property Jackson names or access that metadata cannot represent; " +
+                        "use the default Arc wire name and symmetric access, or a separate wire model.",
+                    property
+                )
+                return false
+            }
+        }
+        return true
+    }
+
+    /** Output-only computed getters remain valid; a command's reachable input graph must be writable. */
+    private fun validateCommandInput(declaration: KSClassDeclaration, visited: MutableSet<String>): Boolean {
+        val name = declaration.qualifiedName?.asString() ?: return true
+        if (!visited.add(name) || isTerminal(name) || name in ROOT_TYPE_NAMES || name in MAP_TYPE_NAMES ||
+            declaration.classKind == ClassKind.ENUM_CLASS ||
+            declaration.isAssignableTo(CONCEPT_AS_TYPE)
+        ) return true
+        var valid = true
+        for (property in orderedDeclaredProperties(declaration)) {
+            if ((!property.isPublic() && declaration.origin != Origin.JAVA) || property.isWireIgnored()) continue
+            val readOnly = property.wireAnnotations().any { annotation ->
+                annotation.annotationType.resolve().declaration.qualifiedName?.asString() == JSON_PROPERTY_ANNOTATION &&
+                    annotation.arguments.firstOrNull { it.name?.asString() == "access" }?.value
+                        ?.toString()?.substringAfterLast('.') == "READ_ONLY"
+            }
+            if (property.origin == Origin.KOTLIN && readOnly) {
+                logger.error(
+                    ArcDiagnostic.PROXY_SHAPE,
+                    "Artifact/property '$name.${property.simpleName.asString()}' is read-only command input; " +
+                        "use symmetric Jackson access, @JsonIgnore, or a separate output model.",
+                    property
+                )
+                valid = false
+            }
+            if (property.origin == Origin.KOTLIN && !property.hasBackingField &&
+                Modifier.ABSTRACT !in property.modifiers && declaration.classKind != ClassKind.INTERFACE
+            ) {
+                logger.error(
+                    ArcDiagnostic.PROXY_SHAPE,
+                    "Artifact/property '$name.${property.simpleName.asString()}' is computed command input; " +
+                        "use a backed property, @JsonIgnore, or a separate output model.",
+                    property
+                )
+                valid = false
+            }
+            if (!validateCommandInputType(property.type.resolve(), visited)) valid = false
+        }
+        if (declaration.origin == Origin.JAVA) {
+            // Resolved members retain imported type identities. Parse source types only when KSP exposes no usable member.
+            val source = declaration.containingFile?.filePath?.let(::File)?.takeIf(File::isFile)?.readText()
+            val record = source?.let { parseJavaRecordProperties(it, declaration.simpleName.asString()) }
+            if (record != null) {
+                val properties = declaration.getDeclaredProperties().associateBy { it.simpleName.asString() }
+                val accessors = declaration.getDeclaredFunctions().filter { it.parameters.isEmpty() }
+                    .associateBy { it.simpleName.asString() }
+                for (component in record) {
+                    val type = properties[component.name]?.type?.resolve()?.takeUnless { it.isError }
+                        ?: accessors[component.name]?.returnType?.resolve()?.takeUnless { it.isError }
+                        ?: describeJavaType(component.typeName, declaration, "$name.${component.name}",
+                            propertyUseNode(declaration, component.name))?.valueType
+                    if (type == null || !validateCommandInputType(type, visited)) valid = false
+                }
+            } else if (declaration.classKind == ClassKind.INTERFACE) {
+                for (function in declaration.getDeclaredFunctions().filter { it.parameters.isEmpty() }) {
+                    val type = function.returnType?.resolve() ?: continue
+                    if (!validateCommandInputType(type, visited)) valid = false
+                }
+            }
+        }
+        for (parent in declaration.superTypes.mapNotNull { it.resolve().declaration as? KSClassDeclaration } +
+            derivativesFor(declaration).asSequence()) {
+            if (!validateCommandInput(parent, visited)) valid = false
+        }
+        return valid
+    }
+
+    private fun validateCommandInputType(type: KSType, visited: MutableSet<String>): Boolean {
+        val valueType = if (type.declaration.qualifiedName?.asString() in COLLECTION_TYPE_NAMES + ARRAY_TYPE) {
+            type.arguments.singleOrNull()?.type?.resolve()
+        } else type
+        val child = valueType?.declaration as? KSClassDeclaration ?: return true
+        return validateCommandInput(child, visited)
     }
 
     /** Prefers the member's own documentation and falls back to the declaring type's member tag. */
@@ -265,6 +391,16 @@ internal class MetadataCollector(private val logger: ArcDiagnosticReporter) {
         }
         if (qualifiedName in COLLECTION_TYPE_NAMES || qualifiedName == ARRAY_TYPE) {
             val element = concreteTypeArgument(type, 1, identity, "element", node)?.singleOrNull() ?: return null
+            if (node is KSValueParameter && element.nullability == Nullability.NULLABLE) {
+                unsupportedMapShape(identity, "element", "nullable sequence elements are unsupported", node)
+                return null
+            }
+            if (element.nullability == Nullability.NULLABLE || element.annotations.hasNullableTypeUse() ||
+                type.arguments.single().type?.annotations?.hasNullableTypeUse() == true
+            ) {
+                unsupportedSequenceElement(identity, node)
+                return null
+            }
             val elementDeclaration = element.declaration as? KSClassDeclaration
             val elementName = elementDeclaration?.qualifiedName?.asString()
             if (elementName == null) {
@@ -365,8 +501,15 @@ internal class MetadataCollector(private val logger: ArcDiagnosticReporter) {
         path: String,
         node: KSNode
     ): List<KSType>? {
+        // KSP models a source Java array parameter as Array<out E>, unlike an explicit
+        // wildcard generic or Kotlin Array<out E>. Only this parameter extraction is
+        // widened; existing property/return and map boundaries remain unchanged.
+        val javaArrayParameter = type.declaration.qualifiedName?.asString() == ARRAY_TYPE &&
+            node is KSValueParameter && node.origin == Origin.JAVA && node.type.origin == Origin.JAVA
         if (type.arguments.size != count || type.arguments.any { argument ->
-                argument.type == null || argument.variance != Variance.INVARIANT
+                argument.type == null || (argument.variance != Variance.INVARIANT &&
+                    !(javaArrayParameter && argument.variance == Variance.COVARIANT &&
+                        argument.origin == Origin.SYNTHETIC && argument.type?.origin == Origin.SYNTHETIC))
             }
         ) {
             return unsupportedMapShape(
@@ -387,6 +530,19 @@ internal class MetadataCollector(private val logger: ArcDiagnosticReporter) {
     private fun unsupportedMapShape(identity: String, path: String, detail: String, node: KSNode): TypeShapeDescriptor? {
         logger.error(ArcDiagnostic.PROXY_SHAPE, "Artifact/property '$identity' value path '$path': $detail.", node)
         return null
+    }
+
+    private fun unsupportedSequenceElement(identity: String, node: KSNode) {
+        logger.error(
+            ArcDiagnostic.PROXY_SHAPE,
+            "Artifact/property '$identity' value path 'value[]': nullable sequence elements are unsupported; " +
+                "declare nonnullable elements, for example List<T> or List<T>?.",
+            node
+        )
+    }
+
+    private fun Sequence<KSAnnotation>.hasNullableTypeUse(): Boolean = any { annotation ->
+        annotation.annotationType.resolve().declaration.simpleName.asString() in setOf("Nullable", "CheckForNull")
     }
 
     private fun sequenceKind(qualifiedName: String): SequenceKind = when {
@@ -796,7 +952,8 @@ internal class MetadataCollector(private val logger: ArcDiagnosticReporter) {
     private fun describeJavaType(
         sourceTypeName: String,
         owner: KSClassDeclaration,
-        identity: String
+        identity: String,
+        node: KSNode
     ): TypeShape? {
         val rawType = sourceTypeName.removeSuffix("[]")
         val genericStart = rawType.indexOf('<')
@@ -813,7 +970,12 @@ internal class MetadataCollector(private val logger: ArcDiagnosticReporter) {
             logger.error("'$identity' must use a concrete collection element type.", owner)
             return null
         }
-        val valueSourceName = argumentName ?: rawType
+        val valueUse = parseJavaTypeUse(argumentName ?: rawType)
+        if (isEnumerable && valueUse.isNullable) {
+            unsupportedSequenceElement(identity, node)
+            return null
+        }
+        val valueSourceName = valueUse.typeName
         if ('<' in valueSourceName || '?' in valueSourceName || '*' in valueSourceName) {
             logger.error("'$identity' uses an unsupported nested, wildcard, or generic shape.", owner)
             return null
@@ -1176,6 +1338,9 @@ internal class MetadataCollector(private val logger: ArcDiagnosticReporter) {
         const val ARC_ENUM_VALUE_ANNOTATION = "io.cratis.arc.concepts.ArcEnumValue"
         const val FLAGS_ANNOTATION = "io.cratis.arc.concepts.Flags"
         const val COMMAND_KEY_ANNOTATION = "io.cratis.arc.artifacts.CommandKey"
+        const val COMMAND_ANNOTATION = "io.cratis.arc.artifacts.Command"
+        const val JSON_IGNORE_ANNOTATION = "com.fasterxml.jackson.annotation.JsonIgnore"
+        const val JSON_PROPERTY_ANNOTATION = "com.fasterxml.jackson.annotation.JsonProperty"
         const val DERIVED_TYPE_ANNOTATION = "io.cratis.arc.polymorphism.DerivedType"
         val COLLECTION_TYPE_NAMES = setOf(
             "kotlin.collections.List",

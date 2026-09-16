@@ -4,6 +4,9 @@
 package io.cratis.arc.gradle
 
 import com.google.devtools.ksp.gradle.KspExtension
+import com.google.devtools.ksp.gradle.KspAATask
+import org.gradle.api.attributes.LibraryElements
+import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.artifacts.Configuration
@@ -27,6 +30,7 @@ public class ArcGradlePlugin : Plugin<Project> {
 
         configureArcDependencies(project, extension)
         configureJvm(project)
+        configureResponseHandlerMetadata(project)
         project.extensions.configure(KspExtension::class.java) { ksp ->
             ksp.arg("arc.moduleName", extension.moduleName)
         }
@@ -46,6 +50,34 @@ public class ArcGradlePlugin : Plugin<Project> {
             generateTask.configure { task ->
                 task.onlyIf {
                     task.generationEnabled.get() && task.outputDirectory.isPresent
+                }
+            }
+        }
+    }
+
+    private fun configureResponseHandlerMetadata(project: Project) {
+        val kotlin = project.extensions.getByType(KotlinJvmProjectExtension::class.java)
+        kotlin.target.compilations.configureEach { compilation ->
+            val artifacts = project.configurations.getByName(compilation.compileDependencyConfigurationName)
+                .incoming.artifactView { view ->
+                    view.attributes.attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE,
+                        project.objects.named(LibraryElements::class.java, LibraryElements.JAR))
+                }.files
+            val suffix = compilation.name.replaceFirstChar { it.uppercase() }
+            val extract = project.tasks.register("extract${suffix}ArcResponseHandlerMetadata", ExtractArcResponseHandlerMetadata::class.java) { task ->
+                task.group = "arc"
+                task.dependencyArtifacts.from(artifacts)
+                task.outputFile.convention(project.layout.buildDirectory.file("arc/response-handlers/${compilation.name}.json"))
+            }
+            val kspTaskName = "ksp" + compilation.compileKotlinTaskName.removePrefix("compile")
+            project.tasks.withType(KspAATask::class.java).configureEach { task ->
+                if (task.name == kspTaskName) {
+                    val provider = project.objects.newInstance(ArcResponseHandlerMetadataArgumentProvider::class.java)
+                    provider.metadataFile.set(extract.flatMap { it.outputFile })
+                    task.commandLineArgumentProviders.add(provider)
+                    // NOT @Incremental: metadata changes require all source roots, not just a KSP task rerun.
+                    task.inputs.file(provider.metadataFile).withPropertyName("arcResponseHandlerMetadata")
+                        .withPathSensitivity(PathSensitivity.NONE)
                 }
             }
         }
@@ -86,6 +118,8 @@ public class ArcGradlePlugin : Plugin<Project> {
             proxyTask.enableQueryHttpMethod.convention(extension.endpoints.enableQueryHttpMethod)
             proxyTask.removeStaleGeneratedFiles.convention(extension.proxies.removeStaleGeneratedFiles)
             proxyTask.proxySegmentsToSkip.convention(extension.proxies.segmentsToSkip)
+            proxyTask.typeMappings.convention(extension.proxies.typeMappings)
+            proxyTask.packageMappings.convention(extension.proxies.packageMappings)
             proxyTask.outputDirectory.convention(extension.proxies.outputDirectory)
             proxyTask.manifestClasspath.from(
                 main.output,

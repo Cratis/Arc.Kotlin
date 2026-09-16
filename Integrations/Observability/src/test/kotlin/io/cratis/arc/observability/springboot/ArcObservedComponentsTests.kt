@@ -47,7 +47,7 @@ import org.slf4j.MDC
 
 internal class ArcObservedComponentsTests {
     @Test
-    fun `command execute and validate record bounded outcomes and correlation context`() = runBlocking {
+    fun `command execute and validate record bounded outcomes and correlation context`(): Unit = runBlocking {
         val registry = TestObservationRegistry.create()
         val correlationId = UUID.randomUUID()
         var baggage: String? = null
@@ -95,7 +95,7 @@ internal class ArcObservedComponentsTests {
     }
 
     @Test
-    fun `thrown command errors and cancellation record terminal outcomes`() = runBlocking {
+    fun `thrown command errors and cancellation record terminal outcomes`(): Unit = runBlocking {
         val errorRegistry = TestObservationRegistry.create()
         val errorPipeline = ObservedCommandPipeline(ThrowingCommandPipeline(IllegalStateException("failed")), recorder(errorRegistry))
         assertThrows(IllegalStateException::class.java) {
@@ -123,7 +123,7 @@ internal class ArcObservedComponentsTests {
     }
 
     @Test
-    fun `one shot and observable queries record perform open subscription and emissions`() = runBlocking {
+    fun `one shot and observable queries record perform open subscription and emissions`(): Unit = runBlocking {
         val registry = TestObservationRegistry.create()
         val request = queryRequest()
         val options = queryOptions()
@@ -173,7 +173,7 @@ internal class ArcObservedComponentsTests {
     }
 
     @Test
-    fun `observable subscription cancellation is recorded`() = runBlocking {
+    fun `observable subscription cancellation is recorded`(): Unit = runBlocking {
         val registry = TestObservationRegistry.create()
         val observable = ObservedObservableQueryPipeline(
             object : ObservableQueryPipeline {
@@ -200,7 +200,7 @@ internal class ArcObservedComponentsTests {
     }
 
     @Test
-    fun `authentication and coroutine and Java identity providers record outcomes`() = runBlocking {
+    fun `authentication and coroutine and Java identity providers record outcomes`(): Unit = runBlocking {
         val registry = TestObservationRegistry.create()
         val authentication = ObservedAuthentication(
             object : Authentication {

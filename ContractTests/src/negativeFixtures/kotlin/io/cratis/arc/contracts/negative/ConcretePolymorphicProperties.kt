@@ -27,7 +27,8 @@ public data class ConcretePropertyCommand(
     public val nullable: ConcretePropertyBase?,
     public val list: List<ConcretePropertyBase>,
     public val array: Array<ConcretePropertyBase>,
-    public val nullableElements: List<ConcretePropertyBase?>,
+    // Entry nullability is rejected earlier; keep this fixture focused on concrete polymorphic bases.
+    public val nullableElements: List<ConcretePropertyBase>,
     public val transitive: TransitivePropertyBase,
     public val annotatedIntermediate: ConcretePropertyIntermediate
 ) {

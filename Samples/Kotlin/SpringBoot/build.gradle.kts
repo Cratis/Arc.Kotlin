@@ -84,6 +84,8 @@ val generateArcProxies by tasks.registering(JavaExec::class) {
             "FindCalendarEcho.ts",
             "FindCalendarPrecision.ts",
             "Observe.ts",
+            // Reached only through @ExportedType: no command or query references the identity details type.
+            "SampleIdentityDetails.ts",
             "TaskCreated.ts",
             "TaskView.ts"
         ).forEach { name ->

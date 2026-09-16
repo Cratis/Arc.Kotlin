@@ -28,8 +28,26 @@ public abstract class io/cratis/arc/gradle/ArcProxyOptions {
 	public fun <init> (Lorg/gradle/api/model/ObjectFactory;)V
 	public final fun getEnabled ()Lorg/gradle/api/provider/Property;
 	public final fun getOutputDirectory ()Lorg/gradle/api/file/DirectoryProperty;
+	public final fun getPackageMappings ()Lorg/gradle/api/provider/MapProperty;
 	public final fun getRemoveStaleGeneratedFiles ()Lorg/gradle/api/provider/Property;
 	public final fun getSegmentsToSkip ()Lorg/gradle/api/provider/Property;
+	public final fun getTypeMappings ()Lorg/gradle/api/provider/ListProperty;
+	public final fun mapPackage (Ljava/lang/String;Ljava/lang/String;)V
+	public final fun mapType (Ljava/lang/String;Ljava/lang/String;)V
+	public final fun mapType (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+}
+
+public abstract class io/cratis/arc/gradle/ArcResponseHandlerMetadataArgumentProvider : org/gradle/process/CommandLineArgumentProvider {
+	public fun <init> ()V
+	public fun asArguments ()Ljava/lang/Iterable;
+	public abstract fun getMetadataFile ()Lorg/gradle/api/file/RegularFileProperty;
+}
+
+public abstract class io/cratis/arc/gradle/ExtractArcResponseHandlerMetadata : org/gradle/api/DefaultTask {
+	public fun <init> ()V
+	public final fun extract ()V
+	public abstract fun getDependencyArtifacts ()Lorg/gradle/api/file/ConfigurableFileCollection;
+	public abstract fun getOutputFile ()Lorg/gradle/api/file/RegularFileProperty;
 }
 
 public abstract class io/cratis/arc/gradle/GenerateArcProxies : org/gradle/api/DefaultTask {
@@ -42,10 +60,12 @@ public abstract class io/cratis/arc/gradle/GenerateArcProxies : org/gradle/api/D
 	public abstract fun getManifestClasspath ()Lorg/gradle/api/file/ConfigurableFileCollection;
 	public abstract fun getModuleName ()Lorg/gradle/api/provider/Property;
 	public abstract fun getOutputDirectory ()Lorg/gradle/api/file/DirectoryProperty;
+	public abstract fun getPackageMappings ()Lorg/gradle/api/provider/MapProperty;
 	public abstract fun getProxySegmentsToSkip ()Lorg/gradle/api/provider/Property;
 	public abstract fun getRemoveStaleGeneratedFiles ()Lorg/gradle/api/provider/Property;
 	public abstract fun getRoutePrefix ()Lorg/gradle/api/provider/Property;
 	public abstract fun getRouteSegmentsToSkip ()Lorg/gradle/api/provider/Property;
+	public abstract fun getTypeMappings ()Lorg/gradle/api/provider/ListProperty;
 }
 
 public final class io/cratis/arc/gradle/GenerateArcProxiesCli {

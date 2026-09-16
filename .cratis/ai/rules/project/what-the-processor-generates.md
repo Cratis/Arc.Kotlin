@@ -6,7 +6,10 @@ applyTo: "**/*"
 
 Invocation implementations are emitted during processing. `finish()` flushes the final metadata
 diagnostics and emits aggregate outputs once, only for a valid, resolved snapshot with a valid
-module name and at least one command or query. The output consists of:
+module name. Supported public top-level source response-handler declarations produce a separate
+format-1 resource at `META-INF/cratis/arc-response-handlers/<moduleName>.json`, even in a handler-only
+compilation; imported declarations are not re-exported. When at least one command or query exists,
+the artifact outputs consist of:
 
 - One command handler per command, in `io.cratis.arc.generated.commands`, named
   `<Simple>ArcCommandHandler_<12 hex>` where the suffix is the first six bytes of the SHA-256 of the
@@ -23,7 +26,7 @@ module name and at least one command or query. The output consists of:
   `ServiceLoader`.
 - One manifest resource at `META-INF/cratis/arc/<moduleName>.json`.
 
-The helper, module, service entry, and manifest share explicit aggregating dependencies on the
+The helper, module, service entry, manifest, and handler declaration resource share explicit aggregating dependencies on the
 terminal round's files. Replace that file snapshot every round; `Dependencies.ALL_FILES` can retain
 invalid first-round source objects in KSP2. Keep per-invoker source associations and do not emit
 placeholder files to force stabilization rounds. Provisional diagnostic nodes are likewise replaced

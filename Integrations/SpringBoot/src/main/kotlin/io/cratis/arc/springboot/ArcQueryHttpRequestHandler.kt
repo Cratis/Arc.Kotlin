@@ -643,6 +643,7 @@ private class ArcQueryArgumentConverter(
             return when (outer) {
                 "kotlin.Array" -> TargetType.Array(element)
                 "kotlin.collections.List", "kotlin.collections.MutableList",
+                "kotlin.collections.Collection", "kotlin.collections.MutableCollection",
                 "java.util.List", "java.util.Collection", "java.lang.Iterable" -> TargetType.Collection(element)
                 else -> TargetType.Scalar(resolveClass(normalized))
             }

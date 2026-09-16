@@ -12,7 +12,9 @@ import kotlin.reflect.KClass
  * response-handler SPIs adapted by Arc. Declared types are statically classified as server-handled. Dynamically
  * registered handlers are re-evaluated after client response installation; an absent or nonmatching registration fails
  * closed rather than exposing the value. Declaring an element type does not cover collections or arrays of that type.
- * Declarations must be source-visible for current KSP discovery.
+ * KSP discovers declarations from source or indexed dependencies; unindexed libraries remain undiscoverable.
+ * Dependency indexes describe supported public top-level declarations, not runtime registration. Register the
+ * corresponding handler separately at runtime.
  */
 @MustBeDocumented
 @Retention(AnnotationRetention.RUNTIME)

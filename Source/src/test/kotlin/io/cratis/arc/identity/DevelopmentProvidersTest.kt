@@ -23,20 +23,21 @@ import org.junit.jupiter.api.Test
 
 class DevelopmentProvidersTest {
     @Test
-    fun `users aggregate in provider order and first duplicate wins`() = runBlocking {
+    fun `users aggregate in provider order and first duplicate wins`(): Unit = runBlocking {
         val first = user("one", "first")
         val duplicate = user("one", "duplicate")
         val second = user("two", "second")
+        val third = user("three", "third")
         val providers = mutableListOf<UsersProvider>(
             UsersProvider { listOf(first, second) },
-            UsersProvider { listOf(duplicate, user("three", "third")) }
+            UsersProvider { listOf(duplicate, third) }
         )
         val aggregator = UsersProviderAggregator(providers)
         providers.clear()
 
         val result = aggregator.provide()
 
-        assertEquals(listOf(first, second, user("three", "third")), result)
+        assertEquals(listOf(first, second, third), result)
         assertThrows(UnsupportedOperationException::class.java) {
             (result as MutableList<User>).add(user("four", "fourth"))
         }

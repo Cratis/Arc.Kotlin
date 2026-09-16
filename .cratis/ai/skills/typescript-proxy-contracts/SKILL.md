@@ -19,9 +19,14 @@ and [`../../rules/gradle.md`](../../rules/gradle.md). This file is the procedure
 Read before editing, in this order:
 
 - `CodeGeneration/KSP/src/main/kotlin/io/cratis/arc/codegeneration/ksp/ArcSymbolProcessor.kt`
-  writes one manifest per compilation module to
+  writes one format-7 artifact manifest per command/query compilation module to
   `META-INF/cratis/arc/<moduleName>.json` (`generateModule`), where `<moduleName>` is the
-  `arc.moduleName` KSP option.
+  required `arc.moduleName` KSP option. Source or indexed dependency handler declarations can
+  affect response classification. The optional `arc.responseHandlerMetadata` option accepts an
+  absolute file URI for a format-1 dependency handler index, separate from the artifact manifest.
+  Handler-only compilations export supported public top-level source declarations under
+  `META-INF/cratis/arc-response-handlers/` without an artifact manifest or module. Unindexed
+  libraries remain undiscoverable, and runtime handler registration remains separate.
 - `GradlePlugin/src/main/kotlin/io/cratis/arc/gradle/ArcManifestDiscovery.kt` discovers every
   manifest under the `META-INF/cratis/arc/` prefix on a classpath, rejects any
   `formatVersion` other than `ArcArtifactManifest.CURRENT_FORMAT_VERSION`, and merges
@@ -137,10 +142,39 @@ gate, so `clean build` runs it unless it is excluded, as CI does.
 
 ## 8. The .NET-derived differential is a drift gate, not proof of parity
 
-`:GradlePlugin:test` contains `jvm proxies are byte identical to normalized dotnet proxies`,
-which compares the complete sorted output path set and bodies against
-`GradlePlugin/src/test/resources/differential/dotnet/**` after CRLF-to-LF and generated-header
-normalization plus documented expected-side rewrites. Per
+`:GradlePlugin:test` contains `raw jvm proxy bytes equal the prepared expected fixture`,
+which compares sorted relative paths of all regular output files, then untouched JVM bytes
+including headers against prepared `GradlePlugin/src/test/resources/differential/dotnet/**`
+bytes. Only actual path separators change. The independent expected oracle validates 16 literal
+source identities against fixture descriptors (queries use declaring models), reconstructs uppercase
+SHA-256 headers from prepared expected bodies, and leaves three indexes headerless. It never reads
+actual content or calls the production hash helper; a fixed `abc` vector guards hashing.
+
+Read the complete rewrite inventory and source table in
+`Documentation/guides/typescript-proxies.md`, "Expected-only differential preparation". It includes
+expected LF/trailing-whitespace/terminal-newline preparation, FixtureModel quote/indent preparation,
+CreateFixtures quote/import/request-array/class/hook formatting, exactly one enumerable generic
+correction, the exact-site eslint/ts-ignore hook pair, and five literal type-only import patterns
+(some no-ops on the current fixture). Only `Models/Observe.ts` also replaces the zero-space blank
+line before its four-space-indented `filter: string;` member in exactly one known `ObserveParameters`
+block with four spaces. This is not an empty interface; `ObserveOne.ts` is excluded. Missing/duplicate
+anchors and misplaced suppressions fail preparation, and no type-soundness claim covers ignored
+hook calls. Actual mutation tests exercise this same reader/preparer/byte comparator, including
+wrong Observe spacing, non-TS files, headers, and a changed body with a valid recomputed hash.
+
+The helper pairs in `Models/All.ts`, `Models/Search.ts`, and `Models/Observe.ts` also receive an explicit
+expected-side result-field correction through `ExpectedSortHelperPreparation`: unique anchors and fixed
+original block hashes guard replacement with the independently declared FixtureModel field inventory.
+Only All gains SortingActions imports; the helper constructor no longer exposes its owner as `query`.
+No request parameter, route, hook or capability flag is changed. This semantic correction records a
+JVM correctness divergence, not matching .NET output. Mutations of original helper blocks and of actual
+sort keys must fail. See the full preparation inventory in the guide.
+
+Historical capture-time namespace/query casing and removed timestamps/hashes are embedded in the
+fixture, not reproduced here. Capture SDK/tool versions remain unverified. `Contracts/Shape.ts`
+is a class, not interface-emission proof. The Record fixture proves only string keys/string values,
+not non-string keys, nullable entries, typed model values, `ValueMap`, or broader dictionary parity;
+there is no Guid/DateOnly/TimeOnly fixture coverage. Overall parity remains Partial. Per
 `Documentation/reference/parity.md`, ".NET-derived proxy differential gate", this "remains a
 drift gate for the normalized fixture, not an exact raw .NET-output comparison; capture-time
 fixture preparation is not yet reproducible tooling." Never describe a green differential as

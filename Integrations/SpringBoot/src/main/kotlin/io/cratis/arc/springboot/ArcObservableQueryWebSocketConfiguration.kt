@@ -16,9 +16,9 @@ import io.cratis.arc.correlation.CorrelationIdResolver
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
 import org.springframework.beans.factory.config.BeanPostProcessor
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
@@ -150,7 +150,7 @@ private class ArcObservableHandshakeInterceptor(
     }
 }
 
-private class ArcDirectObservableWebSocketHandler(
+internal class ArcDirectObservableWebSocketHandler(
     private val performer: QueryPerformer,
     private val transport: ArcObservableQueryTransport,
     private val scope: ArcApplicationCoroutineScope,
@@ -173,8 +173,10 @@ private class ArcDirectObservableWebSocketHandler(
             session,
             transport,
             properties.observableQueries.outboundBufferCapacity,
-            lease
-        ) { transport.removeHealthConnection(connectionId) }
+            lease,
+            scope,
+            properties.requestTimeout.toMillis()
+        )
         val captured = try {
             transport.createDirectRequest(
                 handshake.copy(parameters = session.uri?.let(::parseUriParameters) ?: handshake.parameters),
@@ -187,7 +189,12 @@ private class ArcDirectObservableWebSocketHandler(
         transport.registerDirectSubscription(connectionId, subscriptionId, "websocket", performer, handshake)
         val connection = DirectSocketConnection(writer)
         connections[session.id] = connection
-        connection.streamJob = scope.tryLaunch {
+        writer.attachOwner {
+            connections.remove(session.id, connection)
+            transport.removeHealthConnection(connectionId)
+        }
+        writer.start()
+        val streamJob = scope.tryLaunch(start = CoroutineStart.LAZY) {
             try {
                 when (val opened = transport.open(captured, ObservableQueryTransferMode.FULL)) {
                     is ObservableQueryOpenResult.Failure -> writer.send(
@@ -196,24 +203,31 @@ private class ArcDirectObservableWebSocketHandler(
                     is ObservableQueryOpenResult.Stream -> opened.results.collect { result ->
                         if (!writer.send(mapOf("type" to "Data", "data" to transport.wire(result)))) {
                             writer.close(SERVICE_OVERLOAD)
-                            return@collect
+                            throw CancellationException("Observable WebSocket outbound buffer is unavailable.")
                         }
                         transport.recordDataServed(connectionId, subscriptionId)
-                        if (!result.isAuthorized) writer.close(CloseStatus.NORMAL)
+                        if (!result.isAuthorized) {
+                            writer.finish()
+                            throw CancellationException("Observable query became unauthorized.")
+                        }
                     }
                 }
-            } catch (_: CancellationException) {
-                throw CancellationException()
+                writer.finish()
             } finally {
-                writer.close(CloseStatus.NORMAL)
+                writer.producerEnded()
             }
         }
-        if (connection.streamJob == null) {
+        if (streamJob == null) {
             writer.close(SERVICE_OVERLOAD)
             connections.remove(session.id)
             return
         }
-        connection.heartbeatJob = heartbeat(writer, connectionId, subscriptionId)
+        writer.attach(streamJob)
+        streamJob.start()
+        heartbeat(writer, connectionId, subscriptionId)?.let { job ->
+            writer.attachHeartbeat(job)
+            job.start()
+        }
     }
 
     override fun handleTextMessage(session: WebSocketSession, message: TextMessage) {
@@ -242,7 +256,7 @@ private class ArcDirectObservableWebSocketHandler(
     private fun heartbeat(writer: ArcSocketWriter, connectionId: String, subscriptionId: String): Job? {
         val interval = properties.observableQueries.keepAliveInterval
         if (interval.isZero) return null
-        return scope.tryLaunch {
+        return scope.tryLaunch(start = CoroutineStart.LAZY) {
             while (true) {
                 delay(interval.toMillis())
                 if (!writer.send(mapOf("type" to "Ping", "timestamp" to System.currentTimeMillis()))) break
@@ -268,13 +282,22 @@ private class ArcObservableHubWebSocketHandler(
             session.close(SERVICE_OVERLOAD)
             return
         }
-        val writer = ArcSocketWriter(session, transport, properties.observableQueries.outboundBufferCapacity, lease)
-        lateinit var connection: HubSocketConnection
+        val writer = ArcSocketWriter(
+            session, transport, properties.observableQueries.outboundBufferCapacity, lease, scope,
+            properties.requestTimeout.toMillis()
+        )
         val hub = transport.createHubConnection("ws-${session.id}", handshake, writer::send) { writer.close(CloseStatus.NORMAL) }
-        connection = HubSocketConnection(hub, writer)
+        val connection = HubSocketConnection(hub, writer)
         connections[session.id] = connection
-        writer.send(transport.connected(hub.id))
-        connection.heartbeatJob = heartbeat(hub)
+        writer.attachOwner {
+            connections.remove(session.id, connection)
+            hub.close()
+        }
+        writer.start()
+        if (writer.send(transport.connected(hub.id))) heartbeat(hub)?.let { job ->
+            writer.attachHeartbeat(job)
+            job.start()
+        }
     }
 
     override fun handleTextMessage(session: WebSocketSession, message: TextMessage) {
@@ -324,7 +347,7 @@ private class ArcObservableHubWebSocketHandler(
     private fun heartbeat(hub: ArcHubConnection): Job? {
         val interval = properties.observableQueries.keepAliveInterval
         if (interval.isZero) return null
-        return scope.tryLaunch {
+        return scope.tryLaunch(start = CoroutineStart.LAZY) {
             while (true) {
                 delay(interval.toMillis())
                 if (!hub.send(transport.ping())) break
@@ -341,68 +364,49 @@ private class ArcObservableHubWebSocketHandler(
     )
 }
 
-private class ArcSocketWriter(
+internal class ArcSocketWriter(
     private val session: WebSocketSession,
     private val transport: ArcObservableQueryTransport,
     capacity: Int,
-    private val lease: ConnectionLease,
-    private val onClosed: () -> Unit = {}
+    lease: ConnectionLease,
+    applicationScope: CoroutineScope,
+    drainTimeoutMillis: Long
 ) : AutoCloseable {
-    private val outbound = Channel<String>(capacity)
-    private val closed = java.util.concurrent.atomic.AtomicBoolean()
-    private val writer = kotlinx.coroutines.CoroutineScope(
-        kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO
-    ).launch {
-        try {
-            for (payload in outbound) {
-                if (!session.isOpen) break
+    private var closeStatus = CloseStatus.NORMAL
+    private val lifecycle = ArcOutboundWriter(
+        applicationScope, capacity, drainTimeoutMillis,
+        write = { payload ->
+            if (!session.isOpen) throw java.io.IOException("WebSocket disconnected.")
+            try {
                 session.sendMessage(TextMessage(payload))
+            } catch (exception: Exception) {
+                throw java.io.IOException("WebSocket write failed.", exception)
             }
-        } catch (_: Exception) {
-            // Closing the writer performs the connection cleanup.
-        } finally {
-            close(CloseStatus.NORMAL)
-        }
-    }
+        },
+        release = lease::close,
+        closeTransport = { if (session.isOpen) session.close(closeStatus) }
+    )
 
-    fun send(value: Any): Boolean {
-        if (closed.get()) return false
-        val accepted = outbound.trySend(transport.json(value)).isSuccess
-        if (!accepted) close(SERVICE_OVERLOAD)
-        return accepted
-    }
-
-    fun close(status: CloseStatus) {
-        if (!closed.compareAndSet(false, true)) return
-        outbound.close()
-        lease.close()
-        onClosed()
-        runCatching { if (session.isOpen) session.close(status) }
-        writer.cancel()
-    }
-
+    fun start() = lifecycle.start()
+    fun attachOwner(onClosed: () -> Unit) = lifecycle.attachOwner(onClosed)
+    fun attach(job: Job) = lifecycle.attach(job)
+    fun attachHeartbeat(job: Job) = lifecycle.attachHeartbeat(job)
+    fun send(value: Any): Boolean = lifecycle.send(transport.json(value)) { close(SERVICE_OVERLOAD) }
+    fun finish() = lifecycle.finish()
+    fun producerEnded() = lifecycle.producerEnded()
+    fun close(status: CloseStatus) = lifecycle.abort { closeStatus = status }
     override fun close() = close(CloseStatus.NORMAL)
 }
 
 private class DirectSocketConnection(val writer: ArcSocketWriter) : AutoCloseable {
-    var streamJob: Job? = null
-    var heartbeatJob: Job? = null
-
-    override fun close() {
-        streamJob?.cancel()
-        heartbeatJob?.cancel()
-        writer.close()
-    }
+    override fun close() = writer.close()
 }
 
 private class HubSocketConnection(
     val hub: ArcHubConnection,
     val writer: ArcSocketWriter
 ) : AutoCloseable {
-    var heartbeatJob: Job? = null
-
     override fun close() {
-        heartbeatJob?.cancel()
         hub.close()
         writer.close()
     }
