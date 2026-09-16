@@ -4,13 +4,14 @@ applyTo: "**/*"
 
 ## Registered autoconfigurations
 
-Exactly five classes are listed in
+Exactly six classes are listed in
 `Integrations/SpringBoot/src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`.
 Know which layer you are editing:
 
 | Class | Guarded by | Owns |
 | --- | --- | --- |
 | `ArcAutoConfiguration` | none (non-web Spring Boot wiring) | registries, pipelines, authentication, authorization, tenancy resolution, introspection, artifact modules, coroutine scope, Jackson 3 wiring |
+| `ArcPlatformIdentityAutoConfiguration` | servlet application, Spring Security `HttpSecurity` and `cratis.arc.platform-identity.enabled=true` (default off) | bounded unsigned platform-header conversion, deny-all default ingress trust, security-chain-only filter, and an optional backing-off chain requiring authentication everywhere with CSRF retained |
 | `ArcCorrelationAutoConfiguration` | servlet application with `cratis.arc.correlation-enabled` enabled (the default) | host-wide correlation request wrapping, response headers, and servlet-thread MDC |
 | `ArcValidationAutoConfiguration` | `@AutoConfiguration(after = [ArcAutoConfiguration::class])`, `@ConditionalOnClass(name = ["jakarta.validation.Validator"])` | the Jakarta Bean Validation command and query filters |
 | `ArcWebAutoConfiguration` | `@ConditionalOnWebApplication(type = SERVLET)`, `@ConditionalOnClass(name = ["jakarta.servlet.Servlet", "org.springframework.web.servlet.DispatcherServlet"])` | servlet hosting: the authentication filter registration, observable-query transport, and the command/query handler mapping |

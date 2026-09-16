@@ -71,6 +71,11 @@ ordinary build/check. It is not full server parity; paging totals and framework 
 
 ## Current limits
 
+The optional [platform identity bridge](Documentation/guides/security.md#establish-trust-before-accepting-platform-headers)
+is default-off and requires an explicit trusted-ingress policy plus authenticated, header-rewriting
+and isolated ingress. Unsigned base64 headers never prove sender identity. Application Spring Security
+chains remain authoritative; the enabled default chain protects every route and retains CSRF.
+
 Identity details now reach manifests and generated clients through public source provider supertypes
 and typed Kotlin/Java factory returns, including anonymous providers returned by typed factories.
 Concrete erased, star-projected, generic or unsupported details boundaries fail with `ARCKSP0307`;

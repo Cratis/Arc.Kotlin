@@ -3,6 +3,101 @@ title: Authenticate and authorize Arc endpoints
 description: Register Kotlin and Java authentication handlers, declare endpoint authorization, and expose application identity details safely.
 ---
 
+## Establish trust before accepting platform headers
+
+The optional platform identity bridge is **off by default**. Base64 is unsigned data, never proof of
+sender identity. Enable `cratis.arc.platform-identity.enabled=true` only behind authenticated ingress
+that strips caller-supplied `x-ms-client-principal`, `x-ms-client-principal-id`, and
+`x-ms-client-principal-name` headers and rewrites them from verified identity. Block direct backend
+access. Header parsing alone cannot establish either of these deployment guarantees.
+
+Supply an `ArcPlatformIdentityTrust` bean that verifies your deployment's ingress boundary on each
+submission. Without it, the default policy rejects every platform submission. Do not return true
+because `X-Forwarded-For`, `Forwarded`, or another caller-authored header claims a trusted address.
+An exact `request.remoteAddr` comparison can be part of an isolated deployment's policy, but only
+when it represents a verified transport peer. Forwarded-request wrappers and container valves can
+rewrite it: disable address rewriting or configure and verify trusted proxy handling before using
+this value. Do not resolve caller-provided hostnames or grant trust to the public client address.
+Arc does not install forwarding configuration, TLS credentials, firewall rules, or proxy allowlists.
+
+Spring Security remains optional. With security absent or the property disabled, Arc registers no
+platform converter, filter, or chain, and platform headers do not authenticate requests.
+
+### Choose who owns the security chain
+
+When enabled and no application `SecurityFilterChain` exists, Arc supplies a conservative chain:
+**every route requires authentication**, including otherwise anonymous Arc metadata routes. CSRF,
+security headers, and Spring's session defaults remain enabled; POST and other unsafe requests need
+a valid CSRF token. Missing authentication returns 401, access denial (including CSRF) returns 403,
+without login redirects or error redispatch. Form login and HTTP Basic are not added by this chain.
+This policy deliberately favors denial over accidentally exposing application routes; configure an
+application chain for any anonymous routes or alternative authentication mechanisms.
+
+An application chain is never rewritten. Explicitly add the provided filter after your existing
+authentication mechanisms and before `AnonymousAuthenticationFilter`, as in this Java configuration:
+
+```java
+@Bean
+SecurityFilterChain applicationChain(HttpSecurity http, ArcPlatformAuthenticationFilter filter) throws Exception {
+    http.addFilterBefore(filter, AnonymousAuthenticationFilter.class);
+    http.authorizeHttpRequests(rules -> rules.requestMatchers("/.cratis/commands").permitAll()
+        .anyRequest().authenticated());
+    http.exceptionHandling(errors -> errors.authenticationEntryPoint(
+        (request, response, failure) -> response.setStatus(401)));
+    return http.build();
+}
+```
+
+Keep the disabled `arcPlatformAuthenticationFilterRegistration` bean: it prevents Boot servlet
+registration and double execution outside Spring Security. With multiple application chains, install
+the filter only in chains intended to accept this identity. A chain without it ignores the headers.
+Do not register it independently as a servlet filter. Applications may replace the trust bean, the
+named `arcPlatformAuthenticationConverter` (`AuthenticationConverter`), or the filter bean; custom
+converters own equivalent validation and must report rejected credentials as `AuthenticationException`.
+Unrelated converters do not disable the named default.
+
+Valid platform submissions never replace an already authenticated non-anonymous Spring identity.
+Invalid submissions fail with a generic 401 even when an existing identity is present (CSRF or an
+earlier security filter may reject first). The bridge saves its context only in request attributes
+for redispatch, never in the HTTP session; keep Spring's request-attribute security-context repository
+support when customizing a chain. The servlet thread context is restored on exit. Arc captures the
+resulting principal before coroutine work, without later servlet or security thread-local reads.
+The client-readable identity cache cookie cannot authenticate a later request.
+
+### Understand the bounded header contract
+
+A submission requires exactly one of each of the three headers; no headers means no attempt.
+Partial or repeated headers, invalid base64, malformed UTF-8/JSON, duplicate JSON keys, trailing
+values, unknown fields, incorrect types, duplicate claim pairs, duplicate roles, control characters,
+and exceeded limits fail with no payload or parser cause in the failure. Canonical padded standard
+base64 is required, not URL-safe base64 or whitespace-wrapped data. Configure your container and proxy
+header limits too: they may reject a request before Arc sees it.
+
+The JSON object accepts `identityProvider`, `userId`, `userDetails`, `userRoles`, and `claims` only.
+`userDetails` is a required nonblank display name. Optional `userId` is a nonblank string but is not
+the canonical ID. Optional `identityProvider` is a string; missing or blank means no provider claim.
+`userRoles` is an optional array of nonblank strings; `claims` is an optional array of exact
+`{"typ":"type","val":"value"}` objects. Explicit null is not absence. Claim types are nonblank;
+empty claim values are allowed. ID/name headers must be nonblank; the name header is required by the
+wire contract, but the display name comes from `userDetails`.
+
+Limits are fixed: 32,768 encoded characters, 24,576 decoded bytes, 2,048 characters per string/header
+ID/name, 128 input claims, 64 roles (including role claims), nesting depth 4, 2,048 JSON tokens,
+256-character JSON property names, and 32-character numeric tokens. There is no application-mapper
+coercion or polymorphic type activation. Repeated claim types with distinct values remain multivalued.
+
+The ID header replaces exact `sub` and the standard nameidentifier claim. Reserved
+`urn:cratis:arc:identity:provider` collisions are removed case-insensitively, then one nonblank
+`identityProvider` value is retained verbatim, including surrounding spaces. Other claims, including
+`urn:cratis:identity:provider-key`, survive. Standard name and role claims are added from `userDetails`
+and `userRoles`; standard role claims also become Spring `ROLE_` authorities. Arc captures these as
+unprefixed roles and scheme `MicrosoftIdentityPlatform`. This scheme describes the bridge, not an
+independently verified signature or a claim that the application uses Microsoft token validation.
+
+These JVM security boundaries are intentionally stricter than the inspected Arc .NET handler,
+including rejecting partial submissions rather than treating them as anonymous. Do not log the
+headers, claims, or identity cookie when troubleshooting ingress.
+
 ## Register a Kotlin authentication handler
 
 Arc authenticates requests through ordered `AuthenticationHandler` beans before protected command, query, identity, and diagnostics endpoints run. A handler receives an immutable `AuthenticationRequestContext` containing case-insensitive headers, cookies, the principal captured by the host, and the selected tenant when one exists.
@@ -136,7 +231,9 @@ The identity cache cookie is client-readable by design and is excluded from auth
 
 ## Know which built-in routes are anonymous
 
-When no authentication handlers are registered, Arc endpoint behavior is unchanged and callers remain anonymous. Once handlers exist, the following literal metadata routes remain anonymous:
+The following rules describe Arc's own authentication layer; an application or the enabled platform
+Spring Security chain can impose stricter rules before Arc runs. When no Arc authentication handlers
+are registered, Arc endpoint behavior is unchanged and the captured host principal is used. Once handlers exist, the following literal metadata routes remain anonymous:
 
 - `GET /.cratis/commands`
 - `GET /.cratis/queries`
