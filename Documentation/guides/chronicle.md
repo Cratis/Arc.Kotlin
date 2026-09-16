@@ -3,7 +3,7 @@ title: Integrate commands and read models with Chronicle
 description: Append transactional event responses, apply concurrency scopes, resolve read models, execute reactor side effects, and test commands in process.
 ---
 
-## Keep Arc Core independent
+## Add Chronicle optionally
 
 `io.cratis:arc` has no Chronicle dependency. Add the optional integration when commands should append returned events or use Chronicle read models and reactors:
 

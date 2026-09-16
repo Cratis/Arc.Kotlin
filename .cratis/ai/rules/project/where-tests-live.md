@@ -6,7 +6,7 @@ applyTo: "**/*"
 
 | Location | Contains |
 | --- | --- |
-| `Source/src/test/kotlin/**` | Host-agnostic runtime unit tests |
+| `Source/src/test/kotlin/**` | Arc runtime unit tests |
 | `Source/src/test/java/**` | Java conformance tests for the core public surface |
 | `Integrations/<Name>/src/test/{kotlin,java}/**` | Integration unit tests, mostly Spring context tests |
 | `Testing/src/test/{kotlin,java}/**` | Tests for the published scenario helpers |

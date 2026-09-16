@@ -11,7 +11,7 @@ dependencies {
 }
 ```
 
-`arc-testing` uses the real `DefaultCommandPipeline` and `DefaultQueryPipeline`. It does not start Spring Boot or replace generated behavior with fake handlers. JSON round trips are enabled by default.
+`arc-testing` uses the real `DefaultCommandPipeline` and `DefaultQueryPipeline`. It does not start Spring Boot or replace generated behavior with fake handlers. This is in-process testing for the Spring Boot product, not a supported non-Spring application host or a JVM Screenplay implementation; Screenplay is not planned. JSON round trips are enabled by default.
 
 ## Test with Kotlin
 
@@ -30,7 +30,7 @@ Command and query results carry matching positive and negative assertions, so a 
 
 `CommandScenarioResult.shouldBeInvalid()` requires that validation actually ran. It fails when every validation result has reason `dependencyUnavailable`, because that outcome usually means the scenario forgot to register a read model or another validator dependency and no rule executed. Seed the missing dependency for a rule assertion. When dependency failure is the behavior under test, assert it explicitly with `shouldHaveValidation(reason = ValidationResultReasons.DEPENDENCY_UNAVAILABLE)`; this remains green without pretending a validation rule ran.
 
-To exercise the same host-neutral tenancy contract an integration uses, provide both the resolver and explicit request context. The resolved tenant ID is also used as the namespace unless a namespace is supplied:
+To exercise the same tenancy contract the Spring Boot integration uses, provide both the resolver and explicit request context. The resolved tenant ID is also used as the namespace unless a namespace is supplied:
 
 ```kotlin
 val result = CommandScenario(module, CreateTask::class.java)

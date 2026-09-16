@@ -4,7 +4,7 @@ applyTo: "**/*"
 
 ## Adding or changing an autoconfiguration
 
-1. Decide the layer: host-neutral (`ArcAutoConfiguration`), optional-library
+1. Decide the layer: non-web Spring Boot (`ArcAutoConfiguration`), optional-library
    (`ArcValidationAutoConfiguration`-style), servlet (`ArcWebAutoConfiguration`), or a new
    integration module. Prefer a new bean in an existing class over a new autoconfiguration class.
 2. Order it explicitly with `@AutoConfiguration(after = [...])` when it consumes another Arc bean;
@@ -14,7 +14,7 @@ applyTo: "**/*"
 4. Register a genuinely new autoconfiguration class in that module's `AutoConfiguration.imports`
    file — an unregistered class is dead code.
 5. Test it with Spring Boot's context runners, which is the established convention here:
-   `ApplicationContextRunner` for host-neutral wiring and `WebApplicationContextRunner` for servlet
+   `ApplicationContextRunner` for non-web Spring Boot wiring and `WebApplicationContextRunner` for servlet
    wiring, composed with Boot's native `JacksonAutoConfiguration`, `ArcAutoConfiguration`, and the relevant web/security auto-configurations.
    Cover at least: the default bean is present; an application `withBean(...)` replaces it
    (`assertSame`); property variants behave (`withPropertyValues("cratis.arc.tenancy.resolvers=subdomain", ...)`);

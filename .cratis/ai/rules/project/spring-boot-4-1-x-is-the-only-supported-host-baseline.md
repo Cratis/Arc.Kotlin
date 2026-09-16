@@ -15,12 +15,20 @@ synchronized deliberately.
 
 `AGENTS.md`, `README.md`, and `Documentation/reference/parity.md` all state that Spring Boot is the
 only host, and the parity
-matrix lists **Non-Spring hosting** as *Not planned*: "Spring Boot is the only supported host
-integration; Core remains host-independent." Do not add Ktor, Micronaut, Quarkus, a raw servlet
+matrix lists **Non-Spring hosting** as *Not planned*: "Arc targets Spring Boot; the Spring-free
+compiler/Gradle boundary does not promise another host." Do not add Ktor, Micronaut, Quarkus, a raw servlet
 container, or a Spring WebFlux host, and do not add abstractions whose only purpose is to make a
 second host possible. `Controllers` are likewise *Not planned* — Arc generates model-bound Spring MVC
 endpoints, and a hand-written controller is not the extension mechanism. If a request seems to
 require another host, stop and raise it rather than starting one.
+
+Static resources and SPA fallback belong to application-configured Spring facilities, not Arc.
+`@FromRequest` is not planned: existing `QueryRequest`/`QueryContext` injection and Spring binding
+cover supported inputs, without promising arbitrary request injection. `@IgnoreAutoRegistration`
+is unnecessary for annotated command/query generation entry points; do not claim that reachable-type
+traversal or diagnostic discovery is annotation-only. Runtime `ArcOneOf` is not `@GenerateOneOf` union
+generation; the latter is not planned. Screenplay is not planned; in-process scenarios are not its
+JVM equivalent. These dispositions change no behavior or parity/precision/cross-store guarantees.
 
 ---
 

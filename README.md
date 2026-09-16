@@ -6,7 +6,7 @@ Arc.Kotlin is the JVM implementation of Arc for Kotlin and Java applications hos
 
 | Project | Published identity | Responsibility |
 | --- | --- | --- |
-| `:Source` | `io.cratis:arc` | Host-independent command, query, validation, authorization, authentication, identity, tenancy, introspection, result, JSON, and artifact contracts |
+| `:Source` | `io.cratis:arc` | Arc command, query, validation, authorization, authentication, identity, tenancy, introspection, result, JSON, and artifact contracts |
 | `:CodeGeneration:KSP` | `io.cratis:arc-ksp` | Reflection-free command/query generation, manifests, concept and Jakarta validation metadata, stable `ARCKSP` diagnostics, and a checked ABI baseline |
 | `:GradlePlugin` | Gradle plugin `io.cratis.arc` (`io.cratis:arc-gradle-plugin`) | JVM/KSP conventions, one-shot plus observable TypeScript proxy generation, and a checked ABI baseline |
 | `:Integrations:SpringBoot` | `io.cratis:arc-spring-boot-starter` | Spring Boot auto-configuration and servlet HTTP, SSE, and optional WebSocket hosting |
@@ -22,7 +22,7 @@ Arc.Kotlin is the JVM implementation of Arc for Kotlin and Java applications hos
 | `:Samples:Kotlin:ChronicleSpringBoot` | Unpublished | Runnable tenant-aware Kotlin Arc + Chronicle application |
 | `:Samples:Java:ChronicleSpringBoot` | Unpublished | Runnable tenant-aware ordinary-Java Arc + Chronicle application |
 
-`Source` is deliberately independent of Spring Boot and Chronicle. Integrations depend inward on `Source`; samples consume public starters. Spring Boot is the only supported host, JSON uses Jackson, and no Ktor host is included.
+Arc targets Spring Boot; `Source` (`io.cratis:arc`) is part of that product, not a separate host-independent Core product. Modules and Maven coordinates remain unchanged. Integrations depend inward on `Source`; samples consume public starters, and Chronicle remains optional. The compiled `artifacts`, `metadata`, and `json` packages, plus all local types transitively referenced by them or the KSP/Gradle tools, must remain Spring-free. `./gradlew checkSpringBoundary` also checks reachable external superclass/interface/class-signature closure and both production tool classpaths (including file JARs). It does not recursively inspect optional external member APIs or implementation internals. This enforces a compiler/build-tool boundary, not support for another host. JSON uses Jackson; non-Spring hosting is not planned.
 
 ## Implemented functionality
 
@@ -30,7 +30,7 @@ Arc.Kotlin is the JVM implementation of Arc for Kotlin and Java applications hos
 - Command responses recursively flatten `Pair`, `Triple`, `ArcOneOf`, and nested `CommandResult` values in declaration order. Source-visible `@HandlesCommandResponseValues` declarations classify custom server-consumed leaves; exactly one remaining client leaf drives the runtime result, TypeScript response type, and OpenAPI schema, while multiple client leaves fail compilation with `ARCKSP0109`.
 - One-shot and observable model-bound queries, query validation, renderers, read-model interceptors, observable emission guards, health tracking, paging, sorting, GET, and RFC QUERY.
 - Observable HTTP snapshots, direct SSE and WebSocket routes, multiplexed SSE/WebSocket hubs, full/delta transfer, subscription revisions, heartbeats, health reporting, and generated observable TypeScript proxies.
-- Validation and authorization pipelines; Spring automatically validates command and typed query argument graphs with Jakarta Bean Validation when a `Validator` is present, while host-neutral `ConceptValidator` support applies reusable concept rules across command and query graphs.
+- Validation and authorization pipelines; Spring automatically validates command and typed query argument graphs with Jakarta Bean Validation when a `Validator` is present, while Arc `ConceptValidator` support applies reusable concept rules across command and query graphs.
 - KSP preserves exactly representable Jakarta and concept rules in runtime metadata and manifests. TypeScript proxies merge concept and owning-member rules, while OpenAPI exposes reusable scalar concept schemas instead of wrapper objects.
 - Pluggable coroutine and Java asynchronous authentication, command/query introspection, identity details and schema, development users and tenants, and explicit tenant resolution and access checks without thread-local state.
 - Spring Data JPA and MongoDB exact `Pageable`/`Sort` query parameters, exact `Page<T>` normalization, compatibility paging adapters, read-model/transaction integration, cold or shared observable `Flow` snapshots, and demand-aware Java publishers.
@@ -60,6 +60,8 @@ Run the documentation-only gate with:
 Supply a release version with `-Pversion=<version>`; local builds default to `0.0.0-SNAPSHOT`.
 
 ## Current limits
+
+Static resources and SPA fallback belong to application-configured Spring facilities, not Arc. Existing query infrastructure injection and Spring binding replace the need for `@FromRequest`; this is not an arbitrary request-injection API. KSP's annotated command/query generation entry points need no `@IgnoreAutoRegistration`, without implying that every discovery path is annotation-only. Runtime `ArcOneOf` does not imply `@GenerateOneOf` union generation. Screenplay and non-Spring hosting are not planned; see the [explicit dispositions](Documentation/reference/parity.md).
 
 Arc.Kotlin does not claim full Arc .NET parity. Controllers and non-Spring hosts are outside its direction. OpenAPI deliberately omits RFC QUERY because OpenAPI Path Items do not define that method. Generated query performers inject exact `QueryRequest`, `QueryContext`, `Pageable`, and `Sort` parameters without exposing them to clients, normalize exact `Page<T>` results, and the Spring Data integrations provide contextual command read-model parameters with deterministic JPA/Mongo ownership. Tenant-routed JPA uses certified `JpaPersistenceUnit` values; tenant-routed MongoDB uses certified `TenantMongoOperations`. Their observable APIs require MongoDB change streams or an explicit JPA change notifier. Imperative JPA/Mongo command transactions are disabled by default and remain thread-bound, fixed-store opt-ins that must not cross coroutine threads. The Arc Chronicle starter transitively supplies Chronicle.Kotlin's Spring Boot starter and its conventional `IEventStore`; applications can override its beans normally. No integration provides a distributed transaction across Chronicle, JPA, and MongoDB. KSP cannot currently discover `@HandlesCommandResponseValues` annotations declared only in dependency binaries, and erased `CommandResponseValues` contents cannot provide typed response metadata; put custom handler declarations in the command's source compilation when proxy/OpenAPI classification is required. `@CreditCard` and Hibernate Validator `@CreditCardNumber` remain server-enforced and present in metadata, but are not emitted into TypeScript until the pinned `@cratis/arc` client runtime provides a compatible rule.
 
