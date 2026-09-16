@@ -3,6 +3,7 @@
 
 package io.cratis.arc.queries
 
+import io.cratis.arc.java.BlockingPipelineGuard
 import io.cratis.arc.results.QueryResult
 import io.cratis.arc.results.ValidationResult
 import io.cratis.arc.results.ValidationResultReasons
@@ -49,6 +50,7 @@ public class DefaultQueryValidationFilter @JvmOverloads constructor(
             } catch (exception: CancellationException) {
                 throw exception
             } catch (exception: Exception) {
+                BlockingPipelineGuard.rethrowInterruption(exception)
                 results.add(validatorFailure(validator, exception))
             }
         }

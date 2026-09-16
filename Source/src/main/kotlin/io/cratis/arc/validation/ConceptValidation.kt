@@ -4,6 +4,7 @@
 package io.cratis.arc.validation
 
 import io.cratis.arc.concepts.ConceptAs
+import io.cratis.arc.java.BlockingPipelineGuard
 import io.cratis.arc.results.ValidationResult
 import io.cratis.arc.results.ValidationResultReasons
 import io.cratis.arc.results.ValidationResultSeverity
@@ -180,6 +181,7 @@ internal class ConceptValidation(
                 else -> break
             }
         }
+        BlockingPipelineGuard.rethrowInterruption(target)
         if (target is CancellationException) throw target
         if (target is Error) throw target
     }

@@ -5,6 +5,7 @@ package io.cratis.arc.commands
 
 import io.cratis.arc.artifacts.CommandEventStreamIdProvider
 import io.cratis.arc.artifacts.CommandEventSubjectProvider
+import io.cratis.arc.java.BlockingPipelineGuard
 import io.cratis.arc.metadata.CommandEventMetadata
 import io.cratis.arc.metadata.CommandResponseValueDescriptor
 import io.cratis.arc.metadata.CommandResponseValueDisposition
@@ -88,6 +89,7 @@ public class DefaultCommandPipeline @JvmOverloads constructor(
             token.executionOwner.markRollbackOnly(token)
             if (token.isRootExecution) token.executionOwner.sealRoot(token)
             if (exception is CancellationException) throw exception
+            BlockingPipelineGuard.rethrowInterruption(exception)
             return CommandResult.fromException(options.correlationId, exception)
         }
         var result: CommandResult<*> = CommandResult.success(options.correlationId)
@@ -95,6 +97,8 @@ public class DefaultCommandPipeline @JvmOverloads constructor(
         val begunScopes = ArrayList<CommandExecutionScope>(scopes.size)
 
         fun convertFailure(exception: Exception): CommandResult<*> = try {
+            // Keep normalization inside this try: throwing from the outer catch would skip scopes.
+            BlockingPipelineGuard.rethrowInterruption(exception)
             CommandResult.fromException(options.correlationId, exception)
         } catch (extractionCancellation: CancellationException) {
             // A catch does not catch exceptions thrown inside itself. Retain cancellation as failure
@@ -153,7 +157,14 @@ public class DefaultCommandPipeline @JvmOverloads constructor(
             for (index in begunScopes.indices.reversed()) {
                 try {
                     val fragment = withTimeout(executionScopeCompletionTimeout.toMillis()) {
-                        begunScopes[index].complete(context, result)
+                        try {
+                            begunScopes[index].complete(context, result)
+                        } catch (exception: InterruptedException) {
+                            // Observe at the callback boundary, before timeout stack recovery can copy it.
+                            // The outer cancellation catch still records failure and completes later scopes.
+                            BlockingPipelineGuard.rethrowInterruption(exception)
+                            throw exception
+                        }
                     }
                     if (fragment != null) result = result.merge(fragment)
                 } catch (_: TimeoutCancellationException) {
@@ -189,6 +200,7 @@ public class DefaultCommandPipeline @JvmOverloads constructor(
         } catch (exception: CancellationException) {
             throw exception
         } catch (exception: Exception) {
+            BlockingPipelineGuard.rethrowInterruption(exception)
             result = result.merge(CommandResult.fromException(options.correlationId, exception))
         }
         return if (result.isSuccess) result else result.withoutResponse()
@@ -240,6 +252,7 @@ public class DefaultCommandPipeline @JvmOverloads constructor(
             } catch (exception: CancellationException) {
                 throw exception
             } catch (exception: Exception) {
+                BlockingPipelineGuard.rethrowInterruption(exception)
                 result = result.merge(CommandResult.fromException(context.correlationId, exception))
             }
             if (!result.isSuccess) break
@@ -526,6 +539,7 @@ public class DefaultCommandPipeline @JvmOverloads constructor(
             } catch (exception: CancellationException) {
                 throw exception
             } catch (exception: Exception) {
+                BlockingPipelineGuard.rethrowInterruption(exception)
                 hadFailure = true
                 if (recordedFailureIndexes == null || recordedFailureIndexes.add(handlerIndex)) {
                     failures = failures.merge(CommandResult.fromException(context.correlationId, exception))
@@ -547,6 +561,7 @@ public class DefaultCommandPipeline @JvmOverloads constructor(
         } catch (exception: CancellationException) {
             throw exception
         } catch (exception: Exception) {
+            BlockingPipelineGuard.rethrowInterruption(exception)
             result = result.merge(CommandResult.fromException(context.correlationId, exception))
         }
         return result

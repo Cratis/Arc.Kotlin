@@ -26,6 +26,8 @@ public class io/cratis/arc/springboot/ArcAutoConfiguration {
 	public fun arcAuthentication (Lorg/springframework/beans/factory/ObjectProvider;Lorg/springframework/beans/factory/ObjectProvider;)Lio/cratis/arc/authentication/Authentication;
 	public fun arcAuthorizationEvaluator (Lio/cratis/arc/authorization/AuthorizationPolicyRegistry;)Lio/cratis/arc/authorization/AuthorizationEvaluator;
 	public fun arcAuthorizationPolicyRegistry (Ljava/util/Map;)Lio/cratis/arc/authorization/AuthorizationPolicyRegistry;
+	public fun arcBlockingCommandPipeline (Lio/cratis/arc/commands/CommandPipeline;)Lio/cratis/arc/java/BlockingCommandPipeline;
+	public fun arcBlockingQueryPipeline (Lio/cratis/arc/queries/QueryPipeline;)Lio/cratis/arc/java/BlockingQueryPipeline;
 	public fun arcCommandAuthorizationFilter (Lio/cratis/arc/commands/CommandHandlerRegistry;Lio/cratis/arc/authorization/AuthorizationEvaluator;)Lio/cratis/arc/commands/CommandAuthorizationFilter;
 	public fun arcCommandHandlerRegistry ()Lio/cratis/arc/commands/CommandHandlerRegistry;
 	public fun arcCommandPipeline (Lio/cratis/arc/commands/CommandHandlerRegistry;Lorg/springframework/beans/factory/ObjectProvider;Lorg/springframework/beans/factory/ObjectProvider;Lorg/springframework/beans/factory/ObjectProvider;Lorg/springframework/beans/factory/ObjectProvider;Lio/cratis/arc/springboot/ArcProperties;)Lio/cratis/arc/commands/CommandPipeline;
