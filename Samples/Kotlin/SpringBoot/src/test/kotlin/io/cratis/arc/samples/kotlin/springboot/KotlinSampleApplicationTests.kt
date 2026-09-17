@@ -320,9 +320,22 @@ public class KotlinSampleApplicationTests {
             .andExpect(jsonPath("$.exceptionMessages", hasSize<Any>(0)))
     }
 
+    /**
+     * Drives an Arc request to completion through however many async dispatches it takes.
+     *
+     * An Arc endpoint always suspends at least once. When authentication handlers are registered it
+     * suspends twice: the authentication filter resolves the principal asynchronously and dispatches,
+     * and the generated handler then suspends again. Asserting a fixed number of dispatches would
+     * couple every test in this class to whether the sample happens to authenticate.
+     */
     private fun execute(requestBuilder: MockHttpServletRequestBuilder): ResultActions {
-        val initial = mockMvc.perform(requestBuilder).andExpect(request().asyncStarted()).andReturn()
-        return mockMvc.perform(asyncDispatch(initial))
+        var actions = mockMvc.perform(requestBuilder).andExpect(request().asyncStarted())
+        repeat(MAXIMUM_ASYNC_DISPATCHES) {
+            val result = actions.andReturn()
+            if (!result.request.isAsyncStarted) return actions
+            actions = mockMvc.perform(asyncDispatch(result))
+        }
+        throw IllegalStateException("The request did not complete within $MAXIMUM_ASYNC_DISPATCHES async dispatches.")
     }
 
     private fun query(route: String): MockHttpServletRequestBuilder = request(HttpMethod.valueOf("QUERY"), route)
@@ -331,6 +344,7 @@ public class KotlinSampleApplicationTests {
         contentType(MediaType.APPLICATION_JSON).content(value)
 
     private companion object {
+        const val MAXIMUM_ASYNC_DISPATCHES = 4
         const val CREATE_ROUTE = "/api/create-task"
         const val COMPLETE_ROUTE = "/api/complete-task"
         const val BATCH_CREATE_ROUTE = "/api/create-task-batch"
