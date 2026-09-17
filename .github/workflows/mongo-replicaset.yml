@@ -1,0 +1,69 @@
+# Copyright (c) Cratis. All rights reserved.
+# Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+name: MongoDB Replica Set
+
+on:
+  workflow_call: {}
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "Source/**"
+      - "Integrations/SpringDataMongo/**"
+      - "Integrations/SpringBoot/**"
+      - "ContractTests/**"
+      - "build.gradle.kts"
+      - "settings.gradle.kts"
+      - "gradle/**"
+      - ".github/workflows/mongo-replicaset.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "Source/**"
+      - "Integrations/SpringDataMongo/**"
+      - "Integrations/SpringBoot/**"
+      - "ContractTests/**"
+      - "build.gradle.kts"
+      - "settings.gradle.kts"
+      - "gradle/**"
+      - ".github/workflows/mongo-replicaset.yml"
+
+# A called workflow sees its *caller's* name in ${{ github.workflow }}, so a group built from that
+# expression alone is the caller's own group, and cancelling within it cancels the caller. The
+# literal prefix below puts every standalone run in a namespace no caller can ever compute, so
+# cancellation is restricted to standalone runs only.
+# Keep the name below in sync with `name:` above: if it drifts, standalone runs stop cancelling
+# their predecessors, which wastes runner time but can never cancel a release in flight.
+concurrency:
+  group: mongo-replicaset-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.workflow == 'MongoDB Replica Set' }}
+
+permissions:
+  contents: read
+
+jobs:
+  compatibility:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Validate Gradle wrapper
+        uses: gradle/actions/wrapper-validation@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+
+      - name: Prove MongoDB real replica-set behavior
+        run: ./gradlew :ContractTests:mongoReplicaSetTest --no-configuration-cache

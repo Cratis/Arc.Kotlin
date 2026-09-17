@@ -468,13 +468,25 @@ public TenantContextMongoAccess arcTenantContextMongoAccess(
 
 The auto-configured bean uses no fallback (throw on missing tenant). Override it as above when a fallback is needed.
 
-### #184 limitation
+### Real-server coverage
 
-All behavior described in this section and proved by `TenantContextMongoAccessTests` and
-`JavaTenantContextMongoAccessTests` is verified against the `mongo-java-server` 1.47.0 `MemoryBackend` emulator,
-which is the same in-memory backend used across the MongoDB integration. It does not cover production MongoDB,
-replica-set failover, TLS, change streams, or transactions through `TenantContextMongoAccess`. Comprehensive
-proof against a real pinned MongoDB instance is tracked in issue #184 and is not yet available.
+`TenantContextMongoAccessTests` and `JavaTenantContextMongoAccessTests` verify per-call tenant resolution and
+isolation against the `mongo-java-server` 1.47.0 `MemoryBackend` emulator. The `mongoReplicaSetTest` gate
+additionally proves the following against a real pinned MongoDB 8.2 single-node replica set
+(`mongo:8.2@sha256:e0ce8c35124d4a9f9785532d1f268f39e9728ffa1cb38f46fa482436424c4bd3`):
+
+- `TenantContextMongoAccess` routes both coroutine (`withTenant`) and Java blocking (`TenantContextBridge`) calls
+  to genuinely isolated real MongoDB databases for two different tenants.
+- The `DefaultNamingPolicy` kernel-aligned correction (`Person` → `People`) routes writes to the correct physical
+  collection on a real server; collection `Persons` is never created.
+- A change-stream cursor opened against a real replica set receives an `INSERT` event. Change streams require
+  replica-set mode and cannot be verified against the MemoryBackend emulator.
+- Kotlin data class and Java record concept IDs (UUID binary subtype 4, string, int64) persist with correct BSON
+  types and round-trip on a real server; null `@Field(ALWAYS)` fields appear as BSON null; malformed stored
+  scalars fail visibly through the reading converter.
+
+The gate does not cover replica-set failover, TLS, transactions through `TenantContextMongoAccess`, or
+deterministic resume/reconnect under cursor interruption. Those limitations remain.
 
 ## Enroll commands in transactions
 

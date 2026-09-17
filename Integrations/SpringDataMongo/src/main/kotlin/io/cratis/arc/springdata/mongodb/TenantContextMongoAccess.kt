@@ -62,12 +62,14 @@ import org.springframework.data.mongodb.core.MongoOperations
  * (e.g. [TenantId.DEFAULT]) to silently fall back to that tenant when the context is empty —
  * useful for non-tenanted code paths or integration tests that run without a tenant scope.
  *
- * ## Known limitation (#184)
+ * ## Real-server coverage
  *
- * All behavior in this class is verified against the `mongo-java-server` 1.47.0 `MemoryBackend`
- * emulator (the same in-memory backend used by every other Mongo test in this module).
- * Production MongoDB, replica-set failover, change streams, and transactions are not covered by
- * those tests. Comprehensive real-server proof is tracked in issue #184.
+ * Per-call tenant resolution and isolation are verified against both the `mongo-java-server` 1.47.0
+ * `MemoryBackend` emulator and a real pinned MongoDB 8.2 single-node replica set via the
+ * `ContractTests:mongoReplicaSetTest` gate. That gate proves that coroutine (`withTenant`) and
+ * Java blocking (`TenantContextBridge`) calls from two different tenants reach genuinely isolated
+ * MongoDB databases on a real server, and that change streams are available. Production
+ * replica-set failover, TLS, and transactions are not covered by the current evidence.
  */
 public class TenantContextMongoAccess @JvmOverloads constructor(
     private val resolver: TenantAwareMongoOperationsResolver,

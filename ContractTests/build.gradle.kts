@@ -16,6 +16,8 @@ val springDataVersion = "4.1.1"
 val testcontainersVersion = "2.0.5"
 val defaultChronicleKernelImage =
     "cratis/chronicle:18.4.0-development@sha256:0437a1a60e237b104b747eea94a57a947690e0abaff5a719212d095c0787517c"
+val defaultMongoReplicaSetImage =
+    "mongo:8.2@sha256:e0ce8c35124d4a9f9785532d1f268f39e9728ffa1cb38f46fa482436424c4bd3"
 
 val chronicleRealKernelTest by sourceSets.creating {
     compileClasspath += sourceSets.main.get().output
@@ -24,6 +26,15 @@ val chronicleRealKernelTest by sourceSets.creating {
 configurations[chronicleRealKernelTest.implementationConfigurationName]
     .extendsFrom(configurations.testImplementation.get())
 configurations[chronicleRealKernelTest.runtimeOnlyConfigurationName]
+    .extendsFrom(configurations.testRuntimeOnly.get())
+
+val mongoReplicaSetTest by sourceSets.creating {
+    compileClasspath += sourceSets.main.get().output
+    runtimeClasspath += sourceSets.main.get().output
+}
+configurations[mongoReplicaSetTest.implementationConfigurationName]
+    .extendsFrom(configurations.testImplementation.get())
+configurations[mongoReplicaSetTest.runtimeOnlyConfigurationName]
     .extendsFrom(configurations.testRuntimeOnly.get())
 
 dependencies {
@@ -48,6 +59,12 @@ dependencies {
     add(chronicleRealKernelTest.implementationConfigurationName, "org.junit.jupiter:junit-jupiter:6.1.3")
     add(chronicleRealKernelTest.implementationConfigurationName, "org.testcontainers:testcontainers:$testcontainersVersion")
     add(chronicleRealKernelTest.runtimeOnlyConfigurationName, "org.junit.platform:junit-platform-launcher")
+
+    add(mongoReplicaSetTest.implementationConfigurationName, project(":Integrations:SpringDataMongo"))
+    add(mongoReplicaSetTest.implementationConfigurationName, "org.junit.jupiter:junit-jupiter:6.1.3")
+    add(mongoReplicaSetTest.implementationConfigurationName, "org.testcontainers:testcontainers:$testcontainersVersion")
+    add(mongoReplicaSetTest.implementationConfigurationName, "org.testcontainers:testcontainers-mongodb:$testcontainersVersion")
+    add(mongoReplicaSetTest.runtimeOnlyConfigurationName, "org.junit.platform:junit-platform-launcher")
 }
 
 val fluentCompilerTools by configurations.creating { isCanBeConsumed = false; isCanBeResolved = true }
@@ -185,6 +202,19 @@ val chronicleRealKernelTestTask = tasks.register<Test>("chronicleRealKernelTest"
     )
     systemProperty("arc.chronicle.kotlinSample.jar", kotlinChronicleSampleBootJar.get().asFile.absolutePath)
     systemProperty("arc.chronicle.javaSample.jar", javaChronicleSampleBootJar.get().asFile.absolutePath)
+}
+
+val mongoReplicaSetTestTask = tasks.register<Test>("mongoReplicaSetTest") {
+    group = "verification"
+    description = "Proves change-stream readiness, two-tenant isolation, DefaultNamingPolicy routing, and concept-storage BSON fidelity against a real pinned MongoDB replica set"
+    testClassesDirs = mongoReplicaSetTest.output.classesDirs
+    classpath = mongoReplicaSetTest.runtimeClasspath
+    useJUnitPlatform()
+    shouldRunAfter(tasks.test)
+    systemProperty(
+        "arc.mongo.replicaset.image",
+        providers.gradleProperty("mongoReplicaSetImage").getOrElse(defaultMongoReplicaSetImage)
+    )
 }
 
 // Explicit cross-runtime HTTP proof; deliberately not a dependency of check/build or proxy generation.
