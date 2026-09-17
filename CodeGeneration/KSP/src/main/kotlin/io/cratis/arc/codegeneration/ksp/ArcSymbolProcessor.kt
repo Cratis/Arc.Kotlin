@@ -1190,6 +1190,7 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
         val operationAllowAnonymous = operation.hasAnnotation(ALLOW_ANONYMOUS_ANNOTATION)
         if (classAllowAnonymous && operationAllowAnonymous) {
             logger.error(
+                ArcDiagnostic.AUTHORIZATION,
                 "$artifactKind '$identity' declares @AllowAnonymous on both the class and operation; declare it once.",
                 operation
             )
@@ -1200,20 +1201,32 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
         val operationAuthorize = operation.annotationsNamed(AUTHORIZE_ANNOTATION).toList()
         val classRoles = declaration.roleAnnotations()
         val operationRoles = operation.roleAnnotations()
-        val hasAuthorization = classAuthorize.isNotEmpty() || operationAuthorize.isNotEmpty() ||
-            classRoles.isNotEmpty() || operationRoles.isNotEmpty()
-        if ((classAllowAnonymous || operationAllowAnonymous) && hasAuthorization) {
+        // One declaration that both opens and restricts access contradicts itself and has no defensible reading,
+        // so it stays an error. Metadata split across the class and its operation is a different thing entirely:
+        // that is the ordinary way to state a default and then override it for one operation.
+        if (classAllowAnonymous && (classAuthorize.isNotEmpty() || classRoles.isNotEmpty())) {
             logger.error(
-                "$artifactKind '$identity' cannot combine @AllowAnonymous with @Authorize or @Roles metadata.",
+                ArcDiagnostic.AUTHORIZATION,
+                "$artifactKind '$identity' cannot combine @AllowAnonymous with @Authorize or @Roles on the same declaration.",
+                declaration
+            )
+            return null
+        }
+        if (operationAllowAnonymous && (operationAuthorize.isNotEmpty() || operationRoles.isNotEmpty())) {
+            logger.error(
+                ArcDiagnostic.AUTHORIZATION,
+                "$artifactKind '$identity' cannot combine @AllowAnonymous with @Authorize or @Roles on the same declaration.",
                 operation
             )
             return null
         }
 
-        // Operation-level authorization replaces class-level authorization rather than merging with it, so a narrower
-        // operation declaration can never be widened by the class it lives on. The class applies only when the
-        // operation declares no @Authorize and no @Roles.
-        val operationDeclaresAuthorization = operationAuthorize.isNotEmpty() || operationRoles.isNotEmpty()
+        // Operation-level authorization replaces class-level authorization wholesale rather than merging with it,
+        // matching Arc .NET's AuthorizationEvaluator.IsAuthorized(MethodInfo): it resolves the method's own metadata
+        // first and only falls back to the declaring type when the method declares none. The class therefore states
+        // the default for a read model, and any one operation - open or restricted - overrides it.
+        val operationDeclaresAuthorization =
+            operationAllowAnonymous || operationAuthorize.isNotEmpty() || operationRoles.isNotEmpty()
         val authorize = if (operationDeclaresAuthorization) operationAuthorize else classAuthorize
         val declaredRoles = if (operationDeclaresAuthorization) operationRoles else classRoles
         val roles = (
@@ -1221,7 +1234,7 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
             ).distinct()
         val schemes = authorize.flatMap { annotation -> annotation.stringListArgument("schemes") }.distinct()
         return AuthorizationModel(
-            allowAnonymous = classAllowAnonymous || operationAllowAnonymous,
+            allowAnonymous = if (operationDeclaresAuthorization) operationAllowAnonymous else classAllowAnonymous,
             policy = authorize.firstNotNullOfOrNull { annotation ->
                 annotation.stringArgument("policy")?.takeIf(String::isNotBlank)
             },
