@@ -1,12 +1,149 @@
 # Arc for Kotlin and Java
 
-Arc.Kotlin is the JVM implementation of Arc for Kotlin and Java applications hosted by Spring Boot. It provides compile-time model-bound commands and queries, generated TypeScript clients, servlet hosting, optional persistence and Chronicle integrations, OpenAPI, and in-process test support. It does not claim complete feature parity with Arc on .NET; the implemented and intentionally unsupported areas are listed in the [parity reference](Documentation/reference/parity.md).
+Arc.Kotlin is the JVM implementation of [Arc](https://github.com/Cratis/Arc) — an opinionated CQRS
+application framework — for Kotlin and Java applications hosted by Spring Boot. Compile-time
+model-bound commands and queries, generated TypeScript clients, servlet hosting, optional
+persistence and Chronicle integrations, OpenAPI, and in-process test support: everything discovered
+by convention instead of hand-wired. It does not claim complete feature parity with Arc on .NET; the
+implemented and intentionally unsupported areas are tracked, row by row, with their evidence, in the
+[parity reference](Documentation/reference/parity.md).
 
-## Workspace
+[![Maven Central](https://img.shields.io/maven-central/v/io.cratis/arc?label=Maven%20Central&logo=apachemaven&logoColor=white)](https://central.sonatype.com/artifact/io.cratis/arc)
+[![Kotlin Build](https://github.com/Cratis/Arc.Kotlin/actions/workflows/build.yml/badge.svg)](https://github.com/Cratis/Arc.Kotlin/actions/workflows/build.yml)
+[![Publish](https://github.com/Cratis/Arc.Kotlin/actions/workflows/publish.yml/badge.svg)](https://github.com/Cratis/Arc.Kotlin/actions/workflows/publish.yml)
+[![Discord](https://img.shields.io/discord/1182595891576717413?label=Discord&logo=discord&logoColor=white)](https://discord.gg/kt4AMpV8WV)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+Arc hosts application behavior, executes command and query pipelines over KSP-generated,
+reflection-free handlers, and generates TypeScript clients for them from the same compile-time
+metadata. Validation, authorization, identity, tenancy, observable queries, OpenAPI, and
+observability come from the same pipeline. Chronicle event sourcing, Spring Data JPA/MongoDB, and
+OpenAPI are optional integrations layered on top of a Core that has no dependency on any of them.
+
+Arc.Kotlin is part of one deliberately simple Cratis ecosystem — AI-friendly by design, with free
+[AI skills](https://github.com/Cratis/AI) for building with the stack.
+
+## Start here
+
+- [Build your first Arc application in Kotlin](Documentation/get-started/index.md) or
+  [in Java](Documentation/get-started/java.md) — a runnable command and query in about five minutes.
+- [Browse the guides](Documentation/guides/index.md) — commands, queries, security, Spring Data,
+  TypeScript proxies, OpenAPI, observability, Chronicle, and in-process testing.
+- [Look things up in the reference](Documentation/reference/index.md) — annotations, configuration,
+  the HTTP contract, and shared fluent validation.
+- [Read the feature parity matrix](Documentation/reference/parity.md) — the honest, evidence-backed
+  status of every area of the framework.
+- [Run the samples](#running-the-samples) — four runnable applications, one command each.
+- [Understand what Arc.Kotlin owns](#what-arckotlin-owns)
+- [See the module and package layout](#workspace-and-published-packages)
+
+## What Arc.Kotlin owns
+
+| Boundary | Arc.Kotlin provides |
+| --- | --- |
+| Hosting | Spring Boot servlet hosting: HTTP, Server-Sent Events, and optional WebSocket, registered by auto-configuration |
+| Commands | Model-bound `@Command` classes with regular, `suspend`, or Java `CompletionStage` handlers, validation, authorization, filters, and generated endpoints |
+| Queries | Model-bound `@ReadModel` static/companion queries, paging and sorting, GET and RFC QUERY, observable HTTP snapshots, SSE, and WebSocket |
+| Validation | Jakarta Bean Validation, reusable `ConceptValidator`/`ModelValidator` rules, shared fluent validators with generated client rules, and command/query pipelines |
+| Identity and tenancy | Pluggable `AuthenticationHandler` chains, identity details, role/policy authorization, and header/query/claim/subdomain/fixed/development tenant resolution |
+| Generated contracts | Strict-mode TypeScript command/query/model/enum proxies, validation metadata, identity details, and npm package/type mapping |
+| Persistence integration | Spring Data JPA and MongoDB read models, paging, observable snapshots, and optional Chronicle-backed event-sourced behavior |
+| Evaluation and tooling | OpenAPI 3.1, Micrometer observability, stable `ARCKSP` compile diagnostics, checked `.api` binary baselines, and in-process command/query/observable scenarios |
+
+Each row is a documented capability area, not a promise of raw-output compatibility with Arc .NET —
+see the [parity reference](Documentation/reference/parity.md) for the exact, evidence-backed status
+of every specific behavior.
+
+## Arc.Kotlin does not require Chronicle
+
+`io.cratis:arc` has no Chronicle dependency. Commands and queries can use Spring Data JPA, Spring
+Data MongoDB, or plain application services without an event log. Choose the persistence and
+integrations that fit each application.
+
+The `io.cratis:arc-chronicle-spring-boot-starter` integration is optional and supplies event-sourced
+behavior when configured: returned events are staged and committed as part of the command pipeline,
+Chronicle read models resolve into command handlers, and reactors can execute commands as side
+effects. See the [Chronicle integration guide](Documentation/guides/chronicle.md).
+
+[Chronicle](https://github.com/Cratis/Chronicle) is Cratis's storage-agnostic event-sourcing database
+and runtime — MIT licensed and free to use. This repository consumes it through
+[Chronicle.Kotlin](https://github.com/Cratis/Chronicle.Kotlin), the JVM client and Spring Boot
+starter; see the [Chronicle documentation](https://www.cratis.io/chronicle/) for its own scope.
+
+## Relationship to Arc on .NET
+
+Arc.Kotlin is a separate implementation of the same ideas as [Arc](https://github.com/Cratis/Arc),
+not a generated or mechanically mirrored port. The two frameworks share vocabulary — commands,
+queries, model binding, generated TypeScript proxies — but Arc.Kotlin is Kotlin-first and
+Java-first-class, targets Spring Boot exclusively, and makes JVM-native choices where the platforms
+differ (coroutines and `CompletionStage` instead of `async`/`await`, KSP compile-time diagnostics
+instead of Roslyn analyzers, `Flow`/`Flow.Publisher` instead of `IObservable`/`ISubject`).
+
+Every claim about how closely a specific behavior matches Arc .NET is tracked with its supporting
+test, contract test, or sample in the [parity reference](Documentation/reference/parity.md). Treat
+any other comparison — in this README, in code comments, or in conversation — as informal unless it
+points at that document.
+
+## Start an Arc host
+
+Add the plugin and the Spring Boot starter, then annotate a command:
+
+```kotlin
+// build.gradle.kts
+plugins {
+    id("io.cratis.arc") version "<version>"
+    kotlin("plugin.spring") version "2.4.10"
+    id("org.springframework.boot") version "4.1.1"
+    id("io.spring.dependency-management") version "1.1.7"
+}
+
+cratisArc {
+    moduleName.set("TaskApplication")
+    dependencyVersion.set("<version>")
+    endpoints {
+        segmentsToSkip.set(2)   // drops the 2 "example.tasks" package segments from the route
+    }
+}
+
+dependencies {
+    implementation("io.cratis:arc-spring-boot-starter:<version>")
+    implementation("org.springframework.boot:spring-boot-starter-webmvc")
+}
+```
+
+```properties
+# src/main/resources/application.properties
+cratis.arc.endpoints.segments-to-skip-for-route=2
+```
+
+```kotlin
+// src/main/kotlin/example/tasks/CreateTask.kt
+package example.tasks
+
+import io.cratis.arc.artifacts.Command
+import io.cratis.arc.authorization.AllowAnonymous
+
+data class TaskCreated(val title: String)
+
+@Command
+@AllowAnonymous
+data class CreateTask(val title: String) {
+    fun handle(): TaskCreated = TaskCreated(title)
+}
+```
+
+An ordinary `@SpringBootApplication` main is the entire host. KSP generates a reflection-free
+handler and the route `POST /api/create-task` at build time; nothing is registered by hand. Continue
+with the [Kotlin](Documentation/get-started/index.md) or [Java](Documentation/get-started/java.md)
+tutorial for a complete command, query, and read model, and use
+[GitHub Issues](https://github.com/Cratis/Arc.Kotlin/issues) when observed behavior does not match
+the documentation.
+
+## Workspace and published packages
 
 | Project | Published identity | Responsibility |
 | --- | --- | --- |
-| `:Source` | `io.cratis:arc` | Arc command, query, validation, authorization, authentication, identity, tenancy, introspection, result, JSON, and artifact contracts |
+| `:Source` | `io.cratis:arc` | Command, query, validation, authorization, authentication, identity, tenancy, introspection, result, JSON, and artifact contracts |
 | `:CodeGeneration:KSP` | `io.cratis:arc-ksp` | Reflection-free command/query generation, manifests, concept and Jakarta validation metadata, stable `ARCKSP` diagnostics, and a checked ABI baseline |
 | `:GradlePlugin` | Gradle plugin `io.cratis.arc` (`io.cratis:arc-gradle-plugin`) | JVM/KSP conventions, one-shot plus observable TypeScript proxy generation, and a checked ABI baseline |
 | `:Integrations:SpringBoot` | `io.cratis:arc-spring-boot-starter` | Spring Boot auto-configuration and servlet HTTP, SSE, and optional WebSocket hosting |
@@ -17,34 +154,23 @@ Arc.Kotlin is the JVM implementation of Arc for Kotlin and Java applications hos
 | `:Integrations:Chronicle` | `io.cratis:arc-chronicle-spring-boot-starter` | Optional tenant-aware Chronicle transactions, concurrency, read models, command side effects, and scenario support |
 | [`:Testing`](Testing/README.md) | `io.cratis:arc-testing` | Reusable command, query, and observable-query scenarios with Kotlin and Java bridges; Chronicle adds an in-memory scenario extender |
 | `:ContractTests` | Unpublished | Kotlin and Java generated-artifact, manifest, validation, and consumer contract fixtures |
-| `:Samples:Kotlin:SpringBoot` | Unpublished | Runnable standalone Kotlin Spring Boot application |
-| `:Samples:Java:SpringBoot` | Unpublished | Runnable standalone Java Spring Boot application |
-| `:Samples:Kotlin:ChronicleSpringBoot` | Unpublished | Runnable tenant-aware Kotlin Arc + Chronicle application |
-| `:Samples:Java:ChronicleSpringBoot` | Unpublished | Runnable tenant-aware ordinary-Java Arc + Chronicle application |
+| [`:Samples:Kotlin:SpringBoot`](Samples/Kotlin/SpringBoot/README.md) | Unpublished | Runnable standalone Kotlin Spring Boot application |
+| [`:Samples:Java:SpringBoot`](Samples/Java/SpringBoot/README.md) | Unpublished | Runnable standalone Java Spring Boot application |
+| [`:Samples:Kotlin:ChronicleSpringBoot`](Samples/Kotlin/ChronicleSpringBoot/README.md) | Unpublished | Runnable tenant-aware Kotlin Arc + Chronicle application |
+| [`:Samples:Java:ChronicleSpringBoot`](Samples/Java/ChronicleSpringBoot/README.md) | Unpublished | Runnable tenant-aware ordinary-Java Arc + Chronicle application |
 
-Arc targets Spring Boot; `Source` (`io.cratis:arc`) is part of that product, not a separate host-independent Core product. Modules and Maven coordinates remain unchanged. Integrations depend inward on `Source`; samples consume public starters, and Chronicle remains optional. The compiled `artifacts`, `metadata`, and `json` packages, plus all local types transitively referenced by them or the KSP/Gradle tools, must remain Spring-free. `./gradlew checkSpringBoundary` also checks reachable external superclass/interface/class-signature closure and both production tool classpaths (including file JARs). It does not recursively inspect optional external member APIs or implementation internals. This enforces a compiler/build-tool boundary, not support for another host. JSON uses Jackson; non-Spring hosting is not planned.
-
-## Implemented functionality
-
-- Model-bound commands with regular, `suspend`, and Java `CompletionStage` handlers; model-bound `provide` supports ordered values, `Pair`, `Triple`, `CommandProvidedValues`, control short-circuiting, and `ArcOneOf` alternatives.
-- Command responses recursively flatten `Pair`, `Triple`, `ArcOneOf`, and nested `CommandResult` values in declaration order. Source-visible `@HandlesCommandResponseValues` declarations classify custom server-consumed leaves; exactly one remaining client leaf drives the runtime result, TypeScript response type, and OpenAPI schema, while multiple client leaves fail compilation with `ARCKSP0109`.
-- One-shot and observable model-bound queries, query validation, renderers, read-model interceptors, observable emission guards, health tracking, paging, sorting, GET, and RFC QUERY.
-- Observable HTTP snapshots, direct SSE and WebSocket routes, multiplexed SSE/WebSocket hubs, full/delta transfer, subscription revisions, heartbeats, health reporting, and generated observable TypeScript proxies.
-- Validation and authorization pipelines; Spring automatically validates command and typed query argument graphs with Jakarta Bean Validation when a `Validator` is present, while Arc `ConceptValidator` support applies reusable concept rules across command and query graphs. Server-only direct `ConceptValidationExclusion` registrations suppress concept rules on one exact-owner member edge, not Jakarta, model rules, or other filters; see [direct concept exclusions](Documentation/guides/commands.md#exclude-a-direct-concept-rule-edge).
-- KSP preserves exactly representable Jakarta and concept rules in runtime metadata and manifests. TypeScript proxies merge concept and owning-member rules, while OpenAPI exposes reusable scalar concept schemas instead of wrapper objects.
-- Pluggable coroutine and Java asynchronous authentication, command/query introspection, identity details and schema, development users and tenants, and explicit tenant resolution and access checks without thread-local state.
-- Spring Data JPA and MongoDB exact `Pageable`/`Sort` query parameters, exact `Page<T>` normalization, compatibility paging adapters, read-model/transaction integration, cold or shared observable `Flow` snapshots, and demand-aware Java publishers.
-- Tenant-aware Chronicle staged transactions, exact concurrency scopes, command-side read-model resolution, query read-model release, reactor-to-command side effects, and in-memory command scenarios. Dedicated Kotlin and ordinary-Java samples return events from model-bound commands, materialize/query Chronicle read models, and expose response-less generated TypeScript commands. A separate Docker-backed compatibility task exercises both generated Spring applications against the pinned Chronicle 16.44.1 kernel.
-- Kotlin result, aggregate, service-resolution, and property-view conveniences, plus blocking and `CompletionStage` Java adapters for Core command, query, authorization, validation, observable, and scope contracts.
-- OpenAPI 3.1 generation and Micrometer command/query/authentication/identity observations with optional OpenTelemetry correlation.
-- Generated proxies map `LocalDate`, `LocalTime`, and `UUID` to `DateOnly`, `TimeOnly`, and `Guid` from `@cratis/fundamentals`; UUID-to-`Guid` is an explicit .NET parity decision. Commands and GET query parameters use scalar strings, returned generated models hydrate into class instances, and OpenAPI remains string/date, string/time, and string/uuid. Arc disables Jackson's `WRITE_DURATIONS_AS_TIMESTAMPS` in Core and Spring, so `Duration` reads and writes ISO-8601 text, generated TypeScript remains `string`, and OpenAPI uses `string`/`duration`. It is not mapped to Fundamentals `TimeSpan` because the Java and C# wire formats differ. Core round-trip tests also establish ISO-8601 text for `Period`, and the focused generator contract maps it to TypeScript `string`; no broader `Period` transport claim is made.
-- The generated TypeScript compatibility contract is strict with `verbatimModuleSyntax` and type-only interface imports where appropriate. String-keyed maps with nonnullable string/boolean/character/byte/short/integer entries generate recursive `Record<string, V>` types, nested sequences append `[]`, and map runtime metadata uses `Object`; Jackson and OpenAPI use ordinary recursive JSON objects. Floating-point leaves are rejected because non-finite values do not share one JSON contract. Reserved keys `__proto__`, `prototype`, and `constructor` fail on both server and generated command clients. The runtime harness has five wired unit tests and enforces 25 behavioral runtime tests: 15 general tests in UTC plus five calendar tests in each of separate UTC and `America/Los_Angeles` Node processes. Counts are parsed from TAP, with exact test/pass totals and zero fail, cancelled, skipped, or todo results; Spring process-spawn errors fail cleanly. The temporal/UUID generated-type change is source-breaking for TypeScript consumers. Recursive type metadata intentionally moves manifests to format 5 and adds public JVM shape descriptors while preserving legacy constructor descriptors.
-- Stable KSP diagnostics, checked binary-compatibility baselines for published modules including KSP and the Gradle plugin, a proxy differential against a repository-local semantically normalized .NET-derived expected fixture intended for source control, strict TypeScript compilation, and a generated-client runtime E2E gate against the executable Kotlin Spring Boot sample. The differential compares sorted paths for all regular files, then untouched JVM bytes including headers against prepared expected bytes. Expected-only preparation covers LF/trailing whitespace, FixtureModel quote/indent formatting, CreateFixtures quote/import/layout/hook formatting with exact-site suppression, and five literal type-only import rewrites for `verbatimModuleSyntax`: `SetCommandValues`/`ClearCommandValues` and query helper types such as `PerformQuery`, `SetSorting`, `SetPage`, `SetPageSize`, and `ChangeSet` become type-only imports. One additional expected-side correction at `Commands/CreateFixtures.ts` changes `Command<ICreateFixtures, FixtureModel>` to `Command<ICreateFixtures, FixtureModel[]>`. The captured command already calls `super(FixtureModel, true)` and is enumerable at runtime, so its scalar generic is a known typing defect. Only `Models/Observe.ts` also changes the zero-space blank line before the four-space-indented `filter: string;` member in exactly one known `ObserveParameters` block to four spaces; `ObserveOne.ts` is excluded. Missing/duplicate correction anchors and misplaced suppressions fail preparation. The exact captured helper pairs in `Models/All.ts`, `Models/Search.ts`, and `Models/Observe.ts` additionally receive a hash-guarded expected-side correction from request arguments to a literal returned-row field inventory, without changing parameters, routes, hooks or flags. This records a deliberate JVM correctness divergence; it is not raw .NET source-output equality. Expected headers use independently reconstructed uppercase SHA-256 over prepared expected bodies and 16 literal source identities cross-checked against fixture descriptors (queries use declaring models); three indexes stay headerless. The proven .NET-derived `FixtureModel.labelsByCategory` line is already `@field(Object)` plus `Record<string, string>` and receives no dictionary rewrite; its file still receives the documented formatting preparation. This proves only that bounded string/string Record fixture, not non-string keys, nullable entries, typed model values, `ValueMap`, or broader dictionary parity. `Contracts/Shape.ts` is a class, not interface-emission proof. These normalizations never transform JVM output. The temporal/UUID mapping itself is covered by focused generator and contract tests because the current .NET differential fixture contains no `Guid`, `DateOnly`, or `TimeOnly`. Historical namespace/query-name casing and removed timestamps/hashes remain embedded in the fixture; capture-time fixture preparation still needs reproducible tooling, and capture SDK/tool versions remain unverified. This remains a normalized-fixture drift gate, not raw .NET-output equivalence; overall Arc .NET parity remains Partial. See the [complete expected-only preparation inventory and source table](Documentation/guides/typescript-proxies.md#expected-only-differential-preparation).
-- Bounded host execution and transport limits, including request admission, body size, timeouts, streaming connection/subscription limits, bounded buffers, and fail-closed overload behavior.
+Arc targets Spring Boot; `Source` (`io.cratis:arc`) is part of that product, not a separate
+host-independent Core product. Integrations depend inward on `Source`; samples consume public
+starters, and Chronicle remains optional. The compiled `artifacts`, `metadata`, and `json` packages —
+and every local type they transitively reference — must remain Spring-free; `./gradlew
+checkSpringBoundary` enforces that boundary on every build. This is a compiler/build-tool boundary,
+not a promise of another host: see [Non-Spring hosting](Documentation/reference/parity.md) for that
+explicit disposition.
 
 ## Build
 
-The build uses the checked-in Gradle 8.14.4 wrapper and requires JDK 17. Make a JDK 17 installation the active `JAVA_HOME`/`PATH`; no repository-specific absolute JDK path is required.
+The build uses the checked-in Gradle 8.14.4 wrapper and requires JDK 17. Make a JDK 17 installation
+the active `JAVA_HOME`/`PATH`; no repository-specific absolute JDK path is required.
 
 ```shell
 java -version
@@ -59,84 +185,93 @@ Run the documentation-only gate with:
 
 Supply a release version with `-Pversion=<version>`; local builds default to `0.0.0-SNAPSHOT`.
 
-The separate seven-file captured proxy comparison is guarded by
-`:GradlePlugin:verifyCapturedProxyBaseline`: current generator inputs and SDK/runtime/package/tool pins
-must match the reviewed receipt and snapshot hashes. This runs offline before GradlePlugin tests; it is
-not a fresh .NET execution or an attestation, and does not establish full cross-runtime parity.
+## Running the samples
 
-An explicit [`:ContractTests:httpConformanceTest`](ContractTests/HttpConformance/README.md) now compares
-nine selected task-board HTTP behaviors on real Arc .NET 22.14.0, Kotlin, and Java hosts. It uses pinned
-public .NET packages and the existing generated JVM samples, preserves raw responses, and stays outside
-ordinary build/check. It is not full server parity; paging totals and framework 404 bodies differ.
+Each sample is a runnable Spring Boot application with its own `run.sh`. Nothing else needs to be
+started by hand for the two standalone samples:
 
-## Current limits
+```shell
+./Samples/Kotlin/SpringBoot/run.sh            # Kotlin task board on :8080, no external dependencies
+./Samples/Java/SpringBoot/run.sh              # Java task board on :8080, no external dependencies
+```
 
-[`@IgnoreValidation`](Documentation/reference/validation.md#ignore-a-validation-member-edge) cuts a logical validation member edge before access, not serialization, binding, owner-level validators or executable parameter constraints. Manifest **8** carries an explicit flag and requires producer/dependency/consumer regeneration together. Opaque custom Jakarta validators need the ownership-preserving factory adapter for ignored or unprovable dynamic graphs. Runtime JavaBean-only traversal is an explicit behavior addition; compiler/shared wire-shape and binary-record limitations remain documented. The runnable Kotlin/ordinary-Java sample and `runtime.ignore-validation.contract.ts` prove direct, command and QUERY client/server behavior within those limits. The pinned command serializer still cannot send explicit null nested models; the ignored-cycle transport example omits its defaulted edge, while raw JSON separately proves server null binding.
+The two Chronicle samples need a Chronicle kernel. `run.sh` starts the pinned development kernel with
+Docker, waits for it to report healthy, runs the application, and stops the container when the
+sample exits — pass `--no-docker` to run against a kernel you already have on `localhost:35000`:
 
-[Shared fluent validation](Documentation/guides/validation.md) supports thirteen bounded constructor-authored Kotlin/Java rules, generated registration and concrete acyclic nested client validation. Arbitrary predicates, async/service-dependent conditions, warning severity, polymorphic/cyclic graphs, shared-model GET/observable arguments and new shared credit-card rules are outside this surface. Existing imperative validators and legacy annotation credit-card enforcement remain server-only. Complete compiler dependency metadata is required; the Kotlin 2.4.10 parser is a KSP-only dependency, not application runtime code.
+```shell
+./Samples/Kotlin/ChronicleSpringBoot/run.sh   # Kotlin + Chronicle task board on :8080
+./Samples/Java/ChronicleSpringBoot/run.sh     # Java + Chronicle task board on :8080
+```
 
-The optional [platform identity bridge](Documentation/guides/security.md#establish-trust-before-accepting-platform-headers)
-is default-off and requires an explicit trusted-ingress policy plus authenticated, header-rewriting
-and isolated ingress. Unsigned base64 headers never prove sender identity. Application Spring Security
-chains remain authoritative; the enabled default chain protects every route and retains CSRF.
+Each sample's own `README.md` documents its routes and has copy-pasteable `curl` requests to try
+once it is running.
 
-Identity details now reach manifests and generated clients through public source provider supertypes
-and typed Kotlin/Java factory returns, including anonymous providers returned by typed factories.
-Concrete erased, star-projected, generic or unsupported details boundaries fail with `ARCKSP0307`;
-bind a supported concrete DTO. Dependency-only providers are not scanned wholesale, runtime bean
-registration is unchanged, and bulk DTO export is not provided. See
-[identity discovery](Documentation/guides/typescript-proxies.md#discover-identity-details).
+## Documentation map
 
-Static resources and SPA fallback belong to application-configured Spring facilities, not Arc. Existing query infrastructure injection and Spring binding replace the need for `@FromRequest`; this is not an arbitrary request-injection API. KSP's annotated command/query entry points need no `@IgnoreAutoRegistration`; identity details are also discovered automatically from public concrete source providers and typed factory returns, independently of annotations. Runtime `ArcOneOf` does not imply `@GenerateOneOf` union generation. Screenplay and non-Spring hosting are not planned; see the [explicit dispositions](Documentation/reference/parity.md).
+- [Documentation index](Documentation/index.md) — module map, current status, and how to choose a
+  path through the rest of the docs.
+- [Get started](Documentation/get-started/index.md) — the Kotlin and Java tutorials.
+- [Guides](Documentation/guides/index.md) — commands, queries, security, Spring Data, TypeScript
+  proxies, OpenAPI, observability, Chronicle, and testing.
+- [Reference](Documentation/reference/index.md) — annotations, configuration, the HTTP contract, and
+  shared fluent validation.
+- [Feature parity](Documentation/reference/parity.md) — the complete, evidence-backed status matrix.
 
-Application query renderer chains own their data and paging. The iterable renderer is automatic only
-when no application renderer matches the original value. Explicitly register `QueryableQueryRenderer`
-where in-memory processing belongs in a custom chain; it processes current data, not discarded original
-rows. Existing identity/logging renderers also require this opt-in. Provider-owned pages must not be
-fed into another in-memory paging stage. See [renderer composition](Documentation/guides/queries.md).
+## Contributing
 
-The default in-memory sorter reads public instance properties, not private storage. Java records and
-field-backed bean properties use their public accessors, and inherited Kotlin visibility remains
-respected from Java. Unknown/inaccessible keys fail even for singleton rows, without a sorted payload.
-This is not a sort-key authorization allowlist; restrict the result DTO or provide a custom renderer
-for public properties that must not be sortable. See [query rendering](Documentation/guides/queries.md).
+Arc.Kotlin is a framework/library repository, not an event-sourced application: changes to public
+APIs, KSP-generated output, the artifact manifest, and generated TypeScript proxies affect every
+downstream consumer and carry their own review discipline. Start with [`AGENTS.md`](AGENTS.md) and
+the project rules under [`.cratis/ai/rules/project`](.cratis/ai/rules/project), which cover
+branching, commit and pull-request conventions, where tests live, the manifest as a transport
+contract, and the exact gates a change needs to satisfy before merge.
 
-Named query sorting helpers use returned-row metadata rather than request arguments. Capability flags
-still control whether helpers exist, and providers still determine supported sort keys. Regenerate
-clients: request-only helpers and the helper's old public `query` owner reference are no longer emitted.
-This intentionally differs from the pinned .NET model-bound generator; see [returned-row sorting](Documentation/guides/typescript-proxies.md#sort-by-returned-row-fields).
+## Community and repository
 
-External TypeScript mappings require compatible runtime exports: unimported overrides are limited to
-`string`, `number`, `boolean`, `object`, and `Date`; mapped classes need Fundamentals field metadata for
-hydration. Manifest interfaces and numeric enums retain `Object`/`Number` descriptors and type-only
-imports. Mappings do not change server JSON. Unsupported type expressions, import collisions, and
-external map-value or polymorphic-base/derivative hydration fail rather than silently emitting invalid
-clients. See [external package mappings](Documentation/guides/typescript-proxies.md#share-types-with-an-existing-npm-package).
+| Path | Destination |
+| --- | --- |
+| Questions and discussion | [Cratis Discord](https://discord.gg/kt4AMpV8WV) |
+| Bugs and feature requests | [GitHub Issues](https://github.com/Cratis/Arc.Kotlin/issues) |
+| Releases | [GitHub Releases](https://github.com/Cratis/Arc.Kotlin/releases) |
+| Documentation | [`Documentation/`](Documentation/index.md) |
+| Arc on .NET | [github.com/Cratis/Arc](https://github.com/Cratis/Arc) · [Docs](https://www.cratis.io/arc/) |
+| License | [`LICENSE`](LICENSE) |
 
-JPA concept storage is an [application-owned mapping recipe](Documentation/guides/spring-data.md#map-jpa-concepts-explicitly-in-the-application), not automatic Arc conversion. Kotlin and ordinary-Java `JpaConceptStorageTests`/`JavaJpaConceptStorageTests` execute explicit UUID/String/Long attribute converters and one-column embedded concept IDs, including Java record embeddables, on Hibernate 7.4.5.Final with H2 2.5.250. This does not certify converters on basic `@Id`, other providers/databases or numeric types, repository tenant routing, or Arc .NET persistence parity.
+## The Cratis ecosystem
 
-MongoDB concept storage has a separate [application-owned converter recipe](Documentation/guides/spring-data.md#map-mongodb-concepts-explicitly-in-the-application). Kotlin and ordinary-Java `MongoConceptStorageTests`/`JavaMongoConceptStorageTests` execute explicit UUID/String/Long converter pairs, scalar BSON IDs/fields, and certified two-database routing with Spring Data MongoDB 5.1.1 and driver 5.8.1 against mongo-java-server 1.47.0 `MemoryBackend`. This emulator evidence is not real MongoDB, Testcontainers, production/change-stream certification, automatic Arc conversion, or Arc .NET parity.
+Arc.Kotlin is part of [Cratis](https://www.cratis.io) — free, MIT-licensed tools for building
+event-sourced and CQRS applications.
 
-Application exceptions may implement [`ValidationFailure`](Documentation/guides/commands.md#convert-application-exceptions-to-command-validation) for command-only validation conversion. Payload state and reason detail are client-visible, severity filtering stays stage-specific, and queries do not use this capability. The legacy `CommandResult.exception(...)` behavior is unchanged.
+- **[Chronicle](https://github.com/Cratis/Chronicle)** — event-sourcing database and runtime.
+  Orleans-based kernel, pluggable storage (MongoDB default; PostgreSQL, SQL Server, SQLite,
+  in-memory), language-agnostic gRPC contracts. [Docs](https://www.cratis.io/chronicle/)
+- **Chronicle clients** — first-class [.NET SDK](https://github.com/Cratis/Chronicle), plus
+  [TypeScript](https://github.com/Cratis/Chronicle.TypeScript),
+  [Kotlin/Java](https://github.com/Cratis/Chronicle.Kotlin), and
+  [Elixir](https://github.com/Cratis/Chronicle.Elixir); [Python](https://github.com/Cratis/Chronicle.Python)
+  coming soon (pre-alpha). AI agents connect through the
+  [Chronicle MCP server](https://github.com/Cratis/Chronicle.Mcp).
+- **[Arc](https://github.com/Cratis/Arc)** — opinionated CQRS framework for ASP.NET Core with
+  commands, queries, validation, authorization, and TypeScript proxy generation. Works without
+  event sourcing. [Docs](https://www.cratis.io/arc/)
+- **Arc.Kotlin** (this repository) — the JVM implementation of Arc for Kotlin and Java applications
+  hosted by Spring Boot.
+- **[Components](https://github.com/Cratis/Components)** — React components aligned with Arc
+  patterns. [Docs](https://www.cratis.io/components/)
+- **[CLI](https://github.com/Cratis/cli) + Workbench** — inspect and diagnose Chronicle from the
+  terminal or the browser. [Docs](https://www.cratis.io/cli/)
+- **Model-first layer (experimental)** — Studio, [Screenplay](https://github.com/Cratis/Screenplay),
+  [Stage](https://github.com/Cratis/Stage), [Scene](https://github.com/Cratis/Scene),
+  [Prologue](https://github.com/Cratis/Prologue)
+- **Supporting** — [Fundamentals](https://github.com/Cratis/Fundamentals),
+  [Specifications](https://github.com/Cratis/Specifications),
+  [Synopsis](https://github.com/Cratis/Synopsis), [Lens](https://github.com/Cratis/Lens),
+  [Narrator](https://github.com/Cratis/Narrator), and free
+  [AI tooling](https://github.com/Cratis/AI) (preview); Ensemble coming soon (pre-release)
+- **[Samples](https://github.com/Cratis/Samples)** — runnable event sourcing and CQRS samples for
+  the whole stack
 
-Default observable emission guards now isolate supported arguments per dispatch and per guard, not at query opening. Unsupported or uncopyable guarded graphs (including enums with unsafe instance state and arbitrary models) terminate unauthorized before any guard runs. Plain enums and constants with structurally checked immutable instance state retain their identity. This is a behavioral tightening with unchanged old constructor call shapes and one additive mapper constructor, not universal backward compatibility; result-data ownership is unchanged. See the [exact supported graph, codec contract, and safety limits](Documentation/guides/queries.md#bound-emission-guard-arguments).
+Everything Cratis publishes today is MIT licensed and free to use.
 
-Kotlin consumer declarations may use default public visibility; explicit `public` keywords are not required. Previously omitted implicit-public state now enters generated fields, keys, validation, and reachable metadata, and existing unsupported-input diagnostics apply to it. Nonpublic artifacts/invocations remain rejected, including actual queries in private/internal companions; unrelated companion helpers remain allowed. See [Kotlin visibility](Documentation/reference/annotations.md#kotlin-visibility) for the unchanged shape boundaries and source-acceptance effects.
-
-Public declared Kotlin body state now joins constructor properties in generated metadata, retaining body keys, constraints, summaries, and reachable models instead of silently omitting them. Backed body `val` and private-setter `var` accept supplied values under Arc's Jackson mapper; computed or explicitly read-only Kotlin command input fails with `ARCKSP0300`, including graphs rooted in Java records. Output-only computed models remain supported. Member `@JsonIgnore` and nonpublic state are excluded, while unrepresentable body Jackson renames/access fail explicitly. This changes generated source contracts without changing manifest format 7; inherited command state and arbitrary Jackson overrides are not established. See [command body state](Documentation/guides/commands.md#declare-body-state-explicitly).
-
-Generated sequence properties require nonnullable elements. Nullable outer `List<T>?`, `Collection<T>?`, and `Array<T>?` remain supported, but nullable entries (including Java record `List<@Nullable T>`) now fail earlier with `ARCKSP0300` instead of reaching incompatible manifest discovery. This tightens source acceptance; ordinary unannotated Java platform elements remain accepted. Existing Java array and generic-variance restrictions are unchanged. See [sequence properties](Documentation/guides/typescript-proxies.md#declare-nonnullable-sequence-elements).
-
-Arc.Kotlin does not claim full Arc .NET parity. Controllers and non-Spring hosts are outside its direction. OpenAPI deliberately omits RFC QUERY because OpenAPI Path Items do not define that method. Generated query performers inject exact `QueryRequest`, `QueryContext`, `Pageable`, and `Sort` parameters without exposing them to clients, normalize exact `Page<T>` results, and the Spring Data integrations provide contextual command read-model parameters with deterministic JPA/Mongo ownership. Tenant-routed JPA uses certified `JpaPersistenceUnit` values; tenant-routed MongoDB uses certified `TenantMongoOperations`. Their observable APIs require MongoDB change streams or an explicit JPA change notifier. Imperative JPA/Mongo command transactions are disabled by default and remain thread-bound, fixed-store opt-ins that must not cross coroutine threads. The Arc Chronicle starter transitively supplies Chronicle.Kotlin's Spring Boot starter and its conventional `IEventStore`; applications can override its beans normally. No integration provides a distributed transaction across Chronicle, JPA, and MongoDB. Dependency `@HandlesCommandResponseValues` discovery requires the separate Arc KSP declaration resource and a tracked compiler index; binary annotations alone remain undiscoverable. The Arc Gradle plugin wires that index, while manual builds must use the [task-local extraction recipe](Documentation/reference/configuration.md#dependency-response-handler-metadata). Runtime handlers still require registration, and erased `CommandResponseValues` contents cannot provide typed response metadata. `@CreditCard` and Hibernate Validator `@CreditCardNumber` remain server-enforced and present in metadata, but are not emitted into TypeScript until the pinned `@cratis/arc` client runtime provides a compatible rule.
-
-`LocalDateTime`, `Instant`, `OffsetDateTime`, and `ZonedDateTime` still map to JavaScript `Date`. The `LocalDateTime` mapping invents a zone, while offset/zoned values lose their original offset or zone identity. Raw `08:09:10.1235567` hydrates through the pinned `TimeOnly` as `08:09:10.123`, proving millisecond truncation rather than rounding, so it is not an exact precision round-trip. Arc accepts and emits `LocalTime` values with up to seven fractional digits for 100 ns compatibility. Deserialization rejects eight or nine fractional digits, and serialization rejects values finer than 100 ns rather than rounding or truncating them. This server binding is distinct from the shared `@cratis/arc` generated-client limitation: explicit RFC QUERY bodies still pass `DateOnly` or `TimeOnly` component objects to native `JSON.stringify`; use GET until upstream serialization uses the typed serializer or `toJSON()`. `Guid` is unaffected because it has `toJSON()`, and the JVM server continues to require scalar date/time strings.
-
-Chronicle plain-event routing uses the command key captured before validation, never a second provider
-call after command mutation. Manual response-handler contexts must supply a captured key. The pinned
-client permits one causation chain per atomic batch: separate responses within one frame share Arc's
-command link, but heterogeneous explicit or nested-frame chains remain rejected rather than flattened
-or split. See the [staged transaction boundary](Documentation/guides/chronicle.md#commit-one-staged-chronicle-unit-of-work).
-
-Map support remains property-only: query parameters, top-level query/command response maps, non-string keys, nullable entries/elements, `ValueMap`, and model/concept/enum/UUID/temporal map leaves are rejected. Aggregate response metadata, calendar/UUID proxy fidelity, tenant-safe Spring Data command read models, and nested Chronicle transaction ownership are completed P0 slices. Chronicle now commits after local opt-in scopes, but thread-bound persistence and cross-store partial/indeterminate outcomes remain explicit limitations.
-
-Start with the [documentation](Documentation/index.md), then consult module tests for executable contract details.
+Release notes and announcements: the [Cratis blog](https://blog.cratis.io).
