@@ -11,6 +11,8 @@
       href: observable-queries.md
     - name: Authentication and authorization
       href: security.md
+    - name: Pipeline filters
+      href: pipeline-filters.md
     - name: Spring Data read models
       href: spring-data.md
     - name: Read-model naming
@@ -19,6 +21,8 @@
       href: ambient-tenancy.md
     - name: TypeScript proxies
       href: typescript-proxies.md
+    - name: Use the generated client from React
+      href: frontend.md
     - name: OpenAPI
       href: openapi.md
     - name: Observability

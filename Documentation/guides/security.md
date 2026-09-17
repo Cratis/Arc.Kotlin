@@ -191,11 +191,36 @@ Java policies use `BlockingAuthorizationPolicyAdapter` or `AsyncAuthorizationPol
 
 ## Understand class and operation precedence
 
-The operation wins when it declares any `@Authorize` or `@Roles`: only its policy, roles, and schemes apply, and class authorization is ignored. Otherwise, the class declaration applies. An operation can therefore narrow access without accidentally retaining roles from its class.
+The class states the default. An operation that declares any authorization metadata of its own — `@AllowAnonymous`, `@Authorize`, or `@Roles` — replaces that default entirely rather than merging with it. Only when an operation declares none does the class apply.
+
+Replacement rather than merging is what makes narrowing trustworthy. An operation that asks for `@Roles("admin")` requires exactly that role, and a role the class happened to list cannot satisfy it by accident.
+
+The same rule reads in the other direction, which is how a protected read model exposes the one query a login screen needs before anybody has signed in:
+
+```kotlin
+@ReadModel
+@Authorize
+public data class AuthenticationQueryItem(public val message: String) {
+    public companion object {
+        // Overrides the class: anyone may subscribe to this one.
+        @JvmStatic
+        @AllowAnonymous
+        public fun anonymous(@FromServices source: AuthenticationQuerySource): Flow<AuthenticationQueryItem> =
+            source.observeAnonymous()
+
+        // Declares nothing, so the class-level @Authorize applies.
+        @JvmStatic
+        public fun authenticated(@FromServices source: AuthenticationQuerySource): Flow<AuthenticationQueryItem> =
+            source.observeAuthenticated()
+    }
+}
+```
 
 Repeated `@Roles` declarations on the same target combine, and holding any one listed role satisfies the role check. Policy, role, and scheme checks are still cumulative.
 
-Do not combine `@AllowAnonymous` with `@Authorize` or `@Roles`, either on the same target or across a class and operation. KSP reports `ARCKSP0108` and stops generation instead of guessing which security declaration should win.
+:::caution[One declaration cannot both open and restrict]
+`@AllowAnonymous` together with `@Authorize` or `@Roles` **on the same class or the same operation** is a contradiction with no defensible reading. KSP reports `ARCKSP0108` and stops generation rather than guessing. Splitting them across a class and its operation is a different thing entirely, and is exactly the override above.
+:::
 
 ## Use Spring Security when present
 

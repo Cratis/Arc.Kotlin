@@ -187,25 +187,28 @@ Supply a release version with `-Pversion=<version>`; local builds default to `0.
 
 ## Running the samples
 
-Each sample is a runnable Spring Boot application with its own `run.sh`. Nothing else needs to be
-started by hand for the two standalone samples:
+One command starts a backend, regenerates its TypeScript proxies, and opens a React frontend against
+them:
 
 ```shell
-./Samples/Kotlin/SpringBoot/run.sh            # Kotlin task board on :8080, no external dependencies
-./Samples/Java/SpringBoot/run.sh              # Java task board on :8080, no external dependencies
+./Samples/run.sh                     # Kotlin, in memory, with the frontend on :5173
+./Samples/run.sh --language java     # the same application written in Java
+./Samples/run.sh --database mongodb  # store the task board in MongoDB instead
+./Samples/run.sh --chronicle         # the Chronicle-backed sample, kernel and all
+./Samples/run.sh --no-frontend       # backend only, for curl
 ```
 
-The two Chronicle samples need a Chronicle kernel. `run.sh` starts the pinned development kernel with
-Docker, waits for it to report healthy, runs the application, and stops the container when the
-sample exits — pass `--no-docker` to run against a kernel you already have on `localhost:35000`:
+The showcase mirrors the Arc .NET sample application: a live ticker, a message feed, all four query
+shapes from one read model, conditional queries, change streams, observable collections keyed by
+`Int` and by `UUID`, a protected read model with one deliberately anonymous query, and cross-cutting
+authorization through command and query filters. A toolbar switches the transport between WebSocket
+and Server-Sent Events, changes the connection count and transfer mode, and signs a user in and out
+— and every page keeps working, which is the point.
 
-```shell
-./Samples/Kotlin/ChronicleSpringBoot/run.sh   # Kotlin + Chronicle task board on :8080
-./Samples/Java/ChronicleSpringBoot/run.sh     # Java + Chronicle task board on :8080
-```
-
-Each sample's own `README.md` documents its routes and has copy-pasteable `curl` requests to try
-once it is running.
+Both plain Arc hosts serve identical routes, so the one frontend runs against either unchanged.
+`./Samples/run.sh --help` lists every option; [`Samples/README.md`](Samples/README.md) explains what
+each page demonstrates. Anything a run starts — a database container, the Chronicle kernel, the
+frontend — is stopped again on exit.
 
 ## Documentation map
 

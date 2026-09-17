@@ -1,73 +1,89 @@
-# Java Spring Boot Task Board
+# Java Spring Boot sample
 
-This standalone five-minute sample uses Arc's KSP-generated command and query endpoints with a bounded in-memory Spring repository. Its ordinary domain lookup and validator implementation APIs are authored with Java signatures rather than coroutine signatures; it has no controllers, Chronicle dependency, or external infrastructure.
+The Arc showcase written in ordinary Java, plus a task board. Every signature here is one a Java
+developer would write: `CompletionStage` rather than `suspend`, `Flow.Publisher` rather than `Flow`,
+and no Kotlin type in the application's own API.
 
-## Five-minute path
+It is the same application as [the Kotlin sample](../../Kotlin/SpringBoot/README.md) and serves the
+same routes, which is why the one frontend runs against either unchanged.
 
-From this directory, run:
+## Run it
 
 ```shell
-./run.sh
+./run.sh                      # in memory, with the frontend on :5173
+./run.sh --database mongodb   # store the task board in MongoDB (Docker)
+./run.sh --database postgres  # store the task board in PostgreSQL (Docker)
+./run.sh --no-frontend        # backend only, for the curl requests below
+./run.sh --sign-in-required   # start signed out, so the anonymous paths are reachable
 ```
 
-The script finds or reports a missing JDK 17 and starts the application on `:8080`. No external
-dependencies are needed. From the repository root, the equivalent is
-`./gradlew :Samples:Java:SpringBoot:bootRun` with JDK 17 active on `JAVA_HOME`/`PATH`.
+`../../run.sh --help` lists every option.
 
-1. Create a task through the generated command execute endpoint:
+## What to read
 
-   ```shell
-   curl -sS -X POST http://localhost:8080/api/create-task \
-     -H 'Content-Type: application/json' \
-     -d '{"title":"Try Arc"}'
-   ```
+| Concern | Where |
+| --- | --- |
+| An asynchronous command returning `CompletionStage` | `CreateTask.java` |
+| `provide` loading state before `handle` runs | `CompleteTask.java` |
+| One-shot and observable queries without a coroutine type | `TaskView.java` |
+| Observable state a snapshot `GET` can read | `features/ticker/TickerSource.java` |
+| A hand-written `Flow.Publisher`, for contrast | `TaskRepository.java` |
+| Swapping where state lives without touching an artifact | `TaskStore.java`, `persistence/` |
+| Blocking filters adapted into the Arc pipeline | `features/crosscuttingauthorization/` |
 
-2. Exercise the same command's side-effect-free `/validate` endpoint:
+`TickerSource` and `TaskRepository` are worth reading together. Both publish observable state; one
+uses Arc's `ObservableState`, the other hand-rolls a `Flow.Publisher` the way a Java application had
+to before that type existed. Only the first can answer a snapshot `GET`, because only it holds a
+current value — a plain publisher promises just that values will arrive eventually, so Arc answers
+`202 Not Ready` rather than holding the request open.
 
-   ```shell
-   curl -sS -X POST http://localhost:8080/api/create-task/validate \
-     -H 'Content-Type: application/json' \
-     -d '{"title":""}'
-   ```
-
-3. Copy the created `response.id`, then complete that task. `CompleteTask.provide` asynchronously loads the current view; its typed preparation is passed to `handle`, which returns the completed `TaskView` as the client response:
-
-   ```shell
-   curl -sS -X POST http://localhost:8080/api/complete-task \
-     -H 'Content-Type: application/json' \
-     -d '{"taskId":"<task-id>"}'
-   ```
-
-   A missing ID or a task changed after preparation produces Arc validation feedback rather than an exception or a stale update.
-
-4. Read the board with GET or the RFC QUERY method:
-
-   ```shell
-   curl -sS 'http://localhost:8080/api/tasks/by-id?id=<task-id>'
-
-   curl -sS -X QUERY http://localhost:8080/api/tasks \
-     -H 'Content-Type: application/json' \
-     -d '{"arguments":{}}'
-   ```
-
-5. Use the generated observable query proxy for `/api/tasks/observe` when a live board is needed.
-
-## Advanced highlights
-
-| Highlight | Where to look | What the tests prove |
-| --- | --- | --- |
-| Generated execute and `/validate` | `CreateTask.java`, `CreateTaskValidator.java` | Typed command response, ordinary-Java validation through Arc's adapter, and no invalid-state mutation |
-| Command key and provide-to-handle flow | `CompleteTask.java`, `TaskCompletionPreparation.java` | The generated handler consumes a revisioned provided value; missing or stale tasks return validation; completion returns a typed `TaskView` |
-| GET and RFC QUERY | `TaskView.java` | Both transports return typed query envelopes, including completion state |
-| Observable transport | `TaskView.observe` and `TaskRepository.observe` | Tests cover demand and saturation, latest-snapshot replay/coalescing, stale-version rejection, serialized reentrant callbacks and terminal errors, and cleanup after cancellation or callback failure |
-| Java ergonomics | `CompletionStage`, `Flow.Publisher`, `BlockingCommandValidator` | Ordinary domain lookup and validator implementations use Java-authored signatures without requiring authors to declare coroutine signatures |
-
-## Generate TypeScript proxies
+## Try it with curl
 
 ```shell
-export JAVA_HOME=/opt/homebrew/opt/openjdk@17
-export PATH="$JAVA_HOME/bin:$PATH"
+# Create a task. An empty title returns validation feedback instead of an exception.
+curl -sS -X POST http://localhost:8080/api/create-task \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"Try Arc"}'
+
+# Validate without executing.
+curl -sS -X POST http://localhost:8080/api/create-task/validate \
+  -H 'Content-Type: application/json' \
+  -d '{"title":""}'
+
+# Complete a task. A task changed since preparation returns validation, not a stale write.
+curl -sS -X POST http://localhost:8080/api/complete-task \
+  -H 'Content-Type: application/json' \
+  -d '{"taskId":"<task-id>"}'
+
+# Read the board, by GET and by the RFC QUERY method.
+curl -sS 'http://localhost:8080/api/tasks/by-id?id=<task-id>'
+curl -sS -X QUERY http://localhost:8080/api/tasks \
+  -H 'Content-Type: application/json' \
+  -d '{"arguments":{}}'
+
+# An observable query backed by ObservableState answers from its current value.
+curl -sS http://localhost:8080/api/features/ticker/observe
+
+# The identity the sample resolved.
+curl -sS http://localhost:8080/.cratis/me
+```
+
+## Storage
+
+`--database` changes only which `TaskStore` bean is active. The commands, the queries and the read
+model are untouched:
+
+| Value | Implementation |
+| --- | --- |
+| `memory` | `TaskRepository` — bounded, no setup. The default. |
+| `mongodb` | `persistence/MongoTaskStore.java`, Spring Data MongoDB with `@Version` concurrency. |
+| `postgres` | `persistence/JpaTaskStore.java`, Spring Data JPA with `@Version` concurrency. |
+
+## Generate the TypeScript proxies on their own
+
+```shell
 ./gradlew :Samples:Java:SpringBoot:generateArcProxies --no-configuration-cache
 ```
 
-The real KSP manifest drives generation. Output is untracked under `Samples/Java/SpringBoot/build/generated/arc-proxies`; `CompleteTask.ts`, `TaskView.ts`, and `Observe.ts` are among the checked files. Proxy generation is also part of this sample's `check` task.
+Output lands untracked in `build/generated/arc-proxies`, laid out by feature and identical in shape
+to the Kotlin sample's.

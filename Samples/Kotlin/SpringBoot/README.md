@@ -1,78 +1,88 @@
-# Kotlin Spring Boot Task Board
+# Kotlin Spring Boot sample
 
-This standalone five-minute sample uses Arc's KSP-generated command and query endpoints with a bounded in-memory Spring repository. It has no controllers, Chronicle dependency, or external infrastructure.
+The Arc showcase written in Kotlin, plus a task board. It has no controllers, no Chronicle
+dependency, and needs no external infrastructure to start.
 
-## Five-minute path
-
-From this directory, run:
+## Run it
 
 ```shell
-./run.sh
+./run.sh                      # in memory, with the frontend on :5173
+./run.sh --database mongodb   # store the task board in MongoDB (Docker)
+./run.sh --database postgres  # store the task board in PostgreSQL (Docker)
+./run.sh --no-frontend        # backend only, for the curl requests below
+./run.sh --sign-in-required   # start signed out, so the anonymous paths are reachable
 ```
 
-The script finds or reports a missing JDK 17 and starts the application on `:8080`. No external
-dependencies are needed. From the repository root, the equivalent is
-`./gradlew :Samples:Kotlin:SpringBoot:bootRun` with JDK 17 active on `JAVA_HOME`/`PATH`.
+`../../run.sh --help` lists every option. Open the frontend rather than the backend: it proxies
+`/api` and `/.cratis` through, so the browser sees one origin.
 
-1. Create a task through the generated command execute endpoint:
+## What to read
 
-   ```shell
-   curl -sS -X POST http://localhost:8080/api/create-task \
-     -H 'Content-Type: application/json' \
-     -d '{"title":"Try Arc"}'
-   ```
+| Concern | Where |
+| --- | --- |
+| A command, its validation, and a typed response | `CreateTask.kt`, `CreateTaskValidator.kt` |
+| `provide` loading state before `handle` runs | `CompleteTask.kt` |
+| One-shot and observable queries on one read model | `TaskView.kt` |
+| Swapping where state lives without touching an artifact | `TaskRepository.kt`, `persistence/` |
+| Identity captured once, at transport entry | `SampleAuthentication.kt` |
+| Cross-cutting rules for a whole feature | `features/crosscuttingauthorization/` |
+| Every showcase feature | `features/` |
 
-2. Exercise the same command's side-effect-free `/validate` endpoint:
+The showcase features under `features/` mirror the Arc .NET sample application one for one; the
+[samples overview](../../README.md) lists what each page demonstrates.
 
-   ```shell
-   curl -sS -X POST http://localhost:8080/api/create-task/validate \
-     -H 'Content-Type: application/json' \
-     -d '{"title":""}'
-   ```
-
-3. Copy the created `response.id`, then complete that task. `CompleteTask.provide` loads the current view; its typed preparation is passed to `handle`, which returns the completed `TaskView` as the client response:
-
-   ```shell
-   curl -sS -X POST http://localhost:8080/api/complete-task \
-     -H 'Content-Type: application/json' \
-     -d '{"taskId":"<task-id>"}'
-   ```
-
-   A missing ID or a task changed after preparation produces Arc validation feedback rather than an exception or a stale update.
-
-4. Read the board with GET or the RFC QUERY method:
-
-   ```shell
-   curl -sS 'http://localhost:8080/api/tasks/by-id?id=<task-id>'
-
-   curl -sS -X QUERY http://localhost:8080/api/tasks \
-     -H 'Content-Type: application/json' \
-     -d '{"arguments":{}}'
-   ```
-
-5. Inspect the sample's deterministic identity integration:
-
-   ```shell
-   curl -sS http://localhost:8080/.cratis/me
-   ```
-
-## Advanced highlights
-
-| Highlight | Where to look | What the tests prove |
-| --- | --- | --- |
-| Generated execute and `/validate` | `CreateTask.kt`, `CreateTaskValidator.kt` | Typed command response, validation feedback, and no invalid-state mutation |
-| Command key and provide-to-handle flow | `CompleteTask.kt` | The generated handler consumes a revisioned `TaskCompletionPreparation`; missing or stale tasks return validation; completion returns a typed `TaskView` |
-| GET and RFC QUERY | `TaskView.kt` | Both transports return typed query envelopes, including completion state |
-| Observable transport | `TaskView.observe` and `TaskRepository.observe` | Tests cover replay of the latest bounded snapshot after create, completion, eviction, and clear; KSP generates `Observe.ts` |
-| Kotlin identity | `SampleIdentity.kt` | `/.cratis/me` returns the configured principal and typed details |
-| Temporal and map contracts | `CalendarEcho.kt`, `MapContracts.kt` | Existing scalar/default/precision and recursive-map wire fixtures remain covered |
-
-## Generate TypeScript proxies
+## Try it with curl
 
 ```shell
-export JAVA_HOME=/opt/homebrew/opt/openjdk@17
-export PATH="$JAVA_HOME/bin:$PATH"
+# Create a task. An empty title returns validation feedback instead of an exception.
+curl -sS -X POST http://localhost:8080/api/create-task \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"Try Arc"}'
+
+# Validate without executing.
+curl -sS -X POST http://localhost:8080/api/create-task/validate \
+  -H 'Content-Type: application/json' \
+  -d '{"title":""}'
+
+# Complete a task. A task changed since preparation returns validation, not a stale write.
+curl -sS -X POST http://localhost:8080/api/complete-task \
+  -H 'Content-Type: application/json' \
+  -d '{"taskId":"<task-id>"}'
+
+# Read the board, by GET and by the RFC QUERY method.
+curl -sS 'http://localhost:8080/api/tasks/by-id?id=<task-id>'
+curl -sS -X QUERY http://localhost:8080/api/tasks \
+  -H 'Content-Type: application/json' \
+  -d '{"arguments":{}}'
+
+# An observable query answers a snapshot GET from the source's current value.
+curl -sS http://localhost:8080/api/features/ticker/observe
+
+# The identity the sample resolved.
+curl -sS http://localhost:8080/.cratis/me
+```
+
+## Storage
+
+`--database` changes only which `TaskRepository` bean is active. The commands, the queries and the
+read model are untouched:
+
+| Value | Implementation |
+| --- | --- |
+| `memory` | `InMemoryTaskRepository` — bounded, no setup. The default. |
+| `mongodb` | `persistence/MongoTaskRepository.kt`, Spring Data MongoDB with `@Version` concurrency. |
+| `postgres` | `persistence/JpaTaskRepository.kt`, Spring Data JPA with `@Version` concurrency. |
+
+Arc routes MongoDB through a tenant-certified `TenantMongoOperations`, so the database is chosen by
+the resolved tenant rather than by the path in the connection string — with no tenant header, look
+in the driver's default database rather than in `arc-samples`.
+
+## Generate the TypeScript proxies on their own
+
+```shell
 ./gradlew :Samples:Kotlin:SpringBoot:generateArcProxies --no-configuration-cache
 ```
 
-The real KSP manifest drives generation. Output is untracked under `Samples/Kotlin/SpringBoot/build/generated/arc-proxies`; `CompleteTask.ts`, `TaskView.ts`, and `Observe.ts` are among the checked files. Proxy generation is also part of this sample's `check` task.
+Output lands untracked in `build/generated/arc-proxies`, laid out by feature. `./run.sh` does this
+for you and copies the result into the frontend before Vite starts, so the client can never be a
+build behind the server.

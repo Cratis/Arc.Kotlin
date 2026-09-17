@@ -34,7 +34,21 @@ source = "\n".join(
 samples = "\n".join(path.read_text() for path in required_files)
 docs = "\n".join(path.read_text() for path in DOCS.rglob("*.md"))
 
-symbols = sorted(set(re.findall(r"\b(?:Command|CommandKey|ReadModel|FromServices|AllowAnonymous|Authorize|Roles|TreatWarningsAsErrors|Path|QueryHttpMethod|QueryTransport|CommandValidator|CommandContext|ValidationResult|ValidationResultSeverity|CommandScenario|BlockingCommandScenario)\b", docs)))
+documented_symbols = (
+    # Artifact and validation surface.
+    "Command|CommandKey|ReadModel|FromServices|AllowAnonymous|Authorize|Roles|TreatWarningsAsErrors"
+    "|Path|QueryHttpMethod|QueryTransport|CommandValidator|CommandContext|ValidationResult"
+    "|ValidationResultSeverity|CommandScenario|BlockingCommandScenario"
+    # Pipeline extension points, including the Java adapters a Java reader is told to use.
+    "|CommandFilter|QueryFilter|QueryContext|CommandResult|QueryResult"
+    "|AuthorizationCommandFilter|AuthorizationQueryFilter"
+    "|BlockingCommandFilter|BlockingQueryFilter|AsyncCommandFilter|AsyncQueryFilter"
+    "|BlockingCommandFilterAdapter|BlockingQueryFilterAdapter"
+    "|AsyncCommandFilterAdapter|AsyncQueryFilterAdapter"
+    # Identity and observable state.
+    "|ArcPrincipalFactory|IdentityDetailsProvider|ObservableState"
+)
+symbols = sorted(set(re.findall(rf"\b(?:{documented_symbols})\b", docs)))
 for symbol in symbols:
     if symbol not in source:
         raise SystemExit(f"Documented framework symbol not found in source: {symbol}")
