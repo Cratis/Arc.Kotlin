@@ -107,6 +107,22 @@ public class ArcAutoConfiguration {
     @Autowired
     private var emissionGuardMapper: ObjectProvider<tools.jackson.databind.ObjectMapper>? = null
 
+    /**
+     * Verifies that the build-time endpoint options recorded by the Arc Gradle plugin match the
+     * runtime configuration. Fails startup if the resource is present and any setting disagrees;
+     * does nothing when the resource is absent (no proxies were generated).
+     */
+    @Bean
+    internal fun arcEndpointOptionsConsistency(
+        properties: ArcProperties
+    ): ArcEndpointOptionsConsistencyMark {
+        ArcEndpointOptionsVerifier.verify(
+            properties.endpoints.toOptions(),
+            ArcAutoConfiguration::class.java.classLoader
+        )
+        return ArcEndpointOptionsConsistencyMark()
+    }
+
     /** Resolves tenants from the configured strategy chain unless the application supplies an override. */
     @Bean
     @ConditionalOnMissingBean(TenantIdResolver::class)

@@ -23,6 +23,9 @@ val arcProxyGenerator by configurations.creating {
 val arcModuleName = "KotlinSpringBootSample"
 val arcManifestDirectory = layout.buildDirectory.dir("generated/ksp/main/resources")
 val arcProxyDirectory = layout.buildDirectory.dir("generated/arc-proxies")
+// Endpoint-options resource produced by the CLI for the Spring Boot startup consistency check.
+// Written to build/resources/main so the boot JAR and bootRun both find it on the classpath.
+val arcEndpointOptionsOutputDir = layout.buildDirectory.dir("resources/main")
 
 dependencies {
     implementation(project(":Integrations:SpringBoot"))
@@ -76,11 +79,13 @@ tasks.matching { it.name == "kspKotlin" }.configureEach {
 
 tasks.named<BootJar>("bootJar") {
     archiveFileName.set("arc-kotlin-runtime-sample.jar")
+    // Ensure the endpoint-options resource is written before the JAR is assembled.
+    dependsOn("generateArcProxies")
 }
 
 val generateArcProxies by tasks.registering(JavaExec::class) {
     group = "verification"
-    description = "Generates TypeScript proxies from the Kotlin sample's real KSP manifest"
+    description = "Generates TypeScript proxies from the Kotlin sample's real KSP manifest and writes the endpoint-options resource"
     dependsOn(tasks.named("classes"))
     classpath = arcProxyGenerator
     mainClass.set("io.cratis.arc.gradle.GenerateArcProxiesCli")
@@ -89,7 +94,10 @@ val generateArcProxies by tasks.registering(JavaExec::class) {
         "--output-directory", arcProxyDirectory.get().asFile.absolutePath,
         "--route-prefix", "api",
         "--route-segments-to-skip", "6",
-        "--proxy-segments-to-skip", "6"
+        "--proxy-segments-to-skip", "6",
+        // Write META-INF/arc/endpoint-options.json so the startup consistency check is active.
+        // Targets build/resources/main directly (processResources already ran at this point).
+        "--endpoint-options-output", arcEndpointOptionsOutputDir.get().asFile.absolutePath
     )
     val proxyInputs = files(sourceSets.main.get().output, configurations.runtimeClasspath)
     inputs.files(proxyInputs)

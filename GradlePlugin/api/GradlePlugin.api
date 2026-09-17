@@ -93,3 +93,14 @@ public final class io/cratis/arc/gradle/GenerateArcProxiesCli {
 	public static final fun main ([Ljava/lang/String;)V
 }
 
+public abstract class io/cratis/arc/gradle/WriteArcEndpointOptionsResource : org/gradle/api/DefaultTask {
+	public fun <init> ()V
+	public abstract fun getEnableQueryHttpMethod ()Lorg/gradle/api/provider/Property;
+	public abstract fun getIncludeCommandNameInRoute ()Lorg/gradle/api/provider/Property;
+	public abstract fun getIncludeQueryNameInRoute ()Lorg/gradle/api/provider/Property;
+	public abstract fun getOutputDirectory ()Lorg/gradle/api/file/DirectoryProperty;
+	public abstract fun getRoutePrefix ()Lorg/gradle/api/provider/Property;
+	public abstract fun getSegmentsToSkipForRoute ()Lorg/gradle/api/provider/Property;
+	public final fun write ()V
+}
+

@@ -149,6 +149,28 @@ public class ArcGradlePlugin : Plugin<Project> {
     ): org.gradle.api.tasks.TaskProvider<GenerateArcProxies> {
         val sourceSets = project.extensions.getByType(SourceSetContainer::class.java)
         val main = sourceSets.getByName("main")
+
+        // Write the endpoint-options resource so the Spring Boot starter can verify agreement at
+        // startup. The output directory is added to the main source set resources so it lands on
+        // the application classpath via processResources.
+        val writeEndpointOptions = project.tasks.register(
+            "writeArcEndpointOptionsResource",
+            WriteArcEndpointOptionsResource::class.java
+        ) { task ->
+            task.group = "arc"
+            task.description = "Writes META-INF/arc/endpoint-options.json so the Spring Boot starter can verify route-convention agreement at startup"
+            task.routePrefix.convention(extension.endpoints.routePrefix)
+            task.segmentsToSkipForRoute.convention(extension.endpoints.segmentsToSkip)
+            task.includeCommandNameInRoute.convention(extension.endpoints.includeCommandNames)
+            task.includeQueryNameInRoute.convention(extension.endpoints.includeQueryNames)
+            task.enableQueryHttpMethod.convention(extension.endpoints.enableQueryHttpMethod)
+            task.outputDirectory.convention(
+                project.layout.buildDirectory.dir("generated/arc-endpoint-options/main")
+            )
+        }
+        // Add the output to the main resources so processResources includes it in the JAR.
+        main.resources.srcDir(writeEndpointOptions.flatMap { it.outputDirectory })
+
         val task = project.tasks.register("generateArcProxies", GenerateArcProxies::class.java) { proxyTask ->
             proxyTask.group = "arc"
             proxyTask.description = "Generates TypeScript proxies from Arc artifact manifests"

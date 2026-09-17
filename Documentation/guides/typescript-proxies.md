@@ -9,7 +9,9 @@ description: Configure the Arc Gradle plugin to generate command, one-shot query
 
 ## Configure generation
 
-Use the `io.cratis.arc` plugin and set an output directory. Endpoint values must match the Spring host settings because the generator calculates the same routes.
+Use the `io.cratis.arc` plugin and set an output directory. Route configuration exists on both sides — build-time (`cratisArc.endpoints.*`) and runtime (`cratis.arc.endpoints.*`) — and both sides must agree. The Arc Spring Boot starter enforces this automatically: when proxies were generated, it reads the build-time settings from a small resource file written by the plugin at proxy-generation time and fails startup with an error that names the disagreeing setting and both values if they differ. This check is active only when proxies were generated; applications that do not generate proxies start without it.
+
+> **Note on similar-looking settings:** `cratisArc.proxies.segmentsToSkip` and `cratisArc.endpoints.segmentsToSkip` are two different settings. `proxies.segmentsToSkip` controls how many leading package segments are stripped when deciding the _file path_ of a generated TypeScript file. `endpoints.segmentsToSkip` controls how many leading package segments are stripped when computing the _HTTP route_ the generated client calls. The runtime counterpart is `cratis.arc.endpoints.segments-to-skip-for-route`. Mixing them up produces the wrong file layout or the wrong route, not a startup error.
 
 ```kotlin
 plugins {
@@ -93,6 +95,8 @@ identifier nor the npm import path may contain an `=`.
 
 The task is also attached to `build`. It reads `META-INF/cratis/arc/*.json` manifests from main output and classpaths, rewrites only changed content, and deletes only stale files bearing Arc's generated marker.
 
+The `io.cratis.arc` plugin also registers a `writeArcEndpointOptionsResource` task that writes `META-INF/arc/endpoint-options.json` to the main source set resources. The Spring Boot starter reads this file at startup and fails fast when any setting disagrees with the runtime configuration. Both routes — the Gradle task and the standalone CLI — delegate to the same serialiser, so their output is byte-identical for the same options.
+
 ```mermaid
 graph LR
     Models[Kotlin and Java models] --> KSP[KSP]
@@ -100,7 +104,49 @@ graph LR
     Manifest --> Task[generateArcProxies]
     Task --> TS[Command, query, model, and enum TypeScript]
     TS --> Packages[@cratis/arc, @cratis/arc.react, @cratis/fundamentals]
+    Task --> Options[META-INF/arc/endpoint-options.json]
+    Options --> Check[Spring Boot startup consistency check]
 ```
+
+## Use the standalone CLI
+
+Projects that invoke the proxy generator directly through `io.cratis.arc.gradle.GenerateArcProxiesCli` instead of applying the `io.cratis.arc` Gradle plugin must pass `--endpoint-options-output <dir>` to activate the same Spring Boot startup consistency check. Without the flag the CLI behaves exactly as before and no resource is written.
+
+```kotlin
+// build.gradle.kts — JavaExec task that calls the CLI directly
+val generateArcProxies by tasks.registering(JavaExec::class) {
+    classpath = arcProxyGenerator
+    mainClass.set("io.cratis.arc.gradle.GenerateArcProxiesCli")
+    args(
+        "--manifest-classpath", ...,
+        "--output-directory", ...,
+        "--route-prefix", "api",
+        "--route-segments-to-skip", "5",
+        "--proxy-segments-to-skip", "5",
+        // Activates the startup consistency check for projects that don't use the Gradle plugin.
+        "--endpoint-options-output", layout.buildDirectory.dir("generated/arc-endpoint-options/main").get().asFile.absolutePath
+    )
+}
+```
+
+The output directory must be on the application runtime classpath. When the project uses `processResources` to copy resources, add it as a resource source directory and make `processResources` depend on the generation task:
+
+```kotlin
+sourceSets.main.get().resources.srcDir(layout.buildDirectory.dir("generated/arc-endpoint-options/main"))
+tasks.named("processResources") { dependsOn(generateArcProxies) }
+```
+
+This is safe only when the CLI task does not itself depend on `processResources`. If it does (because it depends on `classes`, which includes `processResources`), target `build/resources/main` directly and make the JAR assembly task depend on the generation task instead.
+
+All five endpoint-option flags mirror the Gradle extension settings:
+
+| CLI flag | Extension setting | Default |
+| --- | --- | --- |
+| `--route-prefix` | `endpoints.routePrefix` | `api` |
+| `--route-segments-to-skip` | `endpoints.segmentsToSkip` | `0` |
+| `--include-command-names` | `endpoints.includeCommandNames` | `true` |
+| `--include-query-names` | `endpoints.includeQueryNames` | `true` |
+| `--enable-query-http-method` | `endpoints.enableQueryHttpMethod` | `true` |
 
 ## Generate observable clients
 

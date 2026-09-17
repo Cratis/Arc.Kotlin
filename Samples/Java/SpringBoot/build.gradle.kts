@@ -24,6 +24,8 @@ val arcModuleName = "JavaSpringBootSample"
 val arcManifestDirectory = layout.buildDirectory.dir("generated/ksp/main/resources")
 val arcProxyDirectory = layout.buildDirectory.dir("generated/arc-proxies")
 val javaForKotlinDirectory = layout.buildDirectory.dir("intermediates/java-for-kotlin")
+// Endpoint-options resource produced by the CLI for the Spring Boot startup consistency check.
+val arcEndpointOptionsDirectory = layout.buildDirectory.dir("generated/arc-endpoint-options/main")
 
 dependencies {
     implementation(project(":Integrations:SpringBoot"))
@@ -57,7 +59,7 @@ tasks.named("compileKotlin") {
 
 val generateArcProxies by tasks.registering(JavaExec::class) {
     group = "verification"
-    description = "Generates TypeScript proxies from the Java sample's real KSP manifest"
+    description = "Generates TypeScript proxies from the Java sample's real KSP manifest and writes the endpoint-options resource"
     dependsOn(tasks.named("kspKotlin"))
     classpath = arcProxyGenerator
     mainClass.set("io.cratis.arc.gradle.GenerateArcProxiesCli")
@@ -66,10 +68,13 @@ val generateArcProxies by tasks.registering(JavaExec::class) {
         "--output-directory", arcProxyDirectory.get().asFile.absolutePath,
         "--route-prefix", "api",
         "--route-segments-to-skip", "5",
-        "--proxy-segments-to-skip", "5"
+        "--proxy-segments-to-skip", "5",
+        // Write META-INF/arc/endpoint-options.json so the startup consistency check is active.
+        "--endpoint-options-output", arcEndpointOptionsDirectory.get().asFile.absolutePath
     )
     inputs.file(arcManifestDirectory.map { it.file("META-INF/cratis/arc/$arcModuleName.json") })
     outputs.dir(arcProxyDirectory)
+    outputs.dir(arcEndpointOptionsDirectory)
     doLast {
         listOf("CompleteTask.ts", "CreateTask.ts", "TaskCreated.ts", "TaskView.ts", "ById.ts", "All.ts", "Observe.ts")
             .forEach { name ->
@@ -77,6 +82,13 @@ val generateArcProxies by tasks.registering(JavaExec::class) {
         }
     }
 }
+
+// Add the endpoint-options output as a resource source dir so processResources copies it into
+// build/resources/main and the boot JAR contains META-INF/arc/endpoint-options.json.
+// generateArcProxies only depends on kspKotlin (no processResources dependency), so wiring
+// processResources to wait for it creates no cycle.
+sourceSets.main.get().resources.srcDir(arcEndpointOptionsDirectory)
+tasks.named("processResources") { dependsOn(generateArcProxies) }
 
 tasks.named("check") {
     dependsOn(generateArcProxies)
