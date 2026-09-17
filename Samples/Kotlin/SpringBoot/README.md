@@ -4,13 +4,15 @@ This standalone five-minute sample uses Arc's KSP-generated command and query en
 
 ## Five-minute path
 
-From the `Arc.Kotlin` repository root, run the application with JDK 17:
+From this directory, run:
 
 ```shell
-export JAVA_HOME=/opt/homebrew/opt/openjdk@17
-export PATH="$JAVA_HOME/bin:$PATH"
-./gradlew :Samples:Kotlin:SpringBoot:bootRun
+./run.sh
 ```
+
+The script finds or reports a missing JDK 17 and starts the application on `:8080`. No external
+dependencies are needed. From the repository root, the equivalent is
+`./gradlew :Samples:Kotlin:SpringBoot:bootRun` with JDK 17 active on `JAVA_HOME`/`PATH`.
 
 1. Create a task through the generated command execute endpoint:
 
