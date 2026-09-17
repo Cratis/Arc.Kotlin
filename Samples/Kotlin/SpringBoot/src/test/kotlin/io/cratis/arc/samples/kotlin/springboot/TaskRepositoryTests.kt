@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Test
 public class TaskRepositoryTests {
     @Test
     public fun `repository retains only the 100 most recently created tasks`() {
-        val repository = TaskRepository()
+        val repository = InMemoryTaskRepository()
         val created = (0..100).map { index ->
             repository.create("Task ${index.toString().padStart(3, '0')}")
         }
@@ -30,7 +30,7 @@ public class TaskRepositoryTests {
 
     @Test
     public fun `repository publishes create and completion snapshots`() = runBlocking {
-        val repository = TaskRepository()
+        val repository = InMemoryTaskRepository()
         assertEquals(emptyList<TaskView>(), repository.observe().first())
 
         val created = repository.create("Observable task")
@@ -43,7 +43,7 @@ public class TaskRepositoryTests {
 
     @Test
     public fun `completion rejects preparation made stale by clear`() = runBlocking {
-        val repository = TaskRepository()
+        val repository = InMemoryTaskRepository()
         val command = CompleteTask(repository.create("Cleared task").id)
         val preparation = command.provide(repository) as TaskCompletionPreparation
 
@@ -57,7 +57,7 @@ public class TaskRepositoryTests {
 
     @Test
     public fun `completion rejects preparation made stale by eviction`() = runBlocking {
-        val repository = TaskRepository()
+        val repository = InMemoryTaskRepository()
         val command = CompleteTask(repository.create("Evicted task").id)
         val preparation = command.provide(repository) as TaskCompletionPreparation
         repeat(100) { index -> repository.create("Replacement $index") }
@@ -71,7 +71,7 @@ public class TaskRepositoryTests {
 
     @Test
     public fun `completion rejects preparation made stale by replacement`() = runBlocking {
-        val repository = TaskRepository()
+        val repository = InMemoryTaskRepository()
         val command = CompleteTask(repository.create("Replaced task").id)
         val stalePreparation = command.provide(repository) as TaskCompletionPreparation
         val winningPreparation = command.provide(repository) as TaskCompletionPreparation
@@ -87,7 +87,7 @@ public class TaskRepositoryTests {
 
     @Test
     public fun `repository snapshots remain bounded ordered and clearable after repeated eviction`() = runBlocking {
-        val repository = TaskRepository()
+        val repository = InMemoryTaskRepository()
         repeat(250) { index ->
             repository.create("Task ${(249 - index).toString().padStart(3, '0')}")
         }

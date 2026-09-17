@@ -16,7 +16,7 @@ import kotlin.Pair;
 @AllowAnonymous
 public record CompleteTask(@CommandKey String taskId) {
     /** Loads the task asynchronously during provide or returns normal validation feedback. */
-    public CompletionStage<Object> provide(TaskRepository repository) {
+    public CompletionStage<Object> provide(TaskStore repository) {
         return repository.prepareCompletionAsync(taskId).thenApply(preparation -> preparation == null
             ? validation("The task does not exist.")
             : preparation);
@@ -25,7 +25,7 @@ public record CompleteTask(@CommandKey String taskId) {
     /** Completes the exact prepared revision or returns normal validation feedback when it became stale. */
     public Pair<TaskView, List<ValidationResult>> handle(
         TaskCompletionPreparation preparation,
-        TaskRepository repository) {
+        TaskStore repository) {
         var completed = repository.complete(preparation);
         return completed == null
             ? new Pair<>(

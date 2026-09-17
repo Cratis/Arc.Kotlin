@@ -13,7 +13,7 @@ import java.util.concurrent.CompletionStage;
 @AllowAnonymous
 public record CreateTask(String title) {
     /** Handles the command asynchronously with a repository resolved from Spring. */
-    public CompletionStage<TaskCreated> handle(TaskRepository repository) {
+    public CompletionStage<TaskCreated> handle(TaskStore repository) {
         var task = repository.create(title);
         return CompletableFuture.completedFuture(new TaskCreated(task.id(), task.title()));
     }
