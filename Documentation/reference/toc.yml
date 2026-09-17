@@ -9,5 +9,7 @@
       href: http-contract.md
     - name: Shared fluent validation
       href: validation.md
+    - name: TypeScript proxy options matrix
+      href: typescript-proxy-options.md
     - name: Feature parity
       href: parity.md
