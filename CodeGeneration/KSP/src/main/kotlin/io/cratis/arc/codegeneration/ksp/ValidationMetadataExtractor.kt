@@ -77,6 +77,45 @@ internal class ValidationMetadataExtractor(private val logger: ArcDiagnosticRepo
                 MAX -> rules += numericRule(annotation, identity, shape, "lessThanOrEqual", "value", node) ?: return null
                 DECIMAL_MIN -> rules += decimalRule(annotation, identity, shape, true, node) ?: return null
                 DECIMAL_MAX -> rules += decimalRule(annotation, identity, shape, false, node) ?: return null
+                RANGE -> {
+                    if (!shape.isNumeric()) return unsupported(identity, name, "requires a numeric value", node)
+                    // Hibernate defaults are min = 0 and max = Long.MAX_VALUE, and either side may be
+                    // omitted, so an absent argument means "unbounded on that side" rather than an error.
+                    val minArg = annotation.longArgument("min", 0L)
+                    val maxArg = annotation.longArgument("max", Long.MAX_VALUE)
+                    if (minArg > maxArg) return invalid(identity, name, "requires min <= max", node)
+                    // Hibernate enforces the lower bound even when only 'max' is written, so the default
+                    // 0 is a real constraint and the client must mirror it.
+                    val minRepresented = representNumber(minArg.toString())
+                        ?: return unsupported(identity, name, "uses '$minArg', which is not exactly representable by a JavaScript number", node)
+                    rules += ValidationRuleModel("greaterThanOrEqual", listOf(minRepresented), message)
+                    if (maxArg != Long.MAX_VALUE) {
+                        val maxRepresented = representNumber(maxArg.toString())
+                            ?: return unsupported(identity, name, "uses '$maxArg', which is not exactly representable by a JavaScript number", node)
+                        rules += ValidationRuleModel("lessThanOrEqual", listOf(maxRepresented), message)
+                    }
+                }
+                LENGTH -> {
+                    if (!shape.acceptsLength()) return unsupported(identity, name, "requires a string, collection, or array", node)
+                    val min = annotation.intArgument("min", 0)
+                    val max = annotation.intArgument("max", Int.MAX_VALUE)
+                    if (min < 0 || max < 0 || min > max) {
+                        return invalid(identity, name, "requires 0 <= min <= max", node)
+                    }
+                    when {
+                        min > 0 && max < Int.MAX_VALUE -> rules += ValidationRuleModel("length", listOf(min, max), message)
+                        min > 0 -> rules += ValidationRuleModel("minLength", listOf(min), message)
+                        max < Int.MAX_VALUE -> rules += ValidationRuleModel("maxLength", listOf(max), message)
+                    }
+                }
+                DIGITS -> {
+                    if (!shape.isNumeric() && !shape.isString()) return unsupported(identity, name, "requires a numeric or string value", node)
+                    val integer = annotation.intArgument("integer", 0)
+                    val fraction = annotation.intArgument("fraction", -1)
+                    if (integer <= 0) return invalid(identity, name, "requires integer >= 1", node)
+                    if (fraction < 0) return invalid(identity, name, "requires fraction >= 0", node)
+                    rules += ValidationRuleModel("matches", listOf(digitsRegex(integer, fraction)), message)
+                }
                 POSITIVE -> rules += numericConstantRule(identity, shape, "greaterThan", 0, message, node) ?: return null
                 POSITIVE_OR_ZERO -> rules += numericConstantRule(identity, shape, "greaterThanOrEqual", 0, message, node) ?: return null
                 NEGATIVE -> rules += numericConstantRule(identity, shape, "lessThan", 0, message, node) ?: return null
@@ -315,6 +354,9 @@ internal class ValidationMetadataExtractor(private val logger: ArcDiagnosticRepo
     private fun SourceValidationAnnotation.stringArgument(name: String): String? = argument(name) as? String
     private fun SourceValidationAnnotation.intArgument(name: String, default: Int): Int =
         (argument(name) as? Number)?.toInt() ?: argument(name)?.toString()?.toIntOrNull() ?: default
+    private fun SourceValidationAnnotation.longArgument(name: String, default: Long): Long =
+        (argument(name) as? Number)?.toLong() ?: argument(name)?.toString()?.toLongOrNull() ?: default
+
     private fun SourceValidationAnnotation.booleanArgument(name: String, default: Boolean): Boolean =
         argument(name) as? Boolean ?: default
 
@@ -376,6 +418,10 @@ internal class ValidationMetadataExtractor(private val logger: ArcDiagnosticRepo
         return true
     }
 
+    private fun digitsRegex(integer: Int, fraction: Int): String =
+        if (fraction == 0) "^[+-]?\\d{1,$integer}$"
+        else "^[+-]?\\d{1,$integer}(\\.\\d{1,$fraction})?$"
+
     private data class Boundary(val value: BigDecimal, val inclusive: Boolean)
 
     private companion object {
@@ -394,6 +440,9 @@ internal class ValidationMetadataExtractor(private val logger: ArcDiagnosticRepo
         const val NEGATIVE_OR_ZERO = "jakarta.validation.constraints.NegativeOrZero"
         const val PATTERN = "jakarta.validation.constraints.Pattern"
         const val EMAIL = "jakarta.validation.constraints.Email"
+        const val RANGE = "org.hibernate.validator.constraints.Range"
+        const val LENGTH = "org.hibernate.validator.constraints.Length"
+        const val DIGITS = "jakarta.validation.constraints.Digits"
         const val ARC_PHONE = "io.cratis.arc.validation.Phone"
         const val ARC_URL = "io.cratis.arc.validation.Url"
         const val ARC_CREDIT_CARD = "io.cratis.arc.validation.CreditCard"
@@ -402,7 +451,8 @@ internal class ValidationMetadataExtractor(private val logger: ArcDiagnosticRepo
         val SUPPORTED_ANNOTATIONS = setOf(
             VALID, NOT_NULL, NOT_BLANK, NOT_EMPTY, SIZE, MIN, MAX, DECIMAL_MIN, DECIMAL_MAX,
             POSITIVE, POSITIVE_OR_ZERO, NEGATIVE, NEGATIVE_OR_ZERO, PATTERN, EMAIL,
-            ARC_PHONE, ARC_URL, ARC_CREDIT_CARD, URL, CREDIT_CARD_NUMBER
+            ARC_PHONE, ARC_URL, ARC_CREDIT_CARD, URL, CREDIT_CARD_NUMBER,
+            RANGE, LENGTH, DIGITS
         )
         val RULE_ORDER = listOf(
             "notNull", "notEmpty", "minLength", "maxLength", "length", "emailAddress", "phone", "url",
@@ -427,7 +477,10 @@ internal class ValidationMetadataExtractor(private val logger: ArcDiagnosticRepo
             "{io.cratis.arc.validation.Url.message}",
             "{io.cratis.arc.validation.CreditCard.message}",
             "{org.hibernate.validator.constraints.URL.message}",
-            "{org.hibernate.validator.constraints.CreditCardNumber.message}"
+            "{org.hibernate.validator.constraints.CreditCardNumber.message}",
+            "{org.hibernate.validator.constraints.Range.message}",
+            "{org.hibernate.validator.constraints.Length.message}",
+            "{jakarta.validation.constraints.Digits.message}"
         )
         val STRING_TYPES = setOf("kotlin.String", "java.lang.String")
         val NUMERIC_TYPES = setOf(

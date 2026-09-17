@@ -326,6 +326,29 @@ internal class ArcFluentValidationCompilationTest {
     }
 
     @Test
+    fun `@Range annotation plus equivalent DSL rules union and deduplicate to the canonical rule set`() {
+        val numericModel = SourceFile.kotlin("NumericPerson.kt", """
+            package fixture
+            import org.hibernate.validator.constraints.Range
+            class NumericPerson(@field:Range(min = 0, max = 100) val score: Long)
+        """.trimIndent())
+        val rules = SourceFile.kotlin("ScoreRules.kt", """
+            package fixture
+            import io.cratis.arc.validation.FluentModelValidator
+            class ScoreRules : FluentModelValidator<NumericPerson>(NumericPerson::class.java) {
+                init { ruleFor("score").greaterThanOrEqual(0).lessThanOrEqual(100) }
+            }
+        """.trimIndent())
+        val compiled = compile(listOf(numericModel, rules))
+        assertEquals(KotlinCompilation.ExitCode.OK, compiled.result.exitCode, compiled.result.messages)
+        val module = compiled.result.classLoader.loadClass("io.cratis.arc.generated.FluentArcArtifactModule").getConstructor().newInstance() as ArcArtifactModule
+        val scoreRules = module.types.single { it.fullyQualifiedName == "fixture.NumericPerson" }.properties.single().validationRules
+        assertEquals(listOf("greaterThanOrEqual", "lessThanOrEqual"), scoreRules.map { it.ruleName },
+            "annotation and DSL rules union but duplicates are removed")
+        assertEquals(2, scoreRules.size, "exactly two rules after deduplication")
+    }
+
+    @Test
     fun `ignored shared edges and open shared ancestors fail rather than disappearing from clients`() {
         val compiled = compile(listOf(SourceFile.kotlin("HiddenGraph.kt", """
             package fixture

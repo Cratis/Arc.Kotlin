@@ -170,6 +170,32 @@ internal class ArcSymbolProcessorNegativeCompilationTest {
         assertTrue("regular expression that is not portable to JavaScript" in result.messages, result.messages)
         assertTrue("contradictory numeric bounds" in result.messages, result.messages)
         assertTrue("contradictory length bounds" in result.messages, result.messages)
+        // New negative fixtures: @Range on non-numeric, @Length on non-string/collection, @Digits with integer < 1
+        assertTrue(
+            "@org.hibernate.validator.constraints.Range on 'io.cratis.arc.contracts.negative.RangeOnNonNumeric.value' requires a numeric value" in result.messages,
+            result.messages
+        )
+        assertTrue(
+            "@org.hibernate.validator.constraints.Length on 'io.cratis.arc.contracts.negative.LengthOnNonString.value' requires a string, collection, or array" in result.messages,
+            result.messages
+        )
+        assertTrue(
+            "@jakarta.validation.constraints.Digits on 'io.cratis.arc.contracts.negative.DigitsZeroInteger.value' requires integer >= 1" in result.messages,
+            result.messages
+        )
+        // Java counterparts
+        assertTrue(
+            "@org.hibernate.validator.constraints.Range on 'io.cratis.arc.contracts.negative.JavaRangeOnNonNumeric.value' requires a numeric value" in result.messages,
+            result.messages
+        )
+        assertTrue(
+            "@org.hibernate.validator.constraints.Length on 'io.cratis.arc.contracts.negative.JavaLengthOnNonString.value' requires a string, collection, or array" in result.messages,
+            result.messages
+        )
+        assertTrue(
+            "@jakarta.validation.constraints.Digits on 'io.cratis.arc.contracts.negative.JavaDigitsZeroInteger.value' requires integer >= 1" in result.messages,
+            result.messages
+        )
         assertTrue(
             "Jakarta constraints declared directly on static Java query parameter" in result.messages,
             result.messages

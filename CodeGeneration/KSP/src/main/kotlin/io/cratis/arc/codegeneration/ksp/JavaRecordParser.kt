@@ -276,7 +276,7 @@ private data class JavaSourceAnnotation(val name: String, val arguments: Map<Str
 
 private val VALIDATION_CONSTRAINT_NAMES = setOf(
     "NotNull", "NotBlank", "NotEmpty", "Size", "Min", "Max", "DecimalMin", "DecimalMax",
-    "Positive", "PositiveOrZero", "Negative", "NegativeOrZero", "Pattern", "Email"
+    "Positive", "PositiveOrZero", "Negative", "NegativeOrZero", "Pattern", "Email", "Digits"
 )
 private val ARC_VALIDATION_CONSTRAINT_NAMES = setOf("Phone", "Url", "CreditCard")
-private val HIBERNATE_VALIDATION_CONSTRAINT_NAMES = setOf("URL", "CreditCardNumber")
+private val HIBERNATE_VALIDATION_CONSTRAINT_NAMES = setOf("URL", "CreditCardNumber", "Range", "Length")

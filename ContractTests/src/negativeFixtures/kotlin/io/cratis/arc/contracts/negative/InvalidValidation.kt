@@ -5,11 +5,14 @@ package io.cratis.arc.contracts.negative
 
 import io.cratis.arc.artifacts.Command
 import jakarta.validation.constraints.DecimalMin
+import jakarta.validation.constraints.Digits
 import jakarta.validation.constraints.Max
 import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.NotEmpty
 import jakarta.validation.constraints.Pattern
 import jakarta.validation.constraints.Size
+import org.hibernate.validator.constraints.Length
+import org.hibernate.validator.constraints.Range
 
 @Command
 public data class InvalidSizeBounds(
@@ -42,6 +45,27 @@ public data class ContradictoryNumericBounds(
 @Command
 public data class ContradictoryLengthBounds(
     @field:NotEmpty @field:Size(max = 0) public val value: String
+) {
+    public fun handle(): String = value
+}
+
+@Command
+public data class RangeOnNonNumeric(
+    @field:Range(min = 1, max = 10) public val value: Boolean
+) {
+    public fun handle(): Boolean = value
+}
+
+@Command
+public data class LengthOnNonString(
+    @field:Length(min = 1, max = 10) public val value: Int
+) {
+    public fun handle(): Int = value
+}
+
+@Command
+public data class DigitsZeroInteger(
+    @field:Digits(integer = 0, fraction = 2) public val value: String
 ) {
     public fun handle(): String = value
 }

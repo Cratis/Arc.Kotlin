@@ -168,6 +168,41 @@ ECMAScript whitespace here is U+0009, U+000B, U+000C, U+0020, U+00A0, U+1680, U+
 U+202F, U+205F, U+3000, U+FEFF, LF, CR, U+2028 and U+2029. It is not Kotlin `isBlank` or Java `\s`;
 U+0085 is not in this set. The sample's vectors exercise these distinctions.
 
+### Supported Jakarta and Hibernate annotations
+
+When a supported Jakarta or Hibernate Validator annotation appears on a model property, KSP reads
+it and emits the equivalent client rule into the manifest alongside any DSL rules. Annotations not
+in this table are ignored; `groups` and `payload` metadata cause the property to reject with
+`ARCKSP0301`.
+
+| Annotation | Member type | Client rule(s) emitted |
+| --- | --- | --- |
+| `@Valid` | Any model | Marks `validateRecursively`; no DSL rule emitted |
+| `@NotNull` | Any | `notNull()` |
+| `@NotBlank`, `@NotEmpty` | Length-capable | `notEmpty()` |
+| `@Size(min, max)` | Length-capable | `minLength(min)` when min > 0 only; `maxLength(max)` when max < `Int.MAX_VALUE` only; `length(min, max)` when both bounds are non-default |
+| `@Min(value)` | Numeric | `greaterThanOrEqual(value)` |
+| `@Max(value)` | Numeric | `lessThanOrEqual(value)` |
+| `@DecimalMin(value, inclusive)` | Numeric | `greaterThanOrEqual(value)` when inclusive (default); `greaterThan(value)` otherwise |
+| `@DecimalMax(value, inclusive)` | Numeric | `lessThanOrEqual(value)` when inclusive (default); `lessThan(value)` otherwise |
+| `@Positive` | Numeric | `greaterThan(0)` |
+| `@PositiveOrZero` | Numeric | `greaterThanOrEqual(0)` |
+| `@Negative` | Numeric | `lessThan(0)` |
+| `@NegativeOrZero` | Numeric | `lessThanOrEqual(0)` |
+| `@Pattern(regexp)` | String | `matches(regexp)`; see [portable patterns](#portable-patterns) |
+| `@Email` | String | `emailAddress()`; adds `matches(regexp)` when a non-default regexp is supplied |
+| `@Range(min, max)` | Numeric | `greaterThanOrEqual(min)` always (Hibernate's default lower bound 0 is a real constraint even when only `max` is written); `lessThanOrEqual(max)` only when max ≠ `Long.MAX_VALUE` |
+| `@Length(min, max)` | Length-capable | Same three-branch mapping as `@Size`: `minLength`, `maxLength`, or `length` |
+| `@Digits(integer, fraction)` | Numeric or String | `matches("^[+-]?\\d{1,integer}$")` when fraction=0; `matches("^[+-]?\\d{1,integer}(\\.\\d{1,fraction})?$")` otherwise |
+| Arc `@Phone` | String | `phone()` |
+| Arc `@Url`, Hibernate `@URL` | String | `url()` |
+| Arc `@CreditCard`, Hibernate `@CreditCardNumber` | String | `creditCard()` — server metadata only; proxy generation rejects because the pinned TypeScript client has no credit-card validator |
+
+Jakarta constraint package is `jakarta.validation.constraints`; Hibernate Validator constraints
+are `org.hibernate.validator.constraints`. Annotation and DSL rules conjoin into a union;
+see [conjunction, duplication and contradictions](#conjunction-duplication-and-contradictions) for
+the exact deduplication and contradiction-checking semantics.
+
 ### Numeric bounds and values
 
 Although the API accepts `Number`, shared source declarations accept **numeric literals**, not

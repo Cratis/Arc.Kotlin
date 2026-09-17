@@ -517,7 +517,7 @@ ordinary-Java shared-query invocation; see [Java queries](queries.md) for the av
 | --- | --- | --- |
 | Imperative `ModelValidator`, `CommandValidator` or `QueryValidator` | Move literal representable member rules to `FluentModelValidator` | Keep service-dependent, asynchronous and cross-member policy server-only; remove old copies only if duplicate feedback is unwanted |
 | Manually registered validator bean | Let the generated module contribute it | An equivalent fluent bean is deduplicated by exact declaration class; a missing compiler contribution or rule mismatch fails registration |
-| Jakarta annotations | Retain them, optionally adding fluent rules | Annotation and DSL metadata conjoin, not override; Jakarta still runs separately on the server, so this is not cross-engine feedback deduplication |
+| Jakarta annotations | Retain them, optionally adding fluent rules | Annotation and DSL metadata form a union — see [conjunction, duplication and contradictions](../reference/validation.md#conjunction-duplication-and-contradictions); Jakarta still runs separately on the server, so this is not cross-engine feedback deduplication |
 | Implicit required values | Choose `notNull` or `notEmpty` explicitly | Other shared rules pass null; format rules also pass empty strings; a null parent creates no child node |
 | Jakarta/localized or imperative messages | Use literal `withMessage` for a shared message | It changes only the preceding rule and replaces only the first `{PropertyName}`; the sample emits `nonempty must have text; {PropertyName}` |
 | Server-only constraints with no client equivalent | Retain server enforcement | New shared `creditCard()` rejects; existing Jakarta credit-card metadata remains server-only |
