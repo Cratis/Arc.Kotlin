@@ -11,5 +11,7 @@
       href: validation.md
     - name: TypeScript proxy options matrix
       href: typescript-proxy-options.md
+    - name: Glossary
+      href: glossary.md
     - name: Feature parity
       href: parity.md
