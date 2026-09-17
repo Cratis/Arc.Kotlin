@@ -1,21 +1,12 @@
 #!/usr/bin/env bash
-# Run the Arc.Kotlin Java Spring Boot task-board sample.
+# Run the Java Spring Boot sample. A thin wrapper over Samples/run.sh, which runs every sample.
 #
-# Usage:
-#   ./run.sh
+#   ./run.sh                      # in memory, with the frontend
+#   ./run.sh --database postgres  # store the task board in PostgreSQL (Docker)
+#   ./run.sh --no-frontend        # backend only, for curl
 #
-# No external dependencies are needed: the sample uses a bounded in-memory repository.
-# See README.md in this directory for the routes to try once it is running.
+# See ../../run.sh --help for every option.
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
-# shellcheck source=../../lib/jdk17.sh
-source "$SCRIPT_DIR/../../lib/jdk17.sh"
-
-require_jdk17
-
-echo "▶  Running the Java Spring Boot sample on http://localhost:8080"
-echo ""
-cd "$REPO_ROOT"
-exec ./gradlew :Samples:Java:SpringBoot:bootRun
+exec "$SCRIPT_DIR/../../run.sh" --language java "$@"
