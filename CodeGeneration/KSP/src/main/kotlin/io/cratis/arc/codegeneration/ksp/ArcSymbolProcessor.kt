@@ -1373,7 +1373,7 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
         val readModelName = readModel.qualifiedName?.asString() ?: return false
         var type = returnType?.resolve()?.takeUnless { resolved -> resolved.isError } ?: return false
         val outerName = type.declaration.qualifiedName?.asString()
-        if (outerName == KOTLIN_FLOW_TYPE || outerName in JDK_PUBLISHER_TYPES || isCompletionStage(type, resolver)) {
+        if (outerName == KOTLIN_FLOW_TYPE || outerName in JDK_PUBLISHER_TYPES || outerName in RXJAVA3_OBSERVABLE_TYPES || isCompletionStage(type, resolver)) {
             type = type.arguments.singleOrNull()?.type?.resolve() ?: return false
         }
         val returnName = type.declaration.qualifiedName?.asString() ?: return false
@@ -1490,7 +1490,7 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
             ?: "AUTO"
         val declaredTransport = function.enumArgument(QUERY_TRANSPORT_ANNOTATION, "value")
         if (declaredTransport == "OBSERVABLE" && !returnShape.isObservable) {
-            logger.error("Query '$identity' declares observable transport but does not return Flow<T> or Flow.Publisher<T>.", function)
+            logger.error("Query '$identity' declares observable transport but does not return Flow<T>, Flow.Publisher<T>, or an RxJava 3 ObservableSource<T>.", function)
             return null
         }
         if (declaredTransport == "REQUEST_RESPONSE" && returnShape.isObservable) {
@@ -1807,7 +1807,7 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
         var invocationKind = QueryInvocationKind.DIRECT
         var isObservable = false
         val outerReturnName = returnType.declaration.qualifiedName?.asString()
-        if (outerReturnName == KOTLIN_FLOW_TYPE || outerReturnName in JDK_PUBLISHER_TYPES) {
+        if (outerReturnName == KOTLIN_FLOW_TYPE || outerReturnName in JDK_PUBLISHER_TYPES || outerReturnName in RXJAVA3_OBSERVABLE_TYPES) {
             if (returnType.arguments.size != 1 || returnType.arguments.single().type == null) {
                 logger.error("Query '$identity' must return an observable type with a concrete model shape.", function)
                 return null
@@ -1821,7 +1821,11 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
                 logger.error("Query '$identity' must not return an observable nullable model shape.", function)
                 return null
             }
-            invocationKind = if (outerReturnName == KOTLIN_FLOW_TYPE) QueryInvocationKind.FLOW else QueryInvocationKind.JDK_PUBLISHER
+            invocationKind = when {
+                outerReturnName == KOTLIN_FLOW_TYPE -> QueryInvocationKind.FLOW
+                outerReturnName in RXJAVA3_OBSERVABLE_TYPES -> QueryInvocationKind.RX_OBSERVABLE
+                else -> QueryInvocationKind.JDK_PUBLISHER
+            }
             isObservable = true
         } else if (isCompletionStage(returnType, resolver)) {
             if (function.origin != Origin.JAVA) {
@@ -2243,6 +2247,7 @@ $keyResolution$preparation
                 QueryInvocationKind.DIRECT, QueryInvocationKind.FLOW -> invocation
                 QueryInvocationKind.COMPLETION_STAGE -> "$invocation.await()"
                 QueryInvocationKind.JDK_PUBLISHER -> "$invocation.asKotlinFlow()"
+                QueryInvocationKind.RX_OBSERVABLE -> "$invocation.asKotlinFlow()"
             }
             return if (query.adaptsSpringDataPage) {
                 """($adaptedInvocation).let { _page ->
@@ -2301,6 +2306,11 @@ $branches
             else -> error("Unreachable default query argument mask")
         }"""
         }
+        val rxJava3Import = if (query.invocationKind == QueryInvocationKind.RX_OBSERVABLE) {
+            "\nimport io.cratis.arc.rxjava3.asKotlinFlow"
+        } else {
+            ""
+        }
         return """// Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
@@ -2308,7 +2318,7 @@ package $GENERATED_QUERIES_PACKAGE
 
 import io.cratis.arc.commands.await
 import io.cratis.arc.commands.require
-import io.cratis.arc.queries.asKotlinFlow
+import io.cratis.arc.queries.asKotlinFlow${rxJava3Import}
 
 /** Generated reflection-free query performer for [${query.fullyQualifiedName}]. */
 public class ${query.performerClassName} : io.cratis.arc.queries.QueryPerformer {
@@ -2884,6 +2894,11 @@ public class $className : io.cratis.arc.artifacts.ArcArtifactModule(
             "java.util.Collection"
         )
         val MAP_TYPE_NAMES = setOf("kotlin.collections.Map", "kotlin.collections.MutableMap", "java.util.Map")
+        val RXJAVA3_OBSERVABLE_TYPES = setOf(
+            "io.reactivex.rxjava3.core.Observable",
+            "io.reactivex.rxjava3.core.ObservableSource",
+            "io.reactivex.rxjava3.subjects.Subject"
+        )
         val UNSUPPORTED_STREAM_TYPES = setOf("org.reactivestreams.Publisher")
     }
 }

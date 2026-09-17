@@ -7,6 +7,8 @@
       href: validation.md
     - name: Queries
       href: queries.md
+    - name: Observable queries
+      href: observable-queries.md
     - name: Authentication and authorization
       href: security.md
     - name: Spring Data read models

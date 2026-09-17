@@ -212,7 +212,8 @@ internal enum class QueryInvocationKind {
     DIRECT,
     COMPLETION_STAGE,
     FLOW,
-    JDK_PUBLISHER
+    JDK_PUBLISHER,
+    RX_OBSERVABLE
 }
 
 internal enum class QueryHostAdapterKind {
