@@ -369,6 +369,113 @@ Optional, single-unit applications receive a fixed `JpaPersistenceUnitResolver`.
 
 A fixed `MongoOperationsResolver` serves only commands and observations without a tenant; supplying a tenant fails rather than reading and relabeling the default database. Tenant-routed applications provide one `TenantAwareMongoOperationsResolver`; each lookup returns `TenantMongoOperations`, which certifies the exact tenant identifier together with its isolated `MongoOperations`. Unknown tenants must throw, and Arc rejects mismatched certificates without retrying a default database. Required tenancy validates that command lookup, snapshots, and change streams use adapters for that exact resolver, with no unrelated plain resolver.
 
+## Inject tenant-bound MongoDB access
+
+When a tenant-aware resolver is configured, Arc auto-configures a `TenantContextMongoAccess` bean that handlers
+can inject. It resolves the correct tenant's `MongoOperations` at the moment each method is called — the tenant
+is never captured at construction time. This mirrors the `IMongoDatabase` and `IMongoCollection<T>` scoped registrations
+in Arc .NET's `ServiceCollectionExtensions.AddCratisMongoDB` (`Source/DotNET/MongoDB/ServiceCollectionExtensions.cs`).
+
+### Kotlin coroutine call paths
+
+Call `operations()` inside a `withTenant` scope or any coroutine whose context carries a `TenantCoroutineContext`;
+the ambient tenant is read on every call:
+
+```kotlin
+@Command
+data class ArchiveTask(@CommandKey val id: String) {
+    suspend fun handle(
+        @FromServices access: TenantContextMongoAccess
+    ) {
+        // operations() reads currentTenant() from the coroutine context — never from construction time.
+        val ops = access.operations()
+        ops.remove(Query.query(Criteria.where("_id").`is`(id)), TaskDocument::class.java)
+    }
+}
+```
+
+For direct native driver access, `collection()` returns a `MongoCollection<T>` named by the `NamingPolicy`:
+
+```kotlin
+suspend fun handle(
+    @FromServices access: TenantContextMongoAccess
+) {
+    val col = access.collection(TaskDocument::class.java)
+    col.deleteOne(Filters.eq("_id", id))
+}
+```
+
+The collection name comes from `NamingPolicy.getReadModelName()` (kernel-aligned English pluralization), not from
+Spring Data's `@Document` annotation. For Spring Data-mapped types, prefer `operations()` and its type-safe CRUD
+methods, which respect `@Document` and the configured object mapping.
+
+### Java call paths
+
+Java command handlers that run on a blocking thread use `TenantContextBridge.withTenant` to establish the tenant,
+then call `operationsForCurrentTenant()`:
+
+```java
+public class ArchiveTaskHandler implements BlockingCommandHandler {
+    private final TenantContextMongoAccess access;
+
+    public ArchiveTaskHandler(TenantContextMongoAccess access) {
+        this.access = access;
+    }
+
+    @Override
+    public void handle(CommandContext context) {
+        TenantContextBridge.withTenant(TenantId.of(context.getTenantId()), () -> {
+            MongoOperations ops = access.operationsForCurrentTenant();
+            ops.remove(Query.query(Criteria.where("_id").is(context.getCommandKey())), TaskDocument.class);
+        });
+    }
+}
+```
+
+Alternatively, pass the tenant explicitly using the overload that bypasses the ambient context:
+
+```java
+MongoOperations ops = access.operations(TenantId.of(tenantId));
+```
+
+This overload is callable from both Kotlin and Java without any context setup.
+
+### No-tenant fallback
+
+When no tenant is present in the current context and no fallback tenant is configured, all resolution methods
+throw `IllegalStateException`. Construct `TenantContextMongoAccess` with an explicit `fallbackTenantId` when
+the application has a default tenant for non-tenanted code paths:
+
+```kotlin
+// Application bean override — use the workspace default tenant when no tenant is active.
+@Bean
+fun arcTenantContextMongoAccess(
+    resolver: TenantAwareMongoOperationsResolver,
+    namingPolicy: NamingPolicy
+): TenantContextMongoAccess = TenantContextMongoAccess(resolver, namingPolicy, TenantId.DEFAULT)
+```
+
+```java
+// Java equivalent.
+@Bean
+public TenantContextMongoAccess arcTenantContextMongoAccess(
+    TenantAwareMongoOperationsResolver resolver,
+    NamingPolicy namingPolicy
+) {
+    return new TenantContextMongoAccess(resolver, namingPolicy, TenantId.DEFAULT);
+}
+```
+
+The auto-configured bean uses no fallback (throw on missing tenant). Override it as above when a fallback is needed.
+
+### #184 limitation
+
+All behavior described in this section and proved by `TenantContextMongoAccessTests` and
+`JavaTenantContextMongoAccessTests` is verified against the `mongo-java-server` 1.47.0 `MemoryBackend` emulator,
+which is the same in-memory backend used across the MongoDB integration. It does not cover production MongoDB,
+replica-set failover, TLS, change streams, or transactions through `TenantContextMongoAccess`. Comprehensive
+proof against a real pinned MongoDB instance is tracked in issue #184 and is not yet available.
+
 ## Enroll commands in transactions
 
 Imperative Spring transactions are disabled by default because JPA and MongoDB transaction managers bind resources to a thread while Arc command handlers may suspend and resume on another worker. Fixed-store applications can explicitly opt in:

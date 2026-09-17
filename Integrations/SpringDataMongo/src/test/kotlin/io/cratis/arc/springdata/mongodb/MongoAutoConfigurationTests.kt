@@ -7,6 +7,7 @@ import io.cratis.arc.authorization.ArcPrincipal
 import io.cratis.arc.commands.CommandContext
 import io.cratis.arc.commands.CommandHandlerRegistry
 import io.cratis.arc.commands.ServiceResolver
+import io.cratis.arc.naming.NamingPolicy
 import io.cratis.arc.queries.BlockingReadModelForCommandResolver
 import io.cratis.arc.queries.CanResolveReadModelForCommand
 import io.cratis.arc.queries.MultipleReadModelResolversForCommandException
@@ -247,6 +248,73 @@ class MongoAutoConfigurationTests {
             .run { context ->
                 assertTrue(context.failed())
                 assertTrue(context.failureMessages().contains("share one resource factory"))
+            }
+    }
+
+    // ─── TenantContextMongoAccess auto-configuration ──────────────────────────
+
+    @Test
+    fun `TenantContextMongoAccess is registered when a single TenantAwareMongoOperationsResolver is present`() {
+        val operations = mock(MongoOperations::class.java)
+        val tenantAware = TenantAwareMongoOperationsResolver { tenantId ->
+            TenantMongoOperations(tenantId, operations)
+        }
+        runner()
+            .withBean(TenantAwareMongoOperationsResolver::class.java, { tenantAware })
+            .run { context ->
+                assertFalse(context.failed(), context.failureMessages())
+                assertNotNull(context.getBean(TenantContextMongoAccess::class.java))
+            }
+    }
+
+    @Test
+    fun `TenantContextMongoAccess is not registered without a TenantAwareMongoOperationsResolver`() {
+        runner().run { context ->
+            assertFalse(context.failed())
+            assertTrue(context.getBeansOfType(TenantContextMongoAccess::class.java).isEmpty())
+        }
+    }
+
+    @Test
+    fun `application can supply its own TenantContextMongoAccess bean and auto-configured one backs off`() {
+        val custom = TenantContextMongoAccess(
+            TenantAwareMongoOperationsResolver { tenantId ->
+                TenantMongoOperations(tenantId, mock(MongoOperations::class.java))
+            },
+            DefaultNamingPolicy()
+        )
+        runner()
+            .withBean(TenantAwareMongoOperationsResolver::class.java, {
+                TenantAwareMongoOperationsResolver { tenantId ->
+                    TenantMongoOperations(tenantId, mock(MongoOperations::class.java))
+                }
+            })
+            .withBean(TenantContextMongoAccess::class.java, { custom })
+            .run { context ->
+                assertFalse(context.failed())
+                assertSame(custom, context.getBean(TenantContextMongoAccess::class.java))
+            }
+    }
+
+    @Test
+    fun `DefaultNamingPolicy is registered when no NamingPolicy bean is present`() {
+        runner().run { context ->
+            assertFalse(context.failed())
+            assertNotNull(context.getBean(NamingPolicy::class.java))
+            assertTrue(context.getBean(NamingPolicy::class.java) is DefaultNamingPolicy)
+        }
+    }
+
+    @Test
+    fun `application NamingPolicy bean is preserved and DefaultNamingPolicy backs off`() {
+        val custom = object : NamingPolicy {
+            override fun getReadModelName(readModelType: Class<*>): String = "custom"
+        }
+        runner()
+            .withBean(NamingPolicy::class.java, { custom })
+            .run { context ->
+                assertFalse(context.failed())
+                assertSame(custom, context.getBean(NamingPolicy::class.java))
             }
     }
 

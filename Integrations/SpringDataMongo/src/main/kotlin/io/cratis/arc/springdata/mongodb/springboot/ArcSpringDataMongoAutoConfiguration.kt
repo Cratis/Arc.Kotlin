@@ -5,7 +5,10 @@ package io.cratis.arc.springdata.mongodb.springboot
 
 import io.cratis.arc.artifacts.ReadModel
 import io.cratis.arc.commands.CommandHandlerRegistry
+import io.cratis.arc.naming.NamingPolicy
 import io.cratis.arc.springdata.mongodb.DefaultMongoCommandReadModelResolver
+import io.cratis.arc.springdata.mongodb.DefaultNamingPolicy
+import io.cratis.arc.springdata.mongodb.TenantContextMongoAccess
 import io.cratis.arc.springdata.mongodb.MongoChangeStreamSource
 import io.cratis.arc.springdata.mongodb.MongoChangeStreamWatcher
 import io.cratis.arc.springdata.mongodb.MongoCommandExecutionScope
@@ -53,6 +56,31 @@ public class ArcSpringDataMongoAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean(MongoObservationOptions::class)
     public fun arcMongoObservationOptions(): MongoObservationOptions = MongoObservationOptions()
+
+    /**
+     * Provides the default Arc naming policy for collection names, backed by English-language plural
+     * inflection aligned with the Cratis Chronicle Kernel. Backs off when the application supplies its own
+     * [NamingPolicy] bean.
+     */
+    @Bean
+    @ConditionalOnMissingBean(NamingPolicy::class)
+    public fun arcMongoNamingPolicy(): NamingPolicy = DefaultNamingPolicy()
+
+    /**
+     * Provides per-call, tenant-bound [TenantContextMongoAccess] so that handlers can inject
+     * tenant-aware [org.springframework.data.mongodb.core.MongoOperations] and raw
+     * [com.mongodb.client.MongoCollection] without capturing a tenant at construction time.
+     *
+     * Registered only when exactly one [TenantAwareMongoOperationsResolver] candidate is present.
+     * Backs off when the application supplies its own [TenantContextMongoAccess] bean.
+     */
+    @Bean
+    @ConditionalOnSingleCandidate(TenantAwareMongoOperationsResolver::class)
+    @ConditionalOnMissingBean(TenantContextMongoAccess::class)
+    public fun arcTenantContextMongoAccess(
+        resolver: TenantAwareMongoOperationsResolver,
+        namingPolicy: NamingPolicy
+    ): TenantContextMongoAccess = TenantContextMongoAccess(resolver, namingPolicy)
 
     /** Compatibility factory for the historical fixed MongoDB operations resolver. */
     public fun arcMongoOperationsResolver(mongoOperations: MongoOperations): MongoOperationsResolver =
