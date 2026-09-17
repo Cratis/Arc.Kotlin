@@ -31,13 +31,14 @@ import io.opentelemetry.api.baggage.Baggage
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withTimeout
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
@@ -175,6 +176,11 @@ internal class ArcObservedComponentsTests {
     @Test
     fun `observable subscription cancellation is recorded`(): Unit = runBlocking {
         val registry = TestObservationRegistry.create()
+        // The source signals when it is actually being collected, which happens only after the
+        // subscription observation has started. Waiting for that signal instead of a wall-clock
+        // timeout is what makes this deterministic: a loaded machine could otherwise cancel before
+        // the subscription coroutine had run at all, leaving nothing to assert on.
+        val subscribed = CompletableDeferred<Unit>()
         val observable = ObservedObservableQueryPipeline(
             object : ObservableQueryPipeline {
                 override suspend fun open(
@@ -183,16 +189,21 @@ internal class ArcObservedComponentsTests {
                     transferMode: ObservableQueryTransferMode?,
                     keyExtractor: ((Any) -> Any?)?
                 ): ObservableQueryOpenResult = ObservableQueryOpenResult.Stream(
-                    flow<QueryResult<*>> { awaitCancellation() }
+                    flow<QueryResult<*>> {
+                        subscribed.complete(Unit)
+                        awaitCancellation()
+                    }
                 )
             },
             recorder(registry)
         )
         val opened = observable.open(queryRequest(), queryOptions()) as ObservableQueryOpenResult.Stream
 
-        assertThrows(TimeoutCancellationException::class.java) {
-            runBlocking { withTimeout(25) { opened.results.collect() } }
-        }
+        val collection = launch { opened.results.collect() }
+        subscribed.await()
+        // cancelAndJoin returns only once the whole child hierarchy has finished unwinding, so the
+        // recorder has provably stopped the subscription observation before the assertions run.
+        collection.cancelAndJoin()
 
         assertThat(registry)
             .hasAnObservationWithAKeyValue(ArcObservationTags.OPERATION, "subscription")

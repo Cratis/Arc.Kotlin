@@ -131,7 +131,9 @@ class ArcChronicleRealKernelTest {
                 val accepted = tenantAEvents.single { it.content.contains("Accepted title") }
                 val acceptedContent = objectMapper.readTree(accepted.content)
                 assertEquals("Tenant A title", acceptedContent.path("previousTitle").asString())
-                // SDK 5.1.0 forwards stream type/ID but not eventSourceType; this proves stream filtering only.
+                // SDK 5.1.0's read path (Sequences.EventContext.toClient) drops eventSourceType,
+                // eventStreamType and eventStreamId alike, so the returned context cannot be asserted
+                // on - see #161. Filtering server-side is what proves the metadata was persisted.
                 val metadataFiltered = tenantAStore.eventLog.getForEventSourceIdAndEventTypes(
                     eventSourceId = taskId,
                     eventTypes = emptyList(),
