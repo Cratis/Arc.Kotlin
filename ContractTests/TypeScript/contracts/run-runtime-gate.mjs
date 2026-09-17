@@ -34,13 +34,13 @@ const childRuns = [
         label: "calendar runtime contract [UTC]",
         contract: "contracts/runtime.calendar.contract.ts",
         timeZone: "UTC",
-        expectedTests: 5,
+        expectedTests: 6,
     },
     {
         label: "calendar runtime contract [America/Los_Angeles]",
         contract: "contracts/runtime.calendar.contract.ts",
         timeZone: "America/Los_Angeles",
-        expectedTests: 5,
+        expectedTests: 6,
     },
     {
         label: "general runtime contract [UTC]",

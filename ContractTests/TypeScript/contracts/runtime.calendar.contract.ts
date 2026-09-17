@@ -242,6 +242,102 @@ test("defaulted RFC QUERY omits absent arguments and sends supplied overrides", 
     assert.deepEqual(suppliedBody.arguments, { year: 2031 });
 });
 
+test("[characterization — #186 / Cratis/Fundamentals#1123] RFC QUERY body serialises DateOnly and TimeOnly as component objects, not ISO strings; GET path serialises them correctly for contrast", async () => {
+    // CHARACTERIZATION TEST — this documents a known defect.
+    //
+    // DateOnly and TimeOnly in @cratis/fundamentals 7.18.4 have no toJSON() method, so when an
+    // RFC QUERY body is built with JSON.stringify(), these types are serialised as plain component
+    // objects ({year, month, day} and {hour, minute, second, millisecond}) instead of ISO strings.
+    // The GET path is unaffected because UrlHelpers.buildQueryParams() uses String(value), which
+    // calls toString() and produces the correct ISO string.
+    //
+    // Upstream fix: Cratis/Fundamentals#1123.  Local tracking: #186.
+    //
+    // WHEN THIS TEST STARTS FAILING: @cratis/fundamentals has added toJSON() to DateOnly and
+    // TimeOnly (following the Guid precedent).  At that point:
+    //   1. Replace the assert.deepEqual assertions below with:
+    //        assert.equal(parsedBody.arguments?.date, "2026-01-01");
+    //        assert.equal(parsedBody.arguments?.time, "14:30:45.123");
+    //   2. Bump the @cratis/fundamentals pin in ContractTests/TypeScript/package.json.
+    //   3. Remove this comment block and the "[characterization — #186 / ...]" prefix from the
+    //      test name.
+    //
+    // Do NOT fix this by:
+    //   - Making the JVM parse component objects for DateOnly/TimeOnly parameters.
+    //   - Forcing the generated QUERY-declared query to use GET (hides the contract break).
+
+    const values = createValues();
+
+    // ── GET path: correct ISO-string serialisation (for contrast) ────────────────────────────
+    const getCorrelationId = crypto.randomUUID();
+    const getQuery = new FindCalendarEcho();
+    getQuery.setHttpHeadersCallback(() => ({
+        "X-Correlation-ID": getCorrelationId,
+    }));
+    // Globals.queryHttpMethod is QueryHttpMethod.Get, so no override is needed here.
+    await getQuery.perform(values);
+
+    const getExchange = exchangeFor(getCorrelationId);
+    assert.equal(getExchange.method, "GET");
+    assert.equal(getExchange.body, null);
+    assert.ok(
+        getExchange.url.includes(`date=${encodeURIComponent(expectedDate)}`),
+        "GET must encode DateOnly as an ISO string in the URL query string.",
+    );
+    assert.ok(
+        getExchange.url.includes(`time=${encodeURIComponent(expectedTime)}`),
+        "GET must encode TimeOnly as an ISO string in the URL query string.",
+    );
+    assert.ok(
+        getExchange.url.includes(
+            `identifier=${encodeURIComponent(expectedIdentifier)}`,
+        ),
+        "GET must encode Guid as an ISO string in the URL query string.",
+    );
+
+    // ── QUERY path: broken component-object serialisation (characterised) ─────────────────────
+    const queryCorrelationId = crypto.randomUUID();
+    const rfcQuery = new FindCalendarEcho();
+    rfcQuery.setHttpMethod(QueryHttpMethod.Query);
+    rfcQuery.setHttpHeadersCallback(() => ({
+        "X-Correlation-ID": queryCorrelationId,
+    }));
+    // The /api/calendar-echo endpoint may reject the QUERY verb with 405; that is expected and
+    // irrelevant — this test inspects only the outgoing request body, not the server response.
+    await rfcQuery.perform(values);
+
+    const queryExchange = exchangeFor(queryCorrelationId);
+    assert.equal(queryExchange.method, "QUERY");
+    assert.ok(
+        queryExchange.body,
+        "Expected a non-null request body for an RFC QUERY request.",
+    );
+    const parsedBody = JSON.parse(queryExchange.body) as {
+        arguments?: Record<string, unknown>;
+    };
+
+    // CHARACTERIZATION: DateOnly has no toJSON(); JSON.stringify serialises {year, month, day}.
+    // Replace with assert.equal(parsedBody.arguments?.date, "2026-01-01") once upstream adds toJSON().
+    assert.deepEqual(
+        parsedBody.arguments?.date,
+        { year: 2026, month: 1, day: 1 },
+        "CHARACTERIZATION: DateOnly must serialise as a component object until @cratis/fundamentals adds toJSON().",
+    );
+    // CHARACTERIZATION: TimeOnly has no toJSON(); JSON.stringify serialises {hour, minute, second, millisecond}.
+    // Replace with assert.equal(parsedBody.arguments?.time, "14:30:45.123") once upstream adds toJSON().
+    assert.deepEqual(
+        parsedBody.arguments?.time,
+        { hour: 14, minute: 30, second: 45, millisecond: 123 },
+        "CHARACTERIZATION: TimeOnly must serialise as a component object until @cratis/fundamentals adds toJSON().",
+    );
+    // Guid already has toJSON() and is unaffected by this defect.
+    assert.equal(
+        parsedBody.arguments?.identifier,
+        expectedIdentifier,
+        "Guid must serialise as an ISO string because it already has toJSON().",
+    );
+});
+
 test("shared client TimeOnly millisecond truncation is not an exact precision round-trip", async () => {
     const query = new FindCalendarPrecision();
     const rawResponse = await originalFetch(new URL(query.route, origin));
