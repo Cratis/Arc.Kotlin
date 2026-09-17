@@ -242,29 +242,15 @@ test("defaulted RFC QUERY omits absent arguments and sends supplied overrides", 
     assert.deepEqual(suppliedBody.arguments, { year: 2031 });
 });
 
-test("[characterization — #186 / Cratis/Fundamentals#1123] RFC QUERY body serialises DateOnly and TimeOnly as component objects, not ISO strings; GET path serialises them correctly for contrast", async () => {
-    // CHARACTERIZATION TEST — this documents a known defect.
+test("RFC QUERY body serialises DateOnly and TimeOnly as ISO strings, matching the GET path", async () => {
+    // DateOnly and TimeOnly define toJSON() as of @cratis/fundamentals 7.19.3, so an RFC QUERY body
+    // built with JSON.stringify() carries the scalar ISO string the server binds. Before that they
+    // had only toString(), and JSON.stringify fell back to enumerating their properties, so a query
+    // argument arrived as {year, month, day} and failed to bind. Fixed in Cratis/Fundamentals#1124;
+    // tracked here as #186.
     //
-    // DateOnly and TimeOnly in @cratis/fundamentals 7.18.4 have no toJSON() method, so when an
-    // RFC QUERY body is built with JSON.stringify(), these types are serialised as plain component
-    // objects ({year, month, day} and {hour, minute, second, millisecond}) instead of ISO strings.
-    // The GET path is unaffected because UrlHelpers.buildQueryParams() uses String(value), which
-    // calls toString() and produces the correct ISO string.
-    //
-    // Upstream fix: Cratis/Fundamentals#1123.  Local tracking: #186.
-    //
-    // WHEN THIS TEST STARTS FAILING: @cratis/fundamentals has added toJSON() to DateOnly and
-    // TimeOnly (following the Guid precedent).  At that point:
-    //   1. Replace the assert.deepEqual assertions below with:
-    //        assert.equal(parsedBody.arguments?.date, "2026-01-01");
-    //        assert.equal(parsedBody.arguments?.time, "14:30:45.123");
-    //   2. Bump the @cratis/fundamentals pin in ContractTests/TypeScript/package.json.
-    //   3. Remove this comment block and the "[characterization — #186 / ...]" prefix from the
-    //      test name.
-    //
-    // Do NOT fix this by:
-    //   - Making the JVM parse component objects for DateOnly/TimeOnly parameters.
-    //   - Forcing the generated QUERY-declared query to use GET (hides the contract break).
+    // The GET assertions below stay deliberately alongside the QUERY ones: both transports must
+    // produce the same scalar form, and that agreement is the actual contract.
 
     const values = createValues();
 
@@ -316,21 +302,17 @@ test("[characterization — #186 / Cratis/Fundamentals#1123] RFC QUERY body seri
         arguments?: Record<string, unknown>;
     };
 
-    // CHARACTERIZATION: DateOnly has no toJSON(); JSON.stringify serialises {year, month, day}.
-    // Replace with assert.equal(parsedBody.arguments?.date, "2026-01-01") once upstream adds toJSON().
-    assert.deepEqual(
+    assert.equal(
         parsedBody.arguments?.date,
-        { year: 2026, month: 1, day: 1 },
-        "CHARACTERIZATION: DateOnly must serialise as a component object until @cratis/fundamentals adds toJSON().",
+        "2026-01-01",
+        "DateOnly must serialise as an ISO string in an RFC QUERY body.",
     );
-    // CHARACTERIZATION: TimeOnly has no toJSON(); JSON.stringify serialises {hour, minute, second, millisecond}.
-    // Replace with assert.equal(parsedBody.arguments?.time, "14:30:45.123") once upstream adds toJSON().
-    assert.deepEqual(
+    assert.equal(
         parsedBody.arguments?.time,
-        { hour: 14, minute: 30, second: 45, millisecond: 123 },
-        "CHARACTERIZATION: TimeOnly must serialise as a component object until @cratis/fundamentals adds toJSON().",
+        "14:30:45.123",
+        "TimeOnly must serialise as an ISO string in an RFC QUERY body, keeping the fractional part.",
     );
-    // Guid already has toJSON() and is unaffected by this defect.
+    // Guid has always had toJSON(); asserted here so a regression in any of the three is caught.
     assert.equal(
         parsedBody.arguments?.identifier,
         expectedIdentifier,

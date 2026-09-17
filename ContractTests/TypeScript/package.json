@@ -1,24 +1,24 @@
 {
-  "name": "@cratis/arc-kotlin-typescript-contracts",
-  "version": "0.0.0",
-  "private": true,
-  "packageManager": "npm@10.9.2",
-  "scripts": {
-    "build": "tsc --noEmit",
-    "test:runtime-harness": "node --test contracts/run-runtime-gate.test.mjs",
-    "test:runtime": "node contracts/run-runtime-gate.mjs"
-  },
-  "dependencies": {
-    "@cratis/arc": "22.10.4",
-    "@cratis/arc.react": "22.10.4",
-    "@cratis/fundamentals": "7.18.4",
-    "react": "19.2.8"
-  },
-  "devDependencies": {
-    "@types/node": "26.4.1",
-    "@types/react": "19.2.18",
-    "eventsource": "5.1.1",
-    "tsx": "4.23.13",
-    "typescript": "7.0.2"
-  }
+    "name": "@cratis/arc-kotlin-typescript-contracts",
+    "version": "0.0.0",
+    "private": true,
+    "packageManager": "npm@10.9.2",
+    "scripts": {
+        "build": "tsc --noEmit",
+        "test:runtime-harness": "node --test contracts/run-runtime-gate.test.mjs",
+        "test:runtime": "node contracts/run-runtime-gate.mjs"
+    },
+    "dependencies": {
+        "@cratis/arc": "22.10.4",
+        "@cratis/arc.react": "22.10.4",
+        "@cratis/fundamentals": "7.19.3",
+        "react": "19.2.8"
+    },
+    "devDependencies": {
+        "@types/node": "26.4.1",
+        "@types/react": "19.2.18",
+        "eventsource": "5.1.1",
+        "tsx": "4.23.13",
+        "typescript": "7.0.2"
+    }
 }
