@@ -82,6 +82,16 @@ public final class io/cratis/arc/springdata/jpa/JpaObservationOptions {
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class io/cratis/arc/springdata/jpa/JpaObservations {
+	public static final field INSTANCE Lio/cratis/arc/springdata/jpa/JpaObservations;
+	public static final fun observePublisher (Lio/cratis/arc/springdata/jpa/JpaObservableQuery;Ljava/lang/Class;)Ljava/util/concurrent/Flow$Publisher;
+	public static final fun observePublisher (Lio/cratis/arc/springdata/jpa/JpaObservableQuery;Ljava/lang/Class;Ljava/lang/String;)Ljava/util/concurrent/Flow$Publisher;
+	public static synthetic fun observePublisher$default (Lio/cratis/arc/springdata/jpa/JpaObservableQuery;Ljava/lang/Class;Ljava/lang/String;ILjava/lang/Object;)Ljava/util/concurrent/Flow$Publisher;
+	public static final fun observeShared (Lkotlinx/coroutines/CoroutineScope;Lio/cratis/arc/springdata/jpa/JpaObservableQuery;Ljava/lang/Class;)Lkotlinx/coroutines/flow/SharedFlow;
+	public static final fun observeShared (Lkotlinx/coroutines/CoroutineScope;Lio/cratis/arc/springdata/jpa/JpaObservableQuery;Ljava/lang/Class;Ljava/lang/String;)Lkotlinx/coroutines/flow/SharedFlow;
+	public static synthetic fun observeShared$default (Lkotlinx/coroutines/CoroutineScope;Lio/cratis/arc/springdata/jpa/JpaObservableQuery;Ljava/lang/Class;Ljava/lang/String;ILjava/lang/Object;)Lkotlinx/coroutines/flow/SharedFlow;
+}
+
 public final class io/cratis/arc/springdata/jpa/JpaPersistenceUnit {
 	public static final field Companion Lio/cratis/arc/springdata/jpa/JpaPersistenceUnit$Companion;
 	public fun <init> (Ljakarta/persistence/EntityManagerFactory;)V

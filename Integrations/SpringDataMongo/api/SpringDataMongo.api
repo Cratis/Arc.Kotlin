@@ -119,6 +119,19 @@ public final class io/cratis/arc/springdata/mongodb/MongoObservationOptions {
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class io/cratis/arc/springdata/mongodb/MongoObservations {
+	public static final field INSTANCE Lio/cratis/arc/springdata/mongodb/MongoObservations;
+	public static final fun observe (Lio/cratis/arc/springdata/mongodb/MongoObservableQuery;Ljava/lang/Class;Lorg/springframework/data/mongodb/core/query/Criteria;)Ljava/util/concurrent/Flow$Publisher;
+	public static final fun observe (Lio/cratis/arc/springdata/mongodb/MongoObservableQuery;Ljava/lang/Class;Lorg/springframework/data/mongodb/core/query/Criteria;Ljava/lang/String;)Ljava/util/concurrent/Flow$Publisher;
+	public static synthetic fun observe$default (Lio/cratis/arc/springdata/mongodb/MongoObservableQuery;Ljava/lang/Class;Lorg/springframework/data/mongodb/core/query/Criteria;Ljava/lang/String;ILjava/lang/Object;)Ljava/util/concurrent/Flow$Publisher;
+	public static final fun observeList (Lio/cratis/arc/springdata/mongodb/MongoObservableQuery;Ljava/lang/Class;Lorg/springframework/data/mongodb/core/query/Criteria;)Ljava/util/concurrent/Flow$Publisher;
+	public static final fun observeList (Lio/cratis/arc/springdata/mongodb/MongoObservableQuery;Ljava/lang/Class;Lorg/springframework/data/mongodb/core/query/Criteria;Ljava/lang/String;)Ljava/util/concurrent/Flow$Publisher;
+	public static synthetic fun observeList$default (Lio/cratis/arc/springdata/mongodb/MongoObservableQuery;Ljava/lang/Class;Lorg/springframework/data/mongodb/core/query/Criteria;Ljava/lang/String;ILjava/lang/Object;)Ljava/util/concurrent/Flow$Publisher;
+	public static final fun observeSingle (Lio/cratis/arc/springdata/mongodb/MongoObservableQuery;Ljava/lang/Class;Lorg/springframework/data/mongodb/core/query/Criteria;)Ljava/util/concurrent/Flow$Publisher;
+	public static final fun observeSingle (Lio/cratis/arc/springdata/mongodb/MongoObservableQuery;Ljava/lang/Class;Lorg/springframework/data/mongodb/core/query/Criteria;Ljava/lang/String;)Ljava/util/concurrent/Flow$Publisher;
+	public static synthetic fun observeSingle$default (Lio/cratis/arc/springdata/mongodb/MongoObservableQuery;Ljava/lang/Class;Lorg/springframework/data/mongodb/core/query/Criteria;Ljava/lang/String;ILjava/lang/Object;)Ljava/util/concurrent/Flow$Publisher;
+}
+
 public abstract interface class io/cratis/arc/springdata/mongodb/MongoOperationsResolver {
 	public abstract fun resolve (Ljava/lang/String;)Lorg/springframework/data/mongodb/core/MongoOperations;
 }

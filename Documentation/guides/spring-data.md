@@ -519,6 +519,56 @@ fun observeTask(
 
 A custom `MongoOperationsResolver` can select operations from the captured `tenantId`; it must not consult thread-local request state. Pass the tenant explicitly to the observation method. The default resolver uses the application's single `MongoOperations` bean. A `Query` supplies filtering, and `observeById` additionally narrows change notifications by document key. Updates and replacements always trigger a fresh snapshot, so a document that stops matching a filter is removed correctly.
 
+#### Kotlin type-inference extensions for MongoDB
+
+The `arc-spring-data-mongodb` artifact ships Kotlin extension functions on `MongoObservableQuery` that infer the document type from the generic parameter, eliminating the explicit `::class.java` argument:
+
+```kotlin
+@JvmStatic
+fun observeTasks(
+    @FromServices queries: MongoObservableQuery
+): Flow<List<TaskView>> = queries.observe<TaskView>()
+
+@JvmStatic
+fun observeTask(
+    id: String,
+    @FromServices queries: MongoObservableQuery
+): Flow<TaskView> = queries.observeById<TaskView>(id)
+```
+
+Criteria-based filtering is also supported without manually wrapping in a `Query`:
+
+```kotlin
+fun observeActiveTasks(
+    @FromServices queries: MongoObservableQuery
+): Flow<List<TaskView>> =
+    queries.observe<TaskView>(Criteria.where("active").`is`(true))
+```
+
+The same extensions cover `observeList`, `observeSingle`, `observeById`, and `observeShared`; each delegates to the corresponding `MongoObservableQuery` method.
+
+**Limitation:** extensions cannot be placed on Spring Data's `MongoCollection<T>`, repository interfaces, or any other foreign type. All `observe*` extensions are on Arc's own `MongoObservableQuery`.
+
+#### Java convenience access for MongoDB
+
+Kotlin extensions are invisible from Java. The `MongoObservations` object provides `@JvmStatic` Criteria-based helpers that Java callers can use without manually constructing a `Query`:
+
+```java
+Flow.Publisher<List<TaskView>> publisher =
+    MongoObservations.observe(queries, TaskView.class, Criteria.where("active").is(true));
+
+Flow.Publisher<TaskView> single =
+    MongoObservations.observeSingle(queries, TaskView.class, Criteria.where("id").is(taskId));
+```
+
+Each `MongoObservations` helper wraps the `Criteria` into a `Query` and delegates to the matching `MongoObservableQuery` method. For `Query`-based and callback access, call the `@JvmOverloads` methods on `MongoObservableQuery` directly.
+
+The tenant overload is also available:
+
+```java
+MongoObservations.observe(queries, TaskView.class, Criteria.where("active").is(true), tenantId);
+```
+
 ### Observe JPA
 
 Inject `JpaObservableQuery` and return `observe`, `observeList`, `observeSingle`, or `observeById` from the read-model query. The default list query uses the mapped JPA entity name; `JpaSnapshotQuery` provides a Java-friendly customization seam for predicates, ordering, and fetch joins.
@@ -530,9 +580,63 @@ fun observeTasks(
 ): Flow<List<TaskView>> = queries.observe(TaskView::class.java)
 ```
 
-JPA has no portable database change stream. `TransactionAwareDatabaseChangeNotifier` is therefore an explicit in-process publisher: call its `DatabaseChangePublisher.publish(TaskView::class.java, tenantId)` contract from the write side. Notifications are coalesced per transaction, discarded on rollback, and emitted only after commit. `JpaObservationOptions.bufferCapacity` must be positive and bounds pending invalidations; when it is full, the oldest invalidation is replaced because every notification causes a complete snapshot read. Snapshot delivery itself uses a rendezvous handoff rather than `flowOn`'s implicit buffer. The Flow performs its initial snapshot immediately, then debounce-coalesces committed changes into bounded replacement snapshots.
+**Limitation:** JPA observation is in-process only. It is backed by `TransactionAwareDatabaseChangeNotifier`, an explicit in-process publisher: call its `DatabaseChangePublisher.publish(TaskView::class.java, tenantId)` contract from the write side. Unlike MongoDB change streams there is no cross-process change mechanism; applications needing cross-process notifications must replace the `DatabaseChangeNotifier` bean with a database-native implementation and expose a corresponding `DatabaseChangePublisher` where local writes also need publishing. Arc does not silently poll either store; polling must be an application-owned, explicitly configured notifier.
 
-Applications needing cross-process notifications should replace the `DatabaseChangeNotifier` bean with a database-native implementation and expose a corresponding `DatabaseChangePublisher` where local writes also need publishing. Arc does not silently poll either store; polling must be an application-owned, explicitly configured notifier.
+Notifications are coalesced per transaction, discarded on rollback, and emitted only after commit. `JpaObservationOptions.bufferCapacity` must be positive and bounds pending invalidations; when it is full, the oldest invalidation is replaced because every notification causes a complete snapshot read. Snapshot delivery itself uses a rendezvous handoff rather than `flowOn`'s implicit buffer. The Flow performs its initial snapshot immediately, then debounce-coalesces committed changes into bounded replacement snapshots.
+
+#### Kotlin type-inference extensions for JPA
+
+The `arc-spring-data-jpa` artifact ships Kotlin extension functions on `JpaObservableQuery` that infer the entity type from the generic parameter:
+
+```kotlin
+@JvmStatic
+fun observeTasks(
+    @FromServices queries: JpaObservableQuery
+): Flow<List<TaskView>> = queries.observe<TaskView>()
+
+@JvmStatic
+fun observeTask(
+    id: String,
+    @FromServices queries: JpaObservableQuery
+): Flow<TaskView> = queries.observeById<TaskView>(id)
+```
+
+A custom snapshot query can be supplied as a trailing lambda:
+
+```kotlin
+fun observeActiveTasks(
+    @FromServices queries: JpaObservableQuery
+): Flow<List<TaskView>> =
+    queries.observe<TaskView>(
+        query = JpaSnapshotQuery { em ->
+            em.createQuery(
+                "select t from TaskView t where t.active = true",
+                TaskView::class.java
+            ).resultList
+        }
+    )
+```
+
+The same extensions cover `observeList`, `observeSingle`, `observeById`, and `observeShared`.
+
+**Limitation:** extensions cannot be placed on Spring Data's `JpaRepository` or any other foreign interface. All `observe*` extensions are on Arc's own `JpaObservableQuery`.
+
+#### Java convenience access for JPA
+
+Kotlin extensions are invisible from Java. The `JpaObservations` object provides `@JvmStatic` helpers for the two entry points that have no default query in the base API:
+
+- `JpaObservations.observePublisher(queries, entityType)` — returns a demand-aware `Flow.Publisher<List<T>>` using the default select-all JPQL query.
+- `JpaObservations.observeShared(scope, queries, entityType)` — returns a `SharedFlow<List<T>>` that replays the latest snapshot while subscribers exist.
+
+```java
+Flow.Publisher<List<TaskView>> publisher =
+    JpaObservations.observePublisher(queries, TaskView.class);
+
+SharedFlow<List<TaskView>> shared =
+    JpaObservations.observeShared(scope, queries, TaskView.class);
+```
+
+Both helpers supply the same default JPQL query (`select entity from <EntityName> entity`) as the Kotlin extensions. For a custom snapshot query or callback access, call the `@JvmOverloads` methods on `JpaObservableQuery` directly.
 
 ## Current public-seam boundary
 
