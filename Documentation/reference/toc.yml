@@ -13,5 +13,3 @@
       href: typescript-proxy-options.md
     - name: Feature parity
       href: parity.md
-    - name: Migration guide — next release
-      href: migration-next.md
