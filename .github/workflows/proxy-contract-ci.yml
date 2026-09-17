@@ -1,0 +1,161 @@
+# Copyright (c) Cratis. All rights reserved.
+# Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+name: Proxy Contract CI
+
+# Explicit/opt-in only. Not attached to ordinary check, build, or pull-request gates.
+# Trigger manually to:
+#   - prove the pinned .NET proxy capture tooling works on Linux (linux-capture job), or
+#   - run the paired three-host HTTP conformance gate (http-conformance job).
+#
+# Neither job has ever been run in CI. The workflows exist so they can be run.
+# See ContractTests/HttpConformance/README.md and the capture.sh/capture.py docstrings
+# for exact prerequisite descriptions and what each gate proves.
+#
+# Platform evidence as of this commit:
+#   http-conformance: proven locally on macOS; NOT yet run in CI or on Linux.
+#   linux-capture:    NOT yet run anywhere; the workflow makes it possible to prove Linux.
+
+on:
+  workflow_call: {}
+  workflow_dispatch:
+
+# The literal prefix puts every standalone run in a namespace no caller can compute,
+# so cancellation is restricted to standalone runs only.
+# Keep the name below in sync with `name:` above: if it drifts, standalone runs stop
+# cancelling their predecessors without risking cancellation of a caller.
+concurrency:
+  group: proxy-contract-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.workflow == 'Proxy Contract CI' }}
+
+permissions:
+  contents: read
+
+jobs:
+  # Runs the paired three-host HTTP conformance gate: a pinned Arc .NET ASP.NET Core app,
+  # the real KSP-generated Kotlin Spring Boot sample, and the real KSP-generated Java
+  # Spring Boot sample must all pass the same nine selected HTTP contract cases.
+  #
+  # Prerequisites verified by the harness at runtime (missing = FAIL, not skip):
+  #   .NET SDK:     10.0.400  (global.json via setup-dotnet; verified by capture.py run())
+  #   .NET runtime: 10.0.11   (both Microsoft.NETCore.App and Microsoft.AspNetCore.App;
+  #                            verified by run.py before attempting NuGet restore)
+  #   JDK:          17        (Temurin; required by both sample Boot JAR builds and run.py)
+  #   Python:       3.9+      (pre-installed on ubuntu-latest; no explicit setup step)
+  #
+  # The gate builds the Kotlin and Java Spring Boot sample JARs via Gradle, restores the
+  # pinned .NET fixture against the locked package graph and verified archive checksums,
+  # then starts all three hosts sequentially and exercises nine HTTP cases per host.
+  # Bounded logs and execution times are uploaded as artifacts regardless of outcome.
+  http-conformance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Validate Gradle wrapper
+        uses: gradle/actions/wrapper-validation@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      # Installs SDK 10.0.400 exactly. The harness verifies at runtime that both
+      # Microsoft.NETCore.App 10.0.11 and Microsoft.AspNetCore.App 10.0.11 are present;
+      # a mismatch fails the harness step with an informative error rather than silently
+      # using a different runtime. If the SDK 10.0.400 bundle does not include runtime
+      # 10.0.11, install the runtime separately before this workflow is used in earnest.
+      - name: Set up .NET SDK 10.0.400
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+        with:
+          dotnet-version: "10.0.400"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+
+      # run.py and the harness unit tests require AI_WORK_OUTPUT to be an existing,
+      # writable directory inside the repository's .ai-work root. They create temp
+      # directories there for scratch and host logs. The output path passed via
+      # -Parc.httpConformance.output must be a new child of AI_WORK_OUTPUT (not yet
+      # existing) and is published atomically on success using RENAME_NOREPLACE.
+      - name: Create AI_WORK_OUTPUT directory
+        run: mkdir -p "$GITHUB_WORKSPACE/.ai-work/ci-http"
+
+      - name: Run paired HTTP conformance gate
+        env:
+          AI_WORK_OUTPUT: ${{ github.workspace }}/.ai-work/ci-http
+        run: |
+          ./gradlew :ContractTests:httpConformanceTest --no-configuration-cache \
+            "-Parc.httpConformance.output=$GITHUB_WORKSPACE/.ai-work/ci-http/http-proof"
+
+      # Retain host logs, exchange records and results.json regardless of outcome.
+      # 7-day retention: ephemeral CI evidence, not a reviewed artifact baseline.
+      - name: Upload HTTP conformance evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: http-conformance-evidence-${{ github.run_id }}
+          path: .ai-work/ci-http/
+          retention-days: 7
+          if-no-files-found: warn
+
+  # Runs the pinned proxy capture on Linux using RENAME_NOREPLACE (renameat2 syscall).
+  # This proves the capture tooling on a platform other than macOS, where it has only
+  # ever been run locally. RENAME_NOREPLACE requires glibc 2.28+; ubuntu-latest ships
+  # glibc 2.35+ (22.04) or 2.39+ (24.04), which both expose renameat2 as a ctypes symbol.
+  # capture.py will fail loudly if the symbol is absent rather than falling back.
+  #
+  # Prerequisites verified by the harness at runtime (missing = FAIL, not skip):
+  #   .NET SDK:     10.0.400  (global.json; verified by capture.py run())
+  #   .NET runtime: 10.0.11   (both NETCore and AspNetCore; verified before NuGet restore)
+  #   Python:       3.9+      (pre-installed on ubuntu-latest)
+  #
+  # This job does NOT run Gradle and does NOT build the JVM samples. It is purely
+  # Python + .NET: restore, publish, run the generator, normalize, and publish the
+  # capture atomically. JDK setup is intentionally absent.
+  #
+  # UNPROVEN: As of this commit, this workflow has never been run. It makes Linux
+  # capture possible to prove; it does not claim Linux capture works.
+  linux-capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # See http-conformance job comment on SDK vs runtime version.
+      - name: Set up .NET SDK 10.0.400
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+        with:
+          dotnet-version: "10.0.400"
+
+      # AI_WORK_OUTPUT must be an existing directory inside the repository .ai-work root.
+      # capture.py creates a temp directory there for intermediate work. The final output
+      # directory (ci-capture/capture-linux) must not exist yet; it is created atomically
+      # by RENAME_NOREPLACE on success.
+      - name: Create AI_WORK_OUTPUT directory
+        run: mkdir -p "$GITHUB_WORKSPACE/.ai-work/ci-capture"
+
+      - name: Run pinned proxy capture on Linux
+        env:
+          AI_WORK_OUTPUT: ${{ github.workspace }}/.ai-work/ci-capture
+        run: |
+          GradlePlugin/src/test/resources/differential/capture/capture.sh \
+            --output "$GITHUB_WORKSPACE/.ai-work/ci-capture/capture-linux"
+
+      # Retain the full capture tree (raw/, normalized/, inputs/, capture-manifest.json)
+      # regardless of outcome, so failures are diagnosable even without a published result.
+      # 7-day retention: this is CI evidence, not a reviewed differential baseline.
+      - name: Upload capture evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: linux-capture-evidence-${{ github.run_id }}
+          path: .ai-work/ci-capture/
+          retention-days: 7
+          if-no-files-found: warn
