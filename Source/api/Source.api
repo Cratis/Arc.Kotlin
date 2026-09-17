@@ -1614,6 +1614,15 @@ public final class io/cratis/arc/metadata/ValidationRuleDescriptor {
 	public fun toString ()Ljava/lang/String;
 }
 
+public abstract interface class io/cratis/arc/naming/NamingPolicy {
+	public fun getPropertyName (Ljava/lang/String;)Ljava/lang/String;
+	public abstract fun getReadModelName (Ljava/lang/Class;)Ljava/lang/String;
+}
+
+public final class io/cratis/arc/naming/NamingPolicy$DefaultImpls {
+	public static fun getPropertyName (Lio/cratis/arc/naming/NamingPolicy;Ljava/lang/String;)Ljava/lang/String;
+}
+
 public final class io/cratis/arc/polymorphism/ConcurrentDerivedTypeRegistry : io/cratis/arc/polymorphism/DerivedTypeRegistry {
 	public fun <init> ()V
 	public fun idFor (Ljava/lang/Class;Ljava/lang/Class;)Ljava/lang/String;
@@ -2668,6 +2677,28 @@ public final class io/cratis/arc/tenancy/Tenant {
 	public final fun getName ()Lio/cratis/arc/tenancy/TenantName;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/cratis/arc/tenancy/TenantContextBridge {
+	public static final field INSTANCE Lio/cratis/arc/tenancy/TenantContextBridge;
+	public static final fun currentTenant ()Lio/cratis/arc/tenancy/TenantId;
+	public static final fun withTenant (Lio/cratis/arc/tenancy/TenantId;Ljava/lang/Runnable;)V
+	public static final fun withTenant (Lio/cratis/arc/tenancy/TenantId;Ljava/util/concurrent/Callable;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/tenancy/TenantContexts {
+	public static final fun currentTenant (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static final fun currentTenantOrNotSet (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static final fun withTenant (Lio/cratis/arc/tenancy/TenantId;Lkotlin/jvm/functions/Function2;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/tenancy/TenantCoroutineContext : kotlin/coroutines/AbstractCoroutineContextElement {
+	public static final field Key Lio/cratis/arc/tenancy/TenantCoroutineContext$Key;
+	public fun <init> (Lio/cratis/arc/tenancy/TenantId;)V
+	public final fun getTenantId ()Lio/cratis/arc/tenancy/TenantId;
+}
+
+public final class io/cratis/arc/tenancy/TenantCoroutineContext$Key : kotlin/coroutines/CoroutineContext$Key {
 }
 
 public final class io/cratis/arc/tenancy/TenantId : io/cratis/arc/concepts/ConceptAs {

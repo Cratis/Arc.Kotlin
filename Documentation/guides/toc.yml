@@ -13,6 +13,10 @@
       href: security.md
     - name: Spring Data read models
       href: spring-data.md
+    - name: Read-model naming
+      href: read-model-naming.md
+    - name: Ambient tenancy
+      href: ambient-tenancy.md
     - name: TypeScript proxies
       href: typescript-proxies.md
     - name: OpenAPI

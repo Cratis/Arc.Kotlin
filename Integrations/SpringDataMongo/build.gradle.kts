@@ -10,11 +10,13 @@ plugins {
 
 val springBootVersion = "4.1.1"
 val mongoJavaServerVersion = "1.47.0"
+val evoInflectorVersion = "1.3"
 
 dependencies {
     api(project(":Source"))
     api(project(":Integrations:SpringBoot"))
     api("org.springframework.boot:spring-boot-starter-data-mongodb:$springBootVersion")
+    implementation("org.atteo:evo-inflector:$evoInflectorVersion")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test:$springBootVersion")
     testImplementation("de.bwaldvogel:mongo-java-server:$mongoJavaServerVersion")

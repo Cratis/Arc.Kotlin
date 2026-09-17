@@ -1,0 +1,75 @@
+---
+title: Ambient tenancy
+description: Propagate the current tenant through coroutines, across dispatcher switches, and into blocking Java call paths using Arc's coroutine context element.
+---
+
+## How Arc carries the tenant through coroutine work
+
+Arc carries the current `TenantId` in a `TenantCoroutineContext` coroutine context element rather than a `ThreadLocal`. A `ThreadLocal` silently loses its value when a coroutine is resumed on a different thread after a suspension point or a dispatcher switch; a coroutine context element propagates automatically to every child coroutine and is restored correctly across every dispatcher switch.
+
+This mirrors the .NET `AsyncLocal<TenantId>` used by the reference implementation: both flow with their respective async execution models and are invisible across boundaries that do not explicitly propagate their context.
+
+## Establish a tenant scope in Kotlin
+
+Use `withTenant` to install a `TenantId` for the current coroutine and its children:
+
+```kotlin
+withTenant(TenantId("acme")) {
+    // currentTenant() returns TenantId("acme") here
+    performWork()
+}
+// currentTenant() returns null here — scope is restored on exit
+```
+
+The tenant is visible from any child coroutine, including those launched with `async` or `launch`, and survives switching dispatchers:
+
+```kotlin
+withTenant(TenantId("acme")) {
+    val result = withContext(Dispatchers.Default) {
+        currentTenant()  // still TenantId("acme") after the dispatcher switch
+    }
+}
+```
+
+Nested `withTenant` calls shadow the outer tenant for the duration of the inner block:
+
+```kotlin
+withTenant(TenantId("outer")) {
+    withTenant(TenantId("inner")) {
+        currentTenant()  // TenantId("inner")
+    }
+    currentTenant()      // TenantId("outer") — restored
+}
+```
+
+## Read the current tenant in Kotlin
+
+Two suspend functions read the ambient tenant:
+
+- `currentTenant()` — returns the `TenantId` from the nearest enclosing `withTenant` scope, or `null` when no tenant is active. Prefer this in code that must distinguish "no tenant configured" from "default tenant explicitly selected"; callers that require a tenant should throw explicitly rather than proceeding with a default.
+- `currentTenantOrNotSet()` — returns `TenantId.NOT_SET` when no tenant is active, for infrastructure that uses that sentinel value.
+
+## Bridge for blocking Java call paths
+
+Java callers that run on a plain thread without coroutine infrastructure use `TenantContextBridge`:
+
+```java
+// Callable form — returns a value
+String result = TenantContextBridge.withTenant(tenantId, () -> {
+    TenantId current = TenantContextBridge.currentTenant();
+    return doWork(current);
+});
+
+// Runnable form — no return value
+TenantContextBridge.withTenant(tenantId, () ->
+    doWork(TenantContextBridge.currentTenant())
+);
+```
+
+`TenantContextBridge.currentTenant()` reads from a `ThreadLocal` that is kept in sync with the coroutine context element for the duration of the blocking scope. It returns `null` outside any `withTenant` scope. Do not call `TenantContextBridge.currentTenant()` from within a coroutine — use the suspend `currentTenant()` instead.
+
+`TenantContextBridge.withTenant` uses `runBlocking` internally and blocks the calling thread for the duration of the body. Do not call it from within an active coroutine — use the suspend `withTenant` instead.
+
+## This is ambient propagation only
+
+These APIs carry an already-resolved `TenantId` through coroutine and blocking-Java work. They do not resolve a tenant from HTTP headers, JWT claims, subdomains, or query parameters. Tenant resolution from inbound requests is the responsibility of the `TenantIdResolver` chain; the resolved `TenantId` is what gets passed to `withTenant` or to Arc's command and query execution options.
