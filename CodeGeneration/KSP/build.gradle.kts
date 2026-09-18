@@ -21,7 +21,7 @@ dependencies {
     testImplementation("org.springframework.data:spring-data-commons:$springDataVersion")
     // The generated performer for an RxJava query imports the bridge, so the integration module
     // must be on the test classpath for that generated code to compile.
-    testImplementation("io.reactivex.rxjava3:rxjava:3.1.9")
+    testImplementation("io.reactivex.rxjava3:rxjava:3.1.12")
     testImplementation(project(":Integrations:RxJava3"))
 }
 
