@@ -1,5 +1,5 @@
 {
-  "SourceRevision": "b3f43ac7226e5076035c3ebba536f1215ac358a3",
+  "SourceRevision": "8c0944bbd1a3a214cc209a7a480e8714b65950c9",
   "Files": [
     {
       "Source": "agents/backend-developer.md",
@@ -299,7 +299,7 @@
     {
       "Source": "prompts/ship-changes.prompt.md",
       "Destination": "prompts/ship-changes.prompt.md",
-      "Hash": "8A86C0A465D79E63DA02E9EBEA3DBF6B30BA599FB074116AEBEB4995BF949818"
+      "Hash": "3C4C8959A7A493910CC9FBED706BC6E86EBCE3E827F60273DAC1B2E1CAB2B66F"
     },
     {
       "Source": "prompts/verify-ai-setup.prompt.md",
@@ -387,6 +387,16 @@
       "Hash": "8504C66038C48CE9DF70C7581B65F6D82495A55C4E52096A5CD87010716FCEB9"
     },
     {
+      "Source": "rules/java.md",
+      "Destination": "rules/java.md",
+      "Hash": "FF4BF6A511B80078B7EC1A0AFCA13C078869C434CE3928827BA8884478103363"
+    },
+    {
+      "Source": "rules/kotlin.md",
+      "Destination": "rules/kotlin.md",
+      "Hash": "B1F4E127AD4959B3AE8D76B5C72418D4B471BC2F9562198167DB4932AA5ED884"
+    },
+    {
       "Source": "rules/local-work-artifacts.md",
       "Destination": "rules/local-work-artifacts.md",
       "Hash": "0E36CBCFC5741C857DB6F911ED7C7C0E405D0402472A71E660D0E8A2C523A776"
@@ -399,12 +409,12 @@
     {
       "Source": "rules/profiles.md",
       "Destination": "rules/profiles.md",
-      "Hash": "CB803392BA7E64E5271FA1357002ADBF4D879E0E2F5EA98B25A481D94036B52A"
+      "Hash": "73878EF5C260E1BE597995C4A353A6CF213E5DB236E888484F8E3156D079602D"
     },
     {
       "Source": "rules/pull-requests.md",
       "Destination": "rules/pull-requests.md",
-      "Hash": "2D60C975F8815EB4C5EB4ECC812D3475FE7083808155147E229AD18F2BB5163C"
+      "Hash": "21C4A295BEE227EF63B63342BB00EDDDB9D9B1A513DB25926985A0F6D4E9C8E2"
     },
     {
       "Source": "rules/rtk.md",
