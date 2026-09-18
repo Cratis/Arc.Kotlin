@@ -8,7 +8,7 @@ plugins {
     id("com.vanniktech.maven.publish")
 }
 
-val chronicleVersion = providers.gradleProperty("chronicleVersion").getOrElse("6.1.0")
+val chronicleVersion = providers.gradleProperty("chronicleVersion").getOrElse("6.3.0")
 val springBootVersion = "4.1.1"
 val mockkVersion = "1.14.11"
 
