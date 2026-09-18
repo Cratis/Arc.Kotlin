@@ -5,6 +5,7 @@ package io.cratis.arc.springboot;
 
 import io.cratis.arc.metadata.ApiEndpointOptions;
 import java.time.Duration;
+import java.util.List;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.Profiles;
@@ -195,6 +196,7 @@ public final class ArcProperties {
         private int maximumInboundMessageSize = 65536;
         private int overloadRetryAfterSeconds = 5;
         private boolean webSocketEnabled = true;
+        private List<String> allowedOrigins = List.of();
 
         /** Gets the default maximum wait for an observable HTTP snapshot. */
         public Duration getWaitForFirstResultTimeout() {
@@ -292,6 +294,37 @@ public final class ArcProperties {
         /** Sets whether Spring WebSocket routes are registered when Spring WebSocket is available. */
         public void setWebSocketEnabled(boolean value) {
             webSocketEnabled = value;
+        }
+
+        /** Gets the browser origins allowed to open an observable-query WebSocket; empty means same-origin only. */
+        public List<String> getAllowedOrigins() {
+            return allowedOrigins;
+        }
+
+        /**
+         * Sets the browser origins allowed to open an observable-query WebSocket.
+         *
+         * <p>Spring rejects a cross-origin WebSocket handshake with 403 unless the handler declares the
+         * origins it accepts, and a browser reports that as a connection that never opens rather than as
+         * an error with a status. That default is the right one for a deployment, and the wrong one for
+         * development, where the page is served by a dev server on another port and every handshake is
+         * cross-origin.
+         *
+         * <p>Each entry is an exact origin such as {@code http://localhost:5173}. {@code *} allows every
+         * origin and is only ever appropriate for local development: a WebSocket handshake is not subject
+         * to the same-origin policy the way {@code fetch} is, so this check is what stops another site
+         * from opening a socket with the visitor's cookies attached.
+         *
+         * @param value The allowed origins.
+         */
+        public void setAllowedOrigins(List<String> value) {
+            if (value == null) throw new IllegalArgumentException("allowedOrigins cannot be null.");
+            for (var origin : value) {
+                if (origin == null || origin.isBlank()) {
+                    throw new IllegalArgumentException("allowedOrigins entries cannot be blank.");
+                }
+            }
+            allowedOrigins = List.copyOf(value);
         }
     }
 

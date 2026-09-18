@@ -143,6 +143,7 @@ public final class io/cratis/arc/springboot/ArcProperties$EndpointProperties {
 
 public final class io/cratis/arc/springboot/ArcProperties$ObservableQueryProperties {
 	public fun <init> ()V
+	public fun getAllowedOrigins ()Ljava/util/List;
 	public fun getConnectionTimeout ()Ljava/time/Duration;
 	public fun getKeepAliveInterval ()Ljava/time/Duration;
 	public fun getMaximumConnections ()I
@@ -152,6 +153,7 @@ public final class io/cratis/arc/springboot/ArcProperties$ObservableQueryPropert
 	public fun getOverloadRetryAfterSeconds ()I
 	public fun getWaitForFirstResultTimeout ()Ljava/time/Duration;
 	public fun isWebSocketEnabled ()Z
+	public fun setAllowedOrigins (Ljava/util/List;)V
 	public fun setConnectionTimeout (Ljava/time/Duration;)V
 	public fun setKeepAliveInterval (Ljava/time/Duration;)V
 	public fun setMaximumConnections (I)V

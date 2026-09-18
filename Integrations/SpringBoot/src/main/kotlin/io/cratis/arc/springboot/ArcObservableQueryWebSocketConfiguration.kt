@@ -61,8 +61,13 @@ internal class ArcObservableQueryWebSocketConfiguration(
         (registry as? ServletWebSocketHandlerRegistry)?.order = org.springframework.core.Ordered.HIGHEST_PRECEDENCE
         artifactModules.modules.size
         val interceptor = ArcObservableHandshakeInterceptor(transport, properties)
+        // Spring rejects a cross-origin handshake with 403 unless the handler declares its origins, and a
+        // browser surfaces that as a socket that simply never opens. Same-origin stays the default; a
+        // development setup serving the page from a dev server on another port opts in explicitly.
+        val allowedOrigins = properties.observableQueries.allowedOrigins.toTypedArray()
         registry.addHandler(ArcObservableHubWebSocketHandler(transport, scope, properties), OBSERVABLE_QUERY_WS_ROUTE)
             .addInterceptors(interceptor)
+            .apply { if (allowedOrigins.isNotEmpty()) setAllowedOrigins(*allowedOrigins) }
 
         val observablePerformers = performers.snapshot().filter { it.descriptor.transport == QueryTransportType.OBSERVABLE }
         val endpointOptions = properties.endpoints.toOptions()
@@ -78,6 +83,7 @@ internal class ArcObservableQueryWebSocketConfiguration(
             )
             registry.addHandler(ArcDirectObservableWebSocketHandler(performer, transport, scope, properties), route)
                 .addInterceptors(ArcObservableHandshakeInterceptor(transport, properties, performer))
+                .apply { if (allowedOrigins.isNotEmpty()) setAllowedOrigins(*allowedOrigins) }
         }
     }
 

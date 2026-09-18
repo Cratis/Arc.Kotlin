@@ -25,11 +25,12 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 /**
- * Operation-level authorization must replace class-level authorization, never widen it.
+ * Operation-level authorization must replace class-level authorization rather than merge with it.
  *
  * Arc .NET resolves a method by returning `IsAuthorizedWithRoles` from the method's own `[Authorize]` when it has one
  * and only falling back to `IsAuthorized(declaringType)` when it has none. Merging the two sets would let a class role
- * satisfy an operation that deliberately narrowed access.
+ * satisfy an operation that deliberately narrowed access; ignoring the operation would make a protected read model
+ * unable to expose the one open query a login screen needs.
  */
 @OptIn(ExperimentalCompilerApi::class)
 internal class ArcSymbolProcessorAuthorizationPrecedenceCompilationTest {
@@ -124,7 +125,7 @@ internal class ArcSymbolProcessorAuthorizationPrecedenceCompilationTest {
         ArcPrincipal("caller", true, roles.toSet(), "caller", emptyList(), scheme)
 
     @Test
-    fun `combining AllowAnonymous with authorization metadata remains a compile-time error`() {
+    fun `combining AllowAnonymous with authorization metadata on one declaration remains a compile-time error`() {
         listOf(
             "@AllowAnonymous on the class and the operation" to """
                 @Command
@@ -134,19 +135,19 @@ internal class ArcSymbolProcessorAuthorizationPrecedenceCompilationTest {
                     public fun handle(): String = value
                 }
             """,
-            "@AllowAnonymous on the class and @Roles on the operation" to """
+            "@AllowAnonymous and @Authorize on the class" to """
                 @Command
                 @AllowAnonymous
-                public data class AnonymousClassAuthorizedMethodCommand(public val value: String) {
-                    @Roles("method-role")
+                @Authorize(roles = ["class-role"])
+                public data class ContradictoryClassCommand(public val value: String) {
                     public fun handle(): String = value
                 }
             """,
-            "@Authorize on the class and @AllowAnonymous on the operation" to """
+            "@AllowAnonymous and @Roles on the operation" to """
                 @Command
-                @Authorize(roles = ["class-role"])
-                public data class AuthorizedClassAnonymousMethodCommand(public val value: String) {
+                public data class ContradictoryOperationCommand(public val value: String) {
                     @AllowAnonymous
+                    @Roles("method-role")
                     public fun handle(): String = value
                 }
             """
@@ -155,6 +156,66 @@ internal class ArcSymbolProcessorAuthorizationPrecedenceCompilationTest {
 
             assertEquals(KotlinCompilation.ExitCode.COMPILATION_ERROR, result.exitCode, "$description: ${result.messages}")
             assertTrue("[ARCKSP0108]" in result.messages, "$description: ${result.messages}")
+        }
+    }
+
+    @Test
+    fun `an operation overrides the class declaration in both directions`() {
+        val result = compile(overrideSources(), "AuthorizationOverride")
+
+        assertEquals(KotlinCompilation.ExitCode.OK, result.exitCode, result.messages)
+        val module = result.classLoader
+            .loadClass("io.cratis.arc.generated.AuthorizationOverrideArcArtifactModule")
+            .getDeclaredConstructor()
+            .newInstance() as ArcArtifactModule
+        val commands = module.commandHandlers.associate { handler ->
+            handler.metadata.name to handler.metadata.authorization
+        }
+        val queries = module.queryPerformers.associate { performer ->
+            performer.descriptor.name to performer.descriptor.authorization
+        }
+
+        // Widening: a protected class with one deliberately open operation - the login-screen shape.
+        val opened = requireNotNull(queries["anonymous"])
+        assertTrue(opened.allowAnonymous)
+        assertEquals(emptyList<String>(), opened.roles)
+        assertNull(opened.policy)
+
+        val stillProtected = requireNotNull(queries["authenticated"])
+        assertFalse(stillProtected.allowAnonymous)
+        assertEquals(listOf("class-role"), stillProtected.roles)
+
+        // Narrowing: an open class with one operation that closes back down.
+        val closed = requireNotNull(commands["ClosedOperationCommand"])
+        assertFalse(closed.allowAnonymous)
+        assertEquals(listOf("method-role"), closed.roles)
+    }
+
+    @Test
+    fun `an overriding operation is evaluated by its own declaration`() {
+        val result = compile(overrideSources(), "AuthorizationOverride")
+
+        assertEquals(KotlinCompilation.ExitCode.OK, result.exitCode, result.messages)
+        val module = result.classLoader
+            .loadClass("io.cratis.arc.generated.AuthorizationOverrideArcArtifactModule")
+            .getDeclaredConstructor()
+            .newInstance() as ArcArtifactModule
+        val commands = module.commandHandlers.associate { handler ->
+            handler.metadata.name to handler.metadata.authorization
+        }
+        val queries = module.queryPerformers.associate { performer ->
+            performer.descriptor.name to performer.descriptor.authorization
+        }
+        val evaluator = AuthorizationEvaluator(ConcurrentAuthorizationPolicyRegistry())
+
+        runBlocking {
+            assertTrue(evaluator.isAuthorized(requireNotNull(queries["anonymous"]), ArcPrincipal.anonymous()))
+            assertFalse(evaluator.isAuthorized(requireNotNull(queries["authenticated"]), ArcPrincipal.anonymous()))
+            assertTrue(evaluator.isAuthorized(requireNotNull(queries["authenticated"]), principal("class-role")))
+
+            val closed = requireNotNull(commands["ClosedOperationCommand"])
+            assertFalse(evaluator.isAuthorized(closed, ArcPrincipal.anonymous()))
+            assertTrue(evaluator.isAuthorized(closed, principal("method-role")))
         }
     }
 
@@ -232,18 +293,54 @@ internal class ArcSymbolProcessorAuthorizationPrecedenceCompilationTest {
         )
     )
 
+    private fun overrideSources(): List<SourceFile> = listOf(
+        SourceFile.kotlin(
+            "AuthorizationOverride.kt",
+            """
+            package authorization.overrides
+
+            import io.cratis.arc.artifacts.Command
+            import io.cratis.arc.artifacts.ReadModel
+            import io.cratis.arc.authorization.AllowAnonymous
+            import io.cratis.arc.authorization.Authorize
+            import io.cratis.arc.authorization.Roles
+
+            @ReadModel
+            @Authorize(roles = ["class-role"])
+            public data class OverrideReadModel(public val message: String) {
+                public companion object {
+                    @AllowAnonymous
+                    public fun anonymous(): OverrideReadModel = OverrideReadModel("anonymous")
+
+                    public fun authenticated(): OverrideReadModel = OverrideReadModel("authenticated")
+                }
+            }
+
+            @Command
+            @AllowAnonymous
+            public data class ClosedOperationCommand(public val value: String) {
+                @Roles("method-role")
+                public fun handle(): String = value
+            }
+            """.trimIndent()
+        )
+    )
+
     private fun module(result: JvmCompilationResult): ArcArtifactModule = result.classLoader
         .loadClass("io.cratis.arc.generated.AuthorizationPrecedenceArcArtifactModule")
         .getDeclaredConstructor()
         .newInstance() as ArcArtifactModule
 
-    private fun compile(sources: List<SourceFile>): JvmCompilationResult =
+    private fun compile(
+        sources: List<SourceFile>,
+        moduleName: String = "AuthorizationPrecedence"
+    ): JvmCompilationResult =
         KotlinCompilation().apply {
             useKsp2()
             this.sources = sources
             inheritClassPath = true
             symbolProcessorProviders = mutableListOf(ArcSymbolProcessorProvider())
-            kspProcessorOptions = mutableMapOf("arc.moduleName" to "AuthorizationPrecedence")
+            kspProcessorOptions = mutableMapOf("arc.moduleName" to moduleName)
             kspWithCompilation = true
             messageOutputStream = System.out
         }.compile()

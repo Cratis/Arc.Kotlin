@@ -21,13 +21,22 @@ import kotlinx.coroutines.flow.flow
  * downstream emission returns, so a compliant publisher is backpressured without losing values.
  * Buffered values precede completion or failure. Collection cancellation cancels the subscription,
  * including one delivered late. A publisher overflowing the buffer fails the flow explicitly.
+ *
+ * An [ObservableState] is unwrapped to the state it already holds instead of being subscribed to
+ * as an opaque publisher. That is what lets a Java observable query answer a snapshot `GET` from
+ * its current value, exactly as a Kotlin query returning a `StateFlow` does.
  */
-public fun <T : Any> JdkFlow.Publisher<T>.asKotlinFlow(): Flow<T> = flow {
+public fun <T : Any> JdkFlow.Publisher<T>.asKotlinFlow(): Flow<T> {
+    if (this is ObservableState<T>) return asFlow()
+    return asSubscribedFlow()
+}
+
+private fun <T : Any> JdkFlow.Publisher<T>.asSubscribedFlow(): Flow<T> = flow {
     val values = Channel<T>(64)
     val subscriber = PublisherFlowSubscriber(values)
     try {
         currentCoroutineContext().ensureActive()
-        this@asKotlinFlow.subscribe(subscriber)
+        this@asSubscribedFlow.subscribe(subscriber)
         for (item in values) {
             emit(item)
             currentCoroutineContext().ensureActive()

@@ -2033,6 +2033,15 @@ public final class io/cratis/arc/queries/ObservableQueryTransferMode : java/lang
 	public static fun values ()[Lio/cratis/arc/queries/ObservableQueryTransferMode;
 }
 
+public final class io/cratis/arc/queries/ObservableState : java/util/concurrent/Flow$Publisher {
+	public fun <init> (Ljava/lang/Object;)V
+	public final fun get ()Ljava/lang/Object;
+	public final fun getValue ()Ljava/lang/Object;
+	public final fun set (Ljava/lang/Object;)V
+	public final fun setValue (Ljava/lang/Object;)V
+	public fun subscribe (Ljava/util/concurrent/Flow$Subscriber;)V
+}
+
 public abstract interface annotation class io/cratis/arc/queries/Path : java/lang/annotation/Annotation {
 	public abstract fun value ()Ljava/lang/String;
 }

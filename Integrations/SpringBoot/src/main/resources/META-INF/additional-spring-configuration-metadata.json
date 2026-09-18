@@ -52,6 +52,11 @@
       "description": "Maximum number of Arc request coroutines that may execute concurrently."
     },
     {
+      "name": "cratis.arc.observable-queries.allowed-origins",
+      "type": "java.util.List<java.lang.String>",
+      "description": "Browser origins allowed to open an observable-query WebSocket. Empty allows same-origin only, which is what a deployment wants; name a dev server's origin, such as http://localhost:5173, when the page is served from another port."
+    },
+    {
       "name": "cratis.arc.observable-queries.connection-timeout",
       "type": "java.time.Duration",
       "defaultValue": "30m",

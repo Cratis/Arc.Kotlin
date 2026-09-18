@@ -18,19 +18,19 @@ import java.util.concurrent.Flow;
 public record TaskView(String id, String title, boolean completed) {
     /** Gets one task by identifier asynchronously. */
     @Path("/api/tasks/by-id")
-    public static CompletionStage<TaskView> byId(String id, @FromServices TaskRepository repository) {
+    public static CompletionStage<TaskView> byId(String id, @FromServices TaskStore repository) {
         return CompletableFuture.completedFuture(repository.byId(id));
     }
 
     /** Gets all tasks. */
     @Path("/api/tasks")
-    public static TaskView[] all(@FromServices TaskRepository repository) {
+    public static TaskView[] all(@FromServices TaskStore repository) {
         return repository.all().toArray(TaskView[]::new);
     }
 
     /** Observes replayable task snapshots without exposing a Kotlin coroutine type. */
     @Path("/api/tasks/observe")
-    public static Flow.Publisher<List<TaskView>> observe(@FromServices TaskRepository repository) {
+    public static Flow.Publisher<List<TaskView>> observe(@FromServices TaskStore repository) {
         return repository.observe();
     }
 }

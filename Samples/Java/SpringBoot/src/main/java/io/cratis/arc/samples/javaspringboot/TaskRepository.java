@@ -16,11 +16,15 @@ import java.util.concurrent.Flow;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import org.springframework.stereotype.Repository;
 
-/** Thread-safe, in-memory task storage retaining the 100 most recently created tasks. */
-@Repository
-public final class TaskRepository {
+/**
+ * Thread-safe, in-memory task storage retaining the 100 most recently created tasks.
+ *
+ * The publisher below is hand-written on purpose: it is what a Java application looked like before
+ * Arc shipped {@code ObservableState}, and the showcase features under {@code features/} use that
+ * type instead. Keep both in view — one shows the contract, the other shows the shortcut.
+ */
+public final class TaskRepository implements TaskStore {
     private static final int MAXIMUM_RETAINED_TASKS = 100;
 
     private final Object monitor = new Object();
@@ -29,6 +33,7 @@ public final class TaskRepository {
     private long stateVersion;
 
     /** Creates and stores a task, evicting the oldest task when the sample bound is exceeded. */
+    @Override
     public TaskView create(String title) {
         var task = new TaskView(UUID.randomUUID().toString(), title.trim(), false);
         Snapshot committedSnapshot;
@@ -43,6 +48,7 @@ public final class TaskRepository {
     }
 
     /** Captures the current task and its stable revision for completion. */
+    @Override
     public TaskCompletionPreparation prepareCompletion(String id) {
         synchronized (monitor) {
             var stored = tasks.get(id);
@@ -51,11 +57,13 @@ public final class TaskRepository {
     }
 
     /** Captures completion state through a Java asynchronous API. */
+    @Override
     public CompletionStage<TaskCompletionPreparation> prepareCompletionAsync(String id) {
         return CompletableFuture.completedFuture(prepareCompletion(id));
     }
 
     /** Completes only the exact prepared revision and publishes the committed update. */
+    @Override
     public TaskView complete(TaskCompletionPreparation preparation) {
         TaskView completedTask;
         Snapshot committedSnapshot;
@@ -75,6 +83,7 @@ public final class TaskRepository {
     }
 
     /** Gets a task by identifier. */
+    @Override
     public TaskView byId(String id) {
         synchronized (monitor) {
             var stored = tasks.get(id);
@@ -83,11 +92,13 @@ public final class TaskRepository {
     }
 
     /** Gets a task by identifier through a Java asynchronous API. */
+    @Override
     public CompletionStage<TaskView> byIdAsync(String id) {
         return CompletableFuture.completedFuture(byId(id));
     }
 
     /** Gets a stable snapshot of every retained task ordered by title. */
+    @Override
     public List<TaskView> all() {
         synchronized (monitor) {
             return snapshot();
@@ -95,11 +106,13 @@ public final class TaskRepository {
     }
 
     /** Observes bounded, replayable snapshots using the JDK Flow API. */
+    @Override
     public Flow.Publisher<List<TaskView>> observe() {
         return observableTasks;
     }
 
     /** Clears the sample store and publishes the committed empty snapshot. */
+    @Override
     public void clear() {
         Snapshot committedSnapshot;
         synchronized (monitor) {

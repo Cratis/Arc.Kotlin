@@ -60,7 +60,7 @@ public record TaskView(String id, String title) {
 }
 ```
 
-`java.util.concurrent.SubmissionPublisher<T>` is the JVM substitute for .NET's `ISubject<T>` when you need a push-side handle with no external dependency:
+`java.util.concurrent.SubmissionPublisher<T>` gives you a push-side handle with no external dependency:
 
 ```java
 private static final java.util.concurrent.SubmissionPublisher<List<TaskView>> publisher =
@@ -70,6 +70,31 @@ public static java.util.concurrent.Flow.Publisher<List<TaskView>> all() {
     return publisher;
 }
 ```
+
+### Observable state a snapshot can read
+
+A `SubmissionPublisher` emits, but it holds nothing. Nobody who subscribes learns the current value until the next change — and that is visible on the wire, because Arc answers a snapshot `GET` from the source's current value and reports a source without one as `202 Not Ready` rather than holding the request open.
+
+Kotlin has `MutableStateFlow` for this. The JDK has nothing equivalent, so Arc supplies `ObservableState<T>`:
+
+```java
+@Component
+public final class TaskSource {
+    private final ObservableState<List<TaskView>> tasks = new ObservableState<>(List.of());
+
+    public Flow.Publisher<List<TaskView>> observe() {
+        return tasks;
+    }
+
+    public void publish(List<TaskView> updated) {
+        tasks.set(updated);
+    }
+}
+```
+
+It is a `Flow.Publisher<T>`, so a query method returns it directly. Every subscriber sees the current value first and then each change; a subscriber that falls behind sees only the newest value rather than a backlog, which is the right behavior for state.
+
+Reach for it whenever a Java observable query should also answer a plain `GET`. Kotlin code has no reason to: use `MutableStateFlow` and return a `Flow`.
 
 ## RxJava 3 option
 

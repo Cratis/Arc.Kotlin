@@ -78,6 +78,16 @@ All properties use the `cratis.arc` prefix.
 | `observable-queries.maximum-inbound-message-size` | `65536` | Maximum WebSocket text message size in bytes. |
 | `observable-queries.overload-retry-after-seconds` | `5` | `Retry-After` value on 503/429 overload responses. |
 | `observable-queries.web-socket-enabled` | `true` | Registers WebSocket routes when Spring WebSocket is on the classpath. |
+| `observable-queries.allowed-origins` | _(empty)_ | Browser origins allowed to open an observable-query WebSocket. Empty means same-origin only. |
+
+:::caution[A dev server needs its origin named]
+Spring answers a cross-origin WebSocket handshake with `403`, and a browser reports that as a socket
+that never opens rather than as an error you can see. Serving the page from a dev server on another
+port makes every handshake cross-origin, so set `cratis.arc.observable-queries.allowed-origins` to
+that origin — `http://localhost:5173`, for example. Leave it empty in a deployment: the handshake is
+not subject to the same-origin policy `fetch` obeys, so this check is what stops another site from
+opening a socket with your visitor's cookies attached.
+:::
 
 The optional observability starter adds properties under `cratis.arc.observability`:
 

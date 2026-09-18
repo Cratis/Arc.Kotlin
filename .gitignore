@@ -4,6 +4,12 @@
 **/build/
 ContractTests/TypeScript/generated/
 ContractTests/TypeScript/node_modules/
+Samples/*/*/src/main/resources/static/
+# The sample frontend's proxies are generated from whichever backend is about to run, so the
+# checked-in tree never holds a copy that can disagree with the server.
+Samples/Frontend/src/generated/
+Samples/Frontend/node_modules/
+Samples/Frontend/dist/
 
 # JVM artifacts and diagnostics
 *.class
@@ -29,3 +35,5 @@ Thumbs.db
 # Local AI work and task artifacts
 .ai-work/
 .pi/
+.playwright-cli/
+.playwright-mcp/

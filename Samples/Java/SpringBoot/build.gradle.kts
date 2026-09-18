@@ -30,6 +30,13 @@ val arcEndpointOptionsDirectory = layout.buildDirectory.dir("generated/arc-endpo
 dependencies {
     implementation(project(":Integrations:SpringBoot"))
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
+    implementation("org.springframework:spring-websocket")
+    // ./run.sh --database mongodb|postgres activates one of these through a Spring profile. Neither
+    // auto-configuration runs in the default profile, which is what keeps the memory path free of a
+    // connection string - see src/main/resources/application.properties.
+    implementation(project(":Integrations:SpringDataMongo"))
+    implementation(project(":Integrations:SpringDataJpa"))
+    runtimeOnly("org.postgresql:postgresql:42.7.9")
     ksp(project(":CodeGeneration:KSP"))
     arcProxyGenerator(project(":GradlePlugin"))
 
@@ -76,8 +83,49 @@ val generateArcProxies by tasks.registering(JavaExec::class) {
     outputs.dir(arcProxyDirectory)
     outputs.dir(arcEndpointOptionsDirectory)
     doLast {
-        listOf("CompleteTask.ts", "CreateTask.ts", "TaskCreated.ts", "TaskView.ts", "ById.ts", "All.ts", "Observe.ts")
-            .forEach { name ->
+        listOf(
+            // Task board.
+            "CompleteTask.ts", "CreateTask.ts", "TaskCreated.ts", "TaskView.ts", "ById.ts", "All.ts", "Observe.ts",
+            // Reached only through the declared identity details provider: no command or query references it.
+            "SampleIdentityDetails.ts",
+            // Showcase features. These match the Kotlin sample file for file, and both hosts serve the same
+            // routes, so the one shared frontend runs against either.
+            "features/authenticationqueries/Anonymous.ts",
+            "features/authenticationqueries/Authenticated.ts",
+            "features/authenticationqueries/AuthenticationQueryItem.ts",
+            "features/changestream/AddChangeStreamItem.ts",
+            "features/changestream/All.ts",
+            "features/changestream/ChangeStreamItem.ts",
+            "features/changestream/RemoveChangeStreamItem.ts",
+            "features/changestream/UpdateChangeStreamItem.ts",
+            "features/crosscuttingauthorization/CrossCuttingAuthorizationStatus.ts",
+            "features/crosscuttingauthorization/RunSecuredCommand.ts",
+            "features/crosscuttingauthorization/Secured.ts",
+            "features/livefeed/All.ts",
+            "features/livefeed/ByAuthor.ts",
+            "features/livefeed/LiveFeed.ts",
+            "features/livefeed/LiveFeedMessage.ts",
+            "features/livefeed/PostToFeed.ts",
+            "features/modelbound/GetAll.ts",
+            "features/modelbound/GetById.ts",
+            "features/modelbound/ModelBoundCommand.ts",
+            "features/modelbound/ModelBoundReadModel.ts",
+            "features/observablecollection/AddObservableCollectionItem.ts",
+            "features/observablecollection/All.ts",
+            "features/observablecollection/ObservableCollectionItem.ts",
+            "features/observablecollection/RemoveObservableCollectionItem.ts",
+            "features/observablecollectionwithguid/AddObservableCollectionWithGuidItem.ts",
+            "features/observablecollectionwithguid/All.ts",
+            "features/observablecollectionwithguid/ObservableCollectionWithGuidItem.ts",
+            "features/observablecollectionwithguid/RemoveObservableCollectionWithGuidItem.ts",
+            "features/queryshowcase/All.ts",
+            "features/queryshowcase/ById.ts",
+            "features/queryshowcase/GetAll.ts",
+            "features/queryshowcase/Latest.ts",
+            "features/queryshowcase/ShowcaseItem.ts",
+            "features/ticker/Observe.ts",
+            "features/ticker/Ticker.ts"
+        ).forEach { name ->
             check(arcProxyDirectory.get().file(name).asFile.isFile) { "Expected generated proxy '$name'." }
         }
     }
