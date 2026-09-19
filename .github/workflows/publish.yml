@@ -46,6 +46,7 @@ on:
       - "GradlePlugin/**"
       - "Integrations/SpringBoot/**"
       - "Integrations/Chronicle/**"
+      - "Integrations/Cratis/**"
       - "Integrations/OpenApi/**"
       - "Integrations/Observability/**"
       - "Integrations/SpringDataJpa/**"
@@ -155,6 +156,7 @@ jobs:
             :CodeGeneration:KSP:publishAndReleaseToMavenCentral \
             :Integrations:SpringBoot:publishAndReleaseToMavenCentral \
             :Integrations:Chronicle:publishAndReleaseToMavenCentral \
+            :Integrations:Cratis:publishAndReleaseToMavenCentral \
             :Integrations:OpenApi:publishAndReleaseToMavenCentral \
             :Integrations:Observability:publishAndReleaseToMavenCentral \
             :Integrations:SpringDataJpa:publishAndReleaseToMavenCentral \
