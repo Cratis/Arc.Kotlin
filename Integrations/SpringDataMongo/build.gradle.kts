@@ -10,7 +10,7 @@ plugins {
 
 val springBootVersion = "4.1.1"
 val mongoJavaServerVersion = "1.47.0"
-val evoInflectorVersion = "1.3"
+val evoInflectorVersion = "2.0"
 
 dependencies {
     api(project(":Source"))
