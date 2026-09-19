@@ -37,7 +37,7 @@ dependencies {
     // connection string - see src/main/resources/application.properties.
     implementation(project(":Integrations:SpringDataMongo"))
     implementation(project(":Integrations:SpringDataJpa"))
-    runtimeOnly("org.postgresql:postgresql:42.7.9")
+    runtimeOnly("org.postgresql:postgresql:42.7.13")
     ksp(project(":CodeGeneration:KSP"))
     arcProxyGenerator(project(":GradlePlugin"))
 
