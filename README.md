@@ -63,7 +63,9 @@ integrations that fit each application.
 The `io.cratis:arc-chronicle-spring-boot-starter` integration is optional and supplies event-sourced
 behavior when configured: returned events are staged and committed as part of the command pipeline,
 Chronicle read models resolve into command handlers, and reactors can execute commands as side
-effects. See the [Chronicle integration guide](Documentation/guides/chronicle.md).
+effects. **`io.cratis:cratis` is the preferred single dependency for an event-sourced application** -
+it is a pure aggregator over Arc, its Spring Boot wiring, and this Chronicle integration. See the
+[Chronicle integration guide](Documentation/guides/chronicle.md).
 
 [Chronicle](https://github.com/Cratis/Chronicle) is Cratis's storage-agnostic event-sourcing database
 and runtime — MIT licensed and free to use. This repository consumes it through
@@ -152,6 +154,7 @@ the documentation.
 | `:Integrations:OpenApi` | `io.cratis:arc-openapi-spring-boot-starter` | OpenAPI 3.1 generation and cached document routes |
 | `:Integrations:Observability` | `io.cratis:arc-observability-spring-boot-starter` | Micrometer observations and optional OpenTelemetry correlation for Arc execution |
 | `:Integrations:Chronicle` | `io.cratis:arc-chronicle-spring-boot-starter` | Optional tenant-aware Chronicle transactions, concurrency, read models, command side effects, and scenario support |
+| `:Integrations:Cratis` | `io.cratis:cratis` | The one dependency for an event-sourced Cratis application - a pure aggregator over Arc, its Spring Boot wiring, and the Chronicle integration |
 | [`:Testing`](Testing/README.md) | `io.cratis:arc-testing` | Reusable command, query, and observable-query scenarios with Kotlin and Java bridges; Chronicle adds an in-memory scenario extender |
 | `:ContractTests` | Unpublished | Kotlin and Java generated-artifact, manifest, validation, and consumer contract fixtures |
 | [`:Samples:Kotlin:SpringBoot`](Samples/Kotlin/SpringBoot/README.md) | Unpublished | Runnable standalone Kotlin Spring Boot application |

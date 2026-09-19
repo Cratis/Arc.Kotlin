@@ -5,7 +5,15 @@ description: Append transactional event responses, apply concurrency scopes, res
 
 ## Add Chronicle optionally
 
-`io.cratis:arc` has no Chronicle dependency. Add the optional integration when commands should append returned events or use Chronicle read models and reactors:
+`io.cratis:arc` has no Chronicle dependency. Add the optional integration when commands should append returned events or use Chronicle read models and reactors. **`io.cratis:cratis` is the preferred, single dependency for an event-sourced Cratis application** - it is a pure aggregator over Arc, its Spring Boot wiring, and the Chronicle integration, so a consumer never has to assemble the three by hand:
+
+```kotlin
+dependencies {
+    implementation("io.cratis:cratis:<version>")
+}
+```
+
+Reach for `io.cratis:arc-chronicle-spring-boot-starter` directly only when a consumer deliberately wants Arc's Chronicle wiring without whatever `io.cratis:cratis` bundles alongside it in the future - the two artifacts stay at the same version and are otherwise equivalent today:
 
 ```kotlin
 dependencies {
@@ -13,7 +21,7 @@ dependencies {
 }
 ```
 
-The Arc starter transitively includes `io.cratis:chronicle-spring-boot-starter` and follows its Spring Boot bean backoff conventions. The current integration uses Chronicle.Kotlin 5.1.0 with Chronicle contracts 18.2.0 and kernel 18.4.0. Kernel 18.3.1 and earlier omit an authorized `IsAuthorized` flag from the wire, which a JVM client reads as a denial, so 18.4.0 is the lowest kernel this integration supports. Configure `cratis.chronicle.event-store`; Chronicle then supplies the conventional client and `IEventStore` beans while Arc adds tenant-aware event-store resolution, a staged command scope, response handlers, read-model adapters, and a reactor command-side-effect helper.
+Either starter transitively includes `io.cratis:chronicle-spring-boot-starter` and follows its Spring Boot bean backoff conventions. The current integration uses Chronicle.Kotlin 6.3.1 with Chronicle contracts 19.1.2 and kernel 19.1.2. Kernel 18.3.1 and earlier omit an authorized `IsAuthorized` flag from the wire, which a JVM client reads as a denial, so 18.4.0 is the lowest kernel this integration supports. Configure `cratis.chronicle.event-store`; Chronicle then supplies the conventional client and `IEventStore` beans while Arc adds tenant-aware event-store resolution, a staged command scope, response handlers, read-model adapters, and a reactor command-side-effect helper.
 
 ## Run the complete Kotlin and Java samples
 

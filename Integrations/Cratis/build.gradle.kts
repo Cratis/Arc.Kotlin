@@ -3,26 +3,15 @@
 
 plugins {
     kotlin("jvm")
-    kotlin("plugin.spring")
     `java-library`
     id("com.vanniktech.maven.publish")
 }
 
-val chronicleVersion = providers.gradleProperty("chronicleVersion").getOrElse("6.3.1")
-val springBootVersion = "4.1.1"
-val mockkVersion = "1.14.11"
-
+// A pure aggregator - no code of its own. An event-sourced Cratis application depends on this one
+// artifact instead of assembling Arc, its Spring Boot wiring, and the Chronicle integration by hand;
+// see Integrations/Chronicle for what that pulls in beneath it.
 dependencies {
-    api(project(":Source"))
-    api(project(":Integrations:SpringBoot"))
-    api("io.cratis:chronicle-spring-boot-starter:$chronicleVersion")
-    compileOnlyApi(project(":Testing"))
-
-    testImplementation(project(":Testing"))
-    testImplementation(project(":Integrations:SpringDataJpa"))
-    testImplementation(project(":Integrations:SpringDataMongo"))
-    testImplementation("org.springframework.boot:spring-boot-starter-test:$springBootVersion")
-    testImplementation("io.mockk:mockk:$mockkVersion")
+    api(project(":Integrations:Chronicle"))
 }
 
 tasks.named("apiCheck") {
@@ -32,11 +21,11 @@ tasks.named("apiCheck") {
 mavenPublishing {
     publishToMavenCentral()
     signAllPublications()
-    coordinates("io.cratis", "arc-chronicle-spring-boot-starter", version.toString())
+    coordinates("io.cratis", "cratis", version.toString())
 
     pom {
-        name.set("Arc Chronicle Spring Boot Starter")
-        description.set("Optional Chronicle integration for Arc Spring Boot applications")
+        name.set("Cratis")
+        description.set("The one dependency for a Cratis application: Arc, its Spring Boot wiring, and the Chronicle event-sourcing integration")
         url.set("https://github.com/Cratis/Arc.Kotlin")
         licenses {
             license {
