@@ -1,5 +1,12 @@
 {
   "config": {
     "MD013": false
-  }
+  },
+  // Snippet files are code fragments embedded into the shared Arc docs via
+  // <ArcBackendTabs>, not standalone pages — they are deliberately headerless.
+  // Their correctness is checked against real source by
+  // Documentation/validate-doc-snippets.py, not by markdown structure rules.
+  "ignores": [
+    "Documentation/client-snippets/**"
+  ]
 }
