@@ -1,0 +1,106 @@
+---
+title: Bracket command execution with a scope
+description: Wrap every command in a lifetime concern such as a transaction, completing in reverse order whatever the outcome.
+---
+
+A pipeline filter runs *around* one concern. An execution scope brackets the
+whole command: it begins before any filter or handler runs, and completes after
+the outcome is known, whether that outcome is success, a validation rejection, a
+thrown exception or cancellation. That makes it the right place for a lifetime
+concern — a transaction, a unit of work, a diagnostic span — rather than
+something you open in `handle` and hope to close.
+
+Arc's own Chronicle integration is built this way: `ChronicleCommandTransaction`
+is an execution scope, which is why an event transaction commits or rolls back
+around the command rather than inside it.
+
+## The contract
+
+```kotlin
+public interface CommandExecutionScope {
+    fun begin(context: CommandContext)
+
+    suspend fun complete(context: CommandContext, result: CommandResult<*>): CommandResult<*>?
+}
+```
+
+`begin` is synchronous and runs before filters and the handler.
+
+`complete` runs for **every post-begin outcome**, in **reverse begin order**, so
+scopes nest like a stack. It may return an immutable fragment to amend the final
+result — returning `null` leaves the result unchanged. Only scopes that actually
+began are completed.
+
+## Register a scope
+
+Declare it as a bean. Arc collects every `CommandExecutionScope` in the context.
+
+```kotlin
+@Component
+class UnitOfWorkScope(private val entityManager: EntityManager) : CommandExecutionScope {
+    override fun begin(context: CommandContext) {
+        entityManager.transaction.begin()
+    }
+
+    override suspend fun complete(context: CommandContext, result: CommandResult<*>): CommandResult<*>? {
+        if (result.isSuccess) {
+            entityManager.transaction.commit()
+        } else {
+            entityManager.transaction.rollback()
+        }
+        return null
+    }
+}
+```
+
+Returning `null` is the common case: the scope did its work and has nothing to
+say about the response.
+
+## Completion is bounded
+
+`complete` runs under a timeout — `executionScopeCompletionTimeout`, five seconds
+by default, and it must be positive. A scope that hangs cannot hold the request
+open indefinitely.
+
+This matters for what you put in `complete`. A commit is a reasonable thing to
+await; a long retry loop or an unbounded network call is not, because exceeding
+the timeout fails the completion rather than extending it.
+
+## From Java
+
+Java implements one of two interfaces, depending on whether the completion work
+is asynchronous, and registers it through the matching adapter:
+
+- `AsyncCommandExecutionScope` — `complete` returns `CompletionStage<CommandResult<?>>`,
+  registered via `AsyncCommandExecutionScopeAdapter`.
+- `BlockingCommandExecutionScope` — `complete` returns `CommandResult<?>` directly,
+  registered via `BlockingCommandExecutionScopeAdapter`.
+
+```java
+@Component
+public class AuditScope implements BlockingCommandExecutionScope {
+    @Override
+    public void begin(CommandContext context) {
+        // open the audit record
+    }
+
+    @Override
+    public CommandResult<?> complete(CommandContext context, CommandResult<?> result) {
+        // close it, whatever the outcome
+        return null;
+    }
+}
+```
+
+The blocking variant runs on a dispatcher that tolerates blocking, so a
+synchronous commit does not stall Arc's request coroutine.
+
+## When not to use a scope
+
+A scope runs for **every** command. If the concern belongs to one command or one
+group of them, a [pipeline filter](pipeline-filters.md) is the narrower tool and
+says so in its own declaration.
+
+A scope is also not a compensation mechanism. `complete` observes the outcome and
+can amend the result; it does not re-run the handler or undo work the handler did
+directly against a service.

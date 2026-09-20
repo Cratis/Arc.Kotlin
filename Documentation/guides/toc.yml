@@ -13,6 +13,10 @@
       href: security.md
     - name: Pipeline filters
       href: pipeline-filters.md
+    - name: Execution scopes
+      href: execution-scopes.md
+    - name: Command keys
+      href: command-keys.md
     - name: Spring Data read models
       href: spring-data.md
     - name: Read-model naming

@@ -47,6 +47,10 @@ documented_symbols = (
     "|AsyncCommandFilterAdapter|AsyncQueryFilterAdapter"
     # Identity and observable state.
     "|ArcPrincipalFactory|IdentityDetailsProvider|ObservableState"
+    # Command lifetime and identity extension points.
+    "|CommandExecutionScope|AsyncCommandExecutionScope|BlockingCommandExecutionScope"
+    "|AsyncCommandExecutionScopeAdapter|BlockingCommandExecutionScopeAdapter"
+    "|CommandKeyProvider"
 )
 symbols = sorted(set(re.findall(rf"\b(?:{documented_symbols})\b", docs)))
 for symbol in symbols:
