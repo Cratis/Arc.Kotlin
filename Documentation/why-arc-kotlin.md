@@ -44,7 +44,7 @@ Nothing here is reflection at request time, and nothing is hand-registered: KSP 
 | A second `AuthorizationHandler`-per-controller pattern | `@Authorize`, `@Roles`, and `@AllowAnonymous` on the command/query, evaluated by one pipeline |
 | Ad hoc wiring for an event-sourced write path | An optional Chronicle integration: return events from `handle`, and Arc stages and commits them |
 
-See [What Arc.Kotlin owns](../README.md#what-arckotlin-owns) for the complete boundary and the
+See [What Arc.Kotlin owns](https://github.com/Cratis/Arc.Kotlin/blob/main/README.md#what-arckotlin-owns) for the complete boundary and the
 [feature parity reference](reference/parity.md) for the evidence behind every specific claim.
 
 ## When Arc is not the right fit

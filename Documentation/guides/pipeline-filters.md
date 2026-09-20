@@ -136,10 +136,10 @@ a package prefix — over a list of names somebody has to maintain.
 
 ## See it running
 
-The [samples](../../Samples/README.md) include a Cross-Cutting Authorization page backed by exactly
+The [samples](https://github.com/Cratis/Arc.Kotlin/blob/main/Samples/README.md) include a Cross-Cutting Authorization page backed by exactly
 this pattern, in
-[Kotlin](../../Samples/Kotlin/SpringBoot/src/main/kotlin/io/cratis/arc/samples/kotlin/springboot/features/crosscuttingauthorization/CrossCuttingAuthorizationFilters.kt)
+[Kotlin](https://github.com/Cratis/Arc.Kotlin/blob/main/Samples/Kotlin/SpringBoot/src/main/kotlin/io/cratis/arc/samples/kotlin/springboot/features/crosscuttingauthorization/CrossCuttingAuthorizationFilters.kt)
 and in
-[Java](../../Samples/Java/SpringBoot/src/main/java/io/cratis/arc/samples/javaspringboot/features/crosscuttingauthorization/CrossCuttingAuthorizationFilters.java).
+[Java](https://github.com/Cratis/Arc.Kotlin/blob/main/Samples/Java/SpringBoot/src/main/java/io/cratis/arc/samples/javaspringboot/features/crosscuttingauthorization/CrossCuttingAuthorizationFilters.java).
 Run `./Samples/run.sh`, open the page, and add or remove the role in the toolbar to watch both the
 command and the query change their answer.

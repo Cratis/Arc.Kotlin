@@ -16,7 +16,7 @@ export PATH="$JAVA_HOME/bin:$PATH"
 java -version
 ```
 
-The sample [`run.sh` scripts](../README.md#running-the-samples) do this detection automatically.
+The sample [`run.sh` scripts](https://github.com/Cratis/Arc.Kotlin/blob/main/README.md#running-the-samples) do this detection automatically.
 
 ### `generateArcProxies` fails with "Unsupported Arc artifact manifest format N; expected M"
 
@@ -101,7 +101,7 @@ after case folding — GET and QUERY match argument names case-insensitively. Se
 - Chronicle events, concurrency, and tenant-scoped read models: `Samples/Kotlin/ChronicleSpringBoot`
   or `Samples/Java/ChronicleSpringBoot`.
 
-Each has a `run.sh` — see [Running the samples](../README.md#running-the-samples).
+Each has a `run.sh` — see [Running the samples](https://github.com/Cratis/Arc.Kotlin/blob/main/README.md#running-the-samples).
 
 ## "Is this feature really implemented?"
 

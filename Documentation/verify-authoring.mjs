@@ -56,6 +56,17 @@ function validateContent(file, content) {
                 errors.push(`${relative(file)}:${index + 1}: <${componentMatch[1]}> requires .mdx; in .md it renders as an inert element.`);
             }
         }
+
+        // A relative link that climbs out of Documentation/ resolves on disk in a
+        // clone, so the repository's own link check accepts it, but these pages
+        // are published on the documentation site where the rest of the
+        // repository does not exist. Link to the file on GitHub instead.
+        for (const linkMatch of line.matchAll(/\]\((\.\.\/[^)\s]*)\)/g)) {
+            const target = path.normalize(path.join(path.dirname(file), linkMatch[1].split('#')[0]));
+            if (!target.startsWith(documentationRoot)) {
+                errors.push(`${relative(file)}:${index + 1}: '${linkMatch[1]}' leaves Documentation/ and will 404 on the site. Use an absolute https://github.com/... URL.`);
+            }
+        }
     }
 }
 
