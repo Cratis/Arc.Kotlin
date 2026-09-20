@@ -81,10 +81,10 @@ instead. Arbitrary TypeScript expressions, unions, arrays in a type name, and am
 constructors are not supported. Map values only support primitive overrides; external map-value
 hydration and externally mapped polymorphic bases/derivatives are not supported.
 
-The standalone CLI takes the same values as repeatable `--type-to-typescript
-<FullyQualifiedTypeName>=<TypeScriptType>[=<NpmPackage>]` and `--package-to-npm <JvmPackage>=<NpmPackage>`
-options. The value is split on at most two separators. Anything after the second stays in the package
-field and is validated as part of its import path; it is never silently discarded. Neither the exported
+The standalone CLI takes the same values as repeatable
+`--type-to-typescript <FullyQualifiedTypeName>=<TypeScriptType>[=<NpmPackage>]` and
+`--package-to-npm <JvmPackage>=<NpmPackage>` options. The value is split on at most two separators.
+Anything after the second stays in the package field and is validated as part of its import path; it is never silently discarded. Neither the exported
 identifier nor the npm import path may contain an `=`.
 
 ## Run the task

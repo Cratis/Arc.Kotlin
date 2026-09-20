@@ -19,7 +19,10 @@ if ! command -v npx >/dev/null 2>&1; then
 fi
 
 LINT_EXIT_CODE=0
-npx markdownlint-cli2 "Documentation/**/*.md" || LINT_EXIT_CODE=$?
+npx markdownlint-cli2 "Documentation/**/*.{md,mdx}" || LINT_EXIT_CODE=$?
+
+AUTHORING_EXIT_CODE=0
+node Documentation/verify-authoring.mjs || AUTHORING_EXIT_CODE=$?
 
 SNIPPET_EXIT_CODE=0
 python3 Documentation/validate-doc-snippets.py || SNIPPET_EXIT_CODE=$?
@@ -43,7 +46,7 @@ print(f"Verified {count} toc href targets.")
 PY
 
 LINK_EXIT_CODE=0
-LINK_OUTPUT=$(npx linkinator "Documentation/**/*.md" --markdown --recurse --verbosity error 2>&1) || LINK_EXIT_CODE=$?
+LINK_OUTPUT=$(npx linkinator "Documentation/**/*.{md,mdx}" --markdown --recurse --verbosity error 2>&1) || LINK_EXIT_CODE=$?
 echo "$LINK_OUTPUT"
 LINK_COUNT=$(echo "$LINK_OUTPUT" | grep -oiE "scanned [0-9]+ links" | grep -oE "[0-9]+" | head -1 || true)
 if [ -z "$LINK_COUNT" ] || [ "$LINK_COUNT" -eq 0 ]; then
@@ -51,11 +54,11 @@ if [ -z "$LINK_COUNT" ] || [ "$LINK_COUNT" -eq 0 ]; then
     LINK_EXIT_CODE=1
 fi
 
-if [ "$LINT_EXIT_CODE" -eq 0 ] && [ "$SNIPPET_EXIT_CODE" -eq 0 ] && \
+if [ "$LINT_EXIT_CODE" -eq 0 ] && [ "$AUTHORING_EXIT_CODE" -eq 0 ] && [ "$SNIPPET_EXIT_CODE" -eq 0 ] && \
    [ "$TOC_EXIT_CODE" -eq 0 ] && [ "$LINK_EXIT_CODE" -eq 0 ]; then
     echo "All documentation checks passed."
     exit 0
 fi
 
-echo "Documentation checks failed: lint=$LINT_EXIT_CODE snippets=$SNIPPET_EXIT_CODE toc=$TOC_EXIT_CODE links=$LINK_EXIT_CODE"
+echo "Documentation checks failed: lint=$LINT_EXIT_CODE authoring=$AUTHORING_EXIT_CODE snippets=$SNIPPET_EXIT_CODE toc=$TOC_EXIT_CODE links=$LINK_EXIT_CODE"
 exit 1
