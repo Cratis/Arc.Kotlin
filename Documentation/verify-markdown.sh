@@ -46,7 +46,15 @@ print(f"Verified {count} toc href targets.")
 PY
 
 LINK_EXIT_CODE=0
-LINK_OUTPUT=$(npx linkinator "Documentation/**/*.{md,mdx}" --markdown --recurse --verbosity error 2>&1) || LINK_EXIT_CODE=$?
+# These pages are published alongside the C# implementation's, so they link to it
+# with site-absolute paths. Those resolve only on the aggregated documentation
+# site and are verified when it is built. linkinator serves the scanned files
+# from a local web server, so skipping what falls outside /Documentation/ skips
+# exactly those paths and nothing else. The pattern must never match the crawl
+# root itself, or this check silently becomes a no-op.
+SITE_ABSOLUTE_LINKS='^https?://(localhost|127\.0\.0\.1):[0-9]+/(?!Documentation/)'
+
+LINK_OUTPUT=$(npx linkinator "Documentation/**/*.{md,mdx}" --markdown --recurse --verbosity error --skip "$SITE_ABSOLUTE_LINKS" 2>&1) || LINK_EXIT_CODE=$?
 echo "$LINK_OUTPUT"
 LINK_COUNT=$(echo "$LINK_OUTPUT" | grep -oiE "scanned [0-9]+ links" | grep -oE "[0-9]+" | head -1 || true)
 if [ -z "$LINK_COUNT" ] || [ "$LINK_COUNT" -eq 0 ]; then
