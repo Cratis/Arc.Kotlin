@@ -9,8 +9,6 @@
       href: http-contract.md
     - name: Shared fluent validation
       href: validation.md
-    - name: KSP diagnostics
-      href: diagnostics.md
     - name: TypeScript proxy options matrix
       href: typescript-proxy-options.md
     - name: Glossary
