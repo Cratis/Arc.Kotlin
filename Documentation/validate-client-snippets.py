@@ -436,6 +436,9 @@ IMPORT_GIVEN_CHRONICLE = "import io.cratis.arc.chronicle.givenChronicle"
 IMPORT_BEFORE_EACH = "import org.junit.jupiter.api.BeforeEach"
 IMPORT_BIG_DECIMAL = "import java.math.BigDecimal"
 IMPORT_UUID = "import java.util.UUID"
+IMPORT_CONCEPT_AS = "import io.cratis.arc.concepts.ConceptAs"
+IMPORT_CONCEPT_VALIDATOR = "import io.cratis.arc.validation.ConceptValidator"
+IMPORT_ROLES = "import io.cratis.arc.authorization.Roles"
 
 
 # A snippet id is its path under client-snippets without the extension. Every snippet is
@@ -690,6 +693,89 @@ SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
             @Command
             data class UpdateProfile(val name: String, val email: String)
         """,
+    ),
+    "tutorial/first-slice/author-slice": SnippetContext(
+        # The chapter's own Author is the read model the reader declares, so the snippet
+        # declares it and the prelude supplies only the repository it saves through.
+        kind="declaration",
+        fixtures=("concepts",),
+        imports=(
+            IMPORT_COMMAND,
+            IMPORT_READ_MODEL,
+            IMPORT_FROM_SERVICES,
+            IMPORT_FLOW,
+            IMPORT_MONGO_QUERY,
+            IMPORT_MONGO_OBSERVE,
+        ),
+        prelude="""
+            interface AuthorRepository {
+                suspend fun save(author: Author)
+            }
+        """,
+    ),
+    "tutorial/validation/author-name-rule": SnippetContext(
+        kind="declaration",
+        fixtures=("concepts",),
+        imports=(IMPORT_COMPONENT, IMPORT_CONCEPT_VALIDATOR, IMPORT_VALIDATION_RESULT),
+    ),
+    "tutorial/validation/duplicate-name-rule": SnippetContext(
+        kind="declaration",
+        fixtures=("concepts", "library", "librarycommands"),
+        imports=(IMPORT_COMPONENT, IMPORT_COMMAND_VALIDATOR, IMPORT_COMMAND_CONTEXT, IMPORT_VALIDATION_RESULT),
+    ),
+    "tutorial/books-and-relationships/book-concepts": SnippetContext(
+        # Deliberately fixture-free: the chapter is teaching the reader to declare these
+        # two concepts, so importing the fixture's BookId would collide with the snippet.
+        kind="declaration",
+        imports=(IMPORT_CONCEPT_AS, IMPORT_UUID),
+    ),
+    "tutorial/books-and-relationships/add-book": SnippetContext(
+        kind="declaration",
+        fixtures=("concepts",),
+        imports=(IMPORT_COMMAND, IMPORT_FROM_SERVICES),
+        prelude="""
+            data class Book(val id: BookId, val authorId: AuthorId, val title: BookTitle)
+
+            interface BookRepository {
+                suspend fun save(book: Book)
+            }
+        """,
+    ),
+    "tutorial/books-and-relationships/books-for-author": SnippetContext(
+        kind="declaration",
+        fixtures=("concepts",),
+        imports=(
+            IMPORT_READ_MODEL,
+            IMPORT_FROM_SERVICES,
+            IMPORT_FLOW,
+            IMPORT_MONGO_QUERY,
+            IMPORT_MONGO_OBSERVE,
+            IMPORT_CRITERIA,
+        ),
+    ),
+    "tutorial/authorization/roles-on-command": SnippetContext(
+        kind="declaration",
+        fixtures=("concepts",),
+        imports=(IMPORT_COMMAND, IMPORT_FROM_SERVICES, IMPORT_ROLES),
+        prelude="""
+            data class Author(val id: AuthorId, val name: AuthorName)
+
+            interface AuthorRepository {
+                suspend fun save(author: Author)
+            }
+        """,
+    ),
+    "tutorial/authorization/roles-on-query": SnippetContext(
+        kind="declaration",
+        fixtures=("concepts",),
+        imports=(
+            IMPORT_READ_MODEL,
+            IMPORT_FROM_SERVICES,
+            IMPORT_FLOW,
+            IMPORT_MONGO_QUERY,
+            IMPORT_MONGO_OBSERVE,
+            IMPORT_ROLES,
+        ),
     ),
     "tutorial/real-time/observable-query": SnippetContext(
         kind="companion",
