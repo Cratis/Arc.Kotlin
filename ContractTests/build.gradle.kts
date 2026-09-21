@@ -37,6 +37,16 @@ configurations[mongoReplicaSetTest.implementationConfigurationName]
 configurations[mongoReplicaSetTest.runtimeOnlyConfigurationName]
     .extendsFrom(configurations.testRuntimeOnly.get())
 
+// Documentation/validate-client-snippets.py generates the Kotlin documentation snippets into
+// src/documentationSnippet/kotlin and compiles them against this classpath, so a snippet on the
+// published site cannot reference an API that does not exist. The source set is deliberately not
+// wired into check or build: it is empty except while that script runs, and keeping it out of the
+// ordinary test source set keeps generated snippets away from the contract tests and the Jupiter
+// declaration checker.
+val documentationSnippet by sourceSets.creating
+configurations[documentationSnippet.implementationConfigurationName]
+    .extendsFrom(configurations.testImplementation.get())
+
 dependencies {
     testFixturesApi(project(":Source"))
     testFixturesImplementation(project(":Testing"))
@@ -59,6 +69,15 @@ dependencies {
     add(chronicleRealKernelTest.implementationConfigurationName, "org.junit.jupiter:junit-jupiter:6.1.3")
     add(chronicleRealKernelTest.implementationConfigurationName, "org.testcontainers:testcontainers:$testcontainersVersion")
     add(chronicleRealKernelTest.runtimeOnlyConfigurationName, "org.junit.platform:junit-platform-launcher")
+
+    // The snippets reach further than the ordinary test classpath: Spring Data Mongo for
+    // MongoObservableQuery and Criteria, kotlin-test for the assertions a documented spec uses.
+    // :Source, :Testing (through :Integrations:Chronicle's compileOnlyApi), :Integrations:SpringBoot
+    // and JUnit are inherited from testImplementation.
+    add(documentationSnippet.implementationConfigurationName, project(":Integrations:SpringDataMongo"))
+    // kotlin("test") rather than a pinned coordinate, so this tracks the Kotlin plugin
+    // version applied above instead of becoming a second place to remember to bump.
+    add(documentationSnippet.implementationConfigurationName, kotlin("test"))
 
     add(mongoReplicaSetTest.implementationConfigurationName, project(":Integrations:SpringDataMongo"))
     add(mongoReplicaSetTest.implementationConfigurationName, "org.junit.jupiter:junit-jupiter:6.1.3")

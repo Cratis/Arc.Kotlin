@@ -1,0 +1,126 @@
+// Copyright (c) Cratis. All rights reserved.
+// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+import { readdir, readFile, stat } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const documentationRoot = path.dirname(fileURLToPath(import.meta.url));
+const validAsideVariants = new Set(['note', 'tip', 'caution', 'danger']);
+const errors = [];
+
+async function filesBelow(directory) {
+    const files = [];
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+        const entryPath = path.join(directory, entry.name);
+        if (entry.isDirectory()) {
+            files.push(...await filesBelow(entryPath));
+        } else if (/\.mdx?$/i.test(entry.name)) {
+            files.push(entryPath);
+        }
+    }
+
+    return files;
+}
+
+function validateContent(file, content) {
+    const isMarkdown = path.extname(file).toLowerCase() === '.md';
+    let fence;
+
+    for (const [index, line] of content.split('\n').entries()) {
+        const fenceMatch = line.match(/^\s*(`{3,}|~{3,})/);
+        if (fenceMatch) {
+            const marker = fenceMatch[1];
+            if (!fence) {
+                fence = { character: marker[0], length: marker.length };
+            } else if (marker[0] === fence.character && marker.length >= fence.length) {
+                fence = undefined;
+            }
+            continue;
+        }
+
+        if (fence) continue;
+
+        const asideMatch = line.match(/^\s*:::(\w[\w-]*)/);
+        if (asideMatch && !validAsideVariants.has(asideMatch[1])) {
+            errors.push(`${relative(file)}:${index + 1}: Unknown Starlight aside variant '${asideMatch[1]}'. Use note, tip, caution, or danger.`);
+        }
+
+        if (isMarkdown && /^\s*import\s+(?:.+\s+from\s+)?['"]/.test(line)) {
+            errors.push(`${relative(file)}:${index + 1}: Imports require .mdx; in .md they render as visible prose.`);
+        }
+
+        if (isMarkdown) {
+            const componentMatch = line.match(/^\s*<\/?([A-Z][A-Za-z0-9.]*)\b/);
+            if (componentMatch) {
+                errors.push(`${relative(file)}:${index + 1}: <${componentMatch[1]}> requires .mdx; in .md it renders as an inert element.`);
+            }
+        }
+
+        // A relative link that climbs out of Documentation/ resolves on disk in a
+        // clone, so the repository's own link check accepts it, but these pages
+        // are published on the documentation site where the rest of the
+        // repository does not exist. Link to the file on GitHub instead.
+        for (const linkMatch of line.matchAll(/\]\((\.\.\/[^)\s]*)\)/g)) {
+            const target = path.normalize(path.join(path.dirname(file), linkMatch[1].split('#')[0]));
+            if (!target.startsWith(documentationRoot)) {
+                errors.push(`${relative(file)}:${index + 1}: '${linkMatch[1]}' leaves Documentation/ and will 404 on the site. Use an absolute https://github.com/... URL.`);
+            }
+        }
+    }
+}
+
+async function validateLandingCollisions(files) {
+    for (const file of files) {
+        const extension = path.extname(file);
+        const possibleDirectory = file.slice(0, -extension.length);
+
+        // The site lowercases every path segment when it builds a slug, so a page
+        // and a sibling folder that differ only in case collide on one route and
+        // one silently shadows the other. Comparing names here rather than asking
+        // the filesystem keeps this honest on case-sensitive volumes, where a
+        // plain stat of the lowercase path finds nothing and the collision ships.
+        const parent = path.dirname(possibleDirectory);
+        const wanted = path.basename(possibleDirectory).toLowerCase();
+        let siblings;
+        try {
+            siblings = await readdir(parent, { withFileTypes: true });
+        } catch {
+            continue;
+        }
+
+        const directory = siblings.find(entry =>
+            entry.isDirectory() && entry.name.toLowerCase() === wanted);
+        if (!directory) continue;
+
+        const entries = await readdir(path.join(parent, directory.name));
+        if (entries.some(entry => /^index\.mdx?$/i.test(entry))) {
+            errors.push(`${relative(file)}: Conflicts with ${relative(possibleDirectory)}/index.md[x]. The site demotes the directory index to /overview/ and can orphan it; keep one landing page for the route.`);
+        }
+    }
+}
+
+function relative(file) {
+    return path.relative(path.dirname(documentationRoot), file).split(path.sep).join('/');
+}
+
+const files = await filesBelow(documentationRoot);
+if (files.length === 0) {
+    console.error('Documentation authoring validation examined 0 files; the checker is not effective.');
+    process.exit(1);
+}
+
+for (const file of files) {
+    validateContent(file, await readFile(file, 'utf8'));
+}
+await validateLandingCollisions(files);
+
+if (errors.length > 0) {
+    console.error('Documentation authoring validation failed:');
+    for (const error of errors) console.error(`  - ${error}`);
+    process.exit(1);
+}
+
+const markdownCount = files.filter(file => path.extname(file).toLowerCase() === '.md').length;
+const mdxCount = files.length - markdownCount;
+console.log(`Documentation authoring validation passed for ${files.length} files (${markdownCount} .md, ${mdxCount} .mdx).`);

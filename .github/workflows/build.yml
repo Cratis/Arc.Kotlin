@@ -103,4 +103,6 @@ jobs:
         run: timeout --signal=TERM --kill-after=15s 300s ./gradlew :ContractTests:typeScriptRuntimeTest --no-configuration-cache
 
       - name: Verify documentation
-        run: ./Documentation/verify-markdown.sh
+        # JDK 17 is set up above, so a blocked snippet compilation here means the
+        # toolchain broke rather than being absent, and must fail the build.
+        run: ./Documentation/verify-markdown.sh --strict-toolchains

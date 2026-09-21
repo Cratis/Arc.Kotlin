@@ -320,7 +320,7 @@ inventories fail closed. The compiler parser is packaged with `arc-ksp`, pinned 
 ### Manual build tooling
 
 Prefer the plugin. If you maintain manual KSP wiring, use the actual
-[Spring Boot sample build](../../Samples/Kotlin/SpringBoot/build.gradle.kts): its `extractFluentIndex`,
+[Spring Boot sample build](https://github.com/Cratis/Arc.Kotlin/blob/main/Samples/Kotlin/SpringBoot/build.gradle.kts): its `extractFluentIndex`,
 `ksp` and `kspKotlin` configuration form one recipe. It resolves compile/runtime **JAR** artifacts,
 registers those as extraction inputs, declares the output index, makes KSP depend on extraction,
 passes `fluentIndex.map { it.asFile.toURI().toASCIIString() }`, and registers that file as the
@@ -348,7 +348,7 @@ index, even when you expect no dependency rules.
 
 Pass the resulting **absolute file URI**, not a raw path, as `arc.fluentValidationMetadata`.
 Set `arc.fluentValidationRoot=true` for main roots, including imported-only applications. The
-[production native fixture](../../GradlePlugin/src/test/kotlin/io/cratis/arc/gradle/ArcFluentValidationNativeFunctionalTest.kt)
+[production native fixture](https://github.com/Cratis/Arc.Kotlin/blob/main/GradlePlugin/src/test/kotlin/io/cratis/arc/gradle/ArcFluentValidationNativeFunctionalTest.kt)
 exercises the plugin's producer/consumer/aggregation wiring, dependency changes and recovery.
 
 Dependency extraction and proxy discovery have **different inputs**. Extraction runs before KSP on

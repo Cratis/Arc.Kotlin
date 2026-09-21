@@ -215,7 +215,7 @@ will quietly drop to anonymous while ordinary requests keep working — which is
 find out.
 
 Make sure whatever produces your `ArcPrincipal` reads a cookie as well as a header. The
-[sample's `ArcPrincipalFactory`](../../Samples/Kotlin/SpringBoot/src/main/kotlin/io/cratis/arc/samples/kotlin/springboot/SampleAuthentication.kt)
+[sample's `ArcPrincipalFactory`](https://github.com/Cratis/Arc.Kotlin/blob/main/Samples/Kotlin/SpringBoot/src/main/kotlin/io/cratis/arc/samples/kotlin/springboot/SampleAuthentication.kt)
 does exactly that, and is a reasonable shape to copy.
 
 ## Changing who you are
@@ -225,7 +225,7 @@ authorized once, at handshake. Changing the signed-in user therefore has to reac
 next request: remount the `Arc` context and drop the shared connection, or you will keep sending the
 previous principal.
 
-The [sample frontend](../../Samples/Frontend/src/main.tsx) shows the whole shape — a `key` on the
+The [sample frontend](https://github.com/Cratis/Arc.Kotlin/blob/main/Samples/Frontend/src/main.tsx) shows the whole shape — a `key` on the
 `Arc` element, `IdentityProvider.clearIdentityCookie()`, and `resetSharedMultiplexer()`.
 
 ## See it running
@@ -238,4 +238,4 @@ Every pattern on this page is exercised by a runnable application:
 
 It starts the Kotlin backend, regenerates the proxies from it, and opens a React frontend against
 them. `--language java` runs the same frontend against the Java backend unchanged. See
-[the samples](../../Samples/README.md) for the full list of pages and what each one demonstrates.
+[the samples](https://github.com/Cratis/Arc.Kotlin/blob/main/Samples/README.md) for the full list of pages and what each one demonstrates.

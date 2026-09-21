@@ -1,15 +1,48 @@
-- name: Arc for Kotlin and Java
+- name: Overview
   href: index.md
-  items:
-    - name: Why Arc for Kotlin and Java
-      href: why-arc-kotlin.md
-    - name: Get started
-      href: get-started/toc.yml
-    - name: Coming from Spring MVC
-      href: coming-from-spring-mvc.md
-    - name: Guides
-      href: guides/toc.yml
-    - name: Reference
-      href: reference/toc.yml
-    - name: Troubleshooting and FAQ
-      href: troubleshooting.md
+- name: Why Arc for Kotlin and Java
+  href: why-arc-kotlin.md
+- name: Coming from Spring MVC
+  href: coming-from-spring-mvc.md
+- name: Get started
+  href: get-started/toc.yml
+- name: Commands
+  href: guides/commands.md
+- name: Command keys
+  href: guides/command-keys.md
+- name: Queries
+  href: guides/queries.md
+- name: Observable queries
+  href: guides/observable-queries.md
+- name: Validation
+  href: guides/validation.md
+- name: Authentication and authorization
+  href: guides/security.md
+- name: Tenancy
+  href: guides/ambient-tenancy.md
+- name: Pipeline filters
+  href: guides/pipeline-filters.md
+- name: Execution scopes
+  href: guides/execution-scopes.md
+- name: Spring Data
+  href: guides/spring-data/toc.yml
+- name: Read-model naming
+  href: guides/read-model-naming.md
+- name: Proxy Generation
+  href: guides/typescript-proxies.md
+- name: Code Analysis
+  href: reference/diagnostics.md
+- name: OpenAPI
+  href: guides/openapi.md
+- name: Using the generated client
+  href: guides/frontend.md
+- name: Observability
+  href: guides/observability.md
+- name: Testing
+  href: guides/testing.md
+- name: Chronicle
+  href: guides/chronicle.md
+- name: Reference
+  href: reference/toc.yml
+- name: Troubleshooting and FAQ
+  href: troubleshooting.md

@@ -1,0 +1,53 @@
+---
+title: Use Spring Data read models
+description: Inject JPA and MongoDB repositories into model-bound queries and commands.
+---
+
+## Add an integration
+
+Choose the store used by the application:
+
+```kotlin
+// JPA
+dependencies {
+    implementation("io.cratis:arc-spring-data-jpa:<version>")
+}
+```
+
+```kotlin
+// MongoDB
+dependencies {
+    implementation("io.cratis:arc-spring-data-mongodb:<version>")
+}
+```
+
+Both modules include the Arc Spring Boot starter and the corresponding Spring Data starter. Spring Boot continues to own the datasource, entity manager, Mongo client, repository discovery, and their standard configuration.
+
+## Inject a repository into a query
+
+Spring Data repositories are ordinary Spring services. Mark a model-bound query dependency with `@FromServices`; Arc's generated performer resolves the repository from the current application context.
+
+```kotlin
+@Entity
+@ReadModel
+data class TaskView(@Id val id: String = "", val title: String = "") {
+    companion object {
+        @JvmStatic
+        fun all(@FromServices tasks: TaskViewRepository): List<TaskView> = tasks.findAll()
+    }
+}
+
+interface TaskViewRepository : JpaRepository<TaskView, String>
+```
+
+The same pattern works with `MongoRepository`, repository fragments, and application query services. An application bean replaces an auto-configured adapter bean of the same integration contract.
+
+## Then
+
+Storing a domain concept, routing by tenant and streaming changes each need
+their own setup:
+
+- [Map JPA concepts](concepts-jpa.md) — attribute converters and embedded ids.
+- [Map MongoDB concepts](concepts-mongodb.md) — concrete scalar pairs and identifiers.
+- [Repositories in queries and commands](repositories.md) — paging, current state, tenant-bound access and transactions.
+- [Observable storage snapshots](observable-snapshots.md) — change streams and JPA notifications.
