@@ -27,6 +27,30 @@ node Documentation/verify-authoring.mjs || AUTHORING_EXIT_CODE=$?
 SNIPPET_EXIT_CODE=0
 python3 Documentation/validate-doc-snippets.py || SNIPPET_EXIT_CODE=$?
 
+# Compiles the shared-docs Kotlin snippets against the real modules. Exits 2 - never 0 - when no
+# JVM toolchain is available, so "could not compile" can never be read as "compiled clean".
+# Exit 2 means the snippets could not be compiled because no JVM toolchain was
+# found, which is different from a snippet being wrong. A documentation-only
+# change should still be verifiable without a JDK, so that is a warning here and
+# a failure under --strict-toolchains, which is what CI passes. This mirrors how
+# the documentation site treats a blocked client validator.
+STRICT_TOOLCHAINS=0
+for argument in "$@"; do
+    [ "$argument" = "--strict-toolchains" ] && STRICT_TOOLCHAINS=1
+done
+
+CLIENT_SNIPPET_EXIT_CODE=0
+python3 Documentation/validate-client-snippets.py || CLIENT_SNIPPET_EXIT_CODE=$?
+
+if [ "$CLIENT_SNIPPET_EXIT_CODE" -eq 2 ]; then
+    if [ "$STRICT_TOOLCHAINS" -eq 1 ]; then
+        echo "Client snippet compilation was blocked by a missing JVM toolchain, and --strict-toolchains was requested."
+    else
+        echo "WARNING: client snippets were NOT compiled - no JVM toolchain. Install a JDK 17 toolchain to verify them locally; CI runs this with --strict-toolchains."
+        CLIENT_SNIPPET_EXIT_CODE=0
+    fi
+fi
+
 TOC_EXIT_CODE=0
 python3 - <<'PY' || TOC_EXIT_CODE=$?
 from pathlib import Path
@@ -63,10 +87,10 @@ if [ -z "$LINK_COUNT" ] || [ "$LINK_COUNT" -eq 0 ]; then
 fi
 
 if [ "$LINT_EXIT_CODE" -eq 0 ] && [ "$AUTHORING_EXIT_CODE" -eq 0 ] && [ "$SNIPPET_EXIT_CODE" -eq 0 ] && \
-   [ "$TOC_EXIT_CODE" -eq 0 ] && [ "$LINK_EXIT_CODE" -eq 0 ]; then
+   [ "$CLIENT_SNIPPET_EXIT_CODE" -eq 0 ] && [ "$TOC_EXIT_CODE" -eq 0 ] && [ "$LINK_EXIT_CODE" -eq 0 ]; then
     echo "All documentation checks passed."
     exit 0
 fi
 
-echo "Documentation checks failed: lint=$LINT_EXIT_CODE authoring=$AUTHORING_EXIT_CODE snippets=$SNIPPET_EXIT_CODE toc=$TOC_EXIT_CODE links=$LINK_EXIT_CODE"
+echo "Documentation checks failed: lint=$LINT_EXIT_CODE authoring=$AUTHORING_EXIT_CODE snippets=$SNIPPET_EXIT_CODE client-snippets=$CLIENT_SNIPPET_EXIT_CODE toc=$TOC_EXIT_CODE links=$LINK_EXIT_CODE"
 exit 1
