@@ -165,10 +165,84 @@ FIXTURES: dict[str, DomainFixture] = {
 
                 suspend fun existsByName(name: AuthorName): Boolean
 
+                suspend fun findById(id: AuthorId): Author?
+
                 fun findAll(): List<Author>
 
                 fun observeAll(): Flow<List<Author>>
             }
+        """,
+    ),
+    "account": DomainFixture(
+        types=(
+            "AccountId", "AccountHolder", "AccountName", "CustomerId", "Account",
+            "AccountRepository", "AccountService",
+        ),
+        imports=(
+            "import io.cratis.arc.concepts.ConceptAs",
+            "import java.util.UUID",
+        ),
+        declarations="""
+            data class AccountId(private val rawValue: UUID) : ConceptAs<UUID> {
+                override fun value(): UUID = rawValue
+            }
+
+            data class AccountHolder(private val rawValue: String) : ConceptAs<String> {
+                override fun value(): String = rawValue
+            }
+
+            data class AccountName(private val rawValue: String) : ConceptAs<String> {
+                override fun value(): String = rawValue
+            }
+
+            data class CustomerId(private val rawValue: UUID) : ConceptAs<UUID> {
+                override fun value(): UUID = rawValue
+            }
+
+            data class Account(val id: AccountId, val owner: AccountHolder)
+
+            interface AccountRepository {
+                suspend fun save(account: Account)
+            }
+
+            interface AccountService {
+                suspend fun open(id: AccountId, name: AccountName, owner: CustomerId)
+            }
+        """,
+    ),
+    "ledger": DomainFixture(
+        types=(
+            "LedgerId", "AccountId", "LedgerBalance", "AccountBalance", "LedgerSettled",
+            "FundsWithdrawn", "MoneyDeposited", "Withdraw",
+        ),
+        imports=(
+            "import io.cratis.arc.artifacts.Command",
+            "import io.cratis.arc.artifacts.CommandKey",
+            "import io.cratis.arc.concepts.ConceptAs",
+            "import java.math.BigDecimal",
+            "import java.util.UUID",
+        ),
+        declarations="""
+            data class LedgerId(private val rawValue: UUID) : ConceptAs<UUID> {
+                override fun value(): UUID = rawValue
+            }
+
+            data class AccountId(private val rawValue: UUID) : ConceptAs<UUID> {
+                override fun value(): UUID = rawValue
+            }
+
+            data class LedgerBalance(val balance: BigDecimal)
+
+            data class AccountBalance(val balance: BigDecimal)
+
+            data class LedgerSettled(val balance: BigDecimal)
+
+            data class FundsWithdrawn(val amount: BigDecimal, val remaining: BigDecimal)
+
+            data class MoneyDeposited(val amount: BigDecimal)
+
+            @Command
+            data class Withdraw(@CommandKey val accountId: String, val amount: BigDecimal)
         """,
     ),
     "librarycommands": DomainFixture(
@@ -355,6 +429,13 @@ IMPORT_FLOW = "import kotlinx.coroutines.flow.Flow"
 IMPORT_MONGO_QUERY = "import io.cratis.arc.springdata.mongodb.MongoObservableQuery"
 IMPORT_MONGO_OBSERVE = "import io.cratis.arc.springdata.mongodb.observe"
 IMPORT_CRITERIA = "import org.springframework.data.mongodb.core.query.Criteria"
+IMPORT_COMMAND_KEY = "import io.cratis.arc.artifacts.CommandKey"
+IMPORT_COMMAND_SCENARIO = "import io.cratis.arc.testing.CommandScenario"
+IMPORT_GENERATED_MODULE = "import io.cratis.arc.generated.LibraryArcArtifactModule"
+IMPORT_GIVEN_CHRONICLE = "import io.cratis.arc.chronicle.givenChronicle"
+IMPORT_BEFORE_EACH = "import org.junit.jupiter.api.BeforeEach"
+IMPORT_BIG_DECIMAL = "import java.math.BigDecimal"
+IMPORT_UUID = "import java.util.UUID"
 
 
 # A snippet id is its path under client-snippets without the extension. Every snippet is
@@ -471,6 +552,144 @@ SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
         kind="declaration",
         fixtures=("order",),
         imports=(IMPORT_COMPONENT, IMPORT_COMMAND_VALIDATOR, IMPORT_COMMAND_CONTEXT, IMPORT_VALIDATION_RESULT),
+    ),
+    "scenarios/use-current-state-in-a-command/rename-author": SnippetContext(
+        kind="declaration",
+        fixtures=("concepts", "library"),
+        imports=(IMPORT_COMMAND, IMPORT_FROM_SERVICES),
+    ),
+    "scenarios/use-current-state-in-a-command/rename-author-validator": SnippetContext(
+        kind="declaration",
+        fixtures=("concepts", "library"),
+        imports=(
+            IMPORT_COMMAND,
+            IMPORT_COMMAND_KEY,
+            IMPORT_COMPONENT,
+            IMPORT_COMMAND_VALIDATOR,
+            IMPORT_COMMAND_CONTEXT,
+            IMPORT_VALIDATION_RESULT,
+        ),
+        prelude="""
+            @Command
+            data class RenameAuthor(@CommandKey val id: AuthorId, val newName: AuthorName)
+        """,
+    ),
+    "scenarios/use-current-state-in-a-command/register-customer-validator": SnippetContext(
+        kind="declaration",
+        imports=(
+            IMPORT_COMMAND,
+            IMPORT_COMMAND_KEY,
+            IMPORT_COMPONENT,
+            IMPORT_COMMAND_VALIDATOR,
+            IMPORT_COMMAND_CONTEXT,
+            IMPORT_VALIDATION_RESULT,
+            IMPORT_UUID,
+        ),
+        prelude="""
+            data class Customer(val id: UUID, val name: String)
+
+            interface CustomerRepository {
+                suspend fun findById(id: UUID): Customer?
+            }
+
+            @Command
+            data class RegisterCustomer(@CommandKey val id: UUID, val name: String)
+        """,
+    ),
+    "scenarios/use-current-state-in-a-command/required-order-state": SnippetContext(
+        kind="declaration",
+        fixtures=("order",),
+        # The snippet's whole point is the command declaring its own required read-model
+        # parameter, so it declares SubmitOrder rather than borrowing the fixture's.
+        hides=("SubmitOrder",),
+        imports=(IMPORT_COMMAND, IMPORT_COMMAND_KEY, IMPORT_FROM_SERVICES, IMPORT_UUID),
+        prelude="""
+            interface OrderSubmissions {
+                suspend fun submit(id: UUID)
+            }
+        """,
+    ),
+    "scenarios/use-current-state-in-a-command/chronicle-commands": SnippetContext(
+        kind="declaration",
+        fixtures=("ledger",),
+        hides=("Withdraw",),
+        imports=(IMPORT_COMMAND, IMPORT_COMMAND_KEY, IMPORT_BIG_DECIMAL),
+    ),
+    "scenarios/use-current-state-in-a-command/seed-events": SnippetContext(
+        # The generated enclosing class stands in for the test class the fragment is a
+        # member of; the prelude supplies the scenario and event source a real test declares.
+        kind="member",
+        fixtures=("ledger", "generatedmodule"),
+        imports=(
+            IMPORT_BEFORE_EACH,
+            IMPORT_BIG_DECIMAL,
+            IMPORT_COMMAND_SCENARIO,
+            IMPORT_GENERATED_MODULE,
+            IMPORT_GIVEN_CHRONICLE,
+        ),
+        prelude="""
+            private val scenario = CommandScenario(LibraryArcArtifactModule(), Withdraw::class.java)
+            private val accountId = "account-42"
+        """,
+    ),
+    "scenarios/use-current-state-in-a-command/pin-read-model": SnippetContext(
+        kind="member",
+        fixtures=("ledger", "generatedmodule"),
+        imports=(
+            IMPORT_BEFORE_EACH,
+            IMPORT_BIG_DECIMAL,
+            IMPORT_COMMAND_SCENARIO,
+            IMPORT_GENERATED_MODULE,
+        ),
+        prelude="""
+            private val scenario = CommandScenario(LibraryArcArtifactModule(), Withdraw::class.java)
+            private val accountId = "account-42"
+        """,
+    ),
+    "frontend/index/open-account": SnippetContext(
+        kind="declaration",
+        fixtures=("account",),
+        imports=(IMPORT_COMMAND, IMPORT_FROM_SERVICES),
+    ),
+    "frontend/react/proxy-generation/open-debit-account": SnippetContext(
+        # Deliberately self-contained: the page teaches what a whole backend file looks like
+        # before the generator turns it into TypeScript.
+        kind="declaration",
+        imports=(IMPORT_COMMAND, IMPORT_FROM_SERVICES),
+    ),
+    "frontend/react/commands/index/command-payload": SnippetContext(
+        kind="declaration",
+        fixtures=("account",),
+        imports=(IMPORT_COMMAND, IMPORT_FROM_SERVICES),
+    ),
+    "frontend/react/queries/usage/parameterized-query": SnippetContext(
+        kind="declaration",
+        fixtures=("account",),
+        imports=(IMPORT_READ_MODEL, IMPORT_FROM_SERVICES),
+        prelude="""
+            interface DebitAccountRepository {
+                fun findByNameStartingWith(prefix: String): List<DebitAccount>
+            }
+        """,
+    ),
+    "frontend/react/command-form/validation/profile-command": SnippetContext(
+        kind="file",
+    ),
+    "frontend/react/command-form/auto-server-validation/server-only-rule": SnippetContext(
+        # A replacement for the validator the validation page declares, so it stays a fragment
+        # rather than a second file in the same package.
+        kind="declaration",
+        imports=(
+            IMPORT_COMMAND,
+            IMPORT_COMPONENT,
+            IMPORT_COMMAND_VALIDATOR,
+            IMPORT_COMMAND_CONTEXT,
+            IMPORT_VALIDATION_RESULT,
+        ),
+        prelude="""
+            @Command
+            data class UpdateProfile(val name: String, val email: String)
+        """,
     ),
     "tutorial/real-time/observable-query": SnippetContext(
         kind="companion",
