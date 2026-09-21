@@ -1,32 +1,18 @@
 ---
-title: HTTP contract reference
-description: Exact Arc servlet routes, methods, headers, envelopes, statuses, identity endpoints, and validation wire values.
+title: HTTP contract - JVM conformance notes
+description: Spring Boot specifics behind Arc's shared HTTP wire contract - paired conformance evidence, correlation filter registration, development provider endpoints, and bounded runtime behavior.
 ---
 
-## Routes and methods
+:::note[The contract itself lives on the shared page]
+Routes, headers, correlation semantics, the QUERY body, observable query transport,
+tenant resolution, authentication and introspection, the command and query result
+envelopes, HTTP statuses, the identity contract, and validation result values are the
+same protocol on every Arc backend. They are documented once, in the
+[Arc HTTP contract](/arc/http-contract/), which also records
+[where the C# and JVM implementations differ](/arc/http-contract/#where-the-implementations-differ).
 
-| Endpoint | Method | Contract |
-| --- | --- | --- |
-| Command route | `POST` | JSON command body; returns `CommandResult`. |
-| `<command-route>/validate` | `POST` | Runs authorization and validation without the handler. |
-| Query route | `GET` | Arguments in query parameters; returns `QueryResult`. |
-| Query route | `QUERY` | Structured JSON request; enabled by default for one-shot queries; returns `Cache-Control: no-store`. |
-| Observable query route | `GET` | HTTP snapshot, direct SSE when accepting `text/event-stream`, or a direct WebSocket upgrade. |
-| `/.cratis/queries/ws` | WebSocket | Multiplexed observable-query hub. |
-| `/.cratis/queries/sse` | `GET` | Multiplexed SSE hub; starts with a `Connected` message carrying the connection ID. |
-| `/.cratis/queries/sse/subscribe` | `POST` | Adds or revision-replaces a subscription on a principal-bound SSE connection. |
-| `/.cratis/queries/sse/unsubscribe` | `POST` | Cancels a subscription or records its revision tombstone. |
-| `/.cratis/commands` | `GET` | Anonymous deterministic command introspection metadata. |
-| `/.cratis/queries` | `GET` | Anonymous deterministic query introspection metadata. |
-| `/.cratis/queries/health` | `GET`, `QUERY` | Current physical observable connection and subscription health. Requires an authenticated caller when authentication handlers are registered. |
-| `/.cratis/me` | `GET` | Registered only with exactly one identity details provider. |
-| `/.cratis/identity-details/schema` | `GET` | Always registered; returns `{}` without a provider. |
-| `/.cratis/users` | `GET` | Anonymous development-user discovery; returns an ordered, principal-ID-deduplicated array or `[]`. |
-| `/.cratis/tenants` | `GET` | Anonymous development-tenant discovery; returns an ordered, tenant-ID-deduplicated array or `[]`. |
-
-Unsupported methods return 405 with an `Allow` header. Conventional routes use the configured prefix, skipped package segments, kebab case, and artifact name. Explicit query `@Path` values are preserved exactly.
-
-Default observable emission guards now reconstruct [bounded per-dispatch argument copies](../guides/queries.md#bound-emission-guard-arguments). Unsupported or uncopyable guarded arguments terminate with the existing unauthorized result before any guard executes; this is behavioral tightening, not a wire-schema change. No guards means no argument-copy validation. Query opening and result-data ownership are unchanged.
+This page records only what is specific to the JVM host.
+:::
 
 ## Paired HTTP conformance evidence
 
@@ -50,59 +36,33 @@ only their status is compared. Authentication/authorization rejection, custom va
 null/default handling, temporal precision, paging requests, streaming and database behavior remain
 outside this fixture. See the [parity reference](parity.md).
 
-## Request headers
+## Correlation filter registration and ordering
 
-| Header | Behavior |
-| --- | --- |
-| `X-Correlation-ID` | Default correlation header, configurable with `cratis.arc.correlation-header`. A valid UUID is reused; a missing or invalid value is replaced. Every route in the host echoes the effective UUID under the configured name. See [Correlation](#correlation). |
-| `X-Allowed-Severity` | Maximum nonblocking severity as a case-insensitive name or numeric wire value. Invalid input produces `malformedRequest`. |
-| `x-cratis-tenant-id` | Default tenant header; `cratis.arc.tenant-header` remains an alias/default for `cratis.arc.tenancy.header-name`. |
+The shared contract states what a correlation identifier means and how an inbound value is
+treated. On the JVM the Spring Boot starter additionally registers a servlet filter on `/*`,
+so the identifier is established for every request reaching the host, whether Arc owns the
+route or not.
 
-## Correlation
-
-The Spring Boot starter registers a servlet filter on `/*` that establishes exactly one correlation
-identifier for every request reaching the host, whether Arc owns the route or not. The filter is
-ordered ahead of Spring Security's filter chain and ahead of the Arc authentication filter, so both
-observe the identifier the request will carry.
-
-- An inbound header value is reused only when it is a UUID, ignoring surrounding whitespace. Any
-  other text is replaced by a generated identifier. The effective value is always re-emitted in
-  canonical UUID form, so client-supplied text never reaches a response header or a log line. A
-  correlation identifier is diagnostic only and never carries authority.
-- The effective value is presented to everything downstream as the configured request header, so an
-  Arc endpoint and an ordinary `@RestController` on the same host observe the same value even when
-  the client sent no header.
-- The response always carries the configured header.
-- Servlet-thread code reads the identifier with `ArcCorrelation.of(request)`. The underlying servlet
-  request attribute name is `ArcCorrelation.ATTRIBUTE`, and the attribute survives an asynchronous
-  dispatch.
+- The filter is ordered ahead of Spring Security's filter chain and ahead of the Arc
+  authentication filter, so both observe the identifier the request will carry.
+- The effective value is presented downstream as the configured request header, so an Arc
+  endpoint and an ordinary `@RestController` on the same host observe the same value even
+  when the client sent no header.
+- Servlet-thread code reads the identifier with `ArcCorrelation.of(request)`. The underlying
+  servlet request attribute name is `ArcCorrelation.ATTRIBUTE`, and the attribute survives an
+  asynchronous dispatch.
 - While the filter chain runs, the identifier is published to SLF4J MDC under
-  `ArcCorrelation.LOGGING_KEY`, which is `arc.correlation_id`, and any value the host had there is
-  restored afterwards. That binding belongs to the servlet thread: a suspending Arc handler resumes
-  on another thread and takes its correlation identifier from `CommandContext` or `QueryContext`
-  instead.
-- Set `cratis.arc.correlation-enabled=false` to leave correlation entirely to the application, or
-  define a bean named `arcCorrelationFilterRegistration` to replace the registration.
+  `ArcCorrelation.LOGGING_KEY`, which is `arc.correlation_id`, and any value the host had there
+  is restored afterwards. That binding belongs to the servlet thread: a suspending Arc handler
+  resumes on another thread and takes its correlation identifier from `CommandContext` or
+  `QueryContext` instead.
+- Set `cratis.arc.correlation-enabled=false` to leave correlation entirely to the application,
+  or define a bean named `arcCorrelationFilterRegistration` to replace the registration.
 
-## QUERY body
+## Jackson and unknown fields
 
-The body may contain only these fields:
-
-```json
-{
-  "arguments": {"name":"Ada"},
-  "paging": {"page":0,"pageSize":25},
-  "sorting": {"field":"name","direction":"ascending"}
-}
-```
-
-`paging` and `sorting` may be omitted. GET and QUERY match client argument names case-insensitively and reject keys that collide after case folding as `malformedRequest`. Unknown fields remain invalid. A missing Kotlin client parameter with a declared default remains absent so invocation evaluates that default. A present value is always converted, and explicit `null` is present rather than omission. Page values must be nonnegative. Directions accept `asc`, `ascending`, `desc`, or `descending`, case-insensitively. GET uses `page`, `pageSize`, `sortBy`, and `sortDirection` as reserved parameters. `UUID`, `LocalDate`, and `LocalTime` arguments use scalar UUID, date, and time strings in both GET parameters and QUERY JSON. `Duration` JSON values are ISO-8601 strings because Arc disables `WRITE_DURATIONS_AS_TIMESTAMPS` in both Core and Spring. A component object is not an alternative server shape. Arc accepts and emits `LocalTime` values with up to seven fractional digits for 100 ns compatibility. Deserialization rejects eight or nine fractional digits with the safe malformed-query response, and serialization rejects values finer than 100 ns rather than rounding or truncating them.
-
-Generated GET clients serialize their `Guid`, `DateOnly`, and `TimeOnly` values to those scalar strings. This server binding is distinct from the pinned shared TypeScript client's explicit QUERY-body problem: the generated client passes `DateOnly` and `TimeOnly` component objects to native `JSON.stringify` because those classes lack `toJSON()`, rather than invoking their typed scalar serializer. Prefer GET until upstream serialization uses the typed serializer or `toJSON()`. `Guid` has `toJSON()` and is unaffected.
-
-## Unknown fields
-
-Arc never configures Jackson's `FAIL_ON_UNKNOWN_PROPERTIES`, so what happens to a field the target does not declare depends on which reader sees it. This is recorded behavior, not a chosen policy; the table below states what tests demonstrate today.
+Arc never configures Jackson's `FAIL_ON_UNKNOWN_PROPERTIES`, so what happens to a field the
+target does not declare depends on which reader sees it.
 
 | Surface | Reader | An undeclared field |
 | --- | --- | --- |
@@ -111,115 +71,136 @@ Arc never configures Jackson's `FAIL_ON_UNKNOWN_PROPERTIES`, so what happens to 
 | Command body, including `/validate` | The application `ObjectMapper` bean | Accepted and dropped |
 | Anything read through `ArcObjectMapper.create()` | A bare Jackson mapper | Rejected |
 
-The QUERY envelope accepts only `arguments`, `paging`, and `sorting`, and its sections accept only `page`/`pageSize` and `field`/`direction`. Arc validates those field sets itself, so that rejection holds no matter how the mapper is configured.
+Arc validates the QUERY envelope's field set itself, so that rejection holds no matter how the
+mapper is configured. A command body is handed straight to the injected Jackson 3 `ObjectMapper`.
+The Spring Boot starter contributes `ArcJacksonModule` and the `arcJacksonCustomizer` builder
+customizer, which set the naming strategy, null inclusion, named floating-point values, and
+date/duration text - and neither touches unknown-property handling. Conventional MVC controllers
+and generated Arc endpoints therefore share one mapper and wire policy, and a hosted application
+inherits Spring Boot's relaxed default for command bodies.
 
-A command body is handed straight to the injected Jackson 3 `ObjectMapper`. The Spring Boot starter contributes `ArcJacksonModule` and the `arcJacksonCustomizer` builder customizer, which set the naming strategy, null inclusion, named floating-point values, and date/duration text — and neither touches unknown-property handling. Conventional MVC controllers and generated Arc endpoints therefore share one mapper and wire policy. A hosted application inherits Spring Boot's relaxed default, and `{"value":"hello","unexpected":"extra"}` executes the command with `unexpected` discarded. This matches Arc .NET, which does not set `UnmappedMemberHandling` either and so lets `System.Text.Json` skip unmapped members.
+Jackson 3 mappers are immutable. `ArcObjectMapper.configure(mapper)` returns a configured copy and
+never changes the supplied instance; an application that contributes its own Spring mapper remains
+responsible for constructing that bean with the Arc configuration it wants.
+`ArcObjectMapper.create()` builds a bare mapper and keeps Jackson's own strict default, so an
+undeclared field raises `UnrecognizedPropertyException`. Arc uses that mapper only for values it
+produced itself - the generated artifact manifest, change-set comparison, and the `CommandScenario`
+and `QueryScenario` harnesses - never to read a client request.
 
-Jackson 3 mappers are immutable. `ArcObjectMapper.configure(mapper)` returns a configured copy and never changes the supplied instance; an application that contributes its own Spring mapper remains responsible for constructing that bean with the Arc configuration it wants.
+## JVM argument binding
 
-`ArcObjectMapper.create()` builds a bare mapper and keeps Jackson's own strict default, so an undeclared field raises `UnrecognizedPropertyException`. Arc uses that mapper only for values it produced itself — the generated artifact manifest, change-set comparison, and the `CommandScenario` and `QueryScenario` harnesses — never to read a client request, so the two policies do not meet on any request path. An application that wants one policy on both sides should set the feature explicitly on the mapper it uses.
+`UUID`, `LocalDate`, and `LocalTime` arguments use scalar UUID, date, and time strings in both GET
+parameters and QUERY JSON. `Duration` JSON values are ISO-8601 strings because Arc disables
+`WRITE_DURATIONS_AS_TIMESTAMPS` in both Core and Spring. A component object is not an alternative
+server shape. Arc accepts and emits `LocalTime` values with up to seven fractional digits for
+100 ns compatibility; deserialization rejects eight or nine fractional digits with the safe
+malformed-query response, and serialization rejects values finer than 100 ns rather than rounding
+or truncating them.
 
-## Observable query transport
+A missing Kotlin client parameter with a declared default remains absent so invocation evaluates
+that default. A present value is always converted, and explicit `null` is present rather than
+omission.
 
-An observable query HTTP snapshot returns 200 with the current value when the query returns a `StateFlow`, which already holds one. A query that returns a cold `Flow` or a JDK `Flow.Publisher` has no value to serve yet, so without `waitForFirstResult=true` it returns a not-ready `QueryResult` with 202. With `waitForFirstResult=true`, the host waits for the first result up to the smaller of `waitForFirstResultTimeout=<seconds>`, the configured observable wait limit, and the request timeout. When enabled, RFC QUERY is registered on the same observable route, consumes the standard body, and returns `Cache-Control: no-store`; when disabled it returns 405 with `Allow: GET`. SSE and WebSocket upgrades remain GET-only.
+Generated GET clients serialize their `Guid`, `DateOnly`, and `TimeOnly` values to those scalar
+strings. This server binding is distinct from the pinned shared TypeScript client's explicit
+QUERY-body problem: the generated client passes `DateOnly` and `TimeOnly` component objects to
+native `JSON.stringify` because those classes lack `toJSON()`, rather than invoking their typed
+scalar serializer. Prefer GET until upstream serialization uses the typed serializer or `toJSON()`.
+`Guid` has `toJSON()` and is unaffected.
 
-Direct SSE writes exactly `data: {QueryResult}\n\n`. Direct WebSocket data uses a `Data` frame with the `QueryResult` in `data`; `Ping` and `Pong` carry `timestamp`.
+## Observable transport lifecycle on the JVM
 
-When a direct producer completes, fails during opening, or emits an unauthorized terminal result, the transport stops accepting frames and cancels heartbeats, then writes already accepted frames in order before closing. Connection capacity and health remain registered until those writes finish. Final draining uses `cratis.arc.request-timeout` (30 seconds by default) as the asynchronous request-completion budget, measured from producer completion; values below one millisecond use one millisecond rather than permitting an unlimited drain. The separate SSE connection-lifetime timeout still applies and can abort earlier.
+Default observable emission guards reconstruct
+[bounded per-dispatch argument copies](../guides/queries.md#bound-emission-guard-arguments).
+Unsupported or uncopyable guarded arguments terminate with the existing unauthorized result before
+any guard executes; this is behavioral tightening, not a wire-schema change. No guards means no
+argument-copy validation. Query opening and result-data ownership are unchanged.
 
-Disconnect, transport error, outbound overflow, application shutdown, or expiry of that drain budget aborts instead: queued frames are discarded, upstream work is cancelled, and connection capacity and health are released once. WebSocket outbound overflow retains close code 1013 rather than being replaced by normal closure. Lifecycle calls do not wait for blocking writes or native container closure, and native close is requested outside lifecycle locks. This bounds logical drain time, not writer-thread termination or peer acknowledgement: cancellation cannot interrupt arbitrary blocking servlet/socket I/O, and an in-progress write or native close may outlive the budget under the container's own I/O timeouts.
+When a direct producer completes, fails during opening, or emits an unauthorized terminal result,
+the transport stops accepting frames and cancels heartbeats, then writes already accepted frames in
+order before closing. Connection capacity and health remain registered until those writes finish.
+Final draining uses `cratis.arc.request-timeout` (30 seconds by default) as the asynchronous
+request-completion budget, measured from producer completion; values below one millisecond use one
+millisecond rather than permitting an unlimited drain. The separate SSE connection-lifetime timeout
+still applies and can abort earlier.
 
-Hub JSON uses exact PascalCase types: `Connected`, `Subscribe`, `Unsubscribe`, `QueryResult`, `Unauthorized`, `Error`, `Ping`, and `Pong`. `queryId` and a positive JavaScript-safe `revision` are echoed on result and terminal messages. `Connected` includes `keepAliveIntervalMs` and `supportsSubscriptionRevisions: true`. Subscription payloads accept `queryName`, string `arguments`, paging, sorting, and an optional `transferMode` (`full` or `delta`). `full` sends the snapshot without a `changeSet`, `delta` sends the full first snapshot and then only a `changeSet`, and omitting the field selects the legacy behavior of a snapshot plus a `changeSet` on every result.
+Disconnect, transport error, outbound overflow, application shutdown, or expiry of that drain budget
+aborts instead: queued frames are discarded, upstream work is cancelled, and connection capacity and
+health are released once. WebSocket outbound overflow retains close code 1013 rather than being
+replaced by normal closure. Lifecycle calls do not wait for blocking writes or native container
+closure, and native close is requested outside lifecycle locks. This bounds logical drain time, not
+writer-thread termination or peer acknowledgement: cancellation cannot interrupt arbitrary blocking
+servlet/socket I/O, and an in-progress write or native close may outlive the budget under the
+container's own I/O timeouts.
 
-If an opening finishes after its subscription has already been replaced or unsubscribed, both hubs discard its opening failure instead of emitting `Error` or `Unauthorized`. Current-operation failures retain their terminal envelopes and revisions. This ownership check does not retract already queued frames or make socket writes atomic with subscription changes.
+If an opening finishes after its subscription has already been replaced or unsubscribed, both hubs
+discard its opening failure instead of emitting `Error` or `Unauthorized`. Current-operation failures
+retain their terminal envelopes and revisions. This ownership check does not retract already queued
+frames or make socket writes atomic with subscription changes.
 
-Both hubs defensively capture the subscription's original string-or-null arguments. They validate those arguments before reserving subscription state, then bind the captured input again against the same query metadata on the asynchronous runner. This preserves declared scalar and boxed-array types, omitted Kotlin defaults, and explicit nulls; it is not arbitrary JVM object cloning. Application converters therefore run twice and must be deterministic and independent of request-thread state. Canonical `Collection` and `MutableCollection` metadata can be bound by the host, but generated collection-interface query parameters remain rejected by KSP; manual metadata support does not establish generated collection support. Explicit validation severity is retained, and an omitted severity uses the subscribed query's `TreatWarningsAsErrors` default.
+Both hubs defensively capture the subscription's original string-or-null arguments. They validate
+those arguments before reserving subscription state, then bind the captured input again against the
+same query metadata on the asynchronous runner. This preserves declared scalar and boxed-array types,
+omitted Kotlin defaults, and explicit nulls; it is not arbitrary JVM object cloning. Application
+converters therefore run twice and must be deterministic and independent of request-thread state.
+Canonical `Collection` and `MutableCollection` metadata can be bound by the host, but generated
+collection-interface query parameters remain rejected by KSP; manual metadata support does not
+establish generated collection support. Explicit validation severity is retained, and an omitted
+severity uses the subscribed query's `TreatWarningsAsErrors` default.
 
-A subscription's `transferMode` is matched case-insensitively, and it is a preference about how much of each snapshot travels rather than part of what the subscription means. A textual value outside the known ones therefore names no mode the host knows and is served exactly as a subscription that sent no `transferMode` at all, instead of being refused. A `transferMode` that is neither a JSON string nor `null` is a malformed payload: the WebSocket hub answers `Error` and the SSE subscribe route answers 400.
-
-Fixed multiplexed connection, subscribe, and unsubscribe routes allow anonymous transport access and retain a successfully authenticated handshake principal when credentials are present. Each subscription is authorized independently by the existing query pipeline; a protected anonymous subscription emits terminal `Unauthorized` without terminating unrelated authorized subscriptions. Connection capacity exhaustion returns 503 with `Retry-After`; SSE subscription exhaustion returns 429. Unknown or caller-mismatched SSE connection IDs return 404. Spring WebSocket remains optional: when it is absent or disabled, HTTP and SSE continue to work and clients use their normal reconnect backoff.
-
-## Tenant resolution
-
-The Spring host creates an explicit tenant context from case-insensitive request headers, each query parameter's first value, the server host, and captured principal claims. The configured resolver chain runs once at each HTTP request, SSE subscription, or WebSocket handshake. Its result is passed as both `tenantId` and `tenantNamespace` for commands and every query transport. Identity detail requests resolve the same context and include a resolved tenant as the configured tenant claim when it was not already present. No transport uses thread-local tenant state.
-
-When `tenancy.required=true`, unresolved requests return 400 (or a failed WebSocket handshake). Authenticated callers with tenant membership claims receive a generic 403 when selecting another tenant. Fixed and development values are used only when those strategies are explicitly configured.
-
-## Authentication and introspection
-
-When `AuthenticationHandler` or Java `AsyncAuthenticationHandler` beans are registered, Arc authenticates protected Arc routes before dispatch. Handlers execute in Spring order, and the first handler that recognizes the request decides the outcome. An authenticated result supplies the request principal. A failed result is terminal: the chain stops at that handler, no later handler runs, and a later handler can never override the rejection with a success. The failure is exposed only as the generic 401 response. An anonymous result means the handler did not recognize the request and lets later handlers try; anonymous is the final outcome only when no handler recognized the request at all. `@AllowAnonymous` artifacts may proceed without an authenticated result. Introspection, users, tenants, and identity schema routes are literal anonymous endpoints.
-
-`/.cratis/me` and both methods of `/.cratis/queries/health` require an authenticated result, because the query health snapshot reports connection and subscription identifiers, remote IP addresses, user agents, and user identities.
-
-`/.cratis/commands` returns route, type, documentation, payload schema, authorization, properties, and validation metadata. `documentationSummary` carries the single-line Kotlin KDoc or Java Javadoc summary of the artifact, or an empty string when the artifact carries none. `/.cratis/queries` additionally returns the fully qualified query name, argument schema, transport, paging support, and HTTP preference. Query parameter metadata reports `hasDefault`, and the argument schema excludes defaulted parameters from `required`; neither endpoint exposes a Kotlin default expression or an invented value. UUID and supported textual terminal `java.time` values (`LocalDate`, `LocalTime`, `LocalDateTime`, `Instant`, `OffsetDateTime`, `ZonedDateTime`, `OffsetTime`, `Duration`, and `Period`) appear as scalar `string` schemas, including collection elements, rather than object schemas. Registry-version caches refresh only when generated artifact registries change.
+Spring WebSocket remains optional: when it is absent or disabled, HTTP and SSE continue to work and
+clients use their normal reconnect backoff.
 
 ## Development provider endpoints
 
-`/.cratis/users` and `/.cratis/tenants` aggregate all ordered coroutine provider beans and Java `AsyncUsersProvider`/`AsyncTenantsProvider` beans. The first item for each identifier wins. Empty provider sets return `[]`. Requests use Arc's asynchronous timeout and cancellation handling; provider failures return a redacted 500 JSON error and are logged server-side. These development discovery routes allow anonymous access.
+`/.cratis/users` and `/.cratis/tenants` aggregate all ordered coroutine provider beans and Java
+`AsyncUsersProvider`/`AsyncTenantsProvider` beans. The first item for each identifier wins, so the
+result is deduplicated by principal ID and tenant ID respectively. Empty provider sets return `[]`.
+Requests use Arc's asynchronous timeout and cancellation handling; provider failures return a
+redacted 500 JSON error and are logged server-side. These development discovery routes allow
+anonymous access.
 
-## Command result envelope
+## Identity cookie secure policy
 
-| Field | Type | Notes |
-| --- | --- | --- |
-| `correlationId` | UUID | Always present. |
-| `isAuthorized` | Boolean | Authorization outcome. |
-| `validationResults` | Array | Always present. |
-| `exceptionMessages` | Array | Always present; production redaction removes details. |
-| `exceptionStackTrace` | String | Empty when redacted. |
-| `authorizationFailureReason` | String | Empty when absent. |
-| `isValid` | Boolean | True only when validation results are empty. |
-| `hasExceptions` | Boolean | True when exception messages exist. |
-| `isSuccess` | Boolean | Authorized, valid, and exception-free. |
-| `response` | Any | Omitted when null or failed. |
-
-## Query result envelope
-
-`QueryResult` includes `correlationId`, optional `data`, `isReady`, `isAuthorized`, `validationResults`, `exceptionMessages`, `exceptionStackTrace`, `paging`, optional `changeSet`, `isValid`, `hasExceptions`, and `isSuccess`. `paging` contains `page`, `size`, `totalItems`, and calculated `totalPages`.
-
-## HTTP statuses
-
-| Condition | Status |
-| --- | --- |
-| Successful command or query | 200 |
-| Query not ready | 202 |
-| Validation, malformed request, missing command key, or missing required owned command read model | 400 |
-| Authentication failure | 401 |
-| Command or query authorization failure | 403 |
-| Request body exceeds `maximum-request-body-bytes` | 413 |
-| Subscription capacity exhausted | 429 |
-| Request or connection admission exhausted | 503 with `Retry-After` |
-| Pipeline or host exception | 500 |
-| Unsupported method | 405 |
-
-Command exceptions implementing [`ValidationFailure`](../guides/commands.md#convert-application-exceptions-to-command-validation) with a usable payload become validation results at the default command pipeline's ordinary exception boundaries, including context/filter failures on `/validate`. Pure blocking validation returns 400 with empty exception messages and stack trace; ordinary exceptions remain 500 with the existing production/development redaction policy. In mixed command results, authorization failure takes precedence (403), then validation failure (400), then ordinary exceptions (500). Failed results never expose a response.
-
-The payload's message, members, severity, reason, `reasonDetail`, and `state` are application-supplied client-visible data, not automatically redacted exception details. Keep secrets out of every payload field. Cancellation never becomes validation feedback. Parser, admission, transport timeout, and query exception behavior are unchanged; severity filtering remains [stage-specific](../guides/commands.md#convert-application-exceptions-to-command-validation).
-
-## Identity contract
-
-`/.cratis/me` returns 401 for an unauthenticated principal, 403 when the details provider rejects the caller, and 200 with `id`, `name`, `isAuthenticated`, `isAuthorized`, `roles`, and application-specific `details` on success.
-
-A successful response sets `.cratis-identity` to Base64-encoded response JSON. The cookie is client-readable (`HttpOnly=false`), `SameSite=Lax`, and `Path=/`. Its `Secure` attribute follows `identity-cookie-secure-policy`: `always`, `never`, or `auto`. `auto` secures it for HTTPS requests and, by default, for all non-development profiles.
-
-## Validation result
-
-[Direct concept exclusions](../guides/commands.md#exclude-a-direct-concept-rule-edge) affect only concept rules on a matching owner/member edge. They do not bypass Jakarta or model validation or change any HTTP envelope/status policy. Command execution, command validation, one-shot queries, and observable HTTP snapshots still reject blocking feedback from remaining rules. This is not a claim that streaming openings return HTTP 400.
-
-Server-only [`ModelValidator` rules](../guides/commands.md#reuse-model-validation) use this same envelope and severity policy. Blocking feedback returns HTTP 400 for command execution, command validation, one-shot queries, and observable HTTP snapshots; valid inputs keep their existing outcomes. Streaming opening failures retain their existing envelopes: direct SSE sends failed `QueryResult` data on the established HTTP stream, direct WebSocket sends a `Data` frame, and hubs send `Error` messages. Relative model paths are prefixed with the bound node path. Registration adds no manifest, client-validation, or OpenAPI schema fields. Only supplied query arguments are validated, not omitted defaults, infrastructure, or observable result data.
-
-Each result has numeric `severity`, `message`, `members`, optional `state`, `reason`, and optional `reasonDetail`.
-
-| Severity | Wire value |
-| --- | --- |
-| `Unknown` | 0 |
-| `Information` | 1 |
-| `Warning` | 2 |
-| `Error` | 3 |
-
-Reason strings are open for future additions. Current values are `rule`, `concurrencyViolation`, `constraintViolation`, `validatorFailed`, `dependencyUnavailable`, and `malformedRequest`.
+The shared contract describes the `.cratis-identity` cookie. On the JVM its `Secure` attribute
+follows `identity-cookie-secure-policy`: `always`, `never`, or `auto`. `auto` secures it for HTTPS
+requests and, by default, for all non-development profiles.
 
 ## Bounded runtime behavior
 
-The Spring host admits at most `coroutine-parallelism + coroutine-queue-capacity` Arc operations without waiting for a slot; exhaustion fails closed with 503. Command and QUERY bodies are counted while streaming and rejected at the configured byte limit even when `Content-Length` is absent. Request, identity, authentication, development-provider, and observable waits use bounded timeouts.
+The Spring host admits at most `coroutine-parallelism + coroutine-queue-capacity` Arc operations
+without waiting for a slot; exhaustion fails closed with 503 and `Retry-After`. Command and QUERY
+bodies are counted while streaming and rejected with 413 at the configured
+`maximum-request-body-bytes` even when `Content-Length` is absent. Request, identity,
+authentication, development-provider, and observable waits use bounded timeouts.
 
-Observable transports separately bound physical connections, subscriptions per multiplexed connection, outbound frames, inbound WebSocket message bytes, connection lifetime, and retained subscription revision tombstones. Overflow closes or rejects work instead of growing memory without limit. Command execution-scope completion is also independently timeout-bounded so one broken scope cannot prevent best-effort completion of earlier scopes.
+Observable transports separately bound physical connections, subscriptions per multiplexed
+connection, outbound frames, inbound WebSocket message bytes, connection lifetime, and retained
+subscription revision tombstones. Connection capacity exhaustion returns 503 with `Retry-After`;
+SSE subscription exhaustion returns 429. Overflow closes or rejects work instead of growing memory
+without limit. Command execution-scope completion is also independently timeout-bounded so one
+broken scope cannot prevent best-effort completion of earlier scopes.
+
+## Validation and exception conversion on the JVM
+
+Command exceptions implementing
+[`ValidationFailure`](../guides/commands.md#convert-application-exceptions-to-command-validation) with
+a usable payload become validation results at the default command pipeline's ordinary exception
+boundaries, including context/filter failures on `/validate`. Pure blocking validation returns 400
+with empty exception messages and stack trace; ordinary exceptions remain 500 with the existing
+production/development redaction policy. Cancellation never becomes validation feedback. Parser,
+admission, transport timeout, and query exception behavior are unchanged; severity filtering remains
+[stage-specific](../guides/commands.md#convert-application-exceptions-to-command-validation).
+
+[Direct concept exclusions](../guides/commands.md#exclude-a-direct-concept-rule-edge) affect only
+concept rules on a matching owner/member edge. They do not bypass Jakarta or model validation or
+change any HTTP envelope/status policy. Command execution, command validation, one-shot queries, and
+observable HTTP snapshots still reject blocking feedback from remaining rules. This is not a claim
+that streaming openings return HTTP 400.
+
+Server-only [`ModelValidator` rules](../guides/commands.md#reuse-model-validation) use the same
+envelope and severity policy. Streaming opening failures retain their existing envelopes: direct SSE
+sends failed `QueryResult` data on the established HTTP stream, direct WebSocket sends a `Data` frame,
+and hubs send `Error` messages. Relative model paths are prefixed with the bound node path.
+Registration adds no manifest, client-validation, or OpenAPI schema fields. Only supplied query
+arguments are validated, not omitted defaults, infrastructure, or observable result data.
