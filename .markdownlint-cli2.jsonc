@@ -1,6 +1,29 @@
 {
   "config": {
-    "MD013": false
+    "MD013": false,
+    // The JVM pages carry Kotlin/Java language tabs through the same sync-time
+    // <ArcBackendTabs> macro the shared Arc pages use, so the element has to be
+    // allowed here as it already is in Arc's own .markdownlint.json. Listing the
+    // elements rather than switching MD033 off keeps stray HTML an error.
+    "MD033": {
+      "allowed_elements": [
+        "a",
+        "ArcBackendTabs",
+        "Aside",
+        "Badge",
+        "Card",
+        "CardGrid",
+        "Code",
+        "FileTree",
+        "Fragment",
+        "Icon",
+        "LinkButton",
+        "LinkCard",
+        "Steps",
+        "TabItem",
+        "Tabs"
+      ]
+    }
   },
   // Snippet files are code fragments embedded into the shared Arc docs via
   // <ArcBackendTabs>, not standalone pages — they are deliberately headerless.

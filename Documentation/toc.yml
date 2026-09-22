@@ -27,7 +27,7 @@
 - name: Spring Data
   href: guides/spring-data/toc.yml
 - name: Read-model naming
-  href: guides/read-model-naming.md
+  href: guides/read-model-naming.mdx
 - name: Proxy Generation
   href: guides/typescript-proxies.md
 - name: Code Analysis

@@ -493,6 +493,27 @@ IMPORT_ROLES = "import io.cratis.arc.authorization.Roles"
 # listed: an unlisted snippet would silently compile as a bare declaration fragment, and
 # "it compiled because nothing referenced anything" is not a verdict worth having.
 SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
+    "guides/read-model-naming/naming-policy": SnippetContext(
+        prelude="",
+    ),
+    "guides/read-model-naming/default-policy": SnippetContext(
+        kind="member",
+        imports=(
+            "import io.cratis.arc.naming.NamingPolicy",
+            "import io.cratis.arc.springdata.mongodb.DefaultNamingPolicy",
+        ),
+    ),
+    "guides/read-model-naming/override-policy": SnippetContext(
+        imports=(
+            "import io.cratis.arc.naming.NamingPolicy",
+            "import io.cratis.arc.springdata.mongodb.DefaultNamingPolicy",
+            "import org.springframework.context.annotation.Bean",
+            "import org.springframework.context.annotation.Configuration",
+        ),
+        prelude="""
+            class PersonView(val id: String)
+        """,
+    ),
     "scenarios/provide-data-to-a-command/assess-loan": SnippetContext(
         kind="declaration",
         fixtures=("loan",),
@@ -1251,6 +1272,29 @@ JAVA_SCENARIO_HOST = """
 # would silently compile as a bare fragment, and "it compiled because nothing referenced
 # anything" is not a verdict worth having.
 JAVA_SNIPPET_CONTEXTS: dict[str, JavaSnippetContext] = {
+    "guides/read-model-naming/naming-policy": JavaSnippetContext(
+        prelude="",
+    ),
+    "guides/read-model-naming/default-policy": JavaSnippetContext(
+        kind="member",
+        imports=(
+            "import io.cratis.arc.naming.NamingPolicy;",
+            "import io.cratis.arc.springdata.mongodb.DefaultNamingPolicy;",
+        ),
+    ),
+    "guides/read-model-naming/override-policy": JavaSnippetContext(
+        imports=(
+            "import io.cratis.arc.naming.NamingPolicy;",
+            "import io.cratis.arc.springdata.mongodb.DefaultNamingPolicy;",
+            "import org.springframework.context.annotation.Bean;",
+            "import org.springframework.context.annotation.Configuration;",
+        ),
+        prelude="""
+            class PersonView {
+                String id;
+            }
+        """,
+    ),
     "scenarios/provide-data-to-a-command/assess-loan": JavaSnippetContext(
         fixtures=("loan",),
         imports=(JAVA_IMPORT_COMMAND,),
