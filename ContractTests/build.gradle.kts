@@ -37,12 +37,23 @@ configurations[mongoReplicaSetTest.implementationConfigurationName]
 configurations[mongoReplicaSetTest.runtimeOnlyConfigurationName]
     .extendsFrom(configurations.testRuntimeOnly.get())
 
-// Documentation/validate-client-snippets.py generates the Kotlin documentation snippets into
-// src/documentationSnippet/kotlin and compiles them against this classpath, so a snippet on the
-// published site cannot reference an API that does not exist. The source set is deliberately not
-// wired into check or build: it is empty except while that script runs, and keeping it out of the
-// ordinary test source set keeps generated snippets away from the contract tests and the Jupiter
-// declaration checker.
+// Documentation/validate-client-snippets.py generates the documentation snippets into
+// src/documentationSnippet/kotlin and src/documentationSnippet/java and compiles them against this
+// classpath, so a snippet on the published site cannot reference an API that does not exist. The
+// source set is deliberately not wired into check or build: it is empty except while that script
+// runs, and keeping it out of the ordinary test source set keeps generated snippets away from the
+// contract tests and the Jupiter declaration checker.
+//
+// The source set carries both languages. The `java` plugin gives it src/documentationSnippet/java
+// and the compileDocumentationSnippetJava task; the Kotlin plugin gives it
+// src/documentationSnippet/kotlin and compileDocumentationSnippetKotlin, and makes the Java compile
+// run after the Kotlin one against its output. The script drives both tasks. Java snippets are
+// compiled with the root build's -Xlint:all -Werror like every other JavaCompile here, and the
+// generator suppresses only the lint categories a documentation fragment legitimately trips.
+// One source set means one classpath for both languages, so Java snippets reach the same Arc,
+// Spring and Chronicle types the Kotlin ones do; the two sides generate into disjoint package roots
+// so a Kotlin and a Java snippet teaching the same example never declare the same fully qualified
+// name in one compilation.
 val documentationSnippet by sourceSets.creating
 configurations[documentationSnippet.implementationConfigurationName]
     .extendsFrom(configurations.testImplementation.get())
