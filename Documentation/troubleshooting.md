@@ -77,7 +77,7 @@ The command needs a Chronicle event response but has no usable `@CommandKey`. De
 The query's source is a cold `Flow` or `Flow.Publisher` that has not produced a value yet. Either
 back the query with a `MutableStateFlow`/`SubmissionPublisher` (which always has a current value), or
 request `waitForFirstResult=true` on the HTTP snapshot route. See
-[Consume an observable query](guides/queries.md#consume-an-observable-query).
+[Consume an observable query](guides/queries.mdx#consume-an-observable-query).
 
 ### The Chronicle integration fails at startup with `Could not provision event store ... (authorized=false, ...)`
 

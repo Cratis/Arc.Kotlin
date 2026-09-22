@@ -14,79 +14,21 @@ custom `MongoConverter` during lookup.
 
 ### Register concrete scalar pairs
 
-For a concept such as the `TextValue` shown in [Map JPA concepts](concepts-jpa.mdx), the Kotlin pair is:
+For a concept such as the `TextValue` shown in [Map JPA concepts](concepts-jpa.mdx), the pair is:
 
-```kotlin
-@WritingConverter
-class TextWrite : Converter<TextValue, String> {
-    override fun convert(source: TextValue): String = source.value()
-}
-
-@ReadingConverter
-class TextRead : Converter<String, TextValue> {
-    override fun convert(source: String): TextValue = TextValue(source)
-}
-```
-
-The ordinary Java equivalent constructs the record explicitly:
-
-```java
-@WritingConverter
-public class TextWrite implements Converter<TextValue, String> {
-    @Override
-    public String convert(TextValue source) { return source.value(); }
-}
-
-@ReadingConverter
-public class TextRead implements Converter<String, TextValue> {
-    @Override
-    public TextValue convert(String source) { return new TextValue(source); }
-}
-```
+<ArcBackendTabs snippet="guides/spring-data/concepts-mongodb/scalar-converters" variants="kotlin,java" />
 
 Here `Converter` means Spring's `org.springframework.core.convert.converter.Converter`, not the
 JPA annotation. The executable recipes provide equivalent concrete UUID-to-UUID and Long-to-Long
 pairs named `UuidWrite`/`UuidRead` and `LongWrite`/`LongRead`. Do not replace them with an erased
 `Converter<ConceptAs<?>, ?>` or infer constructors reflectively. Install all six together:
 
-```kotlin
-val conversions = MongoCustomConversions.create { adapter ->
-    adapter.registerConverter(UuidWrite())
-    adapter.registerConverter(UuidRead())
-    adapter.registerConverter(TextWrite())
-    adapter.registerConverter(TextRead())
-    adapter.registerConverter(LongWrite())
-    adapter.registerConverter(LongRead())
-}
-```
-
-```java
-var conversions = MongoCustomConversions.create(adapter -> {
-    adapter.registerConverter(new UuidWrite());
-    adapter.registerConverter(new UuidRead());
-    adapter.registerConverter(new TextWrite());
-    adapter.registerConverter(new TextRead());
-    adapter.registerConverter(new LongWrite());
-    adapter.registerConverter(new LongRead());
-});
-```
+<ArcBackendTabs snippet="guides/spring-data/concepts-mongodb/register-conversions" variants="kotlin,java" />
 
 For programmatically owned templates, use that same configuration in both places, in this order
 (the complete `RecipeMongoStore` fixture also owns and closes its client):
 
-```java
-var mappingContext = new MongoMappingContext();
-mappingContext.setSimpleTypeHolder(conversions.getSimpleTypeHolder());
-mappingContext.setInitialEntitySet(Set.of(UuidRow.class, TextRow.class, LongRow.class));
-mappingContext.afterPropertiesSet();
-
-var factory = new SimpleMongoClientDatabaseFactory(client, database);
-var converter = new MappingMongoConverter(new DefaultDbRefResolver(factory), mappingContext);
-converter.setCustomConversions(conversions);
-converter.afterPropertiesSet();
-var template = new MongoTemplate(factory, converter);
-var repository = new MongoRepositoryFactory(template).getRepository(TextRows.class);
-```
+<ArcBackendTabs snippet="guides/spring-data/concepts-mongodb/programmatic-template" variants="kotlin,java" />
 
 Configure the client explicitly with
 `MongoClientSettings.builder().uuidRepresentation(UuidRepresentation.STANDARD)` before building

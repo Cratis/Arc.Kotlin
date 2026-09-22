@@ -48,6 +48,6 @@ Storing a domain concept, routing by tenant and streaming changes each need
 their own setup:
 
 - [Map JPA concepts](concepts-jpa.mdx) — attribute converters and embedded ids.
-- [Map MongoDB concepts](concepts-mongodb.md) — concrete scalar pairs and identifiers.
+- [Map MongoDB concepts](concepts-mongodb.mdx) — concrete scalar pairs and identifiers.
 - [Repositories in queries and commands](repositories.md) — paging, current state, tenant-bound access and transactions.
 - [Observable storage snapshots](observable-snapshots.md) — change streams and JPA notifications.

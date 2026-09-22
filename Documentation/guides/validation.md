@@ -509,7 +509,7 @@ accepted shapes.
 
 The Java model and validator participate here, but the query method is Kotlin. Java query methods
 are static and have no Arc default-argument feature. This walkthrough does not claim an executed
-ordinary-Java shared-query invocation; see [Java queries](queries.md) for the available surface.
+ordinary-Java shared-query invocation; see [Java queries](queries.mdx) for the available surface.
 
 ## Migrate deliberately
 

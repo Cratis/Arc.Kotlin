@@ -14,7 +14,7 @@ description: One precise line per Arc.Kotlin term, cross-referenced to the guide
 - **Command key (`@CommandKey`)** — the property that identifies the command's subject; required for
   a command to return a plain Chronicle event. See [Return an event](../guides/chronicle.md#return-an-event).
 - **Read model** — a class or record annotated `@ReadModel` whose static or companion methods are
-  queries. See [Expose one-shot and observable queries](../guides/queries.md).
+  queries. See [Expose one-shot and observable queries](../guides/queries.mdx).
 - **Query** — a static (Java) or `@JvmStatic` companion (Kotlin) method on a `@ReadModel`. One-shot
   queries return a value; observable queries return `Flow<T>` or `Flow.Publisher<T>`.
 - **Observable query** — a query whose return type is `Flow<T>`/`Flow<List<T>>` or

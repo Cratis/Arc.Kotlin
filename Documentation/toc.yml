@@ -11,7 +11,7 @@
 - name: Command keys
   href: guides/command-keys.mdx
 - name: Queries
-  href: guides/queries.md
+  href: guides/queries.mdx
 - name: Observable queries
   href: guides/observable-queries.md
 - name: Validation
