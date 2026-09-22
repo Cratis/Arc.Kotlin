@@ -9,7 +9,7 @@
 - name: Commands
   href: guides/commands.md
 - name: Command keys
-  href: guides/command-keys.md
+  href: guides/command-keys.mdx
 - name: Queries
   href: guides/queries.md
 - name: Observable queries

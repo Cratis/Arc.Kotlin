@@ -23,7 +23,7 @@ The sample [`run.sh` scripts](https://github.com/Cratis/Arc.Kotlin/blob/main/REA
 A classpath mixes manifests produced by different Arc KSP versions. Rebuild **every** module that
 contributes an Arc manifest — both the producer (the module declaring `@Command`/`@ReadModel` types)
 and every consumer (the module calling `generateArcProxies` against those types) — with the same Arc
-version. See [Configuration reference](reference/configuration.md) for the manifest format and what
+version. See [Configuration reference](reference/configuration.mdx) for the manifest format and what
 changes between versions.
 
 ### Startup fails with "Arc endpoint-options mismatch"

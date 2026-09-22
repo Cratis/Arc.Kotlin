@@ -4,7 +4,7 @@
     - name: Annotations
       href: annotations.md
     - name: Configuration
-      href: configuration.md
+      href: configuration.mdx
     - name: HTTP contract
       href: http-contract.md
     - name: Shared fluent validation

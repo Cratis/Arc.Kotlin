@@ -493,6 +493,43 @@ IMPORT_ROLES = "import io.cratis.arc.authorization.Roles"
 # listed: an unlisted snippet would silently compile as a bare declaration fragment, and
 # "it compiled because nothing referenced anything" is not a verdict worth having.
 SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
+    "reference/configuration/configure-object-mapper": SnippetContext(
+        kind="member",
+        imports=(
+            "import io.cratis.arc.json.ArcObjectMapper",
+            "import tools.jackson.databind.json.JsonMapper",
+        ),
+    ),
+    "guides/command-keys/declared-key": SnippetContext(
+        imports=(
+            IMPORT_COMMAND,
+            "import io.cratis.arc.artifacts.CommandKey",
+            IMPORT_FROM_SERVICES,
+            "import io.cratis.arc.concepts.ConceptAs",
+            "import java.util.UUID",
+        ),
+        prelude="""
+            data class OrderId(private val rawValue: UUID) : ConceptAs<UUID> {
+                override fun value(): UUID = rawValue
+            }
+            data class Address(val line: String, val postcode: String)
+            interface OrderRepository {
+                suspend fun updateAddress(orderId: OrderId, address: Address)
+            }
+        """,
+    ),
+    "guides/command-keys/computed-key": SnippetContext(
+        imports=(
+            IMPORT_COMMAND,
+            "import io.cratis.arc.commands.CommandKeyProvider",
+            IMPORT_FROM_SERVICES,
+        ),
+        prelude="""
+            interface ArchiveService {
+                suspend fun run(tenant: String, year: Int)
+            }
+        """,
+    ),
     "guides/read-model-naming/naming-policy": SnippetContext(
         prelude="",
     ),
@@ -1272,6 +1309,42 @@ JAVA_SCENARIO_HOST = """
 # would silently compile as a bare fragment, and "it compiled because nothing referenced
 # anything" is not a verdict worth having.
 JAVA_SNIPPET_CONTEXTS: dict[str, JavaSnippetContext] = {
+    "reference/configuration/configure-object-mapper": JavaSnippetContext(
+        kind="member",
+        imports=(
+            "import io.cratis.arc.json.ArcObjectMapper;",
+            "import tools.jackson.databind.ObjectMapper;",
+            "import tools.jackson.databind.json.JsonMapper;",
+        ),
+    ),
+    "guides/command-keys/declared-key": JavaSnippetContext(
+        imports=(
+            "import io.cratis.arc.artifacts.Command;",
+            "import io.cratis.arc.artifacts.CommandKey;",
+            "import io.cratis.arc.artifacts.FromServices;",
+            "import io.cratis.arc.concepts.ConceptAs;",
+            "import java.util.UUID;",
+        ),
+        prelude="""
+            record OrderId(UUID value) implements ConceptAs<UUID> {}
+            record Address(String line, String postcode) {}
+            interface OrderRepository {
+                void updateAddress(OrderId orderId, Address address);
+            }
+        """,
+    ),
+    "guides/command-keys/computed-key": JavaSnippetContext(
+        imports=(
+            "import io.cratis.arc.artifacts.Command;",
+            "import io.cratis.arc.artifacts.FromServices;",
+            "import io.cratis.arc.commands.CommandKeyProvider;",
+        ),
+        prelude="""
+            interface ArchiveService {
+                void run(String tenant, int year);
+            }
+        """,
+    ),
     "guides/read-model-naming/naming-policy": JavaSnippetContext(
         prelude="",
     ),

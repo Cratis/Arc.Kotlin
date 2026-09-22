@@ -6,7 +6,7 @@ description: Look up Arc annotations, configuration, HTTP contracts, and current
 ## Reference sections
 
 - [Annotations](annotations.md)
-- [Configuration](configuration.md)
+- [Configuration](configuration.mdx)
 - [HTTP contract](http-contract.md)
 - [Shared fluent validation](validation.md)
 - [TypeScript proxy options matrix](typescript-proxy-options.md)
