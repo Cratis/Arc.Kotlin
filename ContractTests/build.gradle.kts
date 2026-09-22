@@ -82,10 +82,12 @@ dependencies {
     add(chronicleRealKernelTest.runtimeOnlyConfigurationName, "org.junit.platform:junit-platform-launcher")
 
     // The snippets reach further than the ordinary test classpath: Spring Data Mongo for
-    // MongoObservableQuery and Criteria, kotlin-test for the assertions a documented spec uses.
-    // :Source, :Testing (through :Integrations:Chronicle's compileOnlyApi), :Integrations:SpringBoot
-    // and JUnit are inherited from testImplementation.
+    // MongoObservableQuery and Criteria, Spring Data JPA for the concept-mapping recipes
+    // (AttributeConverter, @Embeddable, @EmbeddedId), kotlin-test for the assertions a documented
+    // spec uses. :Source, :Testing (through :Integrations:Chronicle's compileOnlyApi),
+    // :Integrations:SpringBoot and JUnit are inherited from testImplementation.
     add(documentationSnippet.implementationConfigurationName, project(":Integrations:SpringDataMongo"))
+    add(documentationSnippet.implementationConfigurationName, project(":Integrations:SpringDataJpa"))
     // kotlin("test") rather than a pinned coordinate, so this tracks the Kotlin plugin
     // version applied above instead of becoming a second place to remember to bump.
     add(documentationSnippet.implementationConfigurationName, kotlin("test"))

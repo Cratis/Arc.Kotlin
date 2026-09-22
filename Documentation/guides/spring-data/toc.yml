@@ -1,9 +1,9 @@
 - name: Overview
   href: index.md
 - name: Map JPA concepts
-  href: concepts-jpa.md
+  href: concepts-jpa.mdx
 - name: Map MongoDB concepts
-  href: concepts-mongodb.md
+  href: concepts-mongodb.mdx
 - name: Repositories in queries and commands
   href: repositories.md
 - name: Observable storage snapshots

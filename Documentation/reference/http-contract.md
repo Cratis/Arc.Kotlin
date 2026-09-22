@@ -111,7 +111,7 @@ scalar serializer. Prefer GET until upstream serialization uses the typed serial
 ## Observable transport lifecycle on the JVM
 
 Default observable emission guards reconstruct
-[bounded per-dispatch argument copies](../guides/queries.md#bound-emission-guard-arguments).
+[bounded per-dispatch argument copies](../guides/queries.mdx#bound-emission-guard-arguments).
 Unsupported or uncopyable guarded arguments terminate with the existing unauthorized result before
 any guard executes; this is behavioral tightening, not a wire-schema change. No guards means no
 argument-copy validation. Query opening and result-data ownership are unchanged.

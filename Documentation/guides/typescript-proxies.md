@@ -152,7 +152,7 @@ All five endpoint-option flags mirror the Gradle extension settings:
 
 A manifest query with `OBSERVABLE` transport generates an `ObservableQueryFor` class. Enumerable queries include React hooks for observable snapshots, suspense, paging, sorting, and change streams; single-model queries include observable and suspense hooks. Generated `when` helpers conditionally subscribe, and client query parameters retain validation and HTTP preference metadata. Infrastructure-owned service, `QueryRequest`, and `QueryContext` parameters are omitted from one-shot and observable parameter interfaces, descriptors, required-argument lists, properties, validators, sorting helpers, React hooks, and imports.
 
-The generated clients use the Spring host's direct or multiplexed observable transports provided by `@cratis/arc`. See [Expose one-shot and observable queries](queries.md) for the HTTP, SSE, and WebSocket contracts.
+The generated clients use the Spring host's direct or multiplexed observable transports provided by `@cratis/arc`. See [Expose one-shot and observable queries](queries.mdx) for the HTTP, SSE, and WebSocket contracts.
 
 ## Sort by returned-row fields
 

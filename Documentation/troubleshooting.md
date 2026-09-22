@@ -23,7 +23,7 @@ The sample [`run.sh` scripts](https://github.com/Cratis/Arc.Kotlin/blob/main/REA
 A classpath mixes manifests produced by different Arc KSP versions. Rebuild **every** module that
 contributes an Arc manifest — both the producer (the module declaring `@Command`/`@ReadModel` types)
 and every consumer (the module calling `generateArcProxies` against those types) — with the same Arc
-version. See [Configuration reference](reference/configuration.md) for the manifest format and what
+version. See [Configuration reference](reference/configuration.mdx) for the manifest format and what
 changes between versions.
 
 ### Startup fails with "Arc endpoint-options mismatch"
@@ -77,7 +77,7 @@ The command needs a Chronicle event response but has no usable `@CommandKey`. De
 The query's source is a cold `Flow` or `Flow.Publisher` that has not produced a value yet. Either
 back the query with a `MutableStateFlow`/`SubmissionPublisher` (which always has a current value), or
 request `waitForFirstResult=true` on the HTTP snapshot route. See
-[Consume an observable query](guides/queries.md#consume-an-observable-query).
+[Consume an observable query](guides/queries.mdx#consume-an-observable-query).
 
 ### The Chronicle integration fails at startup with `Could not provision event store ... (authorized=false, ...)`
 

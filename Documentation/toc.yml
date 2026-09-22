@@ -9,9 +9,9 @@
 - name: Commands
   href: guides/commands.md
 - name: Command keys
-  href: guides/command-keys.md
+  href: guides/command-keys.mdx
 - name: Queries
-  href: guides/queries.md
+  href: guides/queries.mdx
 - name: Observable queries
   href: guides/observable-queries.md
 - name: Validation
@@ -23,11 +23,11 @@
 - name: Pipeline filters
   href: guides/pipeline-filters.md
 - name: Execution scopes
-  href: guides/execution-scopes.md
+  href: guides/execution-scopes.mdx
 - name: Spring Data
   href: guides/spring-data/toc.yml
 - name: Read-model naming
-  href: guides/read-model-naming.md
+  href: guides/read-model-naming.mdx
 - name: Proxy Generation
   href: guides/typescript-proxies.md
 - name: Code Analysis

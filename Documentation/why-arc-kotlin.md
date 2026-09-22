@@ -67,4 +67,4 @@ See [What Arc.Kotlin owns](https://github.com/Cratis/Arc.Kotlin/blob/main/README
   [in Java](get-started/java.md) — a runnable command and query in about five minutes.
 - [Coming from Spring MVC](coming-from-spring-mvc.md) — map familiar `@RestController` patterns onto
   Arc's model-bound commands and queries.
-- [Commands](guides/commands.md), [queries](guides/queries.md) and [validation](guides/validation.md) cover the everyday work.
+- [Commands](guides/commands.md), [queries](guides/queries.mdx) and [validation](guides/validation.md) cover the everyday work.

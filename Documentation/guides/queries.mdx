@@ -7,21 +7,7 @@ description: Add model-bound read-model queries with GET, RFC QUERY, HTTP snapsh
 
 Annotate the result model with `@ReadModel`. Put query operations on its Kotlin companion object with `@JvmStatic`, or use Java static methods. Mark dependency parameters with `@FromServices`; caller arguments remain unannotated. A query may also declare exact non-null `QueryRequest` and `QueryContext` parameters in any positions. KSP generates a reflection-free `QueryPerformer` that supplies service, request, and context parameters from the execution context while preserving declaration order.
 
-```kotlin
-@ReadModel
-@AllowAnonymous
-data class TaskView(val id: String, val title: String) {
-    companion object {
-        @JvmStatic
-        @Path("/api/tasks/by-id")
-        suspend fun byId(id: String, @FromServices repository: TaskRepository): TaskView? = repository.byId(id)
-
-        @JvmStatic
-        @Path("/api/tasks")
-        fun all(@FromServices repository: TaskRepository): List<TaskView> = repository.all()
-    }
-}
-```
+<ArcBackendTabs snippet="guides/queries/paths-and-services" variants="kotlin,java" />
 
 Java query methods may return a value or `CompletionStage<T>`. Generated performers await asynchronous results inside Arc's request coroutine context. KSP ignores only non-query Kotlin companion and Java static helper methods whose return does not contain the enclosing read-model shape. Custom instance methods remain invalid on an `@ReadModel` and stop compilation. Adding `@Path`, `@QueryHttpMethod`, or `@QueryTransport` explicitly declares such a method as a query, so an invalid annotated return still fails compilation. Public, non-generic, non-overloaded query requirements are unchanged.
 

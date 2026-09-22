@@ -249,14 +249,6 @@ Jackson annotations are the deliberate exception: Jackson 3 still uses `com.fast
 
 `ArcObjectMapper.configure(mapper)` no longer mutates its argument. Jackson 3 mappers are immutable, so capture the configured copy:
 
-```kotlin
-val mapper = ArcObjectMapper.configure(JsonMapper.builder().build())
-```
-
-Java follows the same contract:
-
-```java
-ObjectMapper mapper = ArcObjectMapper.configure(JsonMapper.builder().build());
-```
+<ArcBackendTabs snippet="reference/configuration/configure-object-mapper" variants="kotlin,java" />
 
 The mapper must be a JSON `JsonMapper`; Jackson 3 does not permit a generic mapper to be repurposed for another format.

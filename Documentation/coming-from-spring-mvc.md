@@ -80,7 +80,7 @@ data class TaskView(val id: String, val title: String) {
 
 `@FromServices` exists precisely to distinguish `repository` — a dependency — from an unannotated
 parameter, which a caller supplies as a query argument. Without a query taking caller arguments,
-every parameter here happens to be a dependency; see [Add a query to a read model](guides/queries.md#add-a-query-to-a-read-model)
+every parameter here happens to be a dependency; see [Add a query to a read model](guides/queries.mdx#add-a-query-to-a-read-model)
 for a query that takes both.
 
 ## What does not change
@@ -98,5 +98,5 @@ for a query that takes both.
 - [Build your first Arc application in Kotlin](get-started/index.md) or
   [in Java](get-started/java.md).
 - [Create and validate commands](guides/commands.md) and
-  [Expose one-shot and observable queries](guides/queries.md) for the complete contract.
+  [Expose one-shot and observable queries](guides/queries.mdx) for the complete contract.
 - [Why Arc for Kotlin and Java](why-arc-kotlin.md) for the problem this all removes.

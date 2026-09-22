@@ -493,6 +493,205 @@ IMPORT_ROLES = "import io.cratis.arc.authorization.Roles"
 # listed: an unlisted snippet would silently compile as a bare declaration fragment, and
 # "it compiled because nothing referenced anything" is not a verdict worth having.
 SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
+    "guides/queries/paths-and-services": SnippetContext(
+        imports=(
+            IMPORT_READ_MODEL,
+            IMPORT_FROM_SERVICES,
+            "import io.cratis.arc.authorization.AllowAnonymous",
+            "import io.cratis.arc.queries.Path",
+        ),
+        prelude="""
+            interface TaskRepository {
+                suspend fun byId(id: String): TaskView?
+                fun all(): List<TaskView>
+            }
+        """,
+    ),
+    "guides/spring-data/concepts-mongodb/scalar-converters": SnippetContext(
+        imports=(
+            "import io.cratis.arc.concepts.ConceptAs",
+            "import org.springframework.core.convert.converter.Converter",
+            "import org.springframework.data.convert.ReadingConverter",
+            "import org.springframework.data.convert.WritingConverter",
+        ),
+        prelude="""
+            data class TextValue(private val scalar: String) : ConceptAs<String> {
+                override fun value(): String = scalar
+            }
+        """,
+    ),
+    "guides/spring-data/concepts-mongodb/register-conversions": SnippetContext(
+        kind="member",
+        imports=(
+            "import io.cratis.arc.concepts.ConceptAs",
+            "import org.springframework.core.convert.converter.Converter",
+            "import org.springframework.data.convert.ReadingConverter",
+            "import org.springframework.data.convert.WritingConverter",
+            "import org.springframework.data.mongodb.core.convert.MongoCustomConversions",
+        ),
+        prelude="""
+            data class TextValue(private val scalar: String) : ConceptAs<String> {
+                override fun value(): String = scalar
+            }
+
+            @WritingConverter
+            class UuidWrite : Converter<java.util.UUID, java.util.UUID> {
+                override fun convert(source: java.util.UUID): java.util.UUID = source
+            }
+            @ReadingConverter
+            class UuidRead : Converter<java.util.UUID, java.util.UUID> {
+                override fun convert(source: java.util.UUID): java.util.UUID = source
+            }
+            @WritingConverter
+            class TextWrite : Converter<TextValue, String> {
+                override fun convert(source: TextValue): String = source.value()
+            }
+            @ReadingConverter
+            class TextRead : Converter<String, TextValue> {
+                override fun convert(source: String): TextValue = TextValue(source)
+            }
+            @WritingConverter
+            class LongWrite : Converter<Long, Long> {
+                override fun convert(source: Long): Long = source
+            }
+            @ReadingConverter
+            class LongRead : Converter<Long, Long> {
+                override fun convert(source: Long): Long = source
+            }
+        """,
+    ),
+    "guides/spring-data/concepts-mongodb/programmatic-template": SnippetContext(
+        imports=(
+            "import com.mongodb.client.MongoClient",
+            "import org.springframework.data.mongodb.core.MongoTemplate",
+            "import org.springframework.data.mongodb.core.SimpleMongoClientDatabaseFactory",
+            "import org.springframework.data.mongodb.core.convert.DefaultDbRefResolver",
+            "import org.springframework.data.mongodb.core.convert.MappingMongoConverter",
+            "import org.springframework.data.mongodb.core.convert.MongoCustomConversions",
+            "import org.springframework.data.mongodb.core.mapping.MongoMappingContext",
+            "import org.springframework.data.mongodb.repository.MongoRepository",
+            "import org.springframework.data.mongodb.repository.support.MongoRepositoryFactory",
+        ),
+        prelude="""
+            class UuidRow
+            class TextRow
+            class LongRow
+            interface TextRows : MongoRepository<TextRow, String>
+        """,
+    ),
+    "guides/spring-data/concepts-jpa/attribute-converter": SnippetContext(
+        imports=(
+            "import io.cratis.arc.concepts.ConceptAs",
+            "import jakarta.persistence.AttributeConverter",
+            "import jakarta.persistence.Converter",
+        ),
+    ),
+    "guides/spring-data/concepts-jpa/embedded-id": SnippetContext(
+        imports=(
+            "import io.cratis.arc.artifacts.ReadModel",
+            "import io.cratis.arc.concepts.ConceptAs",
+            "import jakarta.persistence.AttributeConverter",
+            "import jakarta.persistence.AttributeOverride",
+            "import jakarta.persistence.Column",
+            "import jakarta.persistence.Convert",
+            "import jakarta.persistence.Converter",
+            "import jakarta.persistence.Embeddable",
+            "import jakarta.persistence.EmbeddedId",
+            "import jakarta.persistence.Entity",
+            "import java.io.Serializable",
+            "import java.util.UUID",
+        ),
+        prelude="""
+            data class TextValue(private val scalar: String) : ConceptAs<String> {
+                override fun value(): String = scalar
+            }
+
+            @Converter(autoApply = false)
+            class TextConverter : AttributeConverter<TextValue, String> {
+                override fun convertToDatabaseColumn(attribute: TextValue?): String? = attribute?.value()
+                override fun convertToEntityAttribute(dbData: String?): TextValue? = dbData?.let(::TextValue)
+            }
+        """,
+    ),
+    "guides/execution-scopes/contract": SnippetContext(
+        imports=(
+            IMPORT_COMMAND_CONTEXT,
+            "import io.cratis.arc.results.CommandResult",
+        ),
+    ),
+    "guides/execution-scopes/register": SnippetContext(
+        imports=(
+            IMPORT_COMMAND_CONTEXT,
+            IMPORT_COMPONENT,
+            "import io.cratis.arc.commands.CommandExecutionScope",
+            "import io.cratis.arc.results.CommandResult",
+        ),
+        prelude="""
+            interface UnitOfWork {
+                fun begin()
+                fun commit()
+                fun rollback()
+            }
+        """,
+    ),
+    "reference/configuration/configure-object-mapper": SnippetContext(
+        kind="member",
+        imports=(
+            "import io.cratis.arc.json.ArcObjectMapper",
+            "import tools.jackson.databind.json.JsonMapper",
+        ),
+    ),
+    "guides/command-keys/declared-key": SnippetContext(
+        imports=(
+            IMPORT_COMMAND,
+            "import io.cratis.arc.artifacts.CommandKey",
+            IMPORT_FROM_SERVICES,
+            "import io.cratis.arc.concepts.ConceptAs",
+            "import java.util.UUID",
+        ),
+        prelude="""
+            data class OrderId(private val rawValue: UUID) : ConceptAs<UUID> {
+                override fun value(): UUID = rawValue
+            }
+            data class Address(val line: String, val postcode: String)
+            interface OrderRepository {
+                suspend fun updateAddress(orderId: OrderId, address: Address)
+            }
+        """,
+    ),
+    "guides/command-keys/computed-key": SnippetContext(
+        imports=(
+            IMPORT_COMMAND,
+            "import io.cratis.arc.commands.CommandKeyProvider",
+            IMPORT_FROM_SERVICES,
+        ),
+        prelude="""
+            interface ArchiveService {
+                suspend fun run(tenant: String, year: Int)
+            }
+        """,
+    ),
+    "guides/read-model-naming/naming-policy": SnippetContext(
+        prelude="",
+    ),
+    "guides/read-model-naming/default-policy": SnippetContext(
+        kind="member",
+        imports=(
+            "import io.cratis.arc.naming.NamingPolicy",
+            "import io.cratis.arc.springdata.mongodb.DefaultNamingPolicy",
+        ),
+    ),
+    "guides/read-model-naming/override-policy": SnippetContext(
+        imports=(
+            "import io.cratis.arc.naming.NamingPolicy",
+            "import io.cratis.arc.springdata.mongodb.DefaultNamingPolicy",
+            "import org.springframework.context.annotation.Bean",
+            "import org.springframework.context.annotation.Configuration",
+        ),
+        prelude="""
+            class PersonView(val id: String)
+        """,
+    ),
     "scenarios/provide-data-to-a-command/assess-loan": SnippetContext(
         kind="declaration",
         fixtures=("loan",),
@@ -1251,6 +1450,211 @@ JAVA_SCENARIO_HOST = """
 # would silently compile as a bare fragment, and "it compiled because nothing referenced
 # anything" is not a verdict worth having.
 JAVA_SNIPPET_CONTEXTS: dict[str, JavaSnippetContext] = {
+    "guides/queries/paths-and-services": JavaSnippetContext(
+        imports=(
+            "import io.cratis.arc.artifacts.FromServices;",
+            "import io.cratis.arc.artifacts.ReadModel;",
+            "import io.cratis.arc.authorization.AllowAnonymous;",
+            "import io.cratis.arc.queries.Path;",
+            "import java.util.List;",
+        ),
+        prelude="""
+            interface TaskRepository {
+                TaskView byId(String id);
+                List<TaskView> all();
+            }
+        """,
+    ),
+    "guides/spring-data/concepts-mongodb/scalar-converters": JavaSnippetContext(
+        imports=(
+            "import io.cratis.arc.concepts.ConceptAs;",
+            "import org.springframework.core.convert.converter.Converter;",
+            "import org.springframework.data.convert.ReadingConverter;",
+            "import org.springframework.data.convert.WritingConverter;",
+        ),
+        prelude="""
+            record TextValue(String value) implements ConceptAs<String> { }
+        """,
+    ),
+    "guides/spring-data/concepts-mongodb/register-conversions": JavaSnippetContext(
+        kind="member",
+        imports=(
+            "import io.cratis.arc.concepts.ConceptAs;",
+            "import org.springframework.core.convert.converter.Converter;",
+            "import org.springframework.data.convert.ReadingConverter;",
+            "import org.springframework.data.convert.WritingConverter;",
+            "import org.springframework.data.mongodb.core.convert.MongoCustomConversions;",
+        ),
+        prelude="""
+            record TextValue(String value) implements ConceptAs<String> { }
+
+            @WritingConverter
+            class UuidWrite implements Converter<java.util.UUID, java.util.UUID> {
+                @Override public java.util.UUID convert(java.util.UUID source) { return source; }
+            }
+            @ReadingConverter
+            class UuidRead implements Converter<java.util.UUID, java.util.UUID> {
+                @Override public java.util.UUID convert(java.util.UUID source) { return source; }
+            }
+            @WritingConverter
+            class TextWrite implements Converter<TextValue, String> {
+                @Override public String convert(TextValue source) { return source.value(); }
+            }
+            @ReadingConverter
+            class TextRead implements Converter<String, TextValue> {
+                @Override public TextValue convert(String source) { return new TextValue(source); }
+            }
+            @WritingConverter
+            class LongWrite implements Converter<Long, Long> {
+                @Override public Long convert(Long source) { return source; }
+            }
+            @ReadingConverter
+            class LongRead implements Converter<Long, Long> {
+                @Override public Long convert(Long source) { return source; }
+            }
+        """,
+    ),
+    "guides/spring-data/concepts-mongodb/programmatic-template": JavaSnippetContext(
+        imports=(
+            "import com.mongodb.client.MongoClient;",
+            "import java.util.Set;",
+            "import org.springframework.data.mongodb.core.MongoTemplate;",
+            "import org.springframework.data.mongodb.core.SimpleMongoClientDatabaseFactory;",
+            "import org.springframework.data.mongodb.core.convert.DefaultDbRefResolver;",
+            "import org.springframework.data.mongodb.core.convert.MappingMongoConverter;",
+            "import org.springframework.data.mongodb.core.convert.MongoCustomConversions;",
+            "import org.springframework.data.mongodb.core.mapping.MongoMappingContext;",
+            "import org.springframework.data.mongodb.repository.MongoRepository;",
+            "import org.springframework.data.mongodb.repository.support.MongoRepositoryFactory;",
+        ),
+        prelude="""
+            class UuidRow { }
+            class TextRow { }
+            class LongRow { }
+            interface TextRows extends MongoRepository<TextRow, String> { }
+        """,
+    ),
+    "guides/spring-data/concepts-jpa/attribute-converter": JavaSnippetContext(
+        imports=(
+            "import io.cratis.arc.concepts.ConceptAs;",
+            "import jakarta.persistence.AttributeConverter;",
+            "import jakarta.persistence.Converter;",
+            "import java.util.Objects;",
+        ),
+    ),
+    "guides/spring-data/concepts-jpa/embedded-id": JavaSnippetContext(
+        imports=(
+            "import io.cratis.arc.artifacts.ReadModel;",
+            "import io.cratis.arc.concepts.ConceptAs;",
+            "import jakarta.persistence.AttributeConverter;",
+            "import jakarta.persistence.AttributeOverride;",
+            "import jakarta.persistence.Column;",
+            "import jakarta.persistence.Convert;",
+            "import jakarta.persistence.Converter;",
+            "import jakarta.persistence.Embeddable;",
+            "import jakarta.persistence.EmbeddedId;",
+            "import jakarta.persistence.Entity;",
+            "import java.io.Serializable;",
+            "import java.util.UUID;",
+        ),
+        prelude="""
+            record TextValue(String value) implements ConceptAs<String> { }
+
+            @Converter(autoApply = false)
+            class TextConverter implements AttributeConverter<TextValue, String> {
+                @Override
+                public String convertToDatabaseColumn(TextValue attribute) {
+                    return attribute == null ? null : attribute.value();
+                }
+
+                @Override
+                public TextValue convertToEntityAttribute(String dbData) {
+                    return dbData == null ? null : new TextValue(dbData);
+                }
+            }
+        """,
+    ),
+    "guides/execution-scopes/contract": JavaSnippetContext(
+        imports=(
+            "import io.cratis.arc.commands.CommandContext;",
+            "import io.cratis.arc.results.CommandResult;",
+            "import java.util.concurrent.CompletionStage;",
+        ),
+    ),
+    "guides/execution-scopes/register": JavaSnippetContext(
+        imports=(
+            "import io.cratis.arc.commands.CommandContext;",
+            "import io.cratis.arc.java.BlockingCommandExecutionScope;",
+            "import io.cratis.arc.results.CommandResult;",
+            "import org.springframework.stereotype.Component;",
+        ),
+        prelude="""
+            interface UnitOfWork {
+                void begin();
+                void commit();
+                void rollback();
+            }
+        """,
+    ),
+    "reference/configuration/configure-object-mapper": JavaSnippetContext(
+        kind="member",
+        imports=(
+            "import io.cratis.arc.json.ArcObjectMapper;",
+            "import tools.jackson.databind.ObjectMapper;",
+            "import tools.jackson.databind.json.JsonMapper;",
+        ),
+    ),
+    "guides/command-keys/declared-key": JavaSnippetContext(
+        imports=(
+            "import io.cratis.arc.artifacts.Command;",
+            "import io.cratis.arc.artifacts.CommandKey;",
+            "import io.cratis.arc.artifacts.FromServices;",
+            "import io.cratis.arc.concepts.ConceptAs;",
+            "import java.util.UUID;",
+        ),
+        prelude="""
+            record OrderId(UUID value) implements ConceptAs<UUID> {}
+            record Address(String line, String postcode) {}
+            interface OrderRepository {
+                void updateAddress(OrderId orderId, Address address);
+            }
+        """,
+    ),
+    "guides/command-keys/computed-key": JavaSnippetContext(
+        imports=(
+            "import io.cratis.arc.artifacts.Command;",
+            "import io.cratis.arc.artifacts.FromServices;",
+            "import io.cratis.arc.commands.CommandKeyProvider;",
+        ),
+        prelude="""
+            interface ArchiveService {
+                void run(String tenant, int year);
+            }
+        """,
+    ),
+    "guides/read-model-naming/naming-policy": JavaSnippetContext(
+        prelude="",
+    ),
+    "guides/read-model-naming/default-policy": JavaSnippetContext(
+        kind="member",
+        imports=(
+            "import io.cratis.arc.naming.NamingPolicy;",
+            "import io.cratis.arc.springdata.mongodb.DefaultNamingPolicy;",
+        ),
+    ),
+    "guides/read-model-naming/override-policy": JavaSnippetContext(
+        imports=(
+            "import io.cratis.arc.naming.NamingPolicy;",
+            "import io.cratis.arc.springdata.mongodb.DefaultNamingPolicy;",
+            "import org.springframework.context.annotation.Bean;",
+            "import org.springframework.context.annotation.Configuration;",
+        ),
+        prelude="""
+            class PersonView {
+                String id;
+            }
+        """,
+    ),
     "scenarios/provide-data-to-a-command/assess-loan": JavaSnippetContext(
         fixtures=("loan",),
         imports=(JAVA_IMPORT_COMMAND,),

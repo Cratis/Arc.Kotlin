@@ -10,17 +10,7 @@ route what the command produces.
 
 You tell it by marking the identifying property with `@CommandKey`.
 
-```kotlin
-@Command
-data class ChangeShippingAddress(
-    @CommandKey val orderId: OrderId,
-    val address: Address
-) {
-    suspend fun handle(@FromServices orders: OrderRepository) {
-        orders.updateAddress(orderId, address)
-    }
-}
-```
+<ArcBackendTabs snippet="guides/command-keys/declared-key" variants="kotlin,java" />
 
 A command without a key is perfectly valid — a command that creates something has
 nothing to identify yet.
@@ -41,16 +31,7 @@ properties, and Java records alike.
 When the key is not a single declared property — it is derived from two of them,
 or comes from somewhere else on the command — implement `CommandKeyProvider`:
 
-```kotlin
-@Command
-class ArchiveTenantData(val tenant: String, val year: Int) : CommandKeyProvider {
-    override fun commandKey(): Any = "$tenant/$year"
-
-    suspend fun handle(@FromServices archive: ArchiveService) {
-        archive.run(tenant, year)
-    }
-}
-```
+<ArcBackendTabs snippet="guides/command-keys/computed-key" variants="kotlin,java" />
 
 `CommandKeyProvider` is a `fun interface` with a single `commandKey()` method
 returning `Any?`, so a Java record or class implements it without ceremony. From
