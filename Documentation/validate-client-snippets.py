@@ -493,6 +493,61 @@ IMPORT_ROLES = "import io.cratis.arc.authorization.Roles"
 # listed: an unlisted snippet would silently compile as a bare declaration fragment, and
 # "it compiled because nothing referenced anything" is not a verdict worth having.
 SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
+    "guides/spring-data/concepts-jpa/attribute-converter": SnippetContext(
+        imports=(
+            "import io.cratis.arc.concepts.ConceptAs",
+            "import jakarta.persistence.AttributeConverter",
+            "import jakarta.persistence.Converter",
+        ),
+    ),
+    "guides/spring-data/concepts-jpa/embedded-id": SnippetContext(
+        imports=(
+            "import io.cratis.arc.artifacts.ReadModel",
+            "import io.cratis.arc.concepts.ConceptAs",
+            "import jakarta.persistence.AttributeConverter",
+            "import jakarta.persistence.AttributeOverride",
+            "import jakarta.persistence.Column",
+            "import jakarta.persistence.Convert",
+            "import jakarta.persistence.Converter",
+            "import jakarta.persistence.Embeddable",
+            "import jakarta.persistence.EmbeddedId",
+            "import jakarta.persistence.Entity",
+            "import java.io.Serializable",
+            "import java.util.UUID",
+        ),
+        prelude="""
+            data class TextValue(private val scalar: String) : ConceptAs<String> {
+                override fun value(): String = scalar
+            }
+
+            @Converter(autoApply = false)
+            class TextConverter : AttributeConverter<TextValue, String> {
+                override fun convertToDatabaseColumn(attribute: TextValue?): String? = attribute?.value()
+                override fun convertToEntityAttribute(dbData: String?): TextValue? = dbData?.let(::TextValue)
+            }
+        """,
+    ),
+    "guides/execution-scopes/contract": SnippetContext(
+        imports=(
+            IMPORT_COMMAND_CONTEXT,
+            "import io.cratis.arc.results.CommandResult",
+        ),
+    ),
+    "guides/execution-scopes/register": SnippetContext(
+        imports=(
+            IMPORT_COMMAND_CONTEXT,
+            IMPORT_COMPONENT,
+            "import io.cratis.arc.commands.CommandExecutionScope",
+            "import io.cratis.arc.results.CommandResult",
+        ),
+        prelude="""
+            interface UnitOfWork {
+                fun begin()
+                fun commit()
+                fun rollback()
+            }
+        """,
+    ),
     "reference/configuration/configure-object-mapper": SnippetContext(
         kind="member",
         imports=(
@@ -1309,6 +1364,68 @@ JAVA_SCENARIO_HOST = """
 # would silently compile as a bare fragment, and "it compiled because nothing referenced
 # anything" is not a verdict worth having.
 JAVA_SNIPPET_CONTEXTS: dict[str, JavaSnippetContext] = {
+    "guides/spring-data/concepts-jpa/attribute-converter": JavaSnippetContext(
+        imports=(
+            "import io.cratis.arc.concepts.ConceptAs;",
+            "import jakarta.persistence.AttributeConverter;",
+            "import jakarta.persistence.Converter;",
+            "import java.util.Objects;",
+        ),
+    ),
+    "guides/spring-data/concepts-jpa/embedded-id": JavaSnippetContext(
+        imports=(
+            "import io.cratis.arc.artifacts.ReadModel;",
+            "import io.cratis.arc.concepts.ConceptAs;",
+            "import jakarta.persistence.AttributeConverter;",
+            "import jakarta.persistence.AttributeOverride;",
+            "import jakarta.persistence.Column;",
+            "import jakarta.persistence.Convert;",
+            "import jakarta.persistence.Converter;",
+            "import jakarta.persistence.Embeddable;",
+            "import jakarta.persistence.EmbeddedId;",
+            "import jakarta.persistence.Entity;",
+            "import java.io.Serializable;",
+            "import java.util.UUID;",
+        ),
+        prelude="""
+            record TextValue(String value) implements ConceptAs<String> { }
+
+            @Converter(autoApply = false)
+            class TextConverter implements AttributeConverter<TextValue, String> {
+                @Override
+                public String convertToDatabaseColumn(TextValue attribute) {
+                    return attribute == null ? null : attribute.value();
+                }
+
+                @Override
+                public TextValue convertToEntityAttribute(String dbData) {
+                    return dbData == null ? null : new TextValue(dbData);
+                }
+            }
+        """,
+    ),
+    "guides/execution-scopes/contract": JavaSnippetContext(
+        imports=(
+            "import io.cratis.arc.commands.CommandContext;",
+            "import io.cratis.arc.results.CommandResult;",
+            "import java.util.concurrent.CompletionStage;",
+        ),
+    ),
+    "guides/execution-scopes/register": JavaSnippetContext(
+        imports=(
+            "import io.cratis.arc.commands.CommandContext;",
+            "import io.cratis.arc.java.BlockingCommandExecutionScope;",
+            "import io.cratis.arc.results.CommandResult;",
+            "import org.springframework.stereotype.Component;",
+        ),
+        prelude="""
+            interface UnitOfWork {
+                void begin();
+                void commit();
+                void rollback();
+            }
+        """,
+    ),
     "reference/configuration/configure-object-mapper": JavaSnippetContext(
         kind="member",
         imports=(

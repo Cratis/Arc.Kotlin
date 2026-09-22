@@ -23,7 +23,7 @@
 - name: Pipeline filters
   href: guides/pipeline-filters.md
 - name: Execution scopes
-  href: guides/execution-scopes.md
+  href: guides/execution-scopes.mdx
 - name: Spring Data
   href: guides/spring-data/toc.yml
 - name: Read-model naming

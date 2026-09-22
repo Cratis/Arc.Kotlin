@@ -16,13 +16,7 @@ around the command rather than inside it.
 
 ## The contract
 
-```kotlin
-public interface CommandExecutionScope {
-    fun begin(context: CommandContext)
-
-    suspend fun complete(context: CommandContext, result: CommandResult<*>): CommandResult<*>?
-}
-```
+<ArcBackendTabs snippet="guides/execution-scopes/contract" variants="kotlin,java" />
 
 `begin` is synchronous and runs before filters and the handler.
 
@@ -35,23 +29,7 @@ began are completed.
 
 Declare it as a bean. Arc collects every `CommandExecutionScope` in the context.
 
-```kotlin
-@Component
-class UnitOfWorkScope(private val entityManager: EntityManager) : CommandExecutionScope {
-    override fun begin(context: CommandContext) {
-        entityManager.transaction.begin()
-    }
-
-    override suspend fun complete(context: CommandContext, result: CommandResult<*>): CommandResult<*>? {
-        if (result.isSuccess) {
-            entityManager.transaction.commit()
-        } else {
-            entityManager.transaction.rollback()
-        }
-        return null
-    }
-}
-```
+<ArcBackendTabs snippet="guides/execution-scopes/register" variants="kotlin,java" />
 
 Returning `null` is the common case: the scope did its work and has nothing to
 say about the response.
@@ -68,29 +46,14 @@ the timeout fails the completion rather than extending it.
 
 ## From Java
 
-Java implements one of two interfaces, depending on whether the completion work
-is asynchronous, and registers it through the matching adapter:
+The Java tab above implements `BlockingCommandExecutionScope`. Java implements one
+of two interfaces, depending on whether the completion work is asynchronous, and
+registers it through the matching adapter:
 
 - `AsyncCommandExecutionScope` — `complete` returns `CompletionStage<CommandResult<?>>`,
   registered via `AsyncCommandExecutionScopeAdapter`.
 - `BlockingCommandExecutionScope` — `complete` returns `CommandResult<?>` directly,
   registered via `BlockingCommandExecutionScopeAdapter`.
-
-```java
-@Component
-public class AuditScope implements BlockingCommandExecutionScope {
-    @Override
-    public void begin(CommandContext context) {
-        // open the audit record
-    }
-
-    @Override
-    public CommandResult<?> complete(CommandContext context, CommandResult<?> result) {
-        // close it, whatever the outcome
-        return null;
-    }
-}
-```
 
 The blocking variant runs on a dispatcher that tolerates blocking, so a
 synchronous commit does not stall Arc's request coroutine.

@@ -14,7 +14,7 @@ custom `MongoConverter` during lookup.
 
 ### Register concrete scalar pairs
 
-For a concept such as the `TextValue` shown in [Map JPA concepts](concepts-jpa.md), the Kotlin pair is:
+For a concept such as the `TextValue` shown in [Map JPA concepts](concepts-jpa.mdx), the Kotlin pair is:
 
 ```kotlin
 @WritingConverter
