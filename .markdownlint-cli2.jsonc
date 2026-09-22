@@ -4,9 +4,11 @@
   },
   // Snippet files are code fragments embedded into the shared Arc docs via
   // <ArcBackendTabs>, not standalone pages — they are deliberately headerless.
-  // Their correctness is checked against real source by
-  // Documentation/validate-doc-snippets.py, not by markdown structure rules.
+  // Both language roots feed the same tab group. Their correctness is checked by
+  // compiling them against real source in Documentation/validate-client-snippets.py,
+  // not by markdown structure rules.
   "ignores": [
-    "Documentation/client-snippets/**"
+    "Documentation/client-snippets/**",
+    "Documentation/client-snippets-java/**"
   ]
 }
