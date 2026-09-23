@@ -50,4 +50,4 @@ shown in the Java tabs above.
 
 These APIs carry an already-resolved `TenantId` through coroutine and blocking-Java work. They do not resolve a tenant from HTTP headers, JWT claims, subdomains, or query parameters. Tenant resolution from inbound requests is the responsibility of the `TenantIdResolver` chain; the resolved `TenantId` is what gets passed to `withTenant` or to Arc's command and query execution options.
 
-Separately again: [development tenant discovery](development-users-and-tenants.md) with `TenantsProvider` answers "which tenants exist" for tools such as Lens, not "which tenant is this request for".
+Separately again: [development tenant discovery](development-users-and-tenants.md) with `TenantsProvider` answers "which tenants exist" for tools such as [Lens](/tools/lens/), not "which tenant is this request for".
