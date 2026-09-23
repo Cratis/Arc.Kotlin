@@ -66,7 +66,7 @@ All properties use the `cratis.arc` prefix.
 | `overload-retry-after-seconds` | `5` | `Retry-After` value when general Arc request admission is exhausted. |
 | `maximum-request-body-bytes` | `1048576` | Maximum command or QUERY body, enforced for declared and streamed lengths. |
 | `command-scope-completion-timeout` | `5s` | Independent cooperative timeout for each best-effort command execution-scope completion. |
-| `platform-identity.enabled` | `false` | Opts into the optional Spring Security platform-header bridge. The default trust policy denies all ingress; supply an application `ArcPlatformIdentityTrust` and secure, header-rewriting ingress. With no application chain, all routes require authentication and CSRF stays enabled; see [platform security](../guides/security.md#establish-trust-before-accepting-platform-headers). |
+| `platform-identity.enabled` | `false` | Opts into the optional Spring Security platform-header bridge. The default trust policy denies all ingress; supply an application `ArcPlatformIdentityTrust` and secure, header-rewriting ingress. With no application chain, all routes require authentication and CSRF stays enabled; see [platform security](../guides/security.mdx#establish-trust-before-accepting-platform-headers). |
 | `identity-cookie-secure-policy` | `auto` | `always`, `never`, or `auto`; auto secures HTTPS and every non-development profile. |
 | `expose-exception-details` | Profile-derived | When unset, enabled only for `dev`, `development`, or `local` profiles. |
 | `observable-queries.wait-for-first-result-timeout` | `30s` | Maximum default wait for the first HTTP snapshot result. A request may shorten it. |

@@ -11,16 +11,7 @@ A handler may return `Unit`/`void`, a response value, a Kotlin suspend result, o
 
 `CommandHandlerArgumentResolver` and its public suspending resolution methods are generated-invocation SPIs: they must be public because generated handlers are emitted into consumer packages. Ordinary Java code invokes the generated `CommandHandler` through Arc's command pipeline, including Java `CompletionStage` handlers; it is not expected to call Kotlin suspend resolver methods directly.
 
-```kotlin
-@Command
-@AllowAnonymous
-data class CreateTask(val title: String) {
-    suspend fun handle(repository: TaskRepository): TaskCreated {
-        val task = repository.create(title)
-        return TaskCreated(task.id, task.title)
-    }
-}
-```
+<ArcBackendTabs snippet="guides/commands/handle" variants="kotlin,java" />
 
 ## Declare body state explicitly
 
@@ -36,17 +27,7 @@ Previously omitted public body state now adds generated fields, validation, reac
 
 Add an optional public instance `provide` method when `handle` needs fetched or computed data. It runs after authorization and validation, but before `handle`; the `/validate` route never invokes it. Its parameters resolve from the current Spring scope. KSP generates direct calls for regular, suspend, and `CompletionStage` methods.
 
-```kotlin
-@Command
-data class CompleteTask(val taskId: TaskId) {
-    suspend fun provide(tasks: Tasks): Task = tasks.get(taskId)
-
-    fun handle(task: Task, audit: AuditLog): TaskCompleted {
-        audit.record(task.id)
-        return TaskCompleted(task.id)
-    }
-}
-```
+<ArcBackendTabs snippet="guides/commands/provide" variants="kotlin,java" />
 
 Return one value, a `Pair`, `Triple`, `CommandProvidedValues`, or an `ArcOneOf` alternative. Provided values are matched to `handle` parameters in declaration order and each match is consumed once; unmatched parameters fall back to Spring. A returned `CommandResult`, `ValidationResult`, non-empty validation-result iterable/array, or `AuthorizationResult` is a control signal and can short-circuit the handler. Kotlin handlers can use `commandProvidedValuesOf(first, second)` and `commandResponseValuesOf(first, second)` for explicit ordered aggregates. Java callers retain the `CommandProvidedValues.of(...)` and `CommandResponseValues.of(...)` factories and builders.
 
@@ -58,76 +39,9 @@ A command response can combine server-consumed values with one value sent to the
 
 Declare custom handled types on the response handler. The declaration is static metadata; `canHandle` remains the runtime decision, and the handler must also be registered with the command pipeline. In Spring Boot, register a `CommandResponseValueHandler` bean. If a value was statically classified as handled but no registered handler accepts it, Arc fails closed with an unsuccessful `CommandResult` instead of exposing that value as the client response.
 
-```kotlin
-data class AuditEntry(val orderId: String)
-data class OrderReceipt(val orderId: String)
-
-@Command
-data class CreateOrder(val orderId: String) {
-    fun handle(): Pair<AuditEntry, OrderReceipt> =
-        AuditEntry(orderId) to OrderReceipt(orderId)
-}
-
-@Component
-@HandlesCommandResponseValues(AuditEntry::class)
-class AuditEntryResponseHandler : CommandResponseValueHandler {
-    override fun canHandle(context: CommandContext, value: Any): Boolean = value is AuditEntry
-
-    override suspend fun handle(context: CommandContext, value: Any): CommandResult<*> {
-        if (value !is AuditEntry) {
-            return CommandResult.error(context.correlationId, "Unsupported response value.")
-        }
-        // Persist value with an injected service in a real handler.
-        return CommandResult.success(context.correlationId)
-    }
-}
-```
+<ArcBackendTabs snippet="guides/commands/response-values" variants="kotlin,java" />
 
 Java handlers use ordinary annotation array syntax and the blocking or asynchronous adapters. Expose the adapter as a Spring bean; annotating the Java handler declares its handled values but does not register it.
-
-```java
-import io.cratis.arc.artifacts.Command;
-import io.cratis.arc.commands.CommandContext;
-import io.cratis.arc.commands.CommandResponseValueHandler;
-import io.cratis.arc.commands.HandlesCommandResponseValues;
-import io.cratis.arc.java.BlockingCommandResponseValueHandler;
-import io.cratis.arc.java.BlockingCommandResponseValueHandlerAdapter;
-import io.cratis.arc.results.CommandResult;
-import kotlin.Pair;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-
-record AuditEntry(String orderId) {}
-record OrderReceipt(String orderId) {}
-
-@Command
-public record CreateOrder(String orderId) {
-    public Pair<AuditEntry, OrderReceipt> handle() {
-        return new Pair<>(new AuditEntry(orderId), new OrderReceipt(orderId));
-    }
-}
-
-@HandlesCommandResponseValues({AuditEntry.class})
-final class AuditEntryHandler implements BlockingCommandResponseValueHandler {
-    @Override
-    public boolean canHandle(CommandContext context, Object value) {
-        return value instanceof AuditEntry;
-    }
-
-    @Override
-    public CommandResult<?> handle(CommandContext context, Object value) {
-        return CommandResult.success(context.getCorrelationId());
-    }
-}
-
-@Configuration(proxyBeanMethods = false)
-class ResponseHandlerConfiguration {
-    @Bean
-    CommandResponseValueHandler auditEntryResponseValueHandler() {
-        return new BlockingCommandResponseValueHandlerAdapter(new AuditEntryHandler());
-    }
-}
-```
 
 Use `AsyncCommandResponseValueHandler` with `AsyncCommandResponseValueHandlerAdapter` when the Java handler returns `CompletionStage<CommandResult<?>>`. The Java-callable `CommandResult.success(...)`, `invalid(...)`, `unauthorized(...)`, `error(...)`, and `exception(...)` factories create handler outcomes without Kotlin-only syntax.
 
@@ -143,19 +57,7 @@ For constructor-authored rules shared with generated TypeScript, follow the [flu
 
 Register a Spring bean implementing `CommandValidator<T>`. Return immutable validation results; an error rejects execution. `POST <command-route>/validate` runs the same command pipeline without invoking the handler.
 
-```kotlin
-@Component
-class CreateTaskValidator : CommandValidator<CreateTask> {
-    override val commandType = CreateTask::class.java
-
-    override suspend fun validate(command: CreateTask, context: CommandContext): List<ValidationResult> =
-        if (command.title.isBlank()) {
-            listOf(ValidationResult.error("A task title is required.", listOf("title")))
-        } else {
-            emptyList()
-        }
-}
-```
+<ArcBackendTabs snippet="guides/commands/validator" variants="kotlin,java" />
 
 `ValidationResult.information`, `ValidationResult.warning`, and `ValidationResult.error` are static factories that name the severity and default members, state, reason, and reason detail. They read the same from Java, and the `ValidationResult` constructor with an explicit `ValidationResultSeverity` remains available.
 
@@ -195,11 +97,7 @@ Exclusions are server-only registrations, not annotations or client rules. They 
 
 Implement `io.cratis.arc.validation.ValidationFailure` on an application exception to supply command validation feedback instead of exception details. Kotlin implements `val validationResults: List<ValidationResult>`; Java implements `List<ValidationResult> getValidationResults()`. There is no required framework exception superclass. `CommandResult.fromException(correlationId, exception)` is callable as a static factory from Java and from the Kotlin companion. The legacy `CommandResult.exception(...)` still always creates an ordinary exception result.
 
-```kotlin
-class ApplicationFailure(
-    override val validationResults: List<ValidationResult>
-) : RuntimeException("Internal diagnostic"), ValidationFailure
-```
+<ArcBackendTabs snippet="guides/commands/validation-failure" variants="kotlin,java" />
 
 Supply a nonempty list containing only nonnull validation results. Conversion takes an immutable list snapshot and preserves each result's message, members, severity, reason, reason detail, and state. It does not synthesize validation from the exception message, and a valid payload carries no exception message or stack trace. **All payload fields, including `state` and `reasonDetail`, are client-visible application data, even in production. Never put secrets in them.** State objects are retained, not deep-copied or automatically redacted.
 

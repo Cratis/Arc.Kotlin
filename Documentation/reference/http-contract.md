@@ -184,21 +184,21 @@ broken scope cannot prevent best-effort completion of earlier scopes.
 ## Validation and exception conversion on the JVM
 
 Command exceptions implementing
-[`ValidationFailure`](../guides/commands.md#convert-application-exceptions-to-command-validation) with
+[`ValidationFailure`](../guides/commands.mdx#convert-application-exceptions-to-command-validation) with
 a usable payload become validation results at the default command pipeline's ordinary exception
 boundaries, including context/filter failures on `/validate`. Pure blocking validation returns 400
 with empty exception messages and stack trace; ordinary exceptions remain 500 with the existing
 production/development redaction policy. Cancellation never becomes validation feedback. Parser,
 admission, transport timeout, and query exception behavior are unchanged; severity filtering remains
-[stage-specific](../guides/commands.md#convert-application-exceptions-to-command-validation).
+[stage-specific](../guides/commands.mdx#convert-application-exceptions-to-command-validation).
 
-[Direct concept exclusions](../guides/commands.md#exclude-a-direct-concept-rule-edge) affect only
+[Direct concept exclusions](../guides/commands.mdx#exclude-a-direct-concept-rule-edge) affect only
 concept rules on a matching owner/member edge. They do not bypass Jakarta or model validation or
 change any HTTP envelope/status policy. Command execution, command validation, one-shot queries, and
 observable HTTP snapshots still reject blocking feedback from remaining rules. This is not a claim
 that streaming openings return HTTP 400.
 
-Server-only [`ModelValidator` rules](../guides/commands.md#reuse-model-validation) use the same
+Server-only [`ModelValidator` rules](../guides/commands.mdx#reuse-model-validation) use the same
 envelope and severity policy. Streaming opening failures retain their existing envelopes: direct SSE
 sends failed `QueryResult` data on the established HTTP stream, direct WebSocket sends a `Data` frame,
 and hubs send `Error` messages. Relative model paths are prefixed with the bound node path.

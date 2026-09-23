@@ -16,9 +16,9 @@ difference is what you write to expose a command or a query over HTTP.
 | `@RequestBody CreateTaskRequest body` | The command's own constructor properties — the command *is* the request body |
 | `@RequestParam` / `@PathVariable` | Unannotated query method parameters |
 | `@Autowired` field or constructor injection into the controller | Unannotated `handle`/query parameters resolved from Spring by type, or `@FromServices` on a query parameter |
-| `@Valid @RequestBody X body, BindingResult result` | Automatic Jakarta validation on the command or query-argument graph when a `Validator` bean exists — see [Add validation](guides/commands.md#add-validation) |
+| `@Valid @RequestBody X body, BindingResult result` | Automatic Jakarta validation on the command or query-argument graph when a `Validator` bean exists — see [Add validation](guides/commands.mdx#add-validation) |
 | `ResponseEntity<T>` | A `CommandResult<T>` or `QueryResult<T>` JSON envelope — see the [HTTP contract reference](reference/http-contract.md) |
-| `@PreAuthorize("hasRole('ADMIN')")` | `@Authorize(roles = ["admin"])` or `@Roles("admin")` on the class or the operation — see [Protect the command](guides/commands.md#protect-the-command) |
+| `@PreAuthorize("hasRole('ADMIN')")` | `@Authorize(roles = ["admin"])` or `@Roles("admin")` on the class or the operation — see [Protect the command](guides/commands.mdx#protect-the-command) |
 | A hand-written OpenAPI annotation set, or springdoc | Arc generates OpenAPI 3.1 from the same metadata — see [Publish an OpenAPI document](guides/openapi.md) |
 | A hand-written or generated `fetch`/axios TypeScript client | A generated, strict-mode TypeScript client — see [Generate TypeScript proxies](guides/typescript-proxies.mdx) |
 | `SseEmitter` or a `WebSocketHandler` for live data | A query returning `Flow<T>` or `Flow.Publisher<T>` — Arc hosts HTTP snapshots, SSE, and WebSocket for it automatically — see [Declare observable queries](guides/observable-queries.md) |
@@ -59,6 +59,6 @@ for a query that takes both.
 
 - [Build your first Arc application in Kotlin](get-started/index.md) or
   [in Java](get-started/java.md).
-- [Create and validate commands](guides/commands.md) and
+- [Create and validate commands](guides/commands.mdx) and
   [Expose one-shot and observable queries](guides/queries.mdx) for the complete contract.
 - [Why Arc for Kotlin and Java](why-arc-kotlin.md) for the problem this all removes.

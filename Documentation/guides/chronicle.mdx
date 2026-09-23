@@ -45,19 +45,7 @@ Override `-PchronicleKernelImage=<pinned-image>` only for a deliberate compatibi
 
 A plain Chronicle event response needs a stable command key backed by `String`, `UUID`, a number, or an Arc/Chronicle concept wrapping one of those values.
 
-```kotlin
-import io.cratis.arc.artifacts.Command
-import io.cratis.arc.artifacts.CommandKey
-import io.cratis.chronicle.events.EventType
-
-@EventType
-data class TaskCreated(val title: String)
-
-@Command
-data class CreateTask(@CommandKey val id: String, val title: String) {
-    fun handle(): TaskCreated = TaskCreated(title)
-}
-```
+<ArcBackendTabs snippet="guides/chronicle/event-from-command" variants="kotlin,java" />
 
 Without a usable `@CommandKey`, Arc returns an error validation result with `reason: "rule"` and `reasonDetail: "commandKey"`; it does not guess an event-source identifier.
 
@@ -71,16 +59,7 @@ must capture a `CommandKeyProvider` value through its constructor or explicitly 
 
 Declare optional event metadata on the command when its returned events share stable Chronicle routing or compliance defaults:
 
-```kotlin
-@Command
-@CommandEventSourceType("Task")
-@CommandEventStreamType("Tasks")
-@CommandEventStreamId("active")
-@CommandEventSubject("task-owner")
-data class CreateTask(@CommandKey val id: String, val title: String) {
-    fun handle(): TaskCreated = TaskCreated(title)
-}
-```
+<ArcBackendTabs snippet="guides/chronicle/event-metadata" variants="kotlin,java" />
 
 KSP emits these values as typed `CommandEventMetadata`, and the command pipeline adds them to `CommandContext` before filters and execution scopes run. Immediate appends, staged transactions, and `EventsWithConcurrencyScopes` use them as defaults. Java applies the same annotations to its command class; a manual handler can use `CommandDescriptor.withEventMetadata`.
 
@@ -117,17 +96,7 @@ Constraint violations become validation results with reason `constraintViolation
 
 Use `EventsWithConcurrencyScopes` when a cross-source batch needs explicit Chronicle concurrency rules:
 
-```kotlin
-import io.cratis.arc.chronicle.eventsWithConcurrencyScopes
-
-fun handle(): EventsWithConcurrencyScopes = eventsWithConcurrencyScopes {
-    event("account-42", FundsWithdrawn(100))
-    event("ledger-2025", LedgerEntryAdded("account-42", 100))
-    concurrencyScope("account-42") {
-        withEventSourceId()
-    }
-}
-```
+<ArcBackendTabs snippet="guides/chronicle/concurrency-scopes" variants="kotlin,java" />
 
 The builder requires at least one event, validates event-source labels, preserves declaration order, rejects conflicting scopes for the same label, and supplies the exact scope map to Chronicle's atomic append. Java uses `EventsWithConcurrencyScopes.builder()`, fluent `event(...)`, and either a concrete `ConcurrencyScope` or the `Consumer<ConcurrencyScopeBuilder>` overload.
 
@@ -141,18 +110,7 @@ A missing, mismatched, or failing tenant store fails closed without appending or
 
 When `ChronicleOptions` lists read-model artifacts, the integration declares those exact types to Arc's `ReadModelForCommandResolverRegistry`. A generated command handler can then request a current read model as an unannotated parameter:
 
-```kotlin
-@Command
-data class Withdraw(
-    @CommandKey val accountId: String,
-    val amount: Int
-) {
-    fun handle(balance: AccountBalance): FundsWithdrawn {
-        require(balance.available >= amount)
-        return FundsWithdrawn(amount)
-    }
-}
-```
+<ArcBackendTabs snippet="guides/chronicle/current-state" variants="kotlin,java" />
 
 Resolution uses the generated command key and the captured tenant store. A value produced by `provide` still has precedence. Once the ownership registry claims a read-model type, it resolves before ordinary Spring services so a model bean cannot bypass tenant/key selection. A missing model leaves the dependency unresolved; an invalid key or unavailable/mismatched store fails the command rather than falling through to another store. Chronicle claims declared ownership only for its discovered types, so Arc can arbitrate them against custom or Spring Data resolvers deterministically.
 
@@ -169,6 +127,12 @@ This helper is an explicit side-effect boundary. It does not make every value re
 ## Test without a Chronicle kernel
 
 Add `io.cratis:arc-testing` in the test configuration alongside the Chronicle integration. The Chronicle module registers a `CommandScenarioExtender` through `ServiceLoader`, so `CommandScenario` receives an in-memory event log automatically:
+
+:::note[The in-process command scenario is Kotlin-only]
+`CommandScenario.execute` is a suspend function with no blocking or `CompletionStage`
+counterpart, so a Java test cannot call it. Java applications test these commands over HTTP
+instead. This is the one example on this page with no Java form, because none exists.
+:::
 
 ```kotlin
 val scenario = CommandScenario(module, RegisterCustomer::class.java)

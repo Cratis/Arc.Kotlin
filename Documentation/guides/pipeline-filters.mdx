@@ -13,7 +13,7 @@ goes: one declaration that every command or query in the pipeline passes through
 
 ## Write a command filter
 
-A filter sees the resolved [`CommandContext`](commands.md) — the command instance, its type, the
+A filter sees the resolved [`CommandContext`](commands.mdx) — the command instance, its type, the
 principal authentication already produced, the correlation identifier, the tenant — and returns a
 result that is merged into the outcome. Returning anything unsuccessful stops the command before its
 handler is called:
@@ -68,7 +68,7 @@ filter's job is to authorize, and the ordinary one when it is not.
 A filter is the wrong tool when the rule is about one artifact. `@Authorize` and `@Roles` on the
 command or the query say the same thing closer to the code they govern, are visible in the generated
 client and the OpenAPI document, and do not require a reader to go looking for a bean that might
-apply. See [authentication and authorization](security.md).
+apply. See [authentication and authorization](security.mdx).
 
 Use a filter when the rule genuinely spans artifacts, and prefer matching on something structural —
 a package prefix — over a list of names somebody has to maintain.
