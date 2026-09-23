@@ -47,6 +47,8 @@ scope or any coroutine whose context carries a `TenantCoroutineContext`. Java re
 `operationsForCurrentTenant()` and `collectionForCurrentTenant()` inside `TenantContextBridge.withTenant`.
 Arc's command pipeline does not establish this scope for you: a handler that calls them with no scope
 fails with `IllegalStateException` unless a [fallback tenant](#no-tenant-fallback) is configured.
+`TenantContextBridge.withTenant` blocks its calling thread, so it is for plain Java threads; inside a Java
+command handler, which Arc already runs in a coroutine, use the explicit-tenant overload below instead.
 
 <ArcBackendTabs snippet="guides/spring-data/repositories/ambient-tenant" variants="kotlin,java" />
 

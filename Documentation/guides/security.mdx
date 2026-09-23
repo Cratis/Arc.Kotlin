@@ -137,7 +137,7 @@ The same rule reads in the other direction, which is how a protected read model 
 Repeated `@Roles` declarations on the same target combine, and holding any one listed role satisfies the role check. Policy, role, and scheme checks are still cumulative.
 
 :::caution[One declaration cannot both open and restrict]
-`@AllowAnonymous` together with `@Authorize` or `@Roles` **on the same class or the same operation** is a contradiction with no defensible reading. KSP reports `ARCKSP0108` and stops generation rather than guessing. Splitting them across a class and its operation is a different thing entirely, and is exactly the override above.
+`@AllowAnonymous` together with `@Authorize` or `@Roles` **on the same class or the same operation** is a contradiction with no defensible reading. KSP reports `ARCKSP0108` and stops generation rather than guessing. Splitting them across a class and its operation is a different thing entirely, and is exactly the override above. Declaring `@AllowAnonymous` on both the class and its operation is also `ARCKSP0108`: it is redundant, so declare it once.
 :::
 
 ## Use Spring Security when present
