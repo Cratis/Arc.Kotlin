@@ -43,9 +43,11 @@ private data class ArtifactTarget(
     val sourceName: String,
     val typeScriptName: String,
     val directory: List<String>,
-    val kind: ArtifactKind
+    val kind: ArtifactKind,
+    val useProxyFileSuffix: Boolean
 ) {
-    val relativePath: String = (directory + "$typeScriptName.ts").joinToString("/")
+    val fileStem: String = typeScriptName + if (useProxyFileSuffix) ".proxy" else ""
+    val relativePath: String = (directory + "$fileStem.ts").joinToString("/")
 }
 
 private data class TypeScriptValueImport(
@@ -77,8 +79,11 @@ private data class ValidationTarget(
 
 internal class TypeScriptProxyGenerator(
     private val artifacts: MergedArcArtifacts,
-    private val options: ProxyGenerationOptions
+    private val options: ProxyGenerationOptions,
+    private val useProxyFileSuffix: Boolean
 ) {
+    constructor(artifacts: MergedArcArtifacts, options: ProxyGenerationOptions) : this(artifacts, options, false)
+
     private val shared = SharedValidationGraph(artifacts)
     private val commandTypeNames = artifacts.commands.map(CommandDescriptor::typeName).toSet()
 
@@ -183,16 +188,24 @@ internal class TypeScriptProxyGenerator(
     private fun buildTargets(): List<ArtifactTarget> {
         val result = mutableListOf<ArtifactTarget>()
         artifacts.commands.forEach {
-            result += ArtifactTarget(it.typeName, it.name, outputDirectory(it.location), ArtifactKind.COMMAND)
+            result += ArtifactTarget(
+                it.typeName, it.name, outputDirectory(it.location), ArtifactKind.COMMAND, useProxyFileSuffix
+            )
         }
         emittedTypes.forEach {
-            result += ArtifactTarget(it.fullyQualifiedName, it.name, outputDirectory(it.location), ArtifactKind.TYPE)
+            result += ArtifactTarget(
+                it.fullyQualifiedName, it.name, outputDirectory(it.location), ArtifactKind.TYPE, useProxyFileSuffix
+            )
         }
         emittedInterfaces.forEach {
-            result += ArtifactTarget(it.fullyQualifiedName, it.name, outputDirectory(it.location), ArtifactKind.INTERFACE)
+            result += ArtifactTarget(
+                it.fullyQualifiedName, it.name, outputDirectory(it.location), ArtifactKind.INTERFACE, useProxyFileSuffix
+            )
         }
         emittedEnums.forEach {
-            result += ArtifactTarget(it.fullyQualifiedName, it.name, outputDirectory(it.location), ArtifactKind.ENUM)
+            result += ArtifactTarget(
+                it.fullyQualifiedName, it.name, outputDirectory(it.location), ArtifactKind.ENUM, useProxyFileSuffix
+            )
         }
         artifacts.queries.forEach { result += queryTarget(it) }
         return result
@@ -203,7 +216,8 @@ internal class TypeScriptProxyGenerator(
             query.fullyQualifiedName,
             upperCamel(query.name),
             outputDirectory(query.location),
-            ArtifactKind.QUERY
+            ArtifactKind.QUERY,
+            useProxyFileSuffix
         )
     }
 
@@ -1321,7 +1335,7 @@ internal class TypeScriptProxyGenerator(
     private fun relativeImport(from: List<String>, target: ArtifactTarget): String {
         val common = from.zip(target.directory).takeWhile { (source, destination) -> source == destination }.size
         val upward = "../".repeat(from.size - common)
-        val downward = (target.directory.drop(common) + target.typeScriptName).joinToString("/")
+        val downward = (target.directory.drop(common) + target.fileStem).joinToString("/")
         return if (upward.isEmpty()) "./$downward" else "$upward$downward"
     }
 

@@ -241,6 +241,30 @@ val generateContractTestProxies by tasks.registering(JavaExec::class) {
     outputs.upToDateWhen { false }
 }
 
+// Compile suffixed proxies from the real Kotlin and Java contract fixtures against the pinned npm packages.
+// The default generation/determinism/strict build runs first: default generation cleans stale files
+// in its output tree, which contains the suffixed subtree. The suffix pass must therefore run last.
+val generateSuffixedContractTestProxies by tasks.registering(JavaExec::class) {
+    group = "verification"
+    description = "Generates suffixed proxies from the Kotlin and Java contract fixtures"
+    dependsOn(":ContractTests:typeScriptBuild")
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("io.cratis.arc.gradle.GenerateArcProxiesCli")
+    val arguments = proxyArguments().toMutableList()
+    arguments[arguments.indexOf("--output-directory") + 1] = contractProxyDirectory.dir("suffix").asFile.absolutePath
+    args(arguments + listOf("--use-proxy-file-suffix", "true"))
+    outputs.dir(contractProxyDirectory.dir("suffix"))
+    outputs.upToDateWhen { false }
+}
+val verifySuffixedContractTestProxies by tasks.registering(Exec::class) {
+    group = "verification"
+    description = "Strictly type-checks suffixed Kotlin and Java proxies with the pinned TypeScript client runtime"
+    dependsOn(generateSuffixedContractTestProxies)
+    workingDir(rootProject.file("ContractTests/TypeScript"))
+    commandLine("npm", "run", "build")
+}
+tasks.named("check") { dependsOn(verifySuffixedContractTestProxies) }
+
 val captureContractTestProxyHashes by tasks.registering {
     dependsOn(generateContractTestProxies)
     outputs.file(contractProxySnapshot)

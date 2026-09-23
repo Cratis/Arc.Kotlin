@@ -44,6 +44,10 @@ public abstract class GenerateArcProxies : DefaultTask() {
     @get:Input
     public abstract val removeStaleGeneratedFiles: Property<Boolean>
 
+    /** Whether generated type files use the `.proxy.ts` suffix. */
+    @get:Input
+    public abstract val useProxyFileSuffix: Property<Boolean>
+
     @get:Input
     public abstract val proxySegmentsToSkip: Property<Int>
 
@@ -61,6 +65,10 @@ public abstract class GenerateArcProxies : DefaultTask() {
     @get:Optional
     @get:OutputDirectory
     public abstract val outputDirectory: DirectoryProperty
+
+    init {
+        useProxyFileSuffix.convention(false)
+    }
 
     @TaskAction
     public fun generate() {
@@ -84,7 +92,8 @@ public abstract class GenerateArcProxies : DefaultTask() {
                 ProxyTypeMappings.parsePackageMappings(
                     packageMappings.get().map { (javaPackage, npmPackage) -> "$javaPackage=$npmPackage" }
                 ) { logger.warn(it) }
-            )
+            ),
+            useProxyFileSuffix.get()
         ).generate()
     }
 }
