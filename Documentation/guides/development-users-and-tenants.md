@@ -12,13 +12,14 @@ at request time — they exist purely so a tool can ask your running application
 your application already keeps that list, instead of a hand-maintained copy
 pasted into the tool.
 
-The primary consumer is [Lens](https://github.com/Cratis/Lens), the Cratis
+The primary consumer is [Lens](/tools/lens/), the Cratis
 browser extension for exercising a running Arc application during development.
 Lens reads these two endpoints to populate its tenant and user pickers, then
 injects the corresponding tenant and identity headers into every request the
 inspected page makes while a selection is active — no restart, no
-hand-crafted headers. See [Lens: tenants and users](https://github.com/Cratis/Lens/blob/main/Documentation/GettingStarted/TenantsAndUsers/index.md)
-for the extension side of this contract. Both endpoints are explicitly
+hand-crafted headers. See [Lens: where the tenant and user roster comes from](/tools/lens/#where-the-tenant-and-user-roster-comes-from)
+for the extension side of this contract, with screenshots against seeded demo
+data. Both endpoints are explicitly
 anonymous — see [Know which built-in routes are anonymous](security.mdx#know-which-built-in-routes-are-anonymous)
 — including in production, so scope development-only providers out of
 production builds or restrict the paths at trusted ingress.
@@ -134,6 +135,7 @@ service without either implementation knowing about the other.
 
 ## See also
 
+- [Lens](/tools/lens/) — the browser extension this page's providers feed, with screenshots against seeded demo data.
 - [C#: implementing a tenants provider](/arc/backend/csharp/identity/development-and-topologies/#implementing-a-tenants-provider) — the same discovery contract on ASP.NET Core.
 - [Tenancy](ambient-tenancy.mdx) — request-time tenant resolution, which this page's providers are deliberately separate from.
 - [Authenticate and authorize Arc endpoints](security.mdx) — the anonymous-route list these endpoints belong to, and `GET /.cratis/me`.
