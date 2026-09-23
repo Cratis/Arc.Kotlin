@@ -493,6 +493,209 @@ IMPORT_ROLES = "import io.cratis.arc.authorization.Roles"
 # listed: an unlisted snippet would silently compile as a bare declaration fragment, and
 # "it compiled because nothing referenced anything" is not a verdict worth having.
 SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
+    "guides/observable-queries/from-repository": SnippetContext(
+        imports=(IMPORT_READ_MODEL, IMPORT_FROM_SERVICES, IMPORT_FLOW,
+                 "import io.cratis.arc.authorization.AllowAnonymous"),
+        prelude="""
+            interface TaskRepository { fun observeAll(): kotlinx.coroutines.flow.Flow<List<TaskView>> }
+        """,
+    ),
+    "guides/observable-queries/from-state": SnippetContext(
+        imports=(IMPORT_READ_MODEL, IMPORT_FLOW,
+                 "import io.cratis.arc.authorization.AllowAnonymous",
+                 "import kotlinx.coroutines.flow.MutableStateFlow"),
+    ),
+    "guides/observable-queries/observable-state-bean": SnippetContext(
+        imports=(IMPORT_COMPONENT,
+                 "import io.cratis.arc.queries.ObservableState",
+                 "import java.util.concurrent.Flow"),
+        prelude="""
+            data class TaskView(val id: String, val title: String)
+        """,
+    ),
+    "guides/spring-data/observable-snapshots/observe-criteria": SnippetContext(
+        kind="companion",
+        imports=(IMPORT_FROM_SERVICES, IMPORT_FLOW, IMPORT_MONGO_QUERY, IMPORT_MONGO_OBSERVE,
+                 "import org.springframework.data.mongodb.core.query.Criteria"),
+        prelude="""
+            data class TaskView(val id: String, val title: String)
+        """,
+    ),
+    "guides/spring-data/observable-snapshots/jpa-observe": SnippetContext(
+        kind="companion",
+        imports=(IMPORT_FROM_SERVICES, IMPORT_FLOW,
+                 "import io.cratis.arc.springdata.jpa.JpaObservableQuery"),
+        prelude="""
+            data class TaskView(val id: String, val title: String)
+        """,
+    ),
+    "guides/testing/execute": SnippetContext(
+        imports=(IMPORT_COMMAND,
+            "import io.cratis.arc.artifacts.ArcArtifactModule",
+            "import io.cratis.arc.artifacts.CommandKey",
+            "import io.cratis.arc.testing.CommandScenario", "import io.cratis.arc.testing.java.BlockingCommandScenario",),
+        prelude="""
+            @Command
+            data class CreateTask(val title: String) {
+                fun handle(): TaskCreated = TaskCreated("1", title)
+            }
+            data class TaskCreated(val id: String, val title: String)
+            data class TaskView(val id: String, val title: String, val version: Long)
+            @Command
+            data class RenameTask(@CommandKey val id: String, val title: String, val version: Long) {
+                fun handle(current: TaskView) { }
+            }
+            interface TaskRepository
+        """,
+    ),
+    "guides/testing/tenant-resolution": SnippetContext(
+        imports=(IMPORT_COMMAND,
+            "import io.cratis.arc.artifacts.ArcArtifactModule",
+            "import io.cratis.arc.artifacts.CommandKey",
+            "import io.cratis.arc.testing.CommandScenario",
+            "import io.cratis.arc.tenancy.HeaderTenantIdResolver",
+            "import io.cratis.arc.tenancy.TenantResolutionContext",
+        ),
+        prelude="""
+            @Command
+            data class CreateTask(val title: String) {
+                fun handle(): TaskCreated = TaskCreated("1", title)
+            }
+            data class TaskCreated(val id: String, val title: String)
+            data class TaskView(val id: String, val title: String, val version: Long)
+            @Command
+            data class RenameTask(@CommandKey val id: String, val title: String, val version: Long) {
+                fun handle(current: TaskView) { }
+            }
+            interface TaskRepository
+        """,
+    ),
+    "guides/testing/pin-read-model": SnippetContext(
+        imports=(IMPORT_COMMAND,
+            "import io.cratis.arc.artifacts.ArcArtifactModule",
+            "import io.cratis.arc.artifacts.CommandKey",
+            "import io.cratis.arc.testing.CommandScenario",),
+        prelude="""
+            @Command
+            data class CreateTask(val title: String) {
+                fun handle(): TaskCreated = TaskCreated("1", title)
+            }
+            data class TaskCreated(val id: String, val title: String)
+            data class TaskView(val id: String, val title: String, val version: Long)
+            @Command
+            data class RenameTask(@CommandKey val id: String, val title: String, val version: Long) {
+                fun handle(current: TaskView) { }
+            }
+            interface TaskRepository
+        """,
+    ),
+    "guides/testing/absent-read-model": SnippetContext(
+        imports=(IMPORT_COMMAND,
+            "import io.cratis.arc.artifacts.ArcArtifactModule",
+            "import io.cratis.arc.artifacts.CommandKey",
+            "import io.cratis.arc.testing.CommandScenario",),
+        prelude="""
+            @Command
+            data class CreateTask(val title: String) {
+                fun handle(): TaskCreated = TaskCreated("1", title)
+            }
+            data class TaskCreated(val id: String, val title: String)
+            data class TaskView(val id: String, val title: String, val version: Long)
+            @Command
+            data class RenameTask(@CommandKey val id: String, val title: String, val version: Long) {
+                fun handle(current: TaskView) { }
+            }
+            interface TaskRepository
+        """,
+    ),
+    "guides/chronicle/test-a-command": SnippetContext(
+        kind="member",
+        imports=(
+            IMPORT_COMMAND,
+            "import io.cratis.arc.artifacts.ArcArtifactModule",
+            "import io.cratis.arc.artifacts.CommandKey",
+            "import io.cratis.arc.chronicle.chronicle",
+            "import io.cratis.arc.chronicle.givenChronicle",
+            "import io.cratis.arc.testing.CommandScenario",
+            "import io.cratis.chronicle.events.EventType",
+        ),
+        host="val module: ArcArtifactModule, val customerId: String",
+        prelude="""
+            @EventType
+            data class CustomerRegistered(val name: String)
+
+            @Command
+            data class RegisterCustomer(@CommandKey val id: String, val name: String) {
+                fun handle(): CustomerRegistered = CustomerRegistered(name)
+            }
+        """,
+    ),
+    "guides/validation/ignore-validation": SnippetContext(
+        imports=("import io.cratis.arc.validation.IgnoreValidation",),
+    ),
+    "guides/spring-data/repositories/paged-query": SnippetContext(
+        kind="companion",
+        imports=(
+            IMPORT_FROM_SERVICES,
+            "import org.springframework.data.domain.Page",
+            "import org.springframework.data.domain.Pageable",
+            "import org.springframework.data.domain.Sort",
+            "import org.springframework.data.mongodb.repository.MongoRepository",
+        ),
+        prelude="""
+            class TaskView(val id: String)
+            interface TaskViewRepository : MongoRepository<TaskView, String>
+        """,
+    ),
+    "guides/spring-data/repositories/current-state": SnippetContext(
+        imports=(IMPORT_COMMAND, "import io.cratis.arc.artifacts.CommandKey"),
+        prelude="""
+            class TaskView(val id: String)
+        """,
+    ),
+    "guides/spring-data/repositories/ambient-tenant": SnippetContext(
+        imports=(
+            IMPORT_COMMAND,
+            IMPORT_FROM_SERVICES,
+            "import io.cratis.arc.artifacts.CommandKey",
+            "import io.cratis.arc.springdata.mongodb.TenantContextMongoAccess",
+            "import org.springframework.data.mongodb.core.query.Criteria",
+            "import org.springframework.data.mongodb.core.query.Query",
+        ),
+        prelude="""
+            class TaskDocument
+        """,
+    ),
+    "guides/spring-data/repositories/native-collection": SnippetContext(
+        kind="member",
+        imports=(
+            IMPORT_FROM_SERVICES,
+            "import com.mongodb.client.model.Filters",
+            "import io.cratis.arc.springdata.mongodb.TenantContextMongoAccess",
+        ),
+        host="val id: String",
+        prelude="""
+            class TaskDocument
+        """,
+    ),
+    "guides/spring-data/repositories/explicit-tenant": SnippetContext(
+        kind="member",
+        imports=(
+            "import io.cratis.arc.springdata.mongodb.TenantContextMongoAccess",
+            "import io.cratis.arc.tenancy.TenantId",
+        ),
+        host="val access: TenantContextMongoAccess, val tenantId: String",
+    ),
+    "guides/spring-data/repositories/bean-override": SnippetContext(
+        kind="member",
+        imports=(
+            "import io.cratis.arc.naming.NamingPolicy",
+            "import io.cratis.arc.springdata.mongodb.TenantAwareMongoOperationsResolver",
+            "import io.cratis.arc.springdata.mongodb.TenantContextMongoAccess",
+            "import io.cratis.arc.tenancy.TenantId",
+            "import org.springframework.context.annotation.Bean",
+        ),
+    ),
     "guides/chronicle/event-from-command": SnippetContext(
         imports=(
             IMPORT_COMMAND,
@@ -1769,6 +1972,238 @@ JAVA_SCENARIO_HOST = """
 # would silently compile as a bare fragment, and "it compiled because nothing referenced
 # anything" is not a verdict worth having.
 JAVA_SNIPPET_CONTEXTS: dict[str, JavaSnippetContext] = {
+    "guides/observable-queries/from-repository": JavaSnippetContext(
+        imports=("import io.cratis.arc.artifacts.FromServices;",
+                 "import io.cratis.arc.artifacts.ReadModel;",
+                 "import io.cratis.arc.authorization.AllowAnonymous;",
+                 "import java.util.List;"),
+        prelude="""
+            interface TaskRepository { java.util.concurrent.Flow.Publisher<List<TaskView>> observeAll(); }
+        """,
+    ),
+    "guides/observable-queries/from-state": JavaSnippetContext(
+        kind="member",
+        imports=("import io.cratis.arc.artifacts.ReadModel;", "import java.util.List;"),
+        prelude="""
+            record TaskView(String id, String title) { }
+            interface TaskRepository { java.util.concurrent.Flow.Publisher<java.util.List<TaskView>> observeAll(); }
+        """,
+    ),
+    "guides/observable-queries/observable-state-bean": JavaSnippetContext(
+        imports=("import io.cratis.arc.queries.ObservableState;",
+                 "import java.util.List;",
+                 "import java.util.concurrent.Flow;",
+                 "import org.springframework.stereotype.Component;"),
+        prelude="""
+            record TaskView(String id, String title) { }
+            interface TaskRepository { java.util.concurrent.Flow.Publisher<java.util.List<TaskView>> observeAll(); }
+        """,
+    ),
+    "guides/spring-data/observable-snapshots/observe-criteria": JavaSnippetContext(
+        kind="member",
+        imports=("import io.cratis.arc.springdata.mongodb.MongoObservableQuery;",
+                 "import io.cratis.arc.springdata.mongodb.MongoObservations;",
+                 "import java.util.List;",
+                 "import java.util.concurrent.Flow;",
+                 "import org.springframework.data.mongodb.core.query.Criteria;"),
+        host="MongoObservableQuery queries; String taskId;",
+        prelude="""
+            record TaskView(String id, String title) { }
+            interface TaskRepository { java.util.concurrent.Flow.Publisher<java.util.List<TaskView>> observeAll(); }
+        """,
+    ),
+    "guides/spring-data/observable-snapshots/jpa-observe": JavaSnippetContext(
+        kind="member",
+        imports=("import io.cratis.arc.springdata.jpa.JpaObservableQuery;",
+                 "import io.cratis.arc.springdata.jpa.JpaObservations;",
+                 "import java.util.List;",
+                 "import java.util.concurrent.Flow;"),
+        host="JpaObservableQuery queries;",
+        prelude="""
+            record TaskView(String id, String title) { }
+            interface TaskRepository { java.util.concurrent.Flow.Publisher<java.util.List<TaskView>> observeAll(); }
+        """,
+    ),
+    "guides/testing/execute": JavaSnippetContext(
+        imports=("import io.cratis.arc.artifacts.ArcArtifactModule;",
+            "import io.cratis.arc.artifacts.Command;",
+            "import io.cratis.arc.artifacts.CommandKey;",
+            "import io.cratis.arc.testing.CommandScenario;",
+            "import io.cratis.arc.testing.java.BlockingCommandScenario;",
+        ),
+        prelude="""
+            @Command
+            record CreateTask(String title) {
+                public TaskCreated handle() { return new TaskCreated("1", title); }
+            }
+            record TaskCreated(String id, String title) { }
+            record TaskView(String id, String title, long version) { }
+            @Command
+            record RenameTask(@CommandKey String id, String title, long version) {
+                public void handle(TaskView current) { }
+            }
+            interface TaskRepository { }
+        """,
+    ),
+    "guides/testing/tenant-resolution": JavaSnippetContext(
+        imports=("import io.cratis.arc.artifacts.ArcArtifactModule;",
+            "import io.cratis.arc.artifacts.Command;",
+            "import io.cratis.arc.artifacts.CommandKey;",
+            "import io.cratis.arc.testing.CommandScenario;",
+            "import io.cratis.arc.tenancy.HeaderTenantIdResolver;",
+            "import io.cratis.arc.tenancy.TenantResolutionContext;",
+            "import java.util.Map;",
+                    "import io.cratis.arc.testing.java.BlockingCommandScenario;",
+        ),
+        prelude="""
+            @Command
+            record CreateTask(String title) {
+                public TaskCreated handle() { return new TaskCreated("1", title); }
+            }
+            record TaskCreated(String id, String title) { }
+            record TaskView(String id, String title, long version) { }
+            @Command
+            record RenameTask(@CommandKey String id, String title, long version) {
+                public void handle(TaskView current) { }
+            }
+            interface TaskRepository { }
+        """,
+    ),
+    "guides/testing/pin-read-model": JavaSnippetContext(
+        imports=("import io.cratis.arc.artifacts.ArcArtifactModule;",
+            "import io.cratis.arc.artifacts.Command;",
+            "import io.cratis.arc.artifacts.CommandKey;",
+            "import io.cratis.arc.testing.CommandScenario;",            "import io.cratis.arc.testing.java.BlockingCommandScenario;",
+        ),
+        prelude="""
+            @Command
+            record CreateTask(String title) {
+                public TaskCreated handle() { return new TaskCreated("1", title); }
+            }
+            record TaskCreated(String id, String title) { }
+            record TaskView(String id, String title, long version) { }
+            @Command
+            record RenameTask(@CommandKey String id, String title, long version) {
+                public void handle(TaskView current) { }
+            }
+            interface TaskRepository { }
+        """,
+    ),
+    "guides/testing/absent-read-model": JavaSnippetContext(
+        imports=("import io.cratis.arc.artifacts.ArcArtifactModule;",
+            "import io.cratis.arc.artifacts.Command;",
+            "import io.cratis.arc.artifacts.CommandKey;",
+            "import io.cratis.arc.testing.CommandScenario;",            "import io.cratis.arc.testing.java.BlockingCommandScenario;",
+        ),
+        prelude="""
+            @Command
+            record CreateTask(String title) {
+                public TaskCreated handle() { return new TaskCreated("1", title); }
+            }
+            record TaskCreated(String id, String title) { }
+            record TaskView(String id, String title, long version) { }
+            @Command
+            record RenameTask(@CommandKey String id, String title, long version) {
+                public void handle(TaskView current) { }
+            }
+            interface TaskRepository { }
+        """,
+    ),
+    "guides/chronicle/test-a-command": JavaSnippetContext(
+        kind="member",
+        imports=(
+            "import io.cratis.arc.artifacts.ArcArtifactModule;",
+            "import io.cratis.arc.artifacts.Command;",
+            "import io.cratis.arc.artifacts.CommandKey;",
+            "import io.cratis.arc.chronicle.ChronicleCommandScenario;",
+            "import io.cratis.arc.chronicle.ChronicleCommandScenarios;",
+            "import io.cratis.arc.testing.CommandScenario;",
+            "import io.cratis.arc.testing.java.BlockingCommandScenario;",
+            "import io.cratis.chronicle.events.EventType;",
+        ),
+        host="ArcArtifactModule module; String customerId;",
+        prelude="""
+            @EventType
+            record CustomerRegistered(String name) { }
+
+            @Command
+            record RegisterCustomer(@CommandKey String id, String name) {
+                public CustomerRegistered handle() { return new CustomerRegistered(name); }
+            }
+        """,
+    ),
+    "guides/validation/ignore-validation": JavaSnippetContext(
+        imports=("import io.cratis.arc.validation.IgnoreValidation;",),
+    ),
+    "guides/spring-data/repositories/paged-query": JavaSnippetContext(
+        kind="member",
+        imports=(
+            "import io.cratis.arc.artifacts.FromServices;",
+            "import org.springframework.data.domain.Page;",
+            "import org.springframework.data.domain.Pageable;",
+            "import org.springframework.data.domain.Sort;",
+            "import org.springframework.data.mongodb.repository.MongoRepository;",
+        ),
+        prelude="""
+            class TaskView { }
+            interface TaskViewRepository extends MongoRepository<TaskView, String> { }
+        """,
+    ),
+    "guides/spring-data/repositories/current-state": JavaSnippetContext(
+        imports=(
+            "import io.cratis.arc.artifacts.Command;",
+            "import io.cratis.arc.artifacts.CommandKey;",
+        ),
+        prelude="""
+            class TaskView { }
+        """,
+    ),
+    "guides/spring-data/repositories/ambient-tenant": JavaSnippetContext(
+        imports=(
+            "import io.cratis.arc.artifacts.Command;",
+            "import io.cratis.arc.artifacts.CommandKey;",
+            "import io.cratis.arc.artifacts.FromServices;",
+            "import io.cratis.arc.springdata.mongodb.TenantContextMongoAccess;",
+            "import org.springframework.data.mongodb.core.MongoOperations;",
+            "import org.springframework.data.mongodb.core.query.Criteria;",
+            "import org.springframework.data.mongodb.core.query.Query;",
+        ),
+        prelude="""
+            class TaskDocument { }
+        """,
+    ),
+    "guides/spring-data/repositories/native-collection": JavaSnippetContext(
+        kind="member",
+        imports=(
+            "import com.mongodb.client.MongoCollection;",
+            "import com.mongodb.client.model.Filters;",
+            "import io.cratis.arc.artifacts.FromServices;",
+            "import io.cratis.arc.springdata.mongodb.TenantContextMongoAccess;",
+        ),
+        host="String id;",
+        prelude="""
+            class TaskDocument { }
+        """,
+    ),
+    "guides/spring-data/repositories/explicit-tenant": JavaSnippetContext(
+        kind="member",
+        imports=(
+            "import io.cratis.arc.springdata.mongodb.TenantContextMongoAccess;",
+            "import io.cratis.arc.tenancy.TenantId;",
+            "import org.springframework.data.mongodb.core.MongoOperations;",
+        ),
+        host="TenantContextMongoAccess access; String tenantId;",
+    ),
+    "guides/spring-data/repositories/bean-override": JavaSnippetContext(
+        kind="member",
+        imports=(
+            "import io.cratis.arc.naming.NamingPolicy;",
+            "import io.cratis.arc.springdata.mongodb.TenantAwareMongoOperationsResolver;",
+            "import io.cratis.arc.springdata.mongodb.TenantContextMongoAccess;",
+            "import io.cratis.arc.tenancy.TenantId;",
+            "import org.springframework.context.annotation.Bean;",
+        ),
+    ),
     "guides/chronicle/event-from-command": JavaSnippetContext(
         imports=(
             "import io.cratis.arc.artifacts.Command;",

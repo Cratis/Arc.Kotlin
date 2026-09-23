@@ -19,7 +19,7 @@ When Spring has a Jakarta `Validator` bean, Arc automatically validates caller-s
 
 ## Choose a route and method
 
-[Shared fluent model arguments](validation.md#validate-a-supplied-query-model) use request-response RFC QUERY with explicit QUERY preference. Concrete object arguments bind from JSON and run shared rules before invocation; omission and supplied null remain distinct. Shared-model GET and observable transport are not supported and fail proxy generation rather than dropping client validation.
+[Shared fluent model arguments](validation.mdx#validate-a-supplied-query-model) use request-response RFC QUERY with explicit QUERY preference. Concrete object arguments bind from JSON and run shared rules before invocation; omission and supplied null remain distinct. Shared-model GET and observable transport are not supported and fail proxy generation rather than dropping client validation.
 
 `@Path` preserves the supplied query path exactly. Without it, Arc derives a route from `cratis.arc.endpoints` settings. One-shot queries accept GET. They also accept RFC QUERY when `enable-query-http-method` is true.
 

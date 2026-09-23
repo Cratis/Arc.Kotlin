@@ -128,24 +128,8 @@ This helper is an explicit side-effect boundary. It does not make every value re
 
 Add `io.cratis:arc-testing` in the test configuration alongside the Chronicle integration. The Chronicle module registers a `CommandScenarioExtender` through `ServiceLoader`, so `CommandScenario` receives an in-memory event log automatically:
 
-:::note[The in-process command scenario is Kotlin-only]
-`CommandScenario.execute` is a suspend function with no blocking or `CompletionStage`
-counterpart, so a Java test cannot call it. Java applications test these commands over HTTP
-instead. This is the one example on this page with no Java form, because none exists.
-:::
+<ArcBackendTabs snippet="guides/chronicle/test-a-command" variants="kotlin,java" />
 
-```kotlin
-val scenario = CommandScenario(module, RegisterCustomer::class.java)
-scenario.givenChronicle()
-    .events(customerId, CustomerRegistered("Existing"))
+Given events establish ordered history and are excluded from appended-event assertions. Builders can arrange deterministic constraint and concurrency violations; assertions inspect the same machine-readable `ValidationResult` contract used at runtime. Java uses the generated `ChronicleCommandScenarios` static bridge. See [Test commands and queries in process](testing.mdx) for the complete Kotlin and Java examples.
 
-val result = scenario.execute(RegisterCustomer(customerId, "Ada"))
-
-result.shouldSucceed()
-scenario.chronicle()
-    .shouldHaveAppendedEvent(customerId, CustomerRegistered::class.java)
-```
-
-Given events establish ordered history and are excluded from appended-event assertions. Builders can arrange deterministic constraint and concurrency violations; assertions inspect the same machine-readable `ValidationResult` contract used at runtime. Java uses the generated `ChronicleCommandScenarios` static bridge. See [Test commands and queries in process](testing.md) for the complete Kotlin and Java examples.
-
-A command that injects a Chronicle read model does not need the read-model service either: pin the model to a known state with `withReadModel` or `withReadModelForKey` on the scenario. The pin claims declared ownership through Arc's own resolver registry rather than substituting a Chronicle service, so it works the same way for a Chronicle, JPA, or MongoDB-owned read model. See [Pin a command-side read model](testing.md#pin-a-command-side-read-model).
+A command that injects a Chronicle read model does not need the read-model service either: pin the model to a known state with `withReadModel` or `withReadModelForKey` on the scenario. The pin claims declared ownership through Arc's own resolver registry rather than substituting a Chronicle service, so it works the same way for a Chronicle, JPA, or MongoDB-owned read model. See [Pin a command-side read model](testing.mdx#pin-a-command-side-read-model).

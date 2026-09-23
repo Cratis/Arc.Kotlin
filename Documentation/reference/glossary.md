@@ -20,7 +20,7 @@ description: One precise line per Arc.Kotlin term, cross-referenced to the guide
 - **Observable query** — a query whose return type is `Flow<T>`/`Flow<List<T>>` or
   `Flow.Publisher<T>`/`Publisher<List<T>>` (or, with the optional `arc-rxjava3` artifact, an RxJava 3
   type). Arc hosts it as an HTTP snapshot, direct SSE, direct WebSocket, or a multiplexed hub. See
-  [Declare observable queries](../guides/observable-queries.md).
+  [Declare observable queries](../guides/observable-queries.mdx).
 - **`@FromServices`** — marks a query parameter as a dependency resolved from Spring, distinguishing
   it from an unannotated caller argument.
 
@@ -53,7 +53,7 @@ description: One precise line per Arc.Kotlin term, cross-referenced to the guide
   [Reuse model validation](../guides/commands.mdx#reuse-model-validation).
 - **`FluentModelValidator<T>`** — a bounded, literal-rule validator whose rules are also emitted into
   the generated TypeScript client, so the same constraint runs in the browser and on the server. See
-  [Share fluent validation](../guides/validation.md).
+  [Share fluent validation](../guides/validation.mdx).
 - **`@IgnoreValidation`** — cuts one member's validation edge before access while leaving
   serialization and binding unchanged. See
   [Ignore a validation member edge](validation.md#ignore-a-validation-member-edge).
