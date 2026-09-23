@@ -493,6 +493,42 @@ IMPORT_ROLES = "import io.cratis.arc.authorization.Roles"
 # listed: an unlisted snippet would silently compile as a bare declaration fragment, and
 # "it compiled because nothing referenced anything" is not a verdict worth having.
 SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
+    "guides/observable-queries/from-repository": SnippetContext(
+        imports=(IMPORT_READ_MODEL, IMPORT_FROM_SERVICES, IMPORT_FLOW,
+                 "import io.cratis.arc.authorization.AllowAnonymous"),
+        prelude="""
+            interface TaskRepository { fun observeAll(): kotlinx.coroutines.flow.Flow<List<TaskView>> }
+        """,
+    ),
+    "guides/observable-queries/from-state": SnippetContext(
+        imports=(IMPORT_READ_MODEL, IMPORT_FLOW,
+                 "import io.cratis.arc.authorization.AllowAnonymous",
+                 "import kotlinx.coroutines.flow.MutableStateFlow"),
+    ),
+    "guides/observable-queries/observable-state-bean": SnippetContext(
+        imports=(IMPORT_COMPONENT,
+                 "import io.cratis.arc.queries.ObservableState",
+                 "import java.util.concurrent.Flow"),
+        prelude="""
+            data class TaskView(val id: String, val title: String)
+        """,
+    ),
+    "guides/spring-data/observable-snapshots/observe-criteria": SnippetContext(
+        kind="companion",
+        imports=(IMPORT_FROM_SERVICES, IMPORT_FLOW, IMPORT_MONGO_QUERY, IMPORT_MONGO_OBSERVE,
+                 "import org.springframework.data.mongodb.core.query.Criteria"),
+        prelude="""
+            data class TaskView(val id: String, val title: String)
+        """,
+    ),
+    "guides/spring-data/observable-snapshots/jpa-observe": SnippetContext(
+        kind="companion",
+        imports=(IMPORT_FROM_SERVICES, IMPORT_FLOW,
+                 "import io.cratis.arc.springdata.jpa.JpaObservableQuery"),
+        prelude="""
+            data class TaskView(val id: String, val title: String)
+        """,
+    ),
     "guides/testing/execute": SnippetContext(
         imports=(IMPORT_COMMAND,
             "import io.cratis.arc.artifacts.ArcArtifactModule",
@@ -1936,6 +1972,58 @@ JAVA_SCENARIO_HOST = """
 # would silently compile as a bare fragment, and "it compiled because nothing referenced
 # anything" is not a verdict worth having.
 JAVA_SNIPPET_CONTEXTS: dict[str, JavaSnippetContext] = {
+    "guides/observable-queries/from-repository": JavaSnippetContext(
+        imports=("import io.cratis.arc.artifacts.FromServices;",
+                 "import io.cratis.arc.artifacts.ReadModel;",
+                 "import io.cratis.arc.authorization.AllowAnonymous;",
+                 "import java.util.List;"),
+        prelude="""
+            interface TaskRepository { java.util.concurrent.Flow.Publisher<List<TaskView>> observeAll(); }
+        """,
+    ),
+    "guides/observable-queries/from-state": JavaSnippetContext(
+        kind="member",
+        imports=("import io.cratis.arc.artifacts.ReadModel;", "import java.util.List;"),
+        prelude="""
+            record TaskView(String id, String title) { }
+            interface TaskRepository { java.util.concurrent.Flow.Publisher<java.util.List<TaskView>> observeAll(); }
+        """,
+    ),
+    "guides/observable-queries/observable-state-bean": JavaSnippetContext(
+        imports=("import io.cratis.arc.queries.ObservableState;",
+                 "import java.util.List;",
+                 "import java.util.concurrent.Flow;",
+                 "import org.springframework.stereotype.Component;"),
+        prelude="""
+            record TaskView(String id, String title) { }
+            interface TaskRepository { java.util.concurrent.Flow.Publisher<java.util.List<TaskView>> observeAll(); }
+        """,
+    ),
+    "guides/spring-data/observable-snapshots/observe-criteria": JavaSnippetContext(
+        kind="member",
+        imports=("import io.cratis.arc.springdata.mongodb.MongoObservableQuery;",
+                 "import io.cratis.arc.springdata.mongodb.MongoObservations;",
+                 "import java.util.List;",
+                 "import java.util.concurrent.Flow;",
+                 "import org.springframework.data.mongodb.core.query.Criteria;"),
+        host="MongoObservableQuery queries; String taskId;",
+        prelude="""
+            record TaskView(String id, String title) { }
+            interface TaskRepository { java.util.concurrent.Flow.Publisher<java.util.List<TaskView>> observeAll(); }
+        """,
+    ),
+    "guides/spring-data/observable-snapshots/jpa-observe": JavaSnippetContext(
+        kind="member",
+        imports=("import io.cratis.arc.springdata.jpa.JpaObservableQuery;",
+                 "import io.cratis.arc.springdata.jpa.JpaObservations;",
+                 "import java.util.List;",
+                 "import java.util.concurrent.Flow;"),
+        host="JpaObservableQuery queries;",
+        prelude="""
+            record TaskView(String id, String title) { }
+            interface TaskRepository { java.util.concurrent.Flow.Publisher<java.util.List<TaskView>> observeAll(); }
+        """,
+    ),
     "guides/testing/execute": JavaSnippetContext(
         imports=("import io.cratis.arc.artifacts.ArcArtifactModule;",
             "import io.cratis.arc.artifacts.Command;",

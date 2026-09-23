@@ -13,7 +13,7 @@
 - name: Queries
   href: guides/queries.mdx
 - name: Observable queries
-  href: guides/observable-queries.md
+  href: guides/observable-queries.mdx
 - name: Validation
   href: guides/validation.mdx
 - name: Authentication and authorization

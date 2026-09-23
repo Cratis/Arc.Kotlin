@@ -7,4 +7,4 @@
 - name: Repositories in queries and commands
   href: repositories.mdx
 - name: Observable storage snapshots
-  href: observable-snapshots.md
+  href: observable-snapshots.mdx

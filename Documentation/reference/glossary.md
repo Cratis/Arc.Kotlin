@@ -20,7 +20,7 @@ description: One precise line per Arc.Kotlin term, cross-referenced to the guide
 - **Observable query** — a query whose return type is `Flow<T>`/`Flow<List<T>>` or
   `Flow.Publisher<T>`/`Publisher<List<T>>` (or, with the optional `arc-rxjava3` artifact, an RxJava 3
   type). Arc hosts it as an HTTP snapshot, direct SSE, direct WebSocket, or a multiplexed hub. See
-  [Declare observable queries](../guides/observable-queries.md).
+  [Declare observable queries](../guides/observable-queries.mdx).
 - **`@FromServices`** — marks a query parameter as a dependency resolved from Spring, distinguishing
   it from an unannotated caller argument.
 

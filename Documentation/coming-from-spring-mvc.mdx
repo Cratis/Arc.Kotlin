@@ -21,7 +21,7 @@ difference is what you write to expose a command or a query over HTTP.
 | `@PreAuthorize("hasRole('ADMIN')")` | `@Authorize(roles = ["admin"])` or `@Roles("admin")` on the class or the operation — see [Protect the command](guides/commands.mdx#protect-the-command) |
 | A hand-written OpenAPI annotation set, or springdoc | Arc generates OpenAPI 3.1 from the same metadata — see [Publish an OpenAPI document](guides/openapi.md) |
 | A hand-written or generated `fetch`/axios TypeScript client | A generated, strict-mode TypeScript client — see [Generate TypeScript proxies](guides/typescript-proxies.mdx) |
-| `SseEmitter` or a `WebSocketHandler` for live data | A query returning `Flow<T>` or `Flow.Publisher<T>` — Arc hosts HTTP snapshots, SSE, and WebSocket for it automatically — see [Declare observable queries](guides/observable-queries.md) |
+| `SseEmitter` or a `WebSocketHandler` for live data | A query returning `Flow<T>` or `Flow.Publisher<T>` — Arc hosts HTTP snapshots, SSE, and WebSocket for it automatically — see [Declare observable queries](guides/observable-queries.mdx) |
 
 ## A command, side by side
 
