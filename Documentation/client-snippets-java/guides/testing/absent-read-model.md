@@ -4,7 +4,8 @@ static void rejectsAMissingTask(ArcArtifactModule module) throws Exception {
         .withReadModel(TaskView.class, null);
 
     try (BlockingCommandScenario<RenameTask> scenario = new BlockingCommandScenario<>(configured)) {
-        scenario.execute(new RenameTask("missing", "Renamed title", 0L));
+        scenario.execute(new RenameTask("missing", "Renamed title", 0L))
+            .shouldHaveValidation(null, null, ValidationResultReasons.DEPENDENCY_UNAVAILABLE);
     }
 }
 ```

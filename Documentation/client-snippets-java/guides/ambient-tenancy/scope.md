@@ -8,7 +8,7 @@ void handleRequest(TenantId tenantId) {
 
     // Runnable form — no return value
     TenantContextBridge.withTenant(tenantId, () ->
-        doWork(TenantContextBridge.currentTenant())
+        record(TenantContextBridge.currentTenant())
     );
     // TenantContextBridge.currentTenant() returns null here — scope is restored on exit
 }

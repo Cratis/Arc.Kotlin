@@ -62,7 +62,7 @@ description: One precise line per Arc.Kotlin term, cross-referenced to the guide
 
 - **`AuthenticationHandler`** — an ordered Kotlin or Java (`AsyncAuthenticationHandler`) bean that
   inspects a request and returns an authenticated, failed, or anonymous result. See
-  [Register a Kotlin authentication handler](../guides/security.mdx#register-a-kotlin-authentication-handler).
+  [Register an authentication handler](../guides/security.mdx#register-an-authentication-handler).
 - **`TenantIdResolver`** — resolves the current request's tenant from a header, query parameter,
   claim, subdomain, or fixed/development value. See [Configuration reference](configuration.mdx).
 - **`CommandResult` / `QueryResult`** — the JSON envelopes every command and query response uses. See

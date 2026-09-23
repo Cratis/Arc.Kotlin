@@ -1,5 +1,4 @@
 ```java
-@Component
 public class CreateTaskValidator implements BlockingCommandValidator<CreateTask> {
     @Override
     public Class<CreateTask> getCommandType() {
@@ -12,6 +11,14 @@ public class CreateTaskValidator implements BlockingCommandValidator<CreateTask>
             return List.of(ValidationResult.error("A task title is required.", List.of("title")));
         }
         return List.of();
+    }
+}
+
+@Configuration
+class ValidationConfiguration {
+    @Bean
+    CommandValidator<CreateTask> createTaskValidator() {
+        return new BlockingCommandValidatorAdapter<>(new CreateTaskValidator());
     }
 }
 ```

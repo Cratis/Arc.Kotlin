@@ -17,7 +17,7 @@ dependencies {
 
 For direct query values and list entries, `QueryScenario` uses the descriptor's declared registered base type rather than reading an annotated derivative as its runtime class. Unknown or missing `_derivedTypeId` values still fail; scenarios do not infer registrations or silently accept unknown identifiers. This is not an arbitrary generic graph-cloning API: erased generic roots, undeclared polymorphic roots, and other container shapes retain the existing runtime-class round-trip limitations. Ordinary model properties use their Jackson-declared types. Serialization failures propagate to the test rather than becoming successful pipeline results.
 
-## Test with Kotlin
+## Test a command
 
 <ArcBackendTabs snippet="guides/testing/execute" variants="kotlin,java" />
 
@@ -67,11 +67,7 @@ Given events establish ordered event-source history and are excluded from `appen
 
 ## Test with Java
 
-Use closeable blocking scenarios for ordinary JUnit tests:
-
-Read-model pins are configured on the same scenario object before the bridge is constructed:
-
-For Chronicle scenarios, Java uses the generated `ChronicleCommandScenarios` static methods for Kotlin extension functions and the same builders and assertions:
+The Java tabs above use `BlockingCommandScenario`, a closeable bridge over a configured `CommandScenario`, for ordinary JUnit tests. Read-model pins, tenant resolution and Chronicle setup are configured on that scenario before the bridge is constructed, and Chronicle scenarios reach the Kotlin extension functions through the generated `ChronicleCommandScenarios` static methods.
 
 For asynchronous tests, construct `AsyncCommandScenario`, `AsyncQueryScenario`, or `AsyncObservableQueryScenario` with a `JavaAsyncScope`. No Kotlin coroutine imports are needed. Command and one-shot query bridges accept a configured scenario, a manual handler/performer, or a module plus the command class/query name. The observable bridge accepts a configured `ObservableQueryScenario<T>`.
 

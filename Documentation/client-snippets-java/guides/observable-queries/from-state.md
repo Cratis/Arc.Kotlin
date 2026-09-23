@@ -1,8 +1,11 @@
 ```java
-private static final java.util.concurrent.SubmissionPublisher<List<TaskView>> publisher =
-    new java.util.concurrent.SubmissionPublisher<>();
+@ReadModel
+@AllowAnonymous
+public record TaskView(String id, String title) {
+    private static final ObservableState<List<TaskView>> tasks = new ObservableState<>(List.of());
 
-public static java.util.concurrent.Flow.Publisher<List<TaskView>> all() {
-    return publisher;
+    public static Flow.Publisher<List<TaskView>> all() {
+        return tasks;
+    }
 }
 ```

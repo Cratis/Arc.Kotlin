@@ -57,7 +57,7 @@ repository root. The most common ones:
 | `ARCKSP0101` / `ARCKSP0200` | A `@Command`/`@ReadModel` class is not a public top-level declaration |
 | `ARCKSP0102` / `ARCKSP0201` | `handle` or a query method is not public, or is on a private/internal companion |
 | `ARCKSP0106` | Two members both resolve as the command key |
-| `ARCKSP0108` | `@AllowAnonymous` combined with `@Authorize`/`@Roles`, on the same target or across class and operation |
+| `ARCKSP0108` | `@AllowAnonymous` combined with `@Authorize`/`@Roles` on the same declaration, or `@AllowAnonymous` on both the class and its operation. Splitting `@AllowAnonymous` and `@Authorize`/`@Roles` across a class and its operation is a supported override, not this error |
 | `ARCKSP0109` | An aggregate command response leaves more than one possible client-visible leaf |
 | `ARCKSP0300` | A computed or read-only Kotlin property reached through command input; use a backed property or a separate output model |
 | `ARCKSP0301` | A Jakarta/Hibernate constraint cannot be represented as a client-side rule |

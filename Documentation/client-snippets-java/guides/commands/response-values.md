@@ -10,7 +10,7 @@ public record CreateOrder(String orderId) {
 }
 
 @HandlesCommandResponseValues({AuditEntry.class})
-final class AuditEntryHandler implements BlockingCommandResponseValueHandler {
+final class AuditEntryResponseHandler implements BlockingCommandResponseValueHandler {
     @Override
     public boolean canHandle(CommandContext context, Object value) {
         return value instanceof AuditEntry;
@@ -26,7 +26,7 @@ final class AuditEntryHandler implements BlockingCommandResponseValueHandler {
 class ResponseHandlerConfiguration {
     @Bean
     CommandResponseValueHandler auditEntryResponseValueHandler() {
-        return new BlockingCommandResponseValueHandlerAdapter(new AuditEntryHandler());
+        return new BlockingCommandResponseValueHandlerAdapter(new AuditEntryResponseHandler());
     }
 }
 ```
