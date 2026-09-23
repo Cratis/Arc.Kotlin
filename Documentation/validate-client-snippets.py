@@ -493,6 +493,169 @@ IMPORT_ROLES = "import io.cratis.arc.authorization.Roles"
 # listed: an unlisted snippet would silently compile as a bare declaration fragment, and
 # "it compiled because nothing referenced anything" is not a verdict worth having.
 SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
+    "guides/pipeline-filters/command-filter": SnippetContext(
+        imports=(
+            IMPORT_COMMAND_CONTEXT,
+            "import io.cratis.arc.commands.CommandFilter",
+            "import io.cratis.arc.results.CommandResult",
+        ),
+    ),
+    "guides/pipeline-filters/register-command-filter": SnippetContext(
+        kind="member",
+        imports=(
+            "import io.cratis.arc.commands.CommandFilter",
+            "import org.springframework.context.annotation.Bean",
+        ),
+        prelude="""
+            class BillingCommandFilter : CommandFilter {
+                override suspend fun execute(context: io.cratis.arc.commands.CommandContext) =
+                    io.cratis.arc.results.CommandResult.success(context.correlationId)
+            }
+        """,
+    ),
+    "guides/pipeline-filters/query-filter": SnippetContext(
+        imports=(
+            "import io.cratis.arc.queries.QueryContext",
+            "import io.cratis.arc.queries.QueryFilter",
+            "import io.cratis.arc.results.QueryResult",
+        ),
+    ),
+    "guides/pipeline-filters/order": SnippetContext(
+        kind="member",
+        imports=(
+            "import io.cratis.arc.commands.CommandFilter",
+            "import org.springframework.context.annotation.Bean",
+            "import org.springframework.core.annotation.Order",
+        ),
+        prelude="""
+            class AuditCommandFilter : CommandFilter {
+                override suspend fun execute(context: io.cratis.arc.commands.CommandContext) =
+                    io.cratis.arc.results.CommandResult.success(context.correlationId)
+            }
+            class BillingCommandFilter : CommandFilter {
+                override suspend fun execute(context: io.cratis.arc.commands.CommandContext) =
+                    io.cratis.arc.results.CommandResult.success(context.correlationId)
+            }
+        """,
+    ),
+    "guides/typescript-proxies/documented-command": SnippetContext(
+        imports=(IMPORT_COMMAND, "import io.cratis.arc.artifacts.CommandKey"),
+    ),
+    "coming-from-spring-mvc/command-mvc": SnippetContext(
+        imports=("import jakarta.validation.Valid",
+            "import org.springframework.http.ResponseEntity",
+            "import org.springframework.web.bind.annotation.GetMapping",
+            "import org.springframework.web.bind.annotation.PostMapping",
+            "import org.springframework.web.bind.annotation.RequestBody",
+            "import org.springframework.web.bind.annotation.RestController",),
+        prelude="""
+            data class Task(val id: String, val title: String)
+            data class TaskView(val id: String, val title: String)
+            data class TaskCreated(val id: String, val title: String)
+            data class CreateTaskRequest(val title: String)
+            interface TaskRepository {
+                fun create(title: String): Task
+                fun all(): List<TaskView>
+            }
+        """,
+    ),
+    "coming-from-spring-mvc/query-mvc": SnippetContext(
+        imports=("import jakarta.validation.Valid",
+            "import org.springframework.http.ResponseEntity",
+            "import org.springframework.web.bind.annotation.GetMapping",
+            "import org.springframework.web.bind.annotation.PostMapping",
+            "import org.springframework.web.bind.annotation.RequestBody",
+            "import org.springframework.web.bind.annotation.RestController",),
+        prelude="""
+            data class Task(val id: String, val title: String)
+            data class TaskView(val id: String, val title: String)
+            data class TaskCreated(val id: String, val title: String)
+            data class CreateTaskRequest(val title: String)
+            interface TaskRepository {
+                fun create(title: String): Task
+                fun all(): List<TaskView>
+            }
+        """,
+    ),
+    "coming-from-spring-mvc/command-arc": SnippetContext(
+        imports=(
+            IMPORT_COMMAND,
+            "import io.cratis.arc.authorization.AllowAnonymous",
+        ),
+        prelude="""
+            data class Task(val id: String, val title: String)
+            data class TaskView(val id: String, val title: String)
+            data class TaskCreated(val id: String, val title: String)
+            data class CreateTaskRequest(val title: String)
+            interface TaskRepository {
+                fun create(title: String): Task
+                fun all(): List<TaskView>
+            }
+        """,
+    ),
+    "coming-from-spring-mvc/query-arc": SnippetContext(
+        imports=(
+            IMPORT_READ_MODEL,
+            IMPORT_FROM_SERVICES,
+            "import io.cratis.arc.authorization.AllowAnonymous",
+            "import io.cratis.arc.queries.Path",
+        ),
+        prelude="""
+            data class Task(val id: String, val title: String)
+            interface TaskRepository {
+                fun create(title: String): Task
+                fun all(): List<TaskView>
+            }
+        """,
+    ),
+    "reference/annotations/exported-type": SnippetContext(
+        imports=("import io.cratis.arc.artifacts.ExportedType",),
+    ),
+    "reference/annotations/registry-outside-spring": SnippetContext(
+        imports=(
+            "import io.cratis.arc.artifacts.ArcArtifactModule",
+            "import io.cratis.arc.artifacts.ArcArtifactModuleRegistry",
+            "import io.cratis.arc.json.ArcObjectMapper",
+            "import io.cratis.arc.polymorphism.ConcurrentDerivedTypeRegistry",
+            "import tools.jackson.databind.ObjectMapper",
+        ),
+    ),
+    "reference/annotations/derived-type-registrar": SnippetContext(
+        kind="member",
+        imports=(
+            "import io.cratis.arc.polymorphism.DerivedTypeRegistrar",
+            "import org.springframework.context.annotation.Bean",
+        ),
+        prelude="""
+            interface Shape
+            class ExternalCircle : Shape
+        """,
+    ),
+    "guides/ambient-tenancy/scope": SnippetContext(
+        imports=(
+            "import io.cratis.arc.tenancy.TenantId",
+            "import io.cratis.arc.tenancy.withTenant",
+        ),
+        prelude="""
+            suspend fun performWork() {}
+        """,
+    ),
+    "guides/ambient-tenancy/nested": SnippetContext(
+        imports=(
+            "import io.cratis.arc.tenancy.TenantId",
+            "import io.cratis.arc.tenancy.currentTenant",
+            "import io.cratis.arc.tenancy.withTenant",
+        ),
+    ),
+    "guides/spring-data/index/repository-in-query": SnippetContext(
+        imports=(
+            IMPORT_READ_MODEL,
+            IMPORT_FROM_SERVICES,
+            "import jakarta.persistence.Entity",
+            "import jakarta.persistence.Id",
+            "import org.springframework.data.jpa.repository.JpaRepository",
+        ),
+    ),
     "guides/queries/paths-and-services": SnippetContext(
         imports=(
             IMPORT_READ_MODEL,
@@ -1450,6 +1613,194 @@ JAVA_SCENARIO_HOST = """
 # would silently compile as a bare fragment, and "it compiled because nothing referenced
 # anything" is not a verdict worth having.
 JAVA_SNIPPET_CONTEXTS: dict[str, JavaSnippetContext] = {
+    "guides/pipeline-filters/command-filter": JavaSnippetContext(
+        imports=(
+            "import io.cratis.arc.commands.CommandContext;",
+            "import io.cratis.arc.java.BlockingCommandFilter;",
+            "import io.cratis.arc.results.CommandResult;",
+        ),
+    ),
+    "guides/pipeline-filters/register-command-filter": JavaSnippetContext(
+        kind="member",
+        imports=(
+            "import io.cratis.arc.commands.CommandContext;",
+            "import io.cratis.arc.commands.CommandFilter;",
+            "import io.cratis.arc.java.BlockingCommandFilter;",
+            "import io.cratis.arc.java.BlockingCommandFilterAdapter;",
+            "import io.cratis.arc.results.CommandResult;",
+            "import org.springframework.context.annotation.Bean;",
+        ),
+        prelude="""
+            final class BillingCommandFilter implements BlockingCommandFilter {
+                @Override
+                public CommandResult<?> execute(CommandContext context) {
+                    return CommandResult.success(context.getCorrelationId());
+                }
+            }
+        """,
+    ),
+    "guides/pipeline-filters/query-filter": JavaSnippetContext(
+        imports=(
+            "import io.cratis.arc.java.BlockingQueryFilter;",
+            "import io.cratis.arc.queries.QueryContext;",
+            "import io.cratis.arc.results.QueryResult;",
+        ),
+    ),
+    "guides/pipeline-filters/order": JavaSnippetContext(
+        kind="member",
+        imports=(
+            "import io.cratis.arc.commands.CommandContext;",
+            "import io.cratis.arc.commands.CommandFilter;",
+            "import io.cratis.arc.java.BlockingCommandFilter;",
+            "import io.cratis.arc.java.BlockingCommandFilterAdapter;",
+            "import io.cratis.arc.results.CommandResult;",
+            "import org.springframework.context.annotation.Bean;",
+            "import org.springframework.core.annotation.Order;",
+        ),
+        prelude="""
+            final class AuditCommandFilter implements BlockingCommandFilter {
+                @Override
+                public CommandResult<?> execute(CommandContext context) {
+                    return CommandResult.success(context.getCorrelationId());
+                }
+            }
+            final class BillingCommandFilter implements BlockingCommandFilter {
+                @Override
+                public CommandResult<?> execute(CommandContext context) {
+                    return CommandResult.success(context.getCorrelationId());
+                }
+            }
+        """,
+    ),
+    "guides/typescript-proxies/documented-command": JavaSnippetContext(
+        imports=(
+            "import io.cratis.arc.artifacts.Command;",
+            "import io.cratis.arc.artifacts.CommandKey;",
+        ),
+    ),
+    "coming-from-spring-mvc/command-mvc": JavaSnippetContext(
+        imports=("import jakarta.validation.Valid;",
+            "import java.util.List;",
+            "import org.springframework.http.ResponseEntity;",
+            "import org.springframework.web.bind.annotation.GetMapping;",
+            "import org.springframework.web.bind.annotation.PostMapping;",
+            "import org.springframework.web.bind.annotation.RequestBody;",
+            "import org.springframework.web.bind.annotation.RestController;",),
+        prelude="""
+            record Task(String id, String title) { }
+            record TaskView(String id, String title) { }
+            record TaskCreated(String id, String title) { }
+            record CreateTaskRequest(String title) { }
+            interface TaskRepository {
+                Task create(String title);
+                java.util.List<TaskView> all();
+            }
+        """,
+    ),
+    "coming-from-spring-mvc/query-mvc": JavaSnippetContext(
+        imports=("import jakarta.validation.Valid;",
+            "import java.util.List;",
+            "import org.springframework.http.ResponseEntity;",
+            "import org.springframework.web.bind.annotation.GetMapping;",
+            "import org.springframework.web.bind.annotation.PostMapping;",
+            "import org.springframework.web.bind.annotation.RequestBody;",
+            "import org.springframework.web.bind.annotation.RestController;",),
+        prelude="""
+            record Task(String id, String title) { }
+            record TaskView(String id, String title) { }
+            record TaskCreated(String id, String title) { }
+            record CreateTaskRequest(String title) { }
+            interface TaskRepository {
+                Task create(String title);
+                java.util.List<TaskView> all();
+            }
+        """,
+    ),
+    "coming-from-spring-mvc/command-arc": JavaSnippetContext(
+        imports=(
+            "import io.cratis.arc.artifacts.Command;",
+            "import io.cratis.arc.authorization.AllowAnonymous;",
+        ),
+        prelude="""
+            record Task(String id, String title) { }
+            record TaskView(String id, String title) { }
+            record TaskCreated(String id, String title) { }
+            record CreateTaskRequest(String title) { }
+            interface TaskRepository {
+                Task create(String title);
+                java.util.List<TaskView> all();
+            }
+        """,
+    ),
+    "coming-from-spring-mvc/query-arc": JavaSnippetContext(
+        imports=(
+            "import io.cratis.arc.artifacts.FromServices;",
+            "import io.cratis.arc.artifacts.ReadModel;",
+            "import io.cratis.arc.authorization.AllowAnonymous;",
+            "import io.cratis.arc.queries.Path;",
+            "import java.util.List;",
+        ),
+        prelude="""
+            record Task(String id, String title) { }
+            interface TaskRepository {
+                Task create(String title);
+                List<TaskView> all();
+            }
+        """,
+    ),
+    "reference/annotations/exported-type": JavaSnippetContext(
+        imports=("import io.cratis.arc.artifacts.ExportedType;",),
+    ),
+    "reference/annotations/registry-outside-spring": JavaSnippetContext(
+        imports=(
+            "import io.cratis.arc.artifacts.ArcArtifactModule;",
+            "import io.cratis.arc.artifacts.ArcArtifactModuleRegistry;",
+            "import io.cratis.arc.json.ArcObjectMapper;",
+            "import io.cratis.arc.polymorphism.ConcurrentDerivedTypeRegistry;",
+            "import tools.jackson.databind.ObjectMapper;",
+        ),
+    ),
+    "reference/annotations/derived-type-registrar": JavaSnippetContext(
+        kind="member",
+        imports=(
+            "import io.cratis.arc.polymorphism.DerivedTypeRegistrar;",
+            "import org.springframework.context.annotation.Bean;",
+        ),
+        prelude="""
+            interface Shape { }
+            class ExternalCircle implements Shape { }
+        """,
+    ),
+    "guides/ambient-tenancy/scope": JavaSnippetContext(
+        kind="member",
+        imports=(
+            "import io.cratis.arc.tenancy.TenantContextBridge;",
+            "import io.cratis.arc.tenancy.TenantId;",
+        ),
+        prelude="""
+            static String doWork(TenantId current) { return ""; }
+        """,
+    ),
+    "guides/ambient-tenancy/nested": JavaSnippetContext(
+        kind="member",
+        imports=(
+            "import io.cratis.arc.tenancy.TenantContextBridge;",
+            "import io.cratis.arc.tenancy.TenantId;",
+        ),
+        prelude="""
+            static void use(TenantId current) { }
+        """,
+    ),
+    "guides/spring-data/index/repository-in-query": JavaSnippetContext(
+        imports=(
+            "import io.cratis.arc.artifacts.FromServices;",
+            "import io.cratis.arc.artifacts.ReadModel;",
+            "import jakarta.persistence.Entity;",
+            "import jakarta.persistence.Id;",
+            "import java.util.List;",
+            "import org.springframework.data.jpa.repository.JpaRepository;",
+        ),
+    ),
     "guides/queries/paths-and-services": JavaSnippetContext(
         imports=(
             "import io.cratis.arc.artifacts.FromServices;",

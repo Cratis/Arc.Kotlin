@@ -18,34 +18,11 @@ principal authentication already produced, the correlation identifier, the tenan
 result that is merged into the outcome. Returning anything unsuccessful stops the command before its
 handler is called:
 
-```kotlin
-public class BillingCommandFilter : CommandFilter {
-    override suspend fun execute(context: CommandContext): CommandResult<*> {
-        if (!context.commandType.name.startsWith(BILLING_PACKAGE)) {
-            return CommandResult.success(context.correlationId)
-        }
-        if (context.principal.isInRole(BILLING_ROLE)) {
-            return CommandResult.success(context.correlationId)
-        }
-        return CommandResult.unauthorized(
-            context.correlationId,
-            "Role '$BILLING_ROLE' is required for commands in '$BILLING_PACKAGE'."
-        )
-    }
-
-    private companion object {
-        const val BILLING_PACKAGE = "com.example.features.billing"
-        const val BILLING_ROLE = "billing"
-    }
-}
-```
+<ArcBackendTabs snippet="guides/pipeline-filters/command-filter" variants="kotlin,java" />
 
 Register it as a bean and it applies to every command:
 
-```kotlin
-@Bean
-public fun billingCommandFilter(): CommandFilter = BillingCommandFilter()
-```
+<ArcBackendTabs snippet="guides/pipeline-filters/register-command-filter" variants="kotlin,java" />
 
 A filter that does not apply to the command in front of it returns success and gets out of the way.
 That first check is what keeps a feature's rule scoped to the feature.
@@ -55,19 +32,7 @@ That first check is what keeps a feature's rule scoped to the feature.
 The same shape, against `QueryContext`. The query's fully qualified name is what you match on,
 because a query is a method rather than a type:
 
-```kotlin
-public class BillingQueryFilter : QueryFilter {
-    override suspend fun execute(context: QueryContext): QueryResult<*> {
-        if (!context.queryName.value.startsWith(BILLING_PACKAGE)) {
-            return QueryResult.success<Any>(context.correlationId)
-        }
-        if (context.principal.isInRole(BILLING_ROLE)) {
-            return QueryResult.success<Any>(context.correlationId)
-        }
-        return QueryResult.unauthorized<Any>(context.correlationId)
-    }
-}
-```
+<ArcBackendTabs snippet="guides/pipeline-filters/query-filter" variants="kotlin,java" />
 
 A query filter runs for observable queries too, at subscription time — so a rule written once covers
 both the one-shot `GET` and the live subscription.
@@ -82,24 +47,6 @@ code is already written:
 | Synchronous | `BlockingCommandFilter` / `BlockingQueryFilter` | `BlockingCommandFilterAdapter` / `BlockingQueryFilterAdapter` |
 | `CompletionStage` | `AsyncCommandFilter` / `AsyncQueryFilter` | `AsyncCommandFilterAdapter` / `AsyncQueryFilterAdapter` |
 
-```java
-public final class BillingCommandFilter implements BlockingCommandFilter {
-    @Override
-    public CommandResult<?> execute(CommandContext context) {
-        if (!context.getCommandType().getName().startsWith(BILLING_PACKAGE)
-            || context.getPrincipal().isInRole(BILLING_ROLE)) {
-            return CommandResult.success(context.getCorrelationId());
-        }
-        return CommandResult.unauthorized(context.getCorrelationId(), "Billing role required.");
-    }
-}
-
-@Bean
-public CommandFilter billingCommandFilter() {
-    return new BlockingCommandFilterAdapter(new BillingCommandFilter());
-}
-```
-
 A blocking filter occupies a request thread for as long as it runs. Keep it to decisions it can make
 from the context it already has; if it needs to call something remote, use the `CompletionStage`
 form instead.
@@ -109,15 +56,7 @@ form instead.
 Filters are collected in Spring `@Order` sequence, and that order is the complete rule — there is no
 hidden precedence:
 
-```kotlin
-@Bean
-@Order(10)
-public fun auditFilter(): CommandFilter = AuditCommandFilter()
-
-@Bean
-@Order(20)
-public fun billingFilter(): CommandFilter = BillingCommandFilter()
-```
+<ArcBackendTabs snippet="guides/pipeline-filters/order" variants="kotlin,java" />
 
 Authorization filters are the one exception: a filter implementing `AuthorizationCommandFilter` or
 `AuthorizationQueryFilter` runs before the rest regardless of its order, so a rule that denies access

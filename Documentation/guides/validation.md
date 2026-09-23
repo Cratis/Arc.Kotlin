@@ -49,7 +49,7 @@ cratis.arc.endpoints.enable-query-http-method=true
 
 For the client, the repository contract pins `@cratis/arc` and `@cratis/arc.react` to **22.10.4**,
 `@cratis/fundamentals` to **7.18.4**, React to **19.2.8**, and TypeScript to **7.0.2**, running on
-Node 22. See [proxy setup](typescript-proxies.md) for compiler settings; use the pinned packages
+Node 22. See [proxy setup](typescript-proxies.mdx) for compiler settings; use the pinned packages
 rather than assuming another runtime has the same rules. Jakarta validation is independent: add a
 Jakarta provider, such as `spring-boot-starter-validation`, if you also use Jakarta constraints.
 Shared fluent rules themselves do not require Jakarta.

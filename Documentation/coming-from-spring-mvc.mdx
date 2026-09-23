@@ -20,34 +20,14 @@ difference is what you write to expose a command or a query over HTTP.
 | `ResponseEntity<T>` | A `CommandResult<T>` or `QueryResult<T>` JSON envelope — see the [HTTP contract reference](reference/http-contract.md) |
 | `@PreAuthorize("hasRole('ADMIN')")` | `@Authorize(roles = ["admin"])` or `@Roles("admin")` on the class or the operation — see [Protect the command](guides/commands.md#protect-the-command) |
 | A hand-written OpenAPI annotation set, or springdoc | Arc generates OpenAPI 3.1 from the same metadata — see [Publish an OpenAPI document](guides/openapi.md) |
-| A hand-written or generated `fetch`/axios TypeScript client | A generated, strict-mode TypeScript client — see [Generate TypeScript proxies](guides/typescript-proxies.md) |
+| A hand-written or generated `fetch`/axios TypeScript client | A generated, strict-mode TypeScript client — see [Generate TypeScript proxies](guides/typescript-proxies.mdx) |
 | `SseEmitter` or a `WebSocketHandler` for live data | A query returning `Flow<T>` or `Flow.Publisher<T>` — Arc hosts HTTP snapshots, SSE, and WebSocket for it automatically — see [Declare observable queries](guides/observable-queries.md) |
 
 ## A command, side by side
 
-```kotlin
-// Spring MVC
-@RestController
-class TaskController(private val repository: TaskRepository) {
-    @PostMapping("/api/create-task")
-    fun create(@Valid @RequestBody request: CreateTaskRequest): ResponseEntity<TaskCreated> {
-        val task = repository.create(request.title)
-        return ResponseEntity.ok(TaskCreated(task.id, task.title))
-    }
-}
-```
+<ArcBackendTabs snippet="coming-from-spring-mvc/command-mvc" variants="kotlin,java" />
 
-```kotlin
-// Arc
-@Command
-@AllowAnonymous
-data class CreateTask(val title: String) {
-    fun handle(repository: TaskRepository): TaskCreated {
-        val task = repository.create(title)
-        return TaskCreated(task.id, task.title)
-    }
-}
-```
+<ArcBackendTabs snippet="coming-from-spring-mvc/command-arc" variants="kotlin,java" />
 
 There is no `TaskController` and no separate `CreateTaskRequest` DTO. `CreateTask` is the request
 body, `repository` is resolved from Spring the same way constructor injection would resolve it, and
@@ -56,27 +36,9 @@ declared with `@PostMapping`.
 
 ## A query, side by side
 
-```kotlin
-// Spring MVC
-@RestController
-class TaskQueryController(private val repository: TaskRepository) {
-    @GetMapping("/api/tasks")
-    fun all(): List<TaskView> = repository.all()
-}
-```
+<ArcBackendTabs snippet="coming-from-spring-mvc/query-mvc" variants="kotlin,java" />
 
-```kotlin
-// Arc
-@ReadModel
-@AllowAnonymous
-data class TaskView(val id: String, val title: String) {
-    companion object {
-        @JvmStatic
-        @Path("/api/tasks")
-        fun all(@FromServices repository: TaskRepository): List<TaskView> = repository.all()
-    }
-}
-```
+<ArcBackendTabs snippet="coming-from-spring-mvc/query-arc" variants="kotlin,java" />
 
 `@FromServices` exists precisely to distinguish `repository` — a dependency — from an unannotated
 parameter, which a caller supplies as a query argument. Without a query taking caller arguments,
@@ -90,7 +52,7 @@ for a query that takes both.
 - You can still write ordinary `@RestController` endpoints alongside Arc's generated ones in the
   same application — Arc adds routes, it does not remove Spring MVC.
 - Spring Data JPA and MongoDB repositories are injected the same way; see
-  [Use Spring Data read models](guides/spring-data/index.md) for the paging, sorting, and read-model
+  [Use Spring Data read models](guides/spring-data/index.mdx) for the paging, sorting, and read-model
   resolution Arc adds on top of them.
 
 ## Where to go next

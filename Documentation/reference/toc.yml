@@ -2,7 +2,7 @@
   href: index.md
   items:
     - name: Annotations
-      href: annotations.md
+      href: annotations.mdx
     - name: Configuration
       href: configuration.mdx
     - name: HTTP contract
