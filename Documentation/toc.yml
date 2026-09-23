@@ -20,6 +20,8 @@
   href: guides/security.mdx
 - name: Tenancy
   href: guides/ambient-tenancy.mdx
+- name: Development users and tenants
+  href: guides/development-users-and-tenants.md
 - name: Pipeline filters
   href: guides/pipeline-filters.mdx
 - name: Execution scopes
