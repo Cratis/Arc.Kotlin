@@ -7,7 +7,7 @@ Generating a TypeScript client is only half the promise. The other half is that 
 pleasant to use — that a command is a class you construct and execute, that a live query is a hook,
 and that neither one makes you write a URL, a request body, or a response type by hand.
 
-This guide is about that half. [TypeScript proxies](typescript-proxies.md) covers producing the
+This guide is about that half. [TypeScript proxies](typescript-proxies.mdx) covers producing the
 files; everything here assumes you already have them.
 
 ## Get the proxies into your application

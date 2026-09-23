@@ -61,7 +61,7 @@ synchronous commit does not stall Arc's request coroutine.
 ## When not to use a scope
 
 A scope runs for **every** command. If the concern belongs to one command or one
-group of them, a [pipeline filter](pipeline-filters.md) is the narrower tool and
+group of them, a [pipeline filter](pipeline-filters.mdx) is the narrower tool and
 says so in its own declaration.
 
 A scope is also not a compensation mechanism. `complete` observes the outcome and

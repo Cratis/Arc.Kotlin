@@ -47,7 +47,7 @@ Arc.Kotlin still does not claim complete Arc .NET parity. Controllers and non-Sp
 ## Choose a path
 
 New to Arc? Start with [why Arc for Kotlin and Java](why-arc-kotlin.md), or, if you already know
-Spring MVC, [coming from Spring MVC](coming-from-spring-mvc.md) maps the concepts directly. Then
+Spring MVC, [coming from Spring MVC](coming-from-spring-mvc.mdx) maps the concepts directly. Then
 build the runnable [Kotlin tutorial](get-started/index.md) or the equivalent
 [Java tutorial](get-started/java.md). Use the topic guides for focused tasks, the
 [reference](reference/index.md) for exact contracts, and

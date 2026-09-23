@@ -292,19 +292,7 @@ The manifest carries those rules and recursive `@Valid` metadata, and the genera
 
 Kotlin KDoc and Java Javadoc reach the generated clients as single-line JSDoc comments. Documentation is read at compile time, carried in the artifact manifest, and rendered by the generator; nothing is read at runtime.
 
-```kotlin
-/**
- * Creates an order for a customer.
- *
- * @property customerId Customer placing the order.
- */
-@Command
-public data class CreateOrder(
-    /** Stable order identifier. */
-    @CommandKey public val orderId: String,
-    public val customerId: String
-)
-```
+<ArcBackendTabs snippet="guides/typescript-proxies/documented-command" variants="kotlin,java" />
 
 ```typescript
 /** Creates an order for a customer. */

@@ -30,7 +30,7 @@ Keep server-only state nonpublic or annotate the member with `@field:JsonIgnore`
 
 Use default Arc wire names and symmetric access (`AUTO` or explicit `READ_WRITE`) for backed body input properties. Explicit `READ_WRITE` is also supported on backed output-model properties. Body `@JsonProperty` renames, write-only access, and split ignore/explicit-property declarations that the shared descriptor cannot represent fail with `ARCKSP0300`; there are no new manifest access flags. This is not general support for arbitrary application Jackson naming strategies, mixins, or custom serializers. Model inheritance retains separate base links and declared overrides; this change does not flatten or establish inherited command state, keys, or constraints. Declare command state directly on the command.
 
-Previously omitted public body state now adds generated fields, validation, reachable models, and potentially key behavior. Review regenerated clients and resolve newly reported unsupported input shapes; this is a source-contract correction, not a manifest-version change. See [body-property proxy metadata](typescript-proxies.md#include-declared-body-properties).
+Previously omitted public body state now adds generated fields, validation, reachable models, and potentially key behavior. Review regenerated clients and resolve newly reported unsupported input shapes; this is a source-contract correction, not a manifest-version change. See [body-property proxy metadata](typescript-proxies.mdx#include-declared-body-properties).
 
 ## Prepare handler values
 

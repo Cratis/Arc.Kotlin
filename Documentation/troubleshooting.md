@@ -31,7 +31,7 @@ changes between versions.
 The Gradle plugin's build-time route settings (`cratisArc.endpoints.*`) disagree with the runtime
 properties (`cratis.arc.endpoints.*`). The error names the exact setting and both values — align
 them in `build.gradle.kts` and `application.properties`. See
-[Configure generation](guides/typescript-proxies.md#configure-generation).
+[Configure generation](guides/typescript-proxies.mdx#configure-generation).
 
 ### `./gradlew checkSpringBoundary` fails
 
