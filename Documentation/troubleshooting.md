@@ -70,7 +70,7 @@ See [Annotation reference](reference/annotations.mdx) for the exact contract eac
 
 The command needs a Chronicle event response but has no usable `@CommandKey`. Declare one backed by
 `String`, `UUID`, a number, or a concept wrapping one of those. See
-[Return an event](guides/chronicle.md#return-an-event).
+[Return an event](guides/chronicle.mdx#return-an-event).
 
 ### An observable query returns HTTP 202 with no data
 
@@ -85,7 +85,7 @@ The connected kernel is older than 18.4.0. Kernels 18.3.1 and earlier omit the `
 from gRPC responses when a request *was* authorized, which a JVM proto3 client decodes as `false`.
 Upgrade to Chronicle kernel 18.4.0 or newer — the pinned development image is
 `cratis/chronicle:18.4.0-development`. See
-[Add Chronicle optionally](guides/chronicle.md#add-chronicle-optionally).
+[Add Chronicle optionally](guides/chronicle.mdx#add-chronicle-optionally).
 
 ### A generated TypeScript client rejects a request with a malformed-request error
 

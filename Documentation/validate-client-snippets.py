@@ -493,6 +493,55 @@ IMPORT_ROLES = "import io.cratis.arc.authorization.Roles"
 # listed: an unlisted snippet would silently compile as a bare declaration fragment, and
 # "it compiled because nothing referenced anything" is not a verdict worth having.
 SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
+    "guides/chronicle/event-from-command": SnippetContext(
+        imports=(
+            IMPORT_COMMAND,
+            "import io.cratis.arc.artifacts.CommandKey",
+            "import io.cratis.chronicle.events.EventType",
+        ),
+    ),
+    "guides/chronicle/event-metadata": SnippetContext(
+        imports=(
+            IMPORT_COMMAND,
+            "import io.cratis.arc.artifacts.CommandKey",
+            "import io.cratis.arc.artifacts.CommandEventSourceType",
+            "import io.cratis.arc.artifacts.CommandEventStreamId",
+            "import io.cratis.arc.artifacts.CommandEventStreamType",
+            "import io.cratis.arc.artifacts.CommandEventSubject",
+            "import io.cratis.chronicle.events.EventType",
+        ),
+        prelude="""
+            @EventType
+            data class TaskCreated(val title: String)
+        """,
+    ),
+    "guides/chronicle/concurrency-scopes": SnippetContext(
+        imports=(
+            "import io.cratis.arc.chronicle.EventsWithConcurrencyScopes",
+            "import io.cratis.arc.chronicle.eventsWithConcurrencyScopes",
+            "import io.cratis.chronicle.events.EventType",
+        ),
+        prelude="""
+            @EventType
+            data class FundsWithdrawn(val amount: Int)
+
+            @EventType
+            data class LedgerEntryAdded(val accountId: String, val amount: Int)
+        """,
+    ),
+    "guides/chronicle/current-state": SnippetContext(
+        imports=(
+            IMPORT_COMMAND,
+            "import io.cratis.arc.artifacts.CommandKey",
+            "import io.cratis.chronicle.events.EventType",
+        ),
+        prelude="""
+            @EventType
+            data class FundsWithdrawn(val amount: Int)
+
+            data class AccountBalance(val available: Int)
+        """,
+    ),
     "guides/security/platform-filter-chain": SnippetContext(
         kind="member",
         imports=(
@@ -1720,6 +1769,56 @@ JAVA_SCENARIO_HOST = """
 # would silently compile as a bare fragment, and "it compiled because nothing referenced
 # anything" is not a verdict worth having.
 JAVA_SNIPPET_CONTEXTS: dict[str, JavaSnippetContext] = {
+    "guides/chronicle/event-from-command": JavaSnippetContext(
+        imports=(
+            "import io.cratis.arc.artifacts.Command;",
+            "import io.cratis.arc.artifacts.CommandKey;",
+            "import io.cratis.chronicle.events.EventType;",
+        ),
+    ),
+    "guides/chronicle/event-metadata": JavaSnippetContext(
+        imports=(
+            "import io.cratis.arc.artifacts.Command;",
+            "import io.cratis.arc.artifacts.CommandKey;",
+            "import io.cratis.arc.artifacts.CommandEventSourceType;",
+            "import io.cratis.arc.artifacts.CommandEventStreamId;",
+            "import io.cratis.arc.artifacts.CommandEventStreamType;",
+            "import io.cratis.arc.artifacts.CommandEventSubject;",
+            "import io.cratis.chronicle.events.EventType;",
+        ),
+        prelude="""
+            @EventType
+            record TaskCreated(String title) { }
+        """,
+    ),
+    "guides/chronicle/concurrency-scopes": JavaSnippetContext(
+        kind="member",
+        imports=(
+            "import io.cratis.chronicle.eventSequences.concurrency.ConcurrencyScopeBuilder;",
+            "import io.cratis.arc.chronicle.EventsWithConcurrencyScopes;",
+            "import io.cratis.chronicle.events.EventType;",
+        ),
+        prelude="""
+            @EventType
+            record FundsWithdrawn(int amount) { }
+
+            @EventType
+            record LedgerEntryAdded(String accountId, int amount) { }
+        """,
+    ),
+    "guides/chronicle/current-state": JavaSnippetContext(
+        imports=(
+            "import io.cratis.arc.artifacts.Command;",
+            "import io.cratis.arc.artifacts.CommandKey;",
+            "import io.cratis.chronicle.events.EventType;",
+        ),
+        prelude="""
+            @EventType
+            record FundsWithdrawn(int amount) { }
+
+            record AccountBalance(int available) { }
+        """,
+    ),
     "guides/security/platform-filter-chain": JavaSnippetContext(
         kind="member",
         imports=(

@@ -12,7 +12,7 @@ description: One precise line per Arc.Kotlin term, cross-referenced to the guide
 - **Provide** — the optional method that runs after validation and authorization, before `handle`,
   to fetch or compute data `handle` needs. See [Prepare handler values](../guides/commands.mdx#prepare-handler-values).
 - **Command key (`@CommandKey`)** — the property that identifies the command's subject; required for
-  a command to return a plain Chronicle event. See [Return an event](../guides/chronicle.md#return-an-event).
+  a command to return a plain Chronicle event. See [Return an event](../guides/chronicle.mdx#return-an-event).
 - **Read model** — a class or record annotated `@ReadModel` whose static or companion methods are
   queries. See [Expose one-shot and observable queries](../guides/queries.mdx).
 - **Query** — a static (Java) or `@JvmStatic` companion (Kotlin) method on a `@ReadModel`. One-shot
@@ -75,15 +75,15 @@ description: One precise line per Arc.Kotlin term, cross-referenced to the guide
 
 - **Chronicle** — [Cratis's event-sourcing database and runtime](https://github.com/Cratis/Chronicle),
   consumed here through [Chronicle.Kotlin](https://github.com/Cratis/Chronicle.Kotlin). Optional: `io.cratis:arc`
-  has no dependency on it. See [Integrate commands and read models with Chronicle](../guides/chronicle.md).
+  has no dependency on it. See [Integrate commands and read models with Chronicle](../guides/chronicle.mdx).
 - **Event** — an immutable Chronicle `@EventType` fact returned from a command's `handle` and
   appended to an event stream.
 - **Reactor** — a Chronicle artifact that observes events; `ChronicleCommandSideEffectHandler` lets
   one hand registered Arc command values to the real command pipeline as a side effect. See
-  [Execute reactor command side effects](../guides/chronicle.md#execute-reactor-command-side-effects).
+  [Execute reactor command side effects](../guides/chronicle.mdx#execute-reactor-command-side-effects).
 - **`EventsWithConcurrencyScopes`** — a typed command response that attaches exact per-event-source
   Chronicle concurrency scopes to a batch of routed events. See
-  [Attach exact concurrency scopes](../guides/chronicle.md#attach-exact-concurrency-scopes).
+  [Attach exact concurrency scopes](../guides/chronicle.mdx#attach-exact-concurrency-scopes).
 
 ## Where to go next
 

@@ -41,7 +41,7 @@
 - name: Testing
   href: guides/testing.md
 - name: Chronicle
-  href: guides/chronicle.md
+  href: guides/chronicle.mdx
 - name: Reference
   href: reference/toc.yml
 - name: Troubleshooting and FAQ
