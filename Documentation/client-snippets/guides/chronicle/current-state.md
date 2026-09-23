@@ -5,7 +5,7 @@ data class Withdraw(
     val amount: Int
 ) {
     fun handle(balance: AccountBalance): FundsWithdrawn {
-        require(balance.available >= amount)
+        require(balance.available >= amount) { "Insufficient funds." }
         return FundsWithdrawn(amount)
     }
 }

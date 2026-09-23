@@ -506,9 +506,11 @@ SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
                  "import kotlinx.coroutines.flow.MutableStateFlow"),
     ),
     "guides/observable-queries/observable-state-bean": SnippetContext(
-        imports=(IMPORT_COMPONENT,
-                 "import io.cratis.arc.queries.ObservableState",
-                 "import java.util.concurrent.Flow"),
+        imports=(
+            "import kotlinx.coroutines.flow.Flow",
+            "import kotlinx.coroutines.flow.MutableStateFlow",IMPORT_COMPONENT,
+                 
+                 ),
         prelude="""
             data class TaskView(val id: String, val title: String)
         """,
@@ -590,7 +592,8 @@ SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
         """,
     ),
     "guides/testing/absent-read-model": SnippetContext(
-        imports=(IMPORT_COMMAND,
+        imports=(
+            "import io.cratis.arc.results.ValidationResultReasons",IMPORT_COMMAND,
             "import io.cratis.arc.artifacts.ArcArtifactModule",
             "import io.cratis.arc.artifacts.CommandKey",
             "import io.cratis.arc.testing.CommandScenario",),
@@ -655,6 +658,8 @@ SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
     ),
     "guides/spring-data/repositories/ambient-tenant": SnippetContext(
         imports=(
+            "import io.cratis.arc.tenancy.TenantId",
+            "import io.cratis.arc.tenancy.withTenant",
             IMPORT_COMMAND,
             IMPORT_FROM_SERVICES,
             "import io.cratis.arc.artifacts.CommandKey",
@@ -667,13 +672,13 @@ SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
         """,
     ),
     "guides/spring-data/repositories/native-collection": SnippetContext(
-        kind="member",
         imports=(
+            "import io.cratis.arc.tenancy.TenantId",
+            "import io.cratis.arc.tenancy.withTenant",
             IMPORT_FROM_SERVICES,
             "import com.mongodb.client.model.Filters",
             "import io.cratis.arc.springdata.mongodb.TenantContextMongoAccess",
         ),
-        host="val id: String",
         prelude="""
             class TaskDocument
         """,
@@ -1982,12 +1987,10 @@ JAVA_SNIPPET_CONTEXTS: dict[str, JavaSnippetContext] = {
         """,
     ),
     "guides/observable-queries/from-state": JavaSnippetContext(
-        kind="member",
-        imports=("import io.cratis.arc.artifacts.ReadModel;", "import java.util.List;"),
-        prelude="""
-            record TaskView(String id, String title) { }
-            interface TaskRepository { java.util.concurrent.Flow.Publisher<java.util.List<TaskView>> observeAll(); }
-        """,
+        imports=(
+            "import io.cratis.arc.authorization.AllowAnonymous;",
+            "import io.cratis.arc.queries.ObservableState;",
+            "import java.util.concurrent.Flow;","import io.cratis.arc.artifacts.ReadModel;", "import java.util.List;"),
     ),
     "guides/observable-queries/observable-state-bean": JavaSnippetContext(
         imports=("import io.cratis.arc.queries.ObservableState;",
@@ -2000,25 +2003,23 @@ JAVA_SNIPPET_CONTEXTS: dict[str, JavaSnippetContext] = {
         """,
     ),
     "guides/spring-data/observable-snapshots/observe-criteria": JavaSnippetContext(
-        kind="member",
-        imports=("import io.cratis.arc.springdata.mongodb.MongoObservableQuery;",
+        imports=(
+            "import io.cratis.arc.artifacts.FromServices;","import io.cratis.arc.springdata.mongodb.MongoObservableQuery;",
                  "import io.cratis.arc.springdata.mongodb.MongoObservations;",
                  "import java.util.List;",
                  "import java.util.concurrent.Flow;",
                  "import org.springframework.data.mongodb.core.query.Criteria;"),
-        host="MongoObservableQuery queries; String taskId;",
         prelude="""
             record TaskView(String id, String title) { }
             interface TaskRepository { java.util.concurrent.Flow.Publisher<java.util.List<TaskView>> observeAll(); }
         """,
     ),
     "guides/spring-data/observable-snapshots/jpa-observe": JavaSnippetContext(
-        kind="member",
-        imports=("import io.cratis.arc.springdata.jpa.JpaObservableQuery;",
+        imports=(
+            "import io.cratis.arc.artifacts.FromServices;","import io.cratis.arc.springdata.jpa.JpaObservableQuery;",
                  "import io.cratis.arc.springdata.jpa.JpaObservations;",
                  "import java.util.List;",
                  "import java.util.concurrent.Flow;"),
-        host="JpaObservableQuery queries;",
         prelude="""
             record TaskView(String id, String title) { }
             interface TaskRepository { java.util.concurrent.Flow.Publisher<java.util.List<TaskView>> observeAll(); }
@@ -2090,7 +2091,8 @@ JAVA_SNIPPET_CONTEXTS: dict[str, JavaSnippetContext] = {
         """,
     ),
     "guides/testing/absent-read-model": JavaSnippetContext(
-        imports=("import io.cratis.arc.artifacts.ArcArtifactModule;",
+        imports=(
+            "import io.cratis.arc.results.ValidationResultReasons;","import io.cratis.arc.artifacts.ArcArtifactModule;",
             "import io.cratis.arc.artifacts.Command;",
             "import io.cratis.arc.artifacts.CommandKey;",
             "import io.cratis.arc.testing.CommandScenario;",            "import io.cratis.arc.testing.java.BlockingCommandScenario;",
@@ -2160,6 +2162,8 @@ JAVA_SNIPPET_CONTEXTS: dict[str, JavaSnippetContext] = {
     ),
     "guides/spring-data/repositories/ambient-tenant": JavaSnippetContext(
         imports=(
+            "import io.cratis.arc.tenancy.TenantContextBridge;",
+            "import io.cratis.arc.tenancy.TenantId;",
             "import io.cratis.arc.artifacts.Command;",
             "import io.cratis.arc.artifacts.CommandKey;",
             "import io.cratis.arc.artifacts.FromServices;",
@@ -2173,14 +2177,14 @@ JAVA_SNIPPET_CONTEXTS: dict[str, JavaSnippetContext] = {
         """,
     ),
     "guides/spring-data/repositories/native-collection": JavaSnippetContext(
-        kind="member",
         imports=(
+            "import io.cratis.arc.tenancy.TenantContextBridge;",
+            "import io.cratis.arc.tenancy.TenantId;",
             "import com.mongodb.client.MongoCollection;",
             "import com.mongodb.client.model.Filters;",
             "import io.cratis.arc.artifacts.FromServices;",
             "import io.cratis.arc.springdata.mongodb.TenantContextMongoAccess;",
         ),
-        host="String id;",
         prelude="""
             class TaskDocument { }
         """,
@@ -2343,12 +2347,16 @@ JAVA_SNIPPET_CONTEXTS: dict[str, JavaSnippetContext] = {
     ),
     "guides/commands/validator": JavaSnippetContext(
         imports=(
+            "import io.cratis.arc.commands.CommandValidator;",
+            "import io.cratis.arc.java.BlockingCommandValidatorAdapter;",
+            "import org.springframework.context.annotation.Bean;",
+            "import org.springframework.context.annotation.Configuration;",
             "import io.cratis.arc.artifacts.Command;",
             "import io.cratis.arc.commands.CommandContext;",
             "import io.cratis.arc.java.BlockingCommandValidator;",
             "import io.cratis.arc.results.ValidationResult;",
             "import java.util.List;",
-            "import org.springframework.stereotype.Component;",
+            
         ),
         prelude="""
             @Command
@@ -2542,6 +2550,7 @@ JAVA_SNIPPET_CONTEXTS: dict[str, JavaSnippetContext] = {
         ),
         prelude="""
             static String doWork(TenantId current) { return ""; }
+            static void record(TenantId current) { }
         """,
     ),
     "guides/ambient-tenancy/nested": JavaSnippetContext(
@@ -2697,10 +2706,14 @@ JAVA_SNIPPET_CONTEXTS: dict[str, JavaSnippetContext] = {
     ),
     "guides/execution-scopes/register": JavaSnippetContext(
         imports=(
+            "import io.cratis.arc.commands.CommandExecutionScope;",
+            "import io.cratis.arc.java.BlockingCommandExecutionScopeAdapter;",
+            "import org.springframework.context.annotation.Bean;",
+            "import org.springframework.context.annotation.Configuration;",
             "import io.cratis.arc.commands.CommandContext;",
             "import io.cratis.arc.java.BlockingCommandExecutionScope;",
             "import io.cratis.arc.results.CommandResult;",
-            "import org.springframework.stereotype.Component;",
+            
         ),
         prelude="""
             interface UnitOfWork {

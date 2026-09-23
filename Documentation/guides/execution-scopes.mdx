@@ -46,7 +46,8 @@ the timeout fails the completion rather than extending it.
 
 ## From Java
 
-The Java tab above implements `BlockingCommandExecutionScope`. Java implements one
+The Java tab above implements `BlockingCommandExecutionScope` and registers it through its adapter,
+because Arc collects only `CommandExecutionScope` beans. Java implements one
 of two interfaces, depending on whether the completion work is asynchronous, and
 registers it through the matching adapter:
 
@@ -55,8 +56,9 @@ registers it through the matching adapter:
 - `BlockingCommandExecutionScope` — `complete` returns `CommandResult<?>` directly,
   registered via `BlockingCommandExecutionScopeAdapter`.
 
-The blocking variant runs on a dispatcher that tolerates blocking, so a
-synchronous commit does not stall Arc's request coroutine.
+The blocking variant is called inline on Arc's bounded request worker pool and occupies one of its
+workers for as long as it runs, the same as a [blocking filter](pipeline-filters.mdx). Keep `complete`
+short, or implement the asynchronous variant for work that waits on I/O.
 
 ## When not to use a scope
 

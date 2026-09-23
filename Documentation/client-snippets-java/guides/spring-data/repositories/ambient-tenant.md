@@ -1,11 +1,9 @@
 ```java
-@Command
-public record ArchiveTask(@CommandKey String id) {
-    public void handle(@FromServices TenantContextMongoAccess access) {
-        // operationsForCurrentTenant() reads the tenant kept in sync for blocking call paths —
-        // never from construction time.
+static void archiveTask(TenantId tenantId, String id, TenantContextMongoAccess access) {
+    TenantContextBridge.withTenant(tenantId, () -> {
+        // operationsForCurrentTenant() reads the tenant the bridge established for this call.
         MongoOperations ops = access.operationsForCurrentTenant();
         ops.remove(Query.query(Criteria.where("_id").is(id)), TaskDocument.class);
-    }
+    });
 }
 ```

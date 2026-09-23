@@ -55,7 +55,7 @@ The same extensions cover `observeList`, `observeSingle`, `observeById`, and `ob
 
 #### Java convenience access for MongoDB
 
-Kotlin extensions are invisible from Java. The `MongoObservations` object provides `@JvmStatic` Criteria-based helpers that Java callers can use without manually constructing a `Query`:
+Kotlin extensions are invisible from Java. The `MongoObservations` object provides `@JvmStatic` Criteria-based helpers that Java callers can use without manually constructing a `Query`, as the Java tab above shows.
 
 Each `MongoObservations` helper wraps the `Criteria` into a `Query` and delegates to the matching `MongoObservableQuery` method. For `Query`-based and callback access, call the `@JvmOverloads` methods on `MongoObservableQuery` directly.
 

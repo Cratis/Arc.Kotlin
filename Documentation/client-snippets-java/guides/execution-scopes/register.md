@@ -1,5 +1,4 @@
 ```java
-@Component
 public class UnitOfWorkScope implements BlockingCommandExecutionScope {
     private final UnitOfWork unitOfWork;
 
@@ -20,6 +19,14 @@ public class UnitOfWorkScope implements BlockingCommandExecutionScope {
             unitOfWork.rollback();
         }
         return null;
+    }
+}
+
+@Configuration
+class ScopeConfiguration {
+    @Bean
+    CommandExecutionScope unitOfWorkScope(UnitOfWork unitOfWork) {
+        return new BlockingCommandExecutionScopeAdapter(new UnitOfWorkScope(unitOfWork));
     }
 }
 ```

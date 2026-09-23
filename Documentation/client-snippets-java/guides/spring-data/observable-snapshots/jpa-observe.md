@@ -1,4 +1,5 @@
 ```java
-Flow.Publisher<List<TaskView>> publisher =
-    JpaObservations.observePublisher(queries, TaskView.class);
+public static Flow.Publisher<List<TaskView>> observeTasks(@FromServices JpaObservableQuery queries) {
+    return JpaObservations.observePublisher(queries, TaskView.class);
+}
 ```

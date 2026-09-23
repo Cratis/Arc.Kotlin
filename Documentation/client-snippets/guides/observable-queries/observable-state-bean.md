@@ -1,12 +1,12 @@
 ```kotlin
 @Component
 class TaskSource {
-    private val tasks = ObservableState<List<TaskView>>(emptyList())
+    private val tasks = MutableStateFlow<List<TaskView>>(emptyList())
 
-    fun observe(): Flow.Publisher<List<TaskView>> = tasks
+    fun observe(): Flow<List<TaskView>> = tasks
 
     fun publish(updated: List<TaskView>) {
-        tasks.set(updated)
+        tasks.value = updated
     }
 }
 ```

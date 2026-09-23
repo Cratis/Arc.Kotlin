@@ -40,14 +40,17 @@ can inject. It resolves the correct tenant's `MongoOperations` at the moment eac
 is never captured at construction time. This mirrors the `IMongoDatabase` and `IMongoCollection<T>` scoped registrations
 in Arc .NET's `ServiceCollectionExtensions.AddCratisMongoDB` (`Source/DotNET/MongoDB/ServiceCollectionExtensions.cs`).
 
-### Kotlin coroutine call paths
+### Ambient-tenant call paths
 
-Call `operations()` inside a `withTenant` scope or any coroutine whose context carries a `TenantCoroutineContext`;
-the ambient tenant is read on every call:
+`operations()` and `collection()` read the ambient tenant on every call, so call them inside a `withTenant`
+scope or any coroutine whose context carries a `TenantCoroutineContext`. Java reaches the same tenant through
+`operationsForCurrentTenant()` and `collectionForCurrentTenant()` inside `TenantContextBridge.withTenant`.
+Arc's command pipeline does not establish this scope for you: a handler that calls them with no scope
+fails with `IllegalStateException` unless a [fallback tenant](#no-tenant-fallback) is configured.
 
 <ArcBackendTabs snippet="guides/spring-data/repositories/ambient-tenant" variants="kotlin,java" />
 
-For direct native driver access, `collection()` returns a `MongoCollection<T>` named by the `NamingPolicy`:
+For direct native driver access, the collection accessors return a `MongoCollection<T>` named by the `NamingPolicy`:
 
 <ArcBackendTabs snippet="guides/spring-data/repositories/native-collection" variants="kotlin,java" />
 
@@ -55,12 +58,9 @@ The collection name comes from `NamingPolicy.getReadModelName()` (kernel-aligned
 Spring Data's `@Document` annotation. For Spring Data-mapped types, prefer `operations()` and its type-safe CRUD
 methods, which respect `@Document` and the configured object mapping.
 
-### Java call paths
+### Explicit-tenant call paths
 
-A Java handler reads the same ambient tenant through `operationsForCurrentTenant()`. On a plain
-thread with no Arc call above it, establish the tenant first with `TenantContextBridge.withTenant`.
-
-Alternatively, pass the tenant explicitly using the overload that bypasses the ambient context:
+When the tenant is already in hand, pass it explicitly using the overload that bypasses the ambient context:
 
 <ArcBackendTabs snippet="guides/spring-data/repositories/explicit-tenant" variants="kotlin,java" />
 

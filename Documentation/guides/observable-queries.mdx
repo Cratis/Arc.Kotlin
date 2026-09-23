@@ -13,33 +13,38 @@ An observable query is a static method on a `@ReadModel` companion object (Kotli
 
 Arc generates an `OBSERVABLE` performer for any of these. One-shot returns (`T`, `List<T>`, or `Page<T>`) stay request-response.
 
-## Kotlin Flow
+## Return a stream
 
-Declare the observable method on the companion object and annotate it with `@JvmStatic` so that Java callers and generated performers can reach it:
+Declare the observable query as a static method — on the companion object with `@JvmStatic` in
+Kotlin, as a `static` method in Java — so generated performers can reach it. Kotlin returns a `Flow`;
+Java returns a `java.util.concurrent.Flow.Publisher`, which Arc wraps with `asKotlinFlow()` before the
+observable pipeline:
 
 <ArcBackendTabs snippet="guides/observable-queries/from-repository" variants="kotlin,java" />
 
-`repository.observeAll()` may return any cold or hot `Flow`. `MutableStateFlow` is the JVM substitute for .NET's `ISubject<T>` when you need a push-side handle and an observable `StateFlow` for HTTP snapshot support — it requires no external dependency:
+`repository.observeAll()` may return any cold or hot stream.
+
+## Keep state a snapshot can read
+
+A source that only emits holds nothing. A JDK `SubmissionPublisher`, for example, tells a new
+subscriber nothing until the next change — and that is visible on the wire, because Arc answers a
+snapshot `GET` from the source's current value and reports a source without one as `202 Not Ready`
+rather than holding the request open.
+
+Hold the state instead. Kotlin uses `MutableStateFlow`, the JVM substitute for .NET's `ISubject<T>`.
+The JDK has no equivalent, so Arc supplies `ObservableState<T>` for Java. Neither needs an external
+dependency:
 
 <ArcBackendTabs snippet="guides/observable-queries/from-state" variants="kotlin,java" />
 
-## Java Flow.Publisher
-
-Java static methods may return `java.util.concurrent.Flow.Publisher<T>`. Arc wraps it with `asKotlinFlow()` before the observable pipeline:
-
-`java.util.concurrent.SubmissionPublisher<T>` gives you a push-side handle with no external dependency:
-
-### Observable state a snapshot can read
-
-A `SubmissionPublisher` emits, but it holds nothing. Nobody who subscribes learns the current value until the next change — and that is visible on the wire, because Arc answers a snapshot `GET` from the source's current value and reports a source without one as `202 Not Ready` rather than holding the request open.
-
-Kotlin has `MutableStateFlow` for this. The JDK has nothing equivalent, so Arc supplies `ObservableState<T>`:
+The same holds when the state lives in a service rather than on the read model:
 
 <ArcBackendTabs snippet="guides/observable-queries/observable-state-bean" variants="kotlin,java" />
 
-It is a `Flow.Publisher<T>`, so a query method returns it directly. Every subscriber sees the current value first and then each change; a subscriber that falls behind sees only the newest value rather than a backlog, which is the right behavior for state.
-
-Reach for it whenever a Java observable query should also answer a plain `GET`. Kotlin code has no reason to: use `MutableStateFlow` and return a `Flow`.
+`ObservableState<T>` is a `Flow.Publisher<T>`, so a query method returns it directly. Every
+subscriber sees the current value first and then each change; a subscriber that falls behind sees
+only the newest value rather than a backlog, which is the right behavior for state. Reach for it
+whenever a Java observable query should also answer a plain `GET`.
 
 ## RxJava 3 option
 

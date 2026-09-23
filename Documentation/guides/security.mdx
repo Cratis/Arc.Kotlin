@@ -34,7 +34,7 @@ This policy deliberately favors denial over accidentally exposing application ro
 application chain for any anonymous routes or alternative authentication mechanisms.
 
 An application chain is never rewritten. Explicitly add the provided filter after your existing
-authentication mechanisms and before `AnonymousAuthenticationFilter`, as in this Java configuration:
+authentication mechanisms and before `AnonymousAuthenticationFilter`, as in this configuration:
 
 <ArcBackendTabs snippet="guides/security/platform-filter-chain" variants="kotlin,java" />
 
@@ -88,7 +88,7 @@ These JVM security boundaries are intentionally stricter than the inspected Arc 
 including rejecting partial submissions rather than treating them as anonymous. Do not log the
 headers, claims, or identity cookie when troubleshooting ingress.
 
-## Register a Kotlin authentication handler
+## Register an authentication handler
 
 Arc authenticates requests through ordered `AuthenticationHandler` beans before protected command, query, identity, and diagnostics endpoints run. A handler receives an immutable `AuthenticationRequestContext` containing case-insensitive headers, cookies, the principal captured by the host, and the selected tenant when one exists.
 
@@ -98,12 +98,10 @@ Return `AuthenticationResult.ANONYMOUS` when the handler does not recognize the 
 
 A success or failure is terminal: no later handler runs. A failed handler can therefore never be overridden by a later success. Anonymous is not a rejection and lets the chain continue; it becomes the final result only when no handler recognized the request. The HTTP response exposes failures only as a generic 401 and never returns the handler's private failure reason.
 
-Kotlin `AuthenticationHandler` beans execute in Spring order, followed by Java `AsyncAuthenticationHandler` beans in Spring order. When ordering across both implementation styles must be global, register the Java handler through `AsyncAuthenticationHandlerAdapter` as an `AuthenticationHandler` bean.
+Under Spring Boot, `AuthenticationHandler` and `AsyncAuthenticationHandler` beans form one chain in global Spring `@Order`, whichever style each is written in, so a Kotlin handler and a Java handler interleave by their order values. Only a directly constructed configuration concatenates the two lists instead.
 
-## Register a Java asynchronous handler
-
-The Java tab above implements `AsyncAuthenticationHandler` with `CompletionStage`, without
-coroutine types.
+The Java tab implements `AsyncAuthenticationHandler` with `CompletionStage`, without coroutine
+types.
 
 Register the async handler itself as a bean; Arc adapts it to the coroutine-first chain and propagates cancellation. Do not block the request thread while verifying credentials.
 
@@ -156,7 +154,7 @@ Register one `IdentityDetailsProvider<T>` to enable `GET /.cratis/me`. It receiv
 
 <ArcBackendTabs snippet="guides/security/identity-details" variants="kotlin,java" />
 
-Java can register `AsyncIdentityDetailsProvider<T>` through `AsyncIdentityDetailsProviderAdapter`. Arc permits exactly one identity-details provider and fails application startup when several are present.
+Java registers an `AsyncIdentityDetailsProvider<T>` bean directly, as in the Java tab; Arc adapts it. Arc permits exactly one identity-details provider and fails application startup when several are present.
 
 The identity cache cookie is client-readable by design and is excluded from authentication input, so a client can never authenticate by replaying Arc's cached identity projection.
 
