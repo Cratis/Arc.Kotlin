@@ -493,6 +493,113 @@ IMPORT_ROLES = "import io.cratis.arc.authorization.Roles"
 # listed: an unlisted snippet would silently compile as a bare declaration fragment, and
 # "it compiled because nothing referenced anything" is not a verdict worth having.
 SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
+    "guides/security/platform-filter-chain": SnippetContext(
+        kind="member",
+        imports=(
+            "import io.cratis.arc.springboot.ArcPlatformAuthenticationFilter",
+            "import org.springframework.context.annotation.Bean",
+            "import org.springframework.security.config.annotation.web.builders.HttpSecurity",
+            "import org.springframework.security.web.SecurityFilterChain",
+            "import org.springframework.security.web.authentication.AnonymousAuthenticationFilter",
+        ),
+    ),
+    "guides/security/authentication-handler": SnippetContext(
+        kind="member",
+        imports=(
+            "import io.cratis.arc.authentication.AuthenticationFailureReason",
+            "import io.cratis.arc.authentication.AuthenticationHandler",
+            "import io.cratis.arc.authentication.AuthenticationResult",
+            "import io.cratis.arc.authorization.ArcPrincipal",
+            "import org.springframework.context.annotation.Bean",
+            "import org.springframework.core.annotation.Order",
+        ),
+    ),
+    "guides/security/authorization-metadata": SnippetContext(
+        imports=(
+            IMPORT_COMMAND,
+            "import io.cratis.arc.authorization.Authorize",
+            "import io.cratis.arc.authorization.Roles",
+        ),
+    ),
+    "guides/security/authorization-policy": SnippetContext(
+        kind="member",
+        imports=(
+            "import io.cratis.arc.authorization.AuthorizationPolicy",
+            "import io.cratis.arc.authorization.AuthorizationResult",
+            "import org.springframework.context.annotation.Bean",
+        ),
+    ),
+    "guides/security/anonymous-override": SnippetContext(
+        imports=(
+            IMPORT_READ_MODEL,
+            IMPORT_FROM_SERVICES,
+            IMPORT_FLOW,
+            "import io.cratis.arc.authorization.AllowAnonymous",
+            "import io.cratis.arc.authorization.Authorize",
+        ),
+        prelude="""
+            interface AuthenticationQuerySource {
+                fun observeAnonymous(): Flow<AuthenticationQueryItem>
+                fun observeAuthenticated(): Flow<AuthenticationQueryItem>
+            }
+        """,
+    ),
+    "guides/security/identity-details": SnippetContext(
+        kind="member",
+        imports=(
+            "import io.cratis.arc.identity.IdentityDetails",
+            "import io.cratis.arc.identity.IdentityDetailsProvider",
+            "import io.cratis.arc.identity.IdentityProviderContext",
+            "import org.springframework.context.annotation.Bean",
+        ),
+    ),
+    "guides/commands/handle": SnippetContext(
+        imports=(IMPORT_COMMAND, "import io.cratis.arc.authorization.AllowAnonymous"),
+        prelude="""
+            data class Task(val id: String, val title: String)
+            data class TaskCreated(val id: String, val title: String)
+            interface TaskRepository { fun create(title: String): Task }
+        """,
+    ),
+    "guides/commands/provide": SnippetContext(
+        imports=(IMPORT_COMMAND,),
+        prelude="""
+            data class TaskId(val value: String)
+            data class Task(val id: TaskId)
+            data class TaskCompleted(val id: TaskId)
+            interface Tasks { suspend fun get(id: TaskId): Task }
+            interface AuditLog { fun record(id: TaskId) }
+        """,
+    ),
+    "guides/commands/validator": SnippetContext(
+        imports=(
+            IMPORT_COMMAND,
+            IMPORT_COMMAND_CONTEXT,
+            IMPORT_COMMAND_VALIDATOR,
+            IMPORT_COMPONENT,
+            IMPORT_VALIDATION_RESULT,
+        ),
+        prelude="""
+            @Command
+            data class CreateTask(val title: String)
+        """,
+    ),
+    "guides/commands/validation-failure": SnippetContext(
+        imports=(
+            IMPORT_VALIDATION_RESULT,
+            "import io.cratis.arc.validation.ValidationFailure",
+        ),
+    ),
+    "guides/commands/response-values": SnippetContext(
+        imports=(
+            IMPORT_COMMAND,
+            IMPORT_COMMAND_CONTEXT,
+            IMPORT_COMPONENT,
+            "import io.cratis.arc.commands.CommandResponseValueHandler",
+            "import io.cratis.arc.commands.HandlesCommandResponseValues",
+            "import io.cratis.arc.results.CommandResult",
+        ),
+    ),
     "guides/pipeline-filters/command-filter": SnippetContext(
         imports=(
             IMPORT_COMMAND_CONTEXT,
@@ -1613,6 +1720,128 @@ JAVA_SCENARIO_HOST = """
 # would silently compile as a bare fragment, and "it compiled because nothing referenced
 # anything" is not a verdict worth having.
 JAVA_SNIPPET_CONTEXTS: dict[str, JavaSnippetContext] = {
+    "guides/security/platform-filter-chain": JavaSnippetContext(
+        kind="member",
+        imports=(
+            "import io.cratis.arc.springboot.ArcPlatformAuthenticationFilter;",
+            "import org.springframework.context.annotation.Bean;",
+            "import org.springframework.security.config.annotation.web.builders.HttpSecurity;",
+            "import org.springframework.security.web.SecurityFilterChain;",
+            "import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;",
+        ),
+    ),
+    "guides/security/authentication-handler": JavaSnippetContext(
+        kind="member",
+        imports=(
+            "import io.cratis.arc.authentication.AsyncAuthenticationHandler;",
+            "import io.cratis.arc.authentication.AuthenticationFailureReason;",
+            "import io.cratis.arc.authentication.AuthenticationResult;",
+            "import io.cratis.arc.authorization.ArcPrincipal;",
+            "import java.util.List;",
+            "import java.util.Set;",
+            "import java.util.concurrent.CompletableFuture;",
+            "import org.springframework.context.annotation.Bean;",
+            "import org.springframework.core.annotation.Order;",
+        ),
+    ),
+    "guides/security/authorization-metadata": JavaSnippetContext(
+        imports=(
+            "import io.cratis.arc.artifacts.Command;",
+            "import io.cratis.arc.authorization.Authorize;",
+            "import io.cratis.arc.authorization.Roles;",
+        ),
+    ),
+    "guides/security/authorization-policy": JavaSnippetContext(
+        kind="member",
+        imports=(
+            "import io.cratis.arc.authorization.AuthorizationPolicy;",
+            "import io.cratis.arc.authorization.AuthorizationResult;",
+            "import io.cratis.arc.java.BlockingAuthorizationPolicyAdapter;",
+            "import org.springframework.context.annotation.Bean;",
+        ),
+    ),
+    "guides/security/anonymous-override": JavaSnippetContext(
+        imports=(
+            "import io.cratis.arc.artifacts.FromServices;",
+            "import io.cratis.arc.artifacts.ReadModel;",
+            "import io.cratis.arc.authorization.AllowAnonymous;",
+            "import io.cratis.arc.authorization.Authorize;",
+            "import java.util.concurrent.Flow;",
+        ),
+        prelude="""
+            interface AuthenticationQuerySource {
+                Flow.Publisher<AuthenticationQueryItem> observeAnonymous();
+                Flow.Publisher<AuthenticationQueryItem> observeAuthenticated();
+            }
+        """,
+    ),
+    "guides/security/identity-details": JavaSnippetContext(
+        kind="member",
+        imports=(
+            "import io.cratis.arc.identity.AsyncIdentityDetailsProvider;",
+            "import io.cratis.arc.identity.IdentityDetails;",
+            "import io.cratis.arc.identity.IdentityProviderContext;",
+            "import java.util.concurrent.CompletableFuture;",
+            "import java.util.concurrent.CompletionStage;",
+            "import org.springframework.context.annotation.Bean;",
+        ),
+    ),
+    "guides/commands/handle": JavaSnippetContext(
+        imports=(
+            "import io.cratis.arc.artifacts.Command;",
+            "import io.cratis.arc.authorization.AllowAnonymous;",
+        ),
+        prelude="""
+            record Task(String id, String title) { }
+            record TaskCreated(String id, String title) { }
+            interface TaskRepository { Task create(String title); }
+        """,
+    ),
+    "guides/commands/provide": JavaSnippetContext(
+        imports=("import io.cratis.arc.artifacts.Command;",),
+        prelude="""
+            record TaskId(String value) { }
+            record Task(TaskId id) { }
+            record TaskCompleted(TaskId id) { }
+            interface Tasks { Task get(TaskId id); }
+            interface AuditLog { void record(TaskId id); }
+        """,
+    ),
+    "guides/commands/validator": JavaSnippetContext(
+        imports=(
+            "import io.cratis.arc.artifacts.Command;",
+            "import io.cratis.arc.commands.CommandContext;",
+            "import io.cratis.arc.java.BlockingCommandValidator;",
+            "import io.cratis.arc.results.ValidationResult;",
+            "import java.util.List;",
+            "import org.springframework.stereotype.Component;",
+        ),
+        prelude="""
+            @Command
+            record CreateTask(String title) { }
+        """,
+    ),
+    "guides/commands/validation-failure": JavaSnippetContext(
+        imports=(
+            "import io.cratis.arc.results.ValidationResult;",
+            "import io.cratis.arc.validation.ValidationFailure;",
+            "import java.util.List;",
+        ),
+    ),
+    "guides/commands/response-values": JavaSnippetContext(
+        imports=(
+            "import io.cratis.arc.artifacts.Command;",
+            "import io.cratis.arc.commands.CommandContext;",
+            "import io.cratis.arc.commands.CommandResponseValueHandler;",
+            "import io.cratis.arc.commands.HandlesCommandResponseValues;",
+            "import io.cratis.arc.java.BlockingCommandResponseValueHandler;",
+            "import io.cratis.arc.java.BlockingCommandResponseValueHandlerAdapter;",
+            "import io.cratis.arc.results.CommandResult;",
+            "import kotlin.Pair;",
+            "import org.springframework.context.annotation.Bean;",
+            "import org.springframework.context.annotation.Configuration;",
+        ),
+    ),
     "guides/pipeline-filters/command-filter": JavaSnippetContext(
         imports=(
             "import io.cratis.arc.commands.CommandContext;",

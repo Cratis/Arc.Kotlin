@@ -162,7 +162,7 @@ const [result] = Authenticated.when(identity.isSet).use();
 ## Know who is signed in
 
 `useIdentity()` reads what `/.cratis/me` returned — the identity your
-[`IdentityDetailsProvider`](security.md) produced, typed:
+[`IdentityDetailsProvider`](security.mdx) produced, typed:
 
 ```tsx
 import { useIdentity } from '@cratis/arc.react/identity';

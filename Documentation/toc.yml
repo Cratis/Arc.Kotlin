@@ -7,7 +7,7 @@
 - name: Get started
   href: get-started/toc.yml
 - name: Commands
-  href: guides/commands.md
+  href: guides/commands.mdx
 - name: Command keys
   href: guides/command-keys.mdx
 - name: Queries
@@ -17,7 +17,7 @@
 - name: Validation
   href: guides/validation.md
 - name: Authentication and authorization
-  href: guides/security.md
+  href: guides/security.mdx
 - name: Tenancy
   href: guides/ambient-tenancy.mdx
 - name: Pipeline filters

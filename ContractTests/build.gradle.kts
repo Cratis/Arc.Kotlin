@@ -88,6 +88,9 @@ dependencies {
     // :Integrations:SpringBoot and JUnit are inherited from testImplementation.
     add(documentationSnippet.implementationConfigurationName, project(":Integrations:SpringDataMongo"))
     add(documentationSnippet.implementationConfigurationName, project(":Integrations:SpringDataJpa"))
+    // The security guide documents a SecurityFilterChain that installs Arc's platform
+    // authentication filter, so the snippets need Spring Security's own types.
+    add(documentationSnippet.implementationConfigurationName, "org.springframework.boot:spring-boot-starter-security:4.1.1")
     // kotlin("test") rather than a pinned coordinate, so this tracks the Kotlin plugin
     // version applied above instead of becoming a second place to remember to bump.
     add(documentationSnippet.implementationConfigurationName, kotlin("test"))

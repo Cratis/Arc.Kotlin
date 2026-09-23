@@ -6,11 +6,11 @@ description: One precise line per Arc.Kotlin term, cross-referenced to the guide
 ## Commands and queries
 
 - **Command** — a class or record annotated `@Command` expressing an imperative intent; its public
-  `handle` method produces a response, appends events, or both. See [Create and validate commands](../guides/commands.md).
+  `handle` method produces a response, appends events, or both. See [Create and validate commands](../guides/commands.mdx).
 - **Handle** — the public instance method KSP requires on a `@Command`. May be synchronous,
   `suspend`, or return a Java `CompletionStage`.
 - **Provide** — the optional method that runs after validation and authorization, before `handle`,
-  to fetch or compute data `handle` needs. See [Prepare handler values](../guides/commands.md#prepare-handler-values).
+  to fetch or compute data `handle` needs. See [Prepare handler values](../guides/commands.mdx#prepare-handler-values).
 - **Command key (`@CommandKey`)** — the property that identifies the command's subject; required for
   a command to return a plain Chronicle event. See [Return an event](../guides/chronicle.md#return-an-event).
 - **Read model** — a class or record annotated `@ReadModel` whose static or companion methods are
@@ -47,10 +47,10 @@ description: One precise line per Arc.Kotlin term, cross-referenced to the guide
 
 - **`ConceptValidator<TConcept>`** — a reusable, server-only rule applied everywhere a specific
   concept type appears in a command or query graph. See
-  [Add validation](../guides/commands.md#add-validation).
+  [Add validation](../guides/commands.mdx#add-validation).
 - **`ModelValidator<T>`** — a server-only rule for one exact runtime model class, applied to command
   roots, nested models, and supplied query arguments. See
-  [Reuse model validation](../guides/commands.md#reuse-model-validation).
+  [Reuse model validation](../guides/commands.mdx#reuse-model-validation).
 - **`FluentModelValidator<T>`** — a bounded, literal-rule validator whose rules are also emitted into
   the generated TypeScript client, so the same constraint runs in the browser and on the server. See
   [Share fluent validation](../guides/validation.md).
@@ -62,7 +62,7 @@ description: One precise line per Arc.Kotlin term, cross-referenced to the guide
 
 - **`AuthenticationHandler`** — an ordered Kotlin or Java (`AsyncAuthenticationHandler`) bean that
   inspects a request and returns an authenticated, failed, or anonymous result. See
-  [Register a Kotlin authentication handler](../guides/security.md#register-a-kotlin-authentication-handler).
+  [Register a Kotlin authentication handler](../guides/security.mdx#register-a-kotlin-authentication-handler).
 - **`TenantIdResolver`** — resolves the current request's tenant from a header, query parameter,
   claim, subdomain, or fixed/development value. See [Configuration reference](configuration.mdx).
 - **`CommandResult` / `QueryResult`** — the JSON envelopes every command and query response uses. See
