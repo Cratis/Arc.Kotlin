@@ -493,6 +493,54 @@ IMPORT_ROLES = "import io.cratis.arc.authorization.Roles"
 # listed: an unlisted snippet would silently compile as a bare declaration fragment, and
 # "it compiled because nothing referenced anything" is not a verdict worth having.
 SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
+    "reference/annotations/exported-type": SnippetContext(
+        imports=("import io.cratis.arc.artifacts.ExportedType",),
+    ),
+    "reference/annotations/registry-outside-spring": SnippetContext(
+        imports=(
+            "import io.cratis.arc.artifacts.ArcArtifactModule",
+            "import io.cratis.arc.artifacts.ArcArtifactModuleRegistry",
+            "import io.cratis.arc.json.ArcObjectMapper",
+            "import io.cratis.arc.polymorphism.ConcurrentDerivedTypeRegistry",
+            "import tools.jackson.databind.ObjectMapper",
+        ),
+    ),
+    "reference/annotations/derived-type-registrar": SnippetContext(
+        kind="member",
+        imports=(
+            "import io.cratis.arc.polymorphism.DerivedTypeRegistrar",
+            "import org.springframework.context.annotation.Bean",
+        ),
+        prelude="""
+            interface Shape
+            class ExternalCircle : Shape
+        """,
+    ),
+    "guides/ambient-tenancy/scope": SnippetContext(
+        imports=(
+            "import io.cratis.arc.tenancy.TenantId",
+            "import io.cratis.arc.tenancy.withTenant",
+        ),
+        prelude="""
+            suspend fun performWork() {}
+        """,
+    ),
+    "guides/ambient-tenancy/nested": SnippetContext(
+        imports=(
+            "import io.cratis.arc.tenancy.TenantId",
+            "import io.cratis.arc.tenancy.currentTenant",
+            "import io.cratis.arc.tenancy.withTenant",
+        ),
+    ),
+    "guides/spring-data/index/repository-in-query": SnippetContext(
+        imports=(
+            IMPORT_READ_MODEL,
+            IMPORT_FROM_SERVICES,
+            "import jakarta.persistence.Entity",
+            "import jakarta.persistence.Id",
+            "import org.springframework.data.jpa.repository.JpaRepository",
+        ),
+    ),
     "guides/queries/paths-and-services": SnippetContext(
         imports=(
             IMPORT_READ_MODEL,
@@ -1450,6 +1498,59 @@ JAVA_SCENARIO_HOST = """
 # would silently compile as a bare fragment, and "it compiled because nothing referenced
 # anything" is not a verdict worth having.
 JAVA_SNIPPET_CONTEXTS: dict[str, JavaSnippetContext] = {
+    "reference/annotations/exported-type": JavaSnippetContext(
+        imports=("import io.cratis.arc.artifacts.ExportedType;",),
+    ),
+    "reference/annotations/registry-outside-spring": JavaSnippetContext(
+        imports=(
+            "import io.cratis.arc.artifacts.ArcArtifactModule;",
+            "import io.cratis.arc.artifacts.ArcArtifactModuleRegistry;",
+            "import io.cratis.arc.json.ArcObjectMapper;",
+            "import io.cratis.arc.polymorphism.ConcurrentDerivedTypeRegistry;",
+            "import tools.jackson.databind.ObjectMapper;",
+        ),
+    ),
+    "reference/annotations/derived-type-registrar": JavaSnippetContext(
+        kind="member",
+        imports=(
+            "import io.cratis.arc.polymorphism.DerivedTypeRegistrar;",
+            "import org.springframework.context.annotation.Bean;",
+        ),
+        prelude="""
+            interface Shape { }
+            class ExternalCircle implements Shape { }
+        """,
+    ),
+    "guides/ambient-tenancy/scope": JavaSnippetContext(
+        kind="member",
+        imports=(
+            "import io.cratis.arc.tenancy.TenantContextBridge;",
+            "import io.cratis.arc.tenancy.TenantId;",
+        ),
+        prelude="""
+            static String doWork(TenantId current) { return ""; }
+        """,
+    ),
+    "guides/ambient-tenancy/nested": JavaSnippetContext(
+        kind="member",
+        imports=(
+            "import io.cratis.arc.tenancy.TenantContextBridge;",
+            "import io.cratis.arc.tenancy.TenantId;",
+        ),
+        prelude="""
+            static void use(TenantId current) { }
+        """,
+    ),
+    "guides/spring-data/index/repository-in-query": JavaSnippetContext(
+        imports=(
+            "import io.cratis.arc.artifacts.FromServices;",
+            "import io.cratis.arc.artifacts.ReadModel;",
+            "import jakarta.persistence.Entity;",
+            "import jakarta.persistence.Id;",
+            "import java.util.List;",
+            "import org.springframework.data.jpa.repository.JpaRepository;",
+        ),
+    ),
     "guides/queries/paths-and-services": JavaSnippetContext(
         imports=(
             "import io.cratis.arc.artifacts.FromServices;",

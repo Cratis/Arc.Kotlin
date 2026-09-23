@@ -30,10 +30,7 @@ Apply it to a public top-level concrete class, enum class, interface, or concept
 targets — abstract classes, generic definitions, nonpublic types, and nested types — fail with
 `ARCKSP0306`. Abstract bases are reached through their concrete derived types instead.
 
-```kotlin
-@ExportedType
-public data class SampleIdentityDetails(public val source: String)
-```
+<ArcBackendTabs snippet="reference/annotations/exported-type" variants="kotlin,java" />
 
 This is a deliberate divergence from Arc .NET, which discovers identity detail types by runtime
 reflection over the classpath and exports whole assemblies with a `--library-mode` flag. KSP runs at
@@ -165,20 +162,11 @@ Two shapes carry a combination:
 
 Outside Spring, the same metadata populates a registry directly:
 
-```kotlin
-val registry = ConcurrentDerivedTypeRegistry()
-ArcArtifactModuleRegistry.registerDerivedTypes(module, registry)
-val mapper = ArcObjectMapper.create(registry)
-```
+<ArcBackendTabs snippet="reference/annotations/registry-outside-spring" variants="kotlin,java" />
 
 A hierarchy that arrives from a dependency binary Arc's code generation never processed has no generated mapping. Register one with a `DerivedTypeRegistrar` bean; registrars run after the generated registrations, in Spring `@Order`:
 
-```kotlin
-@Bean
-fun externalShapes() = DerivedTypeRegistrar { registry ->
-    registry.register(Shape::class.java, ExternalCircle::class.java)
-}
-```
+<ArcBackendTabs snippet="reference/annotations/derived-type-registrar" variants="kotlin,java" />
 
 An application that declares its own `DerivedTypeRegistry` bean replaces Arc's entirely, generated registrations included.
 

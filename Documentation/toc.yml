@@ -19,7 +19,7 @@
 - name: Authentication and authorization
   href: guides/security.md
 - name: Tenancy
-  href: guides/ambient-tenancy.md
+  href: guides/ambient-tenancy.mdx
 - name: Pipeline filters
   href: guides/pipeline-filters.md
 - name: Execution scopes

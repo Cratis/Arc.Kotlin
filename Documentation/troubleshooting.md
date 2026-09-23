@@ -62,7 +62,7 @@ repository root. The most common ones:
 | `ARCKSP0300` | A computed or read-only Kotlin property reached through command input; use a backed property or a separate output model |
 | `ARCKSP0301` | A Jakarta/Hibernate constraint cannot be represented as a client-side rule |
 
-See [Annotation reference](reference/annotations.md) for the exact contract each annotation enforces.
+See [Annotation reference](reference/annotations.mdx) for the exact contract each annotation enforces.
 
 ## Runtime behavior
 

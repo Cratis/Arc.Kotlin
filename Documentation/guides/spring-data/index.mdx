@@ -27,18 +27,7 @@ Both modules include the Arc Spring Boot starter and the corresponding Spring Da
 
 Spring Data repositories are ordinary Spring services. Mark a model-bound query dependency with `@FromServices`; Arc's generated performer resolves the repository from the current application context.
 
-```kotlin
-@Entity
-@ReadModel
-data class TaskView(@Id val id: String = "", val title: String = "") {
-    companion object {
-        @JvmStatic
-        fun all(@FromServices tasks: TaskViewRepository): List<TaskView> = tasks.findAll()
-    }
-}
-
-interface TaskViewRepository : JpaRepository<TaskView, String>
-```
+<ArcBackendTabs snippet="guides/spring-data/index/repository-in-query" variants="kotlin,java" />
 
 The same pattern works with `MongoRepository`, repository fragments, and application query services. An application bean replaces an auto-configured adapter bean of the same integration contract.
 

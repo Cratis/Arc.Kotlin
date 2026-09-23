@@ -5,7 +5,7 @@ description: Look up Arc annotations, configuration, HTTP contracts, and current
 
 ## Reference sections
 
-- [Annotations](annotations.md)
+- [Annotations](annotations.mdx)
 - [Configuration](configuration.mdx)
 - [HTTP contract](http-contract.md)
 - [Shared fluent validation](validation.md)

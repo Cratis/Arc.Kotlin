@@ -90,7 +90,7 @@ for a query that takes both.
 - You can still write ordinary `@RestController` endpoints alongside Arc's generated ones in the
   same application — Arc adds routes, it does not remove Spring MVC.
 - Spring Data JPA and MongoDB repositories are injected the same way; see
-  [Use Spring Data read models](guides/spring-data/index.md) for the paging, sorting, and read-model
+  [Use Spring Data read models](guides/spring-data/index.mdx) for the paging, sorting, and read-model
   resolution Arc adds on top of them.
 
 ## Where to go next

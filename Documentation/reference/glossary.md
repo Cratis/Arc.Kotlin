@@ -89,4 +89,4 @@ description: One precise line per Arc.Kotlin term, cross-referenced to the guide
 
 - [Feature parity reference](parity.md) — the evidence-backed status of every one of these terms in
   the current JVM implementation.
-- [Annotation reference](annotations.md) — the exact contract of every annotation named above.
+- [Annotation reference](annotations.mdx) — the exact contract of every annotation named above.

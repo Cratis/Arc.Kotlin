@@ -9,17 +9,12 @@ Arc carries the current `TenantId` in a `TenantCoroutineContext` coroutine conte
 
 This mirrors the .NET `AsyncLocal<TenantId>` used by the reference implementation: both flow with their respective async execution models and are invisible across boundaries that do not explicitly propagate their context.
 
-## Establish a tenant scope in Kotlin
+## Establish a tenant scope
 
-Use `withTenant` to install a `TenantId` for the current coroutine and its children:
+Use `withTenant` to install a `TenantId` for the current coroutine and its children. Java
+callers running on a plain thread use `TenantContextBridge`, which is covered below:
 
-```kotlin
-withTenant(TenantId("acme")) {
-    // currentTenant() returns TenantId("acme") here
-    performWork()
-}
-// currentTenant() returns null here — scope is restored on exit
-```
+<ArcBackendTabs snippet="guides/ambient-tenancy/scope" variants="kotlin,java" />
 
 The tenant is visible from any child coroutine, including those launched with `async` or `launch`, and survives switching dispatchers:
 
@@ -33,14 +28,7 @@ withTenant(TenantId("acme")) {
 
 Nested `withTenant` calls shadow the outer tenant for the duration of the inner block:
 
-```kotlin
-withTenant(TenantId("outer")) {
-    withTenant(TenantId("inner")) {
-        currentTenant()  // TenantId("inner")
-    }
-    currentTenant()      // TenantId("outer") — restored
-}
-```
+<ArcBackendTabs snippet="guides/ambient-tenancy/nested" variants="kotlin,java" />
 
 ## Read the current tenant in Kotlin
 
@@ -51,20 +39,8 @@ Two suspend functions read the ambient tenant:
 
 ## Bridge for blocking Java call paths
 
-Java callers that run on a plain thread without coroutine infrastructure use `TenantContextBridge`:
-
-```java
-// Callable form — returns a value
-String result = TenantContextBridge.withTenant(tenantId, () -> {
-    TenantId current = TenantContextBridge.currentTenant();
-    return doWork(current);
-});
-
-// Runnable form — no return value
-TenantContextBridge.withTenant(tenantId, () ->
-    doWork(TenantContextBridge.currentTenant())
-);
-```
+Java callers that run on a plain thread without coroutine infrastructure use `TenantContextBridge`,
+shown in the Java tabs above.
 
 `TenantContextBridge.currentTenant()` reads from a `ThreadLocal` that is kept in sync with the coroutine context element for the duration of the blocking scope. It returns `null` outside any `withTenant` scope. Do not call `TenantContextBridge.currentTenant()` from within a coroutine — use the suspend `currentTenant()` instead.
 
