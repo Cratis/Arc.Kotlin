@@ -196,22 +196,7 @@ Use `io.cratis.arc.validation.IgnoreValidation` when a serialized member must no
 member/descendant validation. Kotlin property, field and getter placements select the same logical
 edge; Java uses a field, bean getter or record component:
 
-```kotlin
-import io.cratis.arc.validation.IgnoreValidation
-
-data class Input(
-    @IgnoreValidation val property: String?,
-    @field:IgnoreValidation val field: String?,
-    @get:IgnoreValidation val getter: String?,
-    val sibling: String?
-)
-```
-
-```java
-import io.cratis.arc.validation.IgnoreValidation;
-
-public record Input(@IgnoreValidation String ignored, String sibling) { }
-```
+<ArcBackendTabs snippet="guides/validation/ignore-validation" variants="kotlin,java" />
 
 These are placement illustrations, not additional runnable sample artifacts. Keep any authored
 fluent declarations intact: their compiler/runtime fingerprints still include the ignored member,
@@ -369,7 +354,7 @@ public final class FluentOperations {
 The blocking facade occupies the caller thread. See its [context and interruption limits](../get-started/java.md#blocking-interruption-and-limits).
 For tests without a host, add `testImplementation("io.cratis:arc-testing:<version>")` and use
 `CommandScenario(KotlinSpringBootSampleArcArtifactModule(), ValidateFluent::class.java)` or Java's
-closeable `BlockingCommandScenario`; see [in-process testing](testing.md). Do not import
+closeable `BlockingCommandScenario`; see [in-process testing](testing.mdx). Do not import
 `io.cratis.arc.contracts.fixtures`: `ContractTests` is unpublished.
 
 The actual runnable HTTP contract accepts the all-valid input shown in the client section below.

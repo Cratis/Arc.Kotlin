@@ -19,14 +19,7 @@ For direct query values and list entries, `QueryScenario` uses the descriptor's 
 
 ## Test with Kotlin
 
-```kotlin
-val module = TaskApplicationArcArtifactModule()
-val result = CommandScenario(module, CreateTask::class.java)
-    .addService(TaskRepository::class.java, repository)
-    .execute(CreateTask("Try Arc"))
-
-result.shouldSucceed().shouldHaveResponse(TaskCreated::class.java)
-```
+<ArcBackendTabs snippet="guides/testing/execute" variants="kotlin,java" />
 
 Select queries with `FullyQualifiedQueryName` and use `QueryScenario<T>`. Add services, validators, policies, filters, renderers, read-model interceptors, a principal, tenant, correlation ID, paging, or sorting through scenario methods. Disable command or one-shot query serialization round trips only when the test intentionally bypasses the wire boundary.
 
@@ -38,14 +31,7 @@ Command and query results carry matching positive and negative assertions, so a 
 
 To exercise the same tenancy contract the Spring Boot integration uses, provide both the resolver and explicit request context. The resolved tenant ID is also used as the namespace unless a namespace is supplied:
 
-```kotlin
-val result = CommandScenario(module, CreateTask::class.java)
-    .withTenantResolution(
-        HeaderTenantIdResolver(),
-        TenantResolutionContext(headers = mapOf("X-Cratis-Tenant-Id" to "tenant-one"))
-    )
-    .execute(CreateTask("Try Arc"))
-```
+<ArcBackendTabs snippet="guides/testing/tenant-resolution" variants="kotlin,java" />
 
 `QueryScenario` and `ObservableQueryScenario` expose the same `withTenantResolution` method.
 
@@ -61,21 +47,13 @@ Like command and one-shot query scenarios, the observable scenario derives its d
 
 A command that takes a read-model parameter normally has it resolved by whichever store owns the type. In a test, pin the read model to a known state instead. No store, query pipeline, or Chronicle kernel is involved, and the pin flows through the same ownership registry a store would use:
 
-```kotlin
-val result = CommandScenario(module, RenameTask::class.java)
-    .withReadModelForKey(TaskView::class.java, "task-1", TaskView("task-1", "Current title", 7))
-    .execute(RenameTask("task-1", "Renamed title", 7))
-```
+<ArcBackendTabs snippet="guides/testing/pin-read-model" variants="kotlin,java" />
 
 `withReadModelForKey` restricts the pin to one command key, so the test also proves the command carries the key it should; any other key resolves to absence. Keys are compared after unwrapping `ConceptAs` wrappers, so a scalar pin matches a concept-typed command key. Use `withReadModel(type, readModel)` when the key is not the point of the test.
 
 Pinning `null` pins deliberate absence, which is how the missing-model path is exercised — a required parameter fails with `dependencyUnavailable`, while a Kotlin nullable parameter observes `null` and a Java `Optional` parameter observes `Optional.empty()`:
 
-```kotlin
-val result = CommandScenario(module, RenameTask::class.java)
-    .withReadModel(TaskView::class.java, null)
-    .execute(RenameTask("missing", "Renamed title", 0))
-```
+<ArcBackendTabs snippet="guides/testing/absent-read-model" variants="kotlin,java" />
 
 Pins claim declared ownership, so they win over a fallback resolver. A read-model type can be pinned once without a key or once per key, not both, and `addReadModelResolver` remains available for a resolver that has to compute something.
 
@@ -83,18 +61,7 @@ Pins claim declared ownership, so they win over a fallback resolver. A read-mode
 
 Add both test support and the Chronicle starter. The starter registers its `CommandScenarioExtender` through `ServiceLoader`, so a `CommandScenario` automatically gets an in-memory Chronicle event log without starting Spring Boot or a Chronicle kernel.
 
-```kotlin
-val scenario = CommandScenario(module, RegisterCustomer::class.java)
-scenario.givenChronicle()
-    .events(customerId, CustomerRegistered("Existing"))
-
-val result = scenario.execute(RegisterCustomer(customerId, "Ada"))
-
-result.shouldSucceed()
-scenario.chronicle()
-    .shouldHaveAppendedEvent(customerId, CustomerRegistered::class.java)
-scenario.chronicle().shouldHaveAppendedEvents(1)
-```
+<ArcBackendTabs snippet="guides/chronicle/test-a-command" variants="kotlin,java" />
 
 Given events establish ordered event-source history and are excluded from `appendedEvents`. Arrange deterministic append rejection with `constraintViolation(...)` or `concurrencyViolation(...)`, then assert the machine-readable result with `shouldHaveConstraintViolation(...)` or `shouldHaveConcurrencyViolation(...)`. A rejected append does not appear in `appendedEvents`.
 
@@ -102,37 +69,9 @@ Given events establish ordered event-source history and are excluded from `appen
 
 Use closeable blocking scenarios for ordinary JUnit tests:
 
-```java
-CommandScenario<CreateTask> configured = new CommandScenario<>(module, CreateTask.class)
-    .addService(TaskRepository.class, repository);
-
-try (BlockingCommandScenario<CreateTask> scenario =
-         new BlockingCommandScenario<>(configured)) {
-    TaskCreated response = scenario.execute(new CreateTask("Try Arc"))
-        .shouldSucceed()
-        .shouldHaveResponse(TaskCreated.class);
-}
-```
-
 Read-model pins are configured on the same scenario object before the bridge is constructed:
 
-```java
-CommandScenario<RenameTask> configured = new CommandScenario<>(module, RenameTask.class)
-    .withReadModelForKey(TaskView.class, "task-1", new TaskView("task-1", "Current title", 7L));
-```
-
 For Chronicle scenarios, Java uses the generated `ChronicleCommandScenarios` static methods for Kotlin extension functions and the same builders and assertions:
-
-```java
-ChronicleCommandScenario chronicle = ChronicleCommandScenarios.chronicle(configured);
-chronicle.given().events(customerId, new CustomerRegistered("Existing"));
-
-try (BlockingCommandScenario<RegisterCustomer> scenario =
-         new BlockingCommandScenario<>(configured)) {
-    scenario.execute(new RegisterCustomer(customerId, "Ada")).shouldSucceed();
-}
-chronicle.shouldHaveAppendedEvent(customerId, CustomerRegistered.class);
-```
 
 For asynchronous tests, construct `AsyncCommandScenario`, `AsyncQueryScenario`, or `AsyncObservableQueryScenario` with a `JavaAsyncScope`. No Kotlin coroutine imports are needed. Command and one-shot query bridges accept a configured scenario, a manual handler/performer, or a module plus the command class/query name. The observable bridge accepts a configured `ObservableQueryScenario<T>`.
 

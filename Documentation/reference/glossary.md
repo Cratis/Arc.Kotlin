@@ -53,7 +53,7 @@ description: One precise line per Arc.Kotlin term, cross-referenced to the guide
   [Reuse model validation](../guides/commands.mdx#reuse-model-validation).
 - **`FluentModelValidator<T>`** — a bounded, literal-rule validator whose rules are also emitted into
   the generated TypeScript client, so the same constraint runs in the browser and on the server. See
-  [Share fluent validation](../guides/validation.md).
+  [Share fluent validation](../guides/validation.mdx).
 - **`@IgnoreValidation`** — cuts one member's validation edge before access while leaving
   serialization and binding unchanged. See
   [Ignore a validation member edge](validation.md#ignore-a-validation-member-edge).

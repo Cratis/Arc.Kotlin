@@ -7,17 +7,7 @@ description: Translate Arc paging and sorting, resolve current state, reach tena
 
 Arc carries zero-based paging and one sort field in `QueryRequest`. A model-bound query can declare the exact non-null Spring Data Commons `Pageable` and `Sort` types. Generated performers create both values directly from the captured query request; they do not use request scope, thread-local state, or a request-scoped bean.
 
-```kotlin
-@JvmStatic
-fun all(
-    pageable: Pageable,
-    sort: Sort,
-    @FromServices tasks: TaskViewRepository
-): Page<TaskView> {
-    check(pageable.sort == sort)
-    return tasks.findAll(pageable)
-}
-```
+<ArcBackendTabs snippet="guides/spring-data/repositories/paged-query" variants="kotlin,java" />
 
 A page size of zero becomes `Pageable.unpaged(sort)`. A blank sort field becomes `Sort.unsorted()`. Exact Spring Data `Page<TaskView>` returns are normalized by the generated performer before Arc renderers run, preserving `content`, zero-based page number, and the repository's pre-page `totalElements`; an unpaged result reports Arc page size zero, matching the compatibility adapters.
 
@@ -29,14 +19,7 @@ The existing `JpaQueryRequestAdapter`, `JpaQueryPageAdapter`, `MongoQueryRequest
 
 The JPA and MongoDB integrations contribute storage-neutral `CanResolveReadModelForCommand` providers. A generated handler can therefore request its current read model directly; Arc uses the command's generated key and captured tenant context before invoking the handler:
 
-```kotlin
-@Command
-data class RenameTask(@CommandKey val id: String, val title: String) {
-    fun handle(current: TaskView) {
-        // current came from the owning persistence provider using id.
-    }
-}
-```
+<ArcBackendTabs snippet="guides/spring-data/repositories/current-state" variants="kotlin,java" />
 
 Only exact mapped types carrying `@ReadModel` are claimed. JPA uses `DECLARED` ownership because an entity mapping explicitly selects that store. MongoDB uses `FALLBACK`, so a declaring JPA, Chronicle, or application provider wins. Equal-strength claims fail startup rather than selecting a store by bean order. The supplied command key must already be an instance of the persistence identifier type; contextual providers do not recompute or coerce it. Registry-owned read-model parameters are resolved before ordinary Spring services, so a bean of the model class cannot bypass tenant or key selection. For an owned type, a missing row supplies `null` to Kotlin `T?` and `Optional.empty()` to an ordinary Java `Optional<T>`. A missing command key or missing required owned row produces one `dependencyUnavailable` validation result and HTTP 400. Resolver/storage failures and missing ordinary Spring services remain exceptions. Replacing Arc's `ReadModelForCommandResolverRegistry` bean is an expert override: the application then owns equivalent arbitration and tenancy guarantees.
 
@@ -62,29 +45,11 @@ in Arc .NET's `ServiceCollectionExtensions.AddCratisMongoDB` (`Source/DotNET/Mon
 Call `operations()` inside a `withTenant` scope or any coroutine whose context carries a `TenantCoroutineContext`;
 the ambient tenant is read on every call:
 
-```kotlin
-@Command
-data class ArchiveTask(@CommandKey val id: String) {
-    suspend fun handle(
-        @FromServices access: TenantContextMongoAccess
-    ) {
-        // operations() reads currentTenant() from the coroutine context — never from construction time.
-        val ops = access.operations()
-        ops.remove(Query.query(Criteria.where("_id").`is`(id)), TaskDocument::class.java)
-    }
-}
-```
+<ArcBackendTabs snippet="guides/spring-data/repositories/ambient-tenant" variants="kotlin,java" />
 
 For direct native driver access, `collection()` returns a `MongoCollection<T>` named by the `NamingPolicy`:
 
-```kotlin
-suspend fun handle(
-    @FromServices access: TenantContextMongoAccess
-) {
-    val col = access.collection(TaskDocument::class.java)
-    col.deleteOne(Filters.eq("_id", id))
-}
-```
+<ArcBackendTabs snippet="guides/spring-data/repositories/native-collection" variants="kotlin,java" />
 
 The collection name comes from `NamingPolicy.getReadModelName()` (kernel-aligned English pluralization), not from
 Spring Data's `@Document` annotation. For Spring Data-mapped types, prefer `operations()` and its type-safe CRUD
@@ -92,32 +57,12 @@ methods, which respect `@Document` and the configured object mapping.
 
 ### Java call paths
 
-Java command handlers that run on a blocking thread use `TenantContextBridge.withTenant` to establish the tenant,
-then call `operationsForCurrentTenant()`:
-
-```java
-public class ArchiveTaskHandler implements BlockingCommandHandler {
-    private final TenantContextMongoAccess access;
-
-    public ArchiveTaskHandler(TenantContextMongoAccess access) {
-        this.access = access;
-    }
-
-    @Override
-    public void handle(CommandContext context) {
-        TenantContextBridge.withTenant(TenantId.of(context.getTenantId()), () -> {
-            MongoOperations ops = access.operationsForCurrentTenant();
-            ops.remove(Query.query(Criteria.where("_id").is(context.getCommandKey())), TaskDocument.class);
-        });
-    }
-}
-```
+A Java handler reads the same ambient tenant through `operationsForCurrentTenant()`. On a plain
+thread with no Arc call above it, establish the tenant first with `TenantContextBridge.withTenant`.
 
 Alternatively, pass the tenant explicitly using the overload that bypasses the ambient context:
 
-```java
-MongoOperations ops = access.operations(TenantId.of(tenantId));
-```
+<ArcBackendTabs snippet="guides/spring-data/repositories/explicit-tenant" variants="kotlin,java" />
 
 This overload is callable from both Kotlin and Java without any context setup.
 
@@ -127,25 +72,7 @@ When no tenant is present in the current context and no fallback tenant is confi
 throw `IllegalStateException`. Construct `TenantContextMongoAccess` with an explicit `fallbackTenantId` when
 the application has a default tenant for non-tenanted code paths:
 
-```kotlin
-// Application bean override — use the workspace default tenant when no tenant is active.
-@Bean
-fun arcTenantContextMongoAccess(
-    resolver: TenantAwareMongoOperationsResolver,
-    namingPolicy: NamingPolicy
-): TenantContextMongoAccess = TenantContextMongoAccess(resolver, namingPolicy, TenantId.DEFAULT)
-```
-
-```java
-// Java equivalent.
-@Bean
-public TenantContextMongoAccess arcTenantContextMongoAccess(
-    TenantAwareMongoOperationsResolver resolver,
-    NamingPolicy namingPolicy
-) {
-    return new TenantContextMongoAccess(resolver, namingPolicy, TenantId.DEFAULT);
-}
-```
+<ArcBackendTabs snippet="guides/spring-data/repositories/bean-override" variants="kotlin,java" />
 
 The auto-configured bean uses no fallback (throw on missing tenant). Override it as above when a fallback is needed.
 

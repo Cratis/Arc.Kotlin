@@ -298,4 +298,4 @@ execution rather than silently choosing security context.
   cooperate, so an uncooperative handler or cleanup can keep the caller blocked. Existing pipeline
   scope-completion timeouts still apply. Use the async API when retaining a blocked thread is wrong.
 
-Continue with [in-process Java testing](../guides/testing.md) or compare the [Kotlin tutorial](index.md).
+Continue with [in-process Java testing](../guides/testing.mdx) or compare the [Kotlin tutorial](index.md).

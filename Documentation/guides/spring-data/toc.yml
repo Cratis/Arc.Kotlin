@@ -5,6 +5,6 @@
 - name: Map MongoDB concepts
   href: concepts-mongodb.mdx
 - name: Repositories in queries and commands
-  href: repositories.md
+  href: repositories.mdx
 - name: Observable storage snapshots
   href: observable-snapshots.md

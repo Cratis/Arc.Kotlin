@@ -5,7 +5,7 @@ description: Check the supported rules, declaration restrictions, registration r
 
 ## Declaration and member contract
 
-Follow the [validation walkthrough](../guides/validation.md) for setup, complete sample declarations,
+Follow the [validation walkthrough](../guides/validation.mdx) for setup, complete sample declarations,
 command invocation, client feedback and QUERY requests.
 
 A shared declaration is a public final top-level `FluentModelValidator<T>` with one concrete model
@@ -284,7 +284,7 @@ outside the declared wire shape are not a cross-runtime equivalence promise.
 Shared query model arguments require request-response RFC QUERY preference and host support.
 Omitted Kotlin defaults stay absent before invocation; explicit null is supplied and requires a
 nullable parameter. Neither creates a model node to validate before invocation. Supplied objects
-are validated, not returned data. See the [complete QUERY example](../guides/validation.md#validate-a-supplied-query-model).
+are validated, not returned data. See the [complete QUERY example](../guides/validation.mdx#validate-a-supplied-query-model).
 
 ## Registration and library packaging
 

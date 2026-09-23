@@ -15,7 +15,7 @@
 - name: Observable queries
   href: guides/observable-queries.md
 - name: Validation
-  href: guides/validation.md
+  href: guides/validation.mdx
 - name: Authentication and authorization
   href: guides/security.mdx
 - name: Tenancy
@@ -39,7 +39,7 @@
 - name: Observability
   href: guides/observability.md
 - name: Testing
-  href: guides/testing.md
+  href: guides/testing.mdx
 - name: Chronicle
   href: guides/chronicle.mdx
 - name: Reference
