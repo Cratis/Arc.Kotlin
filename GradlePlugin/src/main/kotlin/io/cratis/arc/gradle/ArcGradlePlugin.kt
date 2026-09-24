@@ -182,6 +182,7 @@ public class ArcGradlePlugin : Plugin<Project> {
             proxyTask.includeQueryNames.convention(extension.endpoints.includeQueryNames)
             proxyTask.enableQueryHttpMethod.convention(extension.endpoints.enableQueryHttpMethod)
             proxyTask.removeStaleGeneratedFiles.convention(extension.proxies.removeStaleGeneratedFiles)
+            proxyTask.useProxyFileSuffix.convention(extension.proxies.useProxyFileSuffix)
             proxyTask.proxySegmentsToSkip.convention(extension.proxies.segmentsToSkip)
             proxyTask.typeMappings.convention(extension.proxies.typeMappings)
             proxyTask.packageMappings.convention(extension.proxies.packageMappings)

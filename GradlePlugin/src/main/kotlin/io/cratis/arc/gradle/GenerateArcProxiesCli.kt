@@ -37,7 +37,8 @@ public object GenerateArcProxiesCli {
                 options.proxySegmentsToSkip,
                 ProxyTypeMappings.parseTypeMappings(options.typeMappings) { println("warning: $it") },
                 ProxyTypeMappings.parsePackageMappings(options.packageMappings) { println("warning: $it") }
-            )
+            ),
+            options.useProxyFileSuffix
         ).generate()
         // Write the endpoint-options resource after proxy generation so callers that do not use
         // the Gradle plugin can still activate the Spring Boot startup consistency check.
@@ -83,6 +84,7 @@ public object GenerateArcProxiesCli {
             values.boolean("--enable-query-http-method", true),
             values.boolean("--remove-stale-generated-files", true),
             values.integer("--proxy-segments-to-skip", 0),
+            values.boolean("--use-proxy-file-suffix", false),
             values.remove("--type-to-typescript").orEmpty(),
             values.remove("--package-to-npm").orEmpty(),
             values.single("--module-name"),
@@ -116,6 +118,7 @@ public object GenerateArcProxiesCli {
         val enableQueryHttpMethod: Boolean,
         val removeStaleGeneratedFiles: Boolean,
         val proxySegmentsToSkip: Int,
+        val useProxyFileSuffix: Boolean,
         val typeMappings: List<String> = emptyList(),
         val packageMappings: List<String> = emptyList(),
         val moduleName: String? = null,

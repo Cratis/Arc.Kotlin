@@ -46,7 +46,7 @@ Arc.Kotlin is part of one deliberately simple Cratis ecosystem — AI-friendly b
 | Queries | Model-bound `@ReadModel` static/companion queries, paging and sorting, GET and RFC QUERY, observable HTTP snapshots, SSE, and WebSocket |
 | Validation | Jakarta Bean Validation, reusable `ConceptValidator`/`ModelValidator` rules, shared fluent validators with generated client rules, and command/query pipelines |
 | Identity and tenancy | Pluggable `AuthenticationHandler` chains, identity details, role/policy authorization, and header/query/claim/subdomain/fixed/development tenant resolution |
-| Generated contracts | Strict-mode TypeScript command/query/model/enum proxies, validation metadata, identity details, and npm package/type mapping |
+| Generated contracts | Strict-mode TypeScript command/query/model/enum proxies, optional `.proxy.ts` file suffix, validation metadata, identity details, and npm package/type mapping |
 | Persistence integration | Spring Data JPA and MongoDB read models, paging, observable snapshots, and optional Chronicle-backed event-sourced behavior |
 | Evaluation and tooling | OpenAPI 3.1, Micrometer observability, stable `ARCKSP` compile diagnostics, checked `.api` binary baselines, and in-process command/query/observable scenarios |
 

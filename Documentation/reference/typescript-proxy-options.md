@@ -63,7 +63,7 @@ The Arc .NET `Program.cs` usage line reads verbatim:
 Cratis.ProxyGenerator <assembly> <output-path> [segments-to-skip] [--library-mode]
   [--skip-output-deletion] [--skip-command-name-in-route] [--skip-query-name-in-route]
   [--api-prefix=<prefix>] [--skip-index-generation] [--use-source-file-as-output-file]
-  [--emit-interfaces] [--assembly-to-package=<Assembly>=<Package>]...
+  [--emit-interfaces] [--use-proxy-file-suffix] [--assembly-to-package=<Assembly>=<Package>]...
   [--exclude-type=<FullyQualifiedTypeName>]... [--exclude-namespace=<Pattern>]...
   [--namespace-root=<Namespace>=<Folder>]... [--type-to-ts=<FullyQualifiedTypeName>=<TsType>[=<Package>]]...
 ```
@@ -75,6 +75,7 @@ Cratis.ProxyGenerator <assembly> <output-path> [segments-to-skip] [--library-mod
 | `--skip-command-name-in-route` | `endpoints.includeCommandNames = false` | Supported today | Polarity is inverted; semantics are identical. |
 | `--skip-query-name-in-route` | `endpoints.includeQueryNames = false` | Supported today | Polarity is inverted; semantics are identical. |
 | `--skip-output-deletion` | `proxies.removeStaleGeneratedFiles = false` | Supported today | Polarity is inverted; semantics are identical. |
+| `--use-proxy-file-suffix` | `proxies.useProxyFileSuffix = true` / `--use-proxy-file-suffix true` | Supported today | Off by default. The .NET CLI takes a bare flag; the JVM CLI requires an explicit `true` or `false`. Generated type files become `Name.proxy.ts`; relative imports and barrel exports use `.proxy`, but `index.ts`, exported symbols, routes, and mapped external modules do not change. |
 | `--type-to-ts=<Type>=<TsType>[=<Package>]` | `proxies.mapType(...)` / `--type-to-typescript` | Supported today | Identical semantics: consulted ahead of the built-in type map; bounded three-part `=` split; warns and skips unusable entries. `ProxyTypeMappings.parseTypeMappings()` mirrors the .NET bounded-split comment exactly. |
 | `--assembly-to-package=<Assembly>=<Package>` | `proxies.mapPackage(jvmPackage, npmPackage)` / `--package-to-npm` | JVM-specific | .NET keys on the assembly name (e.g., `MyLib`). The JVM has no assembly concept: it keys on a fully qualified JVM package prefix (e.g., `com.example.shared`), and the longest matching prefix wins. `parity.md` records this divergence in the "External TypeScript package mappings and type overrides" row. |
 | `--exclude-type=<FullyQualifiedTypeName>` | None | Deliberately unsupported | The JVM generates only types that appear in the KSP-produced manifest. A manifest type referenced from a command, query, or model cannot be excluded without also providing a TypeScript replacement: `resolveType()` in `TypeScriptProxyGenerator.kt` throws `GradleException("Unsupported Arc proxy type '...' in '...'.")` for any unresolvable reference. Use `mapType()` to redirect a type to an external npm import instead. |
@@ -84,6 +85,30 @@ Cratis.ProxyGenerator <assembly> <output-path> [segments-to-skip] [--library-mod
 | `--library-mode` | None | Deliberately unsupported | Arc .NET emits proxies for every public type in the loaded assembly under `--library-mode`. The JVM model is annotation-driven: only types reachable from `@Command`, `@ReadModel`, and `@ExportedType`-annotated sources enter the KSP manifest. Bulk emission without annotation is outside the JVM model. |
 | `--emit-interfaces` | None | Deliberately unsupported | The JVM emits model classes with `@field` decorators from `@cratis/fundamentals` 7.18.4 because the client runtime uses them for JSON hydration. Arc .NET's `--emit-interfaces` strips `@field` and the runtime dependency for packages that never deserialize. The JVM does not expose this mode because it would break the client hydration contract. |
 | `--use-source-file-as-output-file` | None | Deliberately unsupported | The JVM emits one `.ts` file per type. Grouping by source file is a C# idiom (a single `.cs` file may define multiple types); the JVM has no analogous concept and no grouping mechanism. |
+
+## Generated proxy file suffix
+
+Enable the suffix when hand-written TypeScript shares a folder with generated files:
+
+```kotlin
+cratisArc {
+    proxies {
+        outputDirectory.set(layout.projectDirectory.dir("frontend/src/generated"))
+        useProxyFileSuffix.set(true)
+    }
+}
+```
+
+For the standalone JVM CLI, pass `--use-proxy-file-suffix true` (or `false` to opt out); unlike
+.NET's bare `--use-proxy-file-suffix` flag, the JVM CLI requires a boolean value. Commands, queries,
+models, interfaces, and enums become `Name.proxy.ts`; `index.ts` still exports the same public type
+names through paths such as `export * from './Name.proxy';`. Direct imports of generated files must
+update their paths. External npm imports specified by `mapType`/`mapPackage` retain their original
+module paths. With `removeStaleGeneratedFiles` enabled (the default), switching either direction
+removes only stale generated files and their barrel exports; hand-written files and unrelated barrel
+entries remain. With cleanup disabled, old generated files and barrel paths remain alongside new
+ones; the barrel can then export the same TypeScript symbol twice. Clean up the old generated files
+and exports before using the switched barrel.
 
 ## Model-shape compatibility matrix
 
@@ -152,6 +177,10 @@ The "External TypeScript package mappings and type overrides" row in `parity.md`
 on; .NET's `--exclude-type`, `--exclude-namespace`, and `--namespace-root` options have no
 equivalent and none is claimed." This matrix extends that record with per-option rationale, named
 enforcing guards, and the `proxy-namespace-roots` slice definition.
+
+The suffix behavior is covered by `ProxyFileSuffixTest`, `ProxyMappingsJavaConformanceTest`, and
+`ArcGradlePluginFunctionalTest` in `GradlePlugin`; `:GradlePlugin:verifySuffixedContractTestProxies`
+strictly type-checks suffixed output from the Kotlin and Java fixture manifest.
 
 No parity status changes follow from this document alone. A status upgrade requires a test, contract
 test, or runnable sample that proves the behavior, named in the same change. Do not interpret this

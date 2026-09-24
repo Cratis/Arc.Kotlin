@@ -55,6 +55,74 @@ class ArcGradlePluginFunctionalTest {
     }
 
     @Test
+    fun `a separately registered proxy task defaults to plain names at execution`() {
+        val consumer = fixture("standalone-proxy-default")
+        consumer.resolve("build.gradle").appendText("""
+            tasks.register('standaloneArcProxies', io.cratis.arc.gradle.GenerateArcProxies) { proxyTask ->
+                proxyTask.generationEnabled.set(true)
+                proxyTask.moduleName.set('Consumer')
+                proxyTask.routePrefix.set('api')
+                proxyTask.routeSegmentsToSkip.set(1)
+                proxyTask.includeCommandNames.set(true)
+                proxyTask.includeQueryNames.set(true)
+                proxyTask.enableQueryHttpMethod.set(true)
+                proxyTask.removeStaleGeneratedFiles.set(true)
+                proxyTask.proxySegmentsToSkip.set(1)
+                proxyTask.typeMappings.set([])
+                proxyTask.packageMappings.set([:])
+                proxyTask.manifestClasspath.from(sourceSets.main.output, sourceSets.main.compileClasspath,
+                    sourceSets.main.runtimeClasspath)
+                proxyTask.outputDirectory.set(layout.buildDirectory.dir('generated/standalone'))
+                proxyTask.dependsOn('classes')
+            }
+        """.trimIndent())
+
+        val first = runner(consumer, "standaloneArcProxies").build()
+        assertEquals(TaskOutcome.SUCCESS, first.task(":standaloneArcProxies")?.outcome, first.output)
+        val output = consumer.resolve("build/generated/standalone")
+        for (name in listOf("Input", "JavaInput", "All", "View")) {
+            assertTrue(output.resolve("$name.ts").isFile, name)
+            assertFalse(output.resolve("$name.proxy.ts").exists(), name)
+        }
+        val second = runner(consumer, "standaloneArcProxies").build()
+        assertEquals(TaskOutcome.UP_TO_DATE, second.task(":standaloneArcProxies")?.outcome, second.output)
+    }
+
+    @Test
+    fun `changing the suffix task input reruns generation for Kotlin and Java artifacts`() {
+        val consumer = fixture("proxy-suffix")
+        val output = consumer.resolve("build/generated/proxies")
+        val build = consumer.resolve("build.gradle")
+        val initial = runner(consumer, "generateArcProxies").build()
+        assertEquals(TaskOutcome.SUCCESS, initial.task(":generateArcProxies")?.outcome, initial.output)
+        val cached = runner(consumer, "generateArcProxies").build()
+        assertEquals(TaskOutcome.UP_TO_DATE, cached.task(":generateArcProxies")?.outcome, cached.output)
+        val manual = output.resolve("Manual.ts")
+        manual.writeText("// manual\n")
+        val index = output.resolve("index.ts")
+        index.appendText("export * from './Manual';\n")
+        build.appendText("\ncratisArc { proxies { useProxyFileSuffix.set(true) } }\n")
+        val enabled = runner(consumer, "generateArcProxies").build()
+        assertEquals(TaskOutcome.SUCCESS, enabled.task(":generateArcProxies")?.outcome, enabled.output)
+        for (name in listOf("Input", "JavaInput", "All", "View")) {
+            assertTrue(output.resolve("$name.proxy.ts").isFile, name)
+            assertFalse(output.resolve("$name.ts").exists(), name)
+        }
+        assertTrue(index.readText().contains("export * from './JavaInput.proxy';"))
+        assertTrue(index.readText().contains("export * from './Manual';"))
+        assertEquals("// manual\n", manual.readText())
+        val cachedSuffix = runner(consumer, "generateArcProxies").build()
+        assertEquals(TaskOutcome.UP_TO_DATE, cachedSuffix.task(":generateArcProxies")?.outcome, cachedSuffix.output)
+        build.appendText("\ncratisArc { proxies { useProxyFileSuffix.set(false) } }\n")
+        val disabled = runner(consumer, "generateArcProxies").build()
+        assertEquals(TaskOutcome.SUCCESS, disabled.task(":generateArcProxies")?.outcome, disabled.output)
+        assertTrue(output.resolve("JavaInput.ts").isFile)
+        assertFalse(output.resolve("JavaInput.proxy.ts").exists())
+        assertTrue(index.readText().contains("export * from './Manual';"))
+        assertEquals("// manual\n", manual.readText())
+    }
+
+    @Test
     fun `JVM proxies are compared against reproducibly captured Arc dotNET output`() {
         val captured = File(property("capturedDifferential"))
         val consumer = fixture("dotnet-capture-differential")

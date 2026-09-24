@@ -54,6 +54,8 @@ public abstract class ArcProxyOptions @Inject constructor(objects: ObjectFactory
     public val outputDirectory: DirectoryProperty = objects.directoryProperty()
     public val removeStaleGeneratedFiles: Property<Boolean> =
         objects.property(Boolean::class.java).convention(true)
+    /** Name generated type files `Name.proxy.ts` instead of `Name.ts`. */
+    public val useProxyFileSuffix: Property<Boolean> = objects.property(Boolean::class.java).convention(false)
     public val segmentsToSkip: Property<Int> = objects.property(Int::class.java).convention(0)
 
     /**

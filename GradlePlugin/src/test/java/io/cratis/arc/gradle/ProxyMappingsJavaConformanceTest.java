@@ -20,16 +20,23 @@ final class ProxyMappingsJavaConformanceTest {
     @Test
     void javaOptionsAndStandaloneTaskApplyMappings() throws Exception {
         Project project = ProjectBuilder.builder().withProjectDir(directory.toFile()).build();
-        ArcProxyOptions options = project.getObjects().newInstance(ArcProxyOptions.class);
+        ArcExtension extension = project.getObjects().newInstance(ArcExtension.class);
+        ArcProxyOptions options = extension.getProxies();
         assertEquals(List.of(), options.getTypeMappings().get());
         assertEquals(Map.of(), options.getPackageMappings().get());
+        assertEquals(false, options.getUseProxyFileSuffix().get());
+        extension.proxies(config -> config.getUseProxyFileSuffix().set(true));
+        assertEquals(true, options.getUseProxyFileSuffix().get());
         options.mapType("java.time.Duration", "string");
         options.mapType("shared.Money", "Money", "@arc-test/models");
         options.mapPackage("shared", "@arc-test/models");
         assertEquals(List.of("java.time.Duration=string", "shared.Money=Money=@arc-test/models"), options.getTypeMappings().get());
+        GenerateArcProxies defaultTask = project.getTasks().register("defaultSuffix", GenerateArcProxies.class).get();
+        assertEquals(false, defaultTask.getUseProxyFileSuffix().get());
         GenerateArcProxies task = project.getTasks().register("mapped", GenerateArcProxies.class).get();
         task.getTypeMappings().set(options.getTypeMappings());
         task.getPackageMappings().set(options.getPackageMappings());
+        task.getUseProxyFileSuffix().set(options.getUseProxyFileSuffix());
         task.getGenerationEnabled().set(true);
         task.getModuleName().set("Fixture");
         task.getRoutePrefix().set("api");
@@ -50,7 +57,7 @@ final class ProxyMappingsJavaConformanceTest {
             """);
         task.getManifestClasspath().from(resources.toFile());
         task.generate();
-        String output = Files.readString(directory.resolve("generated/View.ts"));
+        String output = Files.readString(directory.resolve("generated/View.proxy.ts"));
         assertTrue(output.contains("@field(String)"), output);
         assertTrue(output.contains("elapsed!: string;"), output);
     }

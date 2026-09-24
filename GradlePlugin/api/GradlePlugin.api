@@ -39,6 +39,7 @@ public abstract class io/cratis/arc/gradle/ArcProxyOptions {
 	public final fun getRemoveStaleGeneratedFiles ()Lorg/gradle/api/provider/Property;
 	public final fun getSegmentsToSkip ()Lorg/gradle/api/provider/Property;
 	public final fun getTypeMappings ()Lorg/gradle/api/provider/ListProperty;
+	public final fun getUseProxyFileSuffix ()Lorg/gradle/api/provider/Property;
 	public final fun mapPackage (Ljava/lang/String;Ljava/lang/String;)V
 	public final fun mapType (Ljava/lang/String;Ljava/lang/String;)V
 	public final fun mapType (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
@@ -86,6 +87,7 @@ public abstract class io/cratis/arc/gradle/GenerateArcProxies : org/gradle/api/D
 	public abstract fun getRoutePrefix ()Lorg/gradle/api/provider/Property;
 	public abstract fun getRouteSegmentsToSkip ()Lorg/gradle/api/provider/Property;
 	public abstract fun getTypeMappings ()Lorg/gradle/api/provider/ListProperty;
+	public abstract fun getUseProxyFileSuffix ()Lorg/gradle/api/provider/Property;
 }
 
 public final class io/cratis/arc/gradle/GenerateArcProxiesCli {
