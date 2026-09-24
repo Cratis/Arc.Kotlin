@@ -103,6 +103,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     permissions:
+      issues: write
       contents: write
       pull-requests: read
     environment: maven-central
@@ -119,7 +120,7 @@ jobs:
       # Keeping Maven publication in this job means a failed upload prevents that post step from publishing a release.
       - name: Prepare release
         id: release
-        uses: cratis/release-action@bdaded342eb31b52b48dca0611f0214794f8c655 # v1
+        uses: cratis/release-action@f5fc6db6adbb4db6e6c4548cd7addfc924426e69 # v1
         with:
           version: ${{ github.event.inputs.version }}
           release-notes: ${{ github.event.inputs.release-notes }}
