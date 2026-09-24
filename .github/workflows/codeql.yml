@@ -1,11 +1,8 @@
 # Copyright (c) Cratis. All rights reserved.
 # Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-# NOTE: Kotlin extraction is temporarily disabled. CodeQL cannot analyse Kotlin 2.4.20 yet -
-# the extractor aborts with "Kotlin version 2.4.20 is too recent". Support lands in CodeQL 2.27.1
-# (github/codeql#22381). Until the runners ship it, this workflow analyses the Java sources only,
-# which is a REDUCED scope and must not be read as full coverage. Tracked in #195: remove the
-# CODEQL_EXTRACTOR_JAVA_AGENT_DISABLE_KOTLIN setting below and restore Kotlin analysis.
+# The CodeQL bundle is pinned to 2.27.1, the first release that can extract Kotlin 2.4.20
+# (github/codeql#22381). Remove the `tools` pin once the default bundle of codeql-action is 2.27.1 or newer.
 name: CodeQL
 
 on:
@@ -56,11 +53,9 @@ jobs:
           languages: java-kotlin
           build-mode: manual
           queries: security-extended
+          tools: https://github.com/github/codeql-action/releases/download/codeql-bundle-v2.27.1/codeql-bundle-linux64.tar.gz
 
       - name: Compile production and test sources
-        env:
-          # Temporary - see the note at the top of this file and #195.
-          CODEQL_EXTRACTOR_JAVA_AGENT_DISABLE_KOTLIN: "true"
         run: ./gradlew clean assemble testClasses --no-configuration-cache
 
       - name: Perform CodeQL analysis
