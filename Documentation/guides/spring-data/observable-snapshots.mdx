@@ -9,7 +9,7 @@ Both Spring Data integrations publish injectable query services whose methods re
 
 ### Observe MongoDB
 
-Inject `MongoObservableQuery` into a model-bound query. `observe`, `observeSingle`, and `observeById` re-run the Spring Data query after insert, update, replace, delete, or invalidate notifications:
+Inject `MongoObservableQuery` into a model-bound query. `observe`, `observeSingle`, and `observeById` re-run the Spring Data query after insert, update, replace, delete, or invalidate notifications. The Kotlin fences on this page are excerpts: each method belongs inside the `companion object` of a `@ReadModel` class such as `TaskView`, as in the [queries guide](../queries.mdx).
 
 ```kotlin
 @JvmStatic
@@ -30,7 +30,7 @@ A custom `MongoOperationsResolver` can select operations from the captured `tena
 
 #### Kotlin type-inference extensions for MongoDB
 
-The `arc-spring-data-mongodb` artifact ships Kotlin extension functions on `MongoObservableQuery` that infer the document type from the generic parameter, eliminating the explicit `::class.java` argument:
+The `arc-spring-data-mongodb` artifact ships Kotlin extension functions on `MongoObservableQuery` that infer the document type from the generic parameter, eliminating the explicit `::class.java` argument. They are top-level functions, so import them by name, for example `import io.cratis.arc.springdata.mongodb.observe` and `import io.cratis.arc.springdata.mongodb.observeById`:
 
 ```kotlin
 @JvmStatic
@@ -77,7 +77,7 @@ Notifications are coalesced per transaction, discarded on rollback, and emitted 
 
 #### Kotlin type-inference extensions for JPA
 
-The `arc-spring-data-jpa` artifact ships Kotlin extension functions on `JpaObservableQuery` that infer the entity type from the generic parameter:
+The `arc-spring-data-jpa` artifact ships Kotlin extension functions on `JpaObservableQuery` that infer the entity type from the generic parameter. Import them by name from `io.cratis.arc.springdata.jpa`, for example `import io.cratis.arc.springdata.jpa.observe`:
 
 ```kotlin
 @JvmStatic

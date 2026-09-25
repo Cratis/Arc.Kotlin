@@ -21,7 +21,7 @@ dependencies {
 }
 ```
 
-Either starter transitively includes `io.cratis:chronicle-spring-boot-starter` and follows its Spring Boot bean backoff conventions. The current integration uses Chronicle.Kotlin 6.3.1 with Chronicle contracts 19.1.2 and kernel 19.1.2. Kernel 18.3.1 and earlier omit an authorized `IsAuthorized` flag from the wire, which a JVM client reads as a denial, so 18.4.0 is the lowest kernel this integration supports. Configure `cratis.chronicle.event-store`; Chronicle then supplies the conventional client and `IEventStore` beans while Arc adds tenant-aware event-store resolution, a staged command scope, response handlers, read-model adapters, and a reactor command-side-effect helper.
+Either starter transitively includes `io.cratis:chronicle-spring-boot-starter` and follows its Spring Boot bean backoff conventions. The current integration depends on Chronicle.Kotlin 6.3.2, which uses Chronicle contracts 19.1.2; the compatibility gate below runs it against kernel 19.1.2. Kernel 18.3.1 and earlier omit an authorized `IsAuthorized` flag from the wire, which a JVM client reads as a denial, so 18.4.0 is the lowest kernel this integration supports. Configure `cratis.chronicle.event-store`; Chronicle then supplies the conventional client and `IEventStore` beans while Arc adds tenant-aware event-store resolution, a staged command scope, response handlers, read-model adapters, and a reactor command-side-effect helper.
 
 ## Run the complete Kotlin and Java samples
 
@@ -33,13 +33,13 @@ The optional `Samples:Kotlin:ChronicleSpringBoot` and `Samples:Java:ChronicleSpr
 - generated GET and RFC QUERY endpoints at `/api/tasks/by-id` and `/api/tasks`;
 - strict generated TypeScript contracts for Kotlin and Java.
 
-Run either sample against Chronicle 18.4.0 and include `x-cratis-tenant-id` on every request. The explicit compatibility gate starts the pinned development image and exercises both applications:
+Run either sample against a Chronicle 18.4.0 or newer kernel and include `x-cratis-tenant-id` on every request. `Samples/run.sh --chronicle` starts the `cratis/chronicle:18.4.0-development` image for you. The explicit compatibility gate starts its own pinned development image and exercises both applications:
 
 ```shell
 ./gradlew :ContractTests:chronicleRealKernelTest --no-configuration-cache
 ```
 
-Override `-PchronicleKernelImage=<pinned-image>` only for a deliberate compatibility run. The default image is `cratis/chronicle:18.4.0-development` pinned to OCI index digest `sha256:0437a1a60e237b104b747eea94a57a947690e0abaff5a719212d095c0787517c`. Docker absence fails this explicit task; normal unit tests do not start a kernel.
+Override `-PchronicleKernelImage=<pinned-image>` only for a deliberate compatibility run. The default image is `cratis/chronicle:19.1.2-development` pinned to digest `sha256:8477bf1622813730dfde0787b688f4ed6698b9ca45032163813f26f429235a38`. Docker absence fails this explicit task; normal unit tests do not start a kernel.
 
 ## Return an event
 

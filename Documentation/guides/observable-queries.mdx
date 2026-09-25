@@ -28,8 +28,9 @@ observable pipeline:
 
 A source that only emits holds nothing. A JDK `SubmissionPublisher`, for example, tells a new
 subscriber nothing until the next change — and that is visible on the wire, because Arc answers a
-snapshot `GET` from the source's current value and reports a source without one as `202 Not Ready`
-rather than holding the request open.
+snapshot `GET` from the source's current value and, by default, reports a source without one as
+`202 Not Ready` rather than holding the request open. A caller can pass `waitForFirstResult=true`
+to wait up to the configured limit instead.
 
 Hold the state instead. Kotlin uses `MutableStateFlow`, the JVM substitute for .NET's `ISubject<T>`.
 The JDK has no equivalent, so Arc supplies `ObservableState<T>` for Java. Neither needs an external

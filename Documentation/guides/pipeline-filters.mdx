@@ -15,8 +15,10 @@ goes: one declaration that every command or query in the pipeline passes through
 
 A filter sees the resolved [`CommandContext`](commands.mdx) — the command instance, its type, the
 principal authentication already produced, the correlation identifier, the tenant — and returns a
-result that is merged into the outcome. Returning anything unsuccessful stops the command before its
-handler is called:
+result that is merged into the outcome. An unsuccessful result stops the remaining filters. It stops
+the handler too when the result carries an authorization failure, an exception, or validation
+feedback that is still blocking after the allowed-severity threshold is applied; warning-only
+feedback is dropped by default and the handler runs:
 
 <ArcBackendTabs snippet="guides/pipeline-filters/command-filter" variants="kotlin,java" />
 
@@ -26,6 +28,12 @@ Register it as a bean and it applies to every command:
 
 A filter that does not apply to the command in front of it returns success and gets out of the way.
 That first check is what keeps a feature's rule scoped to the feature.
+
+This example is an ordinary filter, so it runs in `@Order` sequence with the others. Because its job
+is to authorize, make it an `AuthorizationCommandFilter` (in Java, a
+`BlockingAuthorizationCommandFilter` registered through `BlockingAuthorizationCommandFilterAdapter`)
+when it must run before filters that cause effects. [Order them deliberately](#order-them-deliberately)
+explains why.
 
 ## Write a query filter
 
@@ -46,6 +54,14 @@ code is already written:
 | --- | --- | --- |
 | Synchronous | `BlockingCommandFilter` / `BlockingQueryFilter` | `BlockingCommandFilterAdapter` / `BlockingQueryFilterAdapter` |
 | `CompletionStage` | `AsyncCommandFilter` / `AsyncQueryFilter` | `AsyncCommandFilterAdapter` / `AsyncQueryFilterAdapter` |
+
+A filter whose job is to authorize has its own variant of each interface. Its adapter keeps it in
+the authorization group that runs first:
+
+- `BlockingAuthorizationCommandFilter`, registered with `BlockingAuthorizationCommandFilterAdapter`
+- `BlockingAuthorizationQueryFilter`, registered with `BlockingAuthorizationQueryFilterAdapter`
+- `AsyncAuthorizationCommandFilter`, registered with `AsyncAuthorizationCommandFilterAdapter`
+- `AsyncAuthorizationQueryFilter`, registered with `AsyncAuthorizationQueryFilterAdapter`
 
 A blocking filter occupies a request thread for as long as it runs. Keep it to decisions it can make
 from the context it already has; if it needs to call something remote, use the `CompletionStage`

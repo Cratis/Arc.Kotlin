@@ -62,7 +62,10 @@ short, or implement the asynchronous variant for work that waits on I/O.
 
 ## When not to use a scope
 
-A scope runs for **every** command. If the concern belongs to one command or one
+A scope runs for **every** executed command, and it begins before the filters, so it also completes
+when a filter rejects the command. Preflight `validate` calls do not run scopes, and neither do
+failures that happen before scopes begin, such as a missing handler or an exception while building
+the command context. If the concern belongs to one command or one
 group of them, a [pipeline filter](pipeline-filters.mdx) is the narrower tool and
 says so in its own declaration.
 
