@@ -7,7 +7,7 @@ plugins {
     id("com.vanniktech.maven.publish")
 }
 
-val rxJava3Version = "3.1.9"
+val rxJava3Version = "3.1.12"
 
 dependencies {
     api(project(":Source"))
