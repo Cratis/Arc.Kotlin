@@ -3,15 +3,19 @@ title: Build your first Arc application with Java
 description: Create and run a minimal Java Spring Boot command and query using records and CompletionStage.
 ---
 
+By the end of this page you have a Spring Boot application, written in Java records, that accepts a `CreateTask` command at `POST /api/create-task` and answers a `TaskView` query at `/api/tasks`. You write no controller: Arc generates both endpoints at compile time.
+
 ## Prerequisites
 
-Use JDK 17 and Gradle 8.14.4. This tutorial follows the passing `Samples/Java/SpringBoot` application. The local workspace version is `0.0.0-SNAPSHOT`; substitute a released version when consuming published artifacts.
+Use JDK 17 and Gradle 8.14.4. This tutorial follows the passing `Samples/Java/SpringBoot` application.
 
-Arc generates Kotlin implementations for Java models, so the build also uses Kotlin 2.4.10 and KSP 2.3.11 (KSP2). The Arc plugin supplies this tooling. See the [compiler compatibility notes](index.md#compiler-compatibility), including the Gradle 8.14.4 requirement, when configuring the plugins manually or mixing Kotlin and Java sources.
+Arc's libraries and Gradle plugin implementation are published to Maven Central under the `io.cratis` group; the `io.cratis.arc` plugin marker is `io.cratis.arc:io.cratis.arc.gradle.plugin`. Replace every `<version>` below with the same Arc release, for example the latest version listed for [`io.cratis:arc` on Maven Central](https://central.sonatype.com/artifact/io.cratis/arc). Inside this repository the local workspace version is `0.0.0-SNAPSHOT`, which is not published.
+
+Arc generates Kotlin implementations for Java models, so the build also uses Kotlin 2.4.20 and KSP 2.3.12 (KSP2). The Arc plugin supplies this tooling; you write no Kotlin. See the [compiler compatibility notes](index.md#compiler-compatibility), including the Gradle 8.14.4 requirement, when configuring the plugins manually or mixing Kotlin and Java sources.
 
 ## Configure Gradle
 
-The Arc plugin marker is configured for publication through Maven Central. Add Maven Central to plugin resolution in `settings.gradle.kts`:
+Start in an empty project directory. The Arc plugin marker is published to Maven Central, so add Maven Central to plugin resolution in `settings.gradle.kts`:
 
 ```kotlin
 pluginManagement {
@@ -20,6 +24,12 @@ pluginManagement {
         gradlePluginPortal()
     }
 }
+```
+
+Gradle only runs in a directory that contains a build definition, so create the wrapper now, with an installed Gradle, before `build.gradle.kts`. Every later `./gradlew` command then runs Gradle 8.14.4:
+
+```bash
+gradle wrapper --gradle-version 8.14.4
 ```
 
 Create `build.gradle.kts` using the Arc plugin and Spring Boot starter. Include application dependency repositories here: `pluginManagement.repositories` only resolves plugins, not application or processor dependencies.
@@ -50,7 +60,7 @@ dependencies {
 }
 ```
 
-For builds that do not use the Arc plugin, retain `repositories { mavenCentral() }` in `build.gradle.kts`, apply `java`, Kotlin/JVM `2.4.10`, KSP `2.3.11`, and Spring Boot directly; add `io.cratis:arc`, `io.cratis:arc-spring-boot-starter`, and `ksp("io.cratis:arc-ksp:<version>")`, then set `ksp { arg("arc.moduleName", "TaskApplication") }`. The plugin and manual setup produce the same generated contracts.
+For builds that do not use the Arc plugin, retain `repositories { mavenCentral() }` in `build.gradle.kts`, apply `java`, Kotlin/JVM `2.4.20`, KSP `2.3.12`, and Spring Boot directly; add `io.cratis:arc`, `io.cratis:arc-spring-boot-starter`, and `ksp("io.cratis:arc-ksp:<version>")`, then set `ksp { arg("arc.moduleName", "TaskApplication") }`. The plugin and manual setup produce the same generated contracts.
 
 Set the matching host convention in `src/main/resources/application.properties`:
 
@@ -161,6 +171,8 @@ Run the application:
 ./gradlew bootRun
 ```
 
+KSP runs before compilation, so a model mistake surfaces as an `ARCKSP` compiler error; the [diagnostics reference](../reference/diagnostics.md) explains each code. When Spring Boot logs `Tomcat started on port 8080`, the generated endpoints are live.
+
 ## Execute and query
 
 ```bash
@@ -186,6 +198,8 @@ The query returns `isSuccess: true` with the created task array in `data`:
 ```
 
 The current array-returning adapter leaves paging totals at zero; the Kotlin tutorial's `List` return reports `totalItems: 1`. Neither example requests paging. See the [HTTP contract reference](../reference/http-contract.md) for the envelope contract.
+
+If a request returns `404`, see [troubleshooting](../troubleshooting.md) for the route convention.
 
 The [executable tutorial check](index.md#query-the-read-model) compiles these Java files and generated Kotlin adapters with warnings as errors, then verifies the documented requests against a real Spring Boot host. It tests the preferred plugin setup using locally staged Arc publications, not every documentation snippet or the manual setup.
 

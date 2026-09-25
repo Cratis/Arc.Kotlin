@@ -3,23 +3,27 @@ title: Build your first Arc application with Kotlin
 description: Create and run a minimal Kotlin Spring Boot command and query with Arc's generated, model-bound endpoints.
 ---
 
+By the end of this page you have a Spring Boot application that accepts a `CreateTask` command at `POST /api/create-task` and answers a `TaskView` query at `/api/tasks`. You write no controller: Arc generates both endpoints from the model at compile time.
+
 ## Prerequisites
 
-Use JDK 17 and Gradle 8.14.4. This tutorial follows the passing `Samples/Kotlin/SpringBoot` application in the repository. The local workspace version is `0.0.0-SNAPSHOT`; substitute a released version when consuming published artifacts.
+Use JDK 17 and Gradle 8.14.4. This tutorial follows the passing `Samples/Kotlin/SpringBoot` application in the repository.
+
+Arc's libraries and Gradle plugin implementation are published to Maven Central under the `io.cratis` group; the `io.cratis.arc` plugin marker is `io.cratis.arc:io.cratis.arc.gradle.plugin`. Replace every `<version>` below with the same Arc release, for example the latest version listed for [`io.cratis:arc` on Maven Central](https://central.sonatype.com/artifact/io.cratis/arc). Inside this repository the local workspace version is `0.0.0-SNAPSHOT`, which is not published.
 
 For Java records and `CompletionStage`, follow [Build your first Arc application with Java](java.md).
 
 ### Compiler compatibility
 
-Use Kotlin 2.4.10 and KSP 2.3.11 (KSP2), as in the examples below. Arc's compiled classes carry Kotlin metadata version 2.4.0; Kotlin 2.1.0 and 2.2.0 reject that metadata when compiling a consumer. Upgrade the consumer compiler rather than disabling metadata validation, and retain the Kotlin runtime versions selected by the dependency graph. JVM bytecode still targets Java 17.
+Use Kotlin 2.4.20 and KSP 2.3.12 (KSP2), as in the examples below. The Arc plugin applies exactly this pair itself; choose it yourself only for the manual setup. Arc's compiled classes carry Kotlin metadata version 2.4.0; Kotlin 2.1.0 and 2.2.0 reject that metadata when compiling a consumer. Upgrade the consumer compiler rather than disabling metadata validation, and retain the Kotlin runtime versions selected by the dependency graph. JVM bytecode still targets Java 17.
 
 Compiler-generated forwarding methods for inherited interface defaults may appear in implementation classes' `getDeclaredMethods()` results. Reflective lookup can return a class-declared forwarder instead of an inherited interface method, changing its declaring class and `Method.isDefault()` result. An added declared method does not necessarily represent a new handwritten implementation or a changed default.
 
-The repository requires Gradle 8.14.4 and JDK 17. Use the checked-in wrapper with Kotlin 2.4.10 and KSP 2.3.11; this baseline avoids the Kotlin plugin's deprecated Gradle version warning without suppressing it.
+The repository requires Gradle 8.14.4 and JDK 17. Use the checked-in wrapper with Kotlin 2.4.20 and KSP 2.3.12; this baseline avoids the Kotlin plugin's deprecated Gradle version warning without suppressing it.
 
 ## Configure Gradle
 
-The Arc plugin marker is configured for publication through Maven Central. Add Maven Central to plugin resolution in `settings.gradle.kts`:
+Start in an empty project directory. The Arc plugin marker is published to Maven Central, so add Maven Central to plugin resolution in `settings.gradle.kts`:
 
 ```kotlin
 pluginManagement {
@@ -30,12 +34,18 @@ pluginManagement {
 }
 ```
 
+Gradle only runs in a directory that contains a build definition, so create the wrapper now, with an installed Gradle, before `build.gradle.kts`. Every later `./gradlew` command then runs Gradle 8.14.4:
+
+```bash
+gradle wrapper --gradle-version 8.14.4
+```
+
 The preferred setup is the Arc plugin. It applies Kotlin/JVM and KSP, adds `io.cratis:arc` and `io.cratis:arc-ksp`, targets JDK 17, and treats warnings as errors. Create `build.gradle.kts` with the following content. Its `repositories` block resolves application and processor dependencies; `pluginManagement.repositories` alone does not resolve them.
 
 ```kotlin
 plugins {
     id("io.cratis.arc") version "<version>"
-    kotlin("plugin.spring") version "2.4.10"
+    kotlin("plugin.spring") version "2.4.20"
     id("org.springframework.boot") version "4.1.1"
     id("io.spring.dependency-management") version "1.1.7"
 }
@@ -62,9 +72,9 @@ If the plugin is not available in your build, use manual KSP setup:
 
 ```kotlin
 plugins {
-    kotlin("jvm") version "2.4.10"
-    kotlin("plugin.spring") version "2.4.10"
-    id("com.google.devtools.ksp") version "2.3.11"
+    kotlin("jvm") version "2.4.20"
+    kotlin("plugin.spring") version "2.4.20"
+    id("com.google.devtools.ksp") version "2.3.12"
     id("org.springframework.boot") version "4.1.1"
     id("io.spring.dependency-management") version "1.1.7"
 }
@@ -159,6 +169,8 @@ Run the application:
 ./gradlew bootRun
 ```
 
+The build runs KSP before compiling, so a model mistake surfaces as an `ARCKSP` compiler error rather than at startup; the [diagnostics reference](../reference/diagnostics.md) explains each code. When Spring Boot logs `Tomcat started on port 8080`, the generated endpoints are live.
+
 ## Execute the command
 
 ```bash
@@ -189,4 +201,6 @@ The one-shot query returns the created task in a `QueryResult` envelope:
 
 The repository's `:GradlePlugin:test --tests '*ArcOnboardingFunctionalTest'` check materializes the preferred Kotlin and Java tutorial files, resolves locally staged Arc plugin-marker and runtime publications, compiles generated artifacts, and sends these POST and QUERY requests to a real Spring Boot host on a random port. It substitutes only the Arc version and local Arc repository seams, with an added test probe; public transitive dependencies still use the documented repositories. This is separate from the source-only documentation snippet checker and does not compile every documentation snippet or execute the manual setup.
 
-Continue with the [commands guide](../guides/commands.mdx) and [queries guide](../guides/queries.mdx).
+If a request returns `404`, the route convention and the package disagree; [troubleshooting](../troubleshooting.md) walks through that and other first-run failures.
+
+Continue with the [commands guide](../guides/commands.mdx) and [queries guide](../guides/queries.mdx), or generate a typed frontend client with [TypeScript proxies](../guides/typescript-proxies.mdx).

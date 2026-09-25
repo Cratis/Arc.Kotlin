@@ -66,6 +66,17 @@ See [Annotation reference](reference/annotations.mdx) for the exact contract eac
 
 ## Runtime behavior
 
+### A command or query returns `404`
+
+Arc derives each conventional route from the declaring package. `cratis.arc.endpoints.segments-to-skip-for-route`
+defaults to `0`, so without it a command `CreateTask` in package `example.tasks` is served at
+`/api/example/tasks/create-task`, not `/api/create-task`. Set the number of leading package
+segments to drop in `application.properties`, and keep the Gradle plugin's
+`cratisArc.endpoints.segmentsToSkip` at the same value so generated clients call the same route. An
+explicit `@Path` on a query method is used verbatim. See
+[Configure generation](guides/typescript-proxies.mdx#configure-generation) and the
+[configuration reference](reference/configuration.mdx).
+
 ### A command fails with `reason: "rule"` and `reasonDetail: "commandKey"`
 
 The command needs a Chronicle event response but has no usable `@CommandKey`. Declare one backed by
@@ -75,16 +86,17 @@ The command needs a Chronicle event response but has no usable `@CommandKey`. De
 ### An observable query returns HTTP 202 with no data
 
 The query's source is a cold `Flow` or `Flow.Publisher` that has not produced a value yet. Either
-back the query with a `MutableStateFlow`/`SubmissionPublisher` (which always has a current value), or
-request `waitForFirstResult=true` on the HTTP snapshot route. See
+back the query with a source that always has a current value (`MutableStateFlow` in Kotlin,
+`io.cratis.arc.queries.ObservableState` in Java; a plain `SubmissionPublisher` has none), or request
+`waitForFirstResult=true` on the HTTP snapshot route. See
 [Consume an observable query](guides/queries.mdx#consume-an-observable-query).
 
 ### The Chronicle integration fails at startup with `Could not provision event store ... (authorized=false, ...)`
 
 The connected kernel is older than 18.4.0. Kernels 18.3.1 and earlier omit the `IsAuthorized` field
 from gRPC responses when a request *was* authorized, which a JVM proto3 client decodes as `false`.
-Upgrade to Chronicle kernel 18.4.0 or newer — the pinned development image is
-`cratis/chronicle:18.4.0-development`. See
+Upgrade to Chronicle kernel 18.4.0 or newer. The samples pin `cratis/chronicle:18.4.0-development`;
+the compatibility gate runs `cratis/chronicle:19.1.2-development`. See
 [Add Chronicle optionally](guides/chronicle.mdx#add-chronicle-optionally).
 
 ### A generated TypeScript client rejects a request with a malformed-request error
