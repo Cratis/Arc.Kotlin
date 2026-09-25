@@ -6,13 +6,15 @@ applyTo: "**/*"
 
 `:ContractTests:typeScriptRuntimeTest` runs `npm run test:runtime`
 (`node contracts/run-runtime-gate.mjs`). It boots the executable Kotlin Spring Boot sample jar,
-waits for `Tomcat started on port …`, then runs three child processes and parses each one's TAP
-summary.
+waits for `Tomcat started on port …`, then runs five child processes (35 tests in total) and parses
+each one's TAP summary.
 
 | Child run | Contract | Time zone | Expected tests |
 | --- | --- | --- | --- |
-| calendar runtime contract | `contracts/runtime.calendar.contract.ts` | `UTC` | 5 |
-| calendar runtime contract | `contracts/runtime.calendar.contract.ts` | `America/Los_Angeles` | 5 |
+| ignore validation runtime contract | `contracts/runtime.ignore-validation.contract.ts` | `UTC` | 4 |
+| shared fluent runtime contract | `contracts/runtime.fluent.contract.ts` | `UTC` | 4 |
+| calendar runtime contract | `contracts/runtime.calendar.contract.ts` | `UTC` | 6 |
+| calendar runtime contract | `contracts/runtime.calendar.contract.ts` | `America/Los_Angeles` | 6 |
 | general runtime contract | `contracts/runtime.contract.ts` | `UTC` | 15 |
 
 `enforceTapSummary` requires, per child run:
