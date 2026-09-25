@@ -19,10 +19,12 @@ injects the corresponding tenant and identity headers into every request the
 inspected page makes while a selection is active — no restart, no
 hand-crafted headers. See [Lens: where the tenant and user roster comes from](/tools/lens/#where-the-tenant-and-user-roster-comes-from)
 for the extension side of this contract, with screenshots against seeded demo
-data. Both endpoints are explicitly
+data. Arc's own authentication layer treats both endpoints as
 anonymous — see [Know which built-in routes are anonymous](security.mdx#know-which-built-in-routes-are-anonymous)
-— including in production, so scope development-only providers out of
-production builds or restrict the paths at trusted ingress.
+— including in production. A Spring Security chain, such as the default one the
+platform identity bridge adds, can still require authentication for them. Do not
+rely on that: scope development-only providers out of production builds or
+restrict the paths at trusted ingress.
 
 Without any provider registered, both endpoints return an empty JSON array
 rather than failing.
@@ -128,8 +130,10 @@ class DevelopmentUsers {
 ## Multiple providers compose
 
 Register more than one `TenantsProvider` or `UsersProvider` — Arc aggregates
-every registered coroutine and Java async provider in `@Order` sequence and
-keeps the first entry seen for each tenant or user identifier, so one source
+the coroutine providers in `@Order` sequence, then the Java async providers in
+`@Order` sequence, and keeps the first entry seen for each tenant or user
+identifier. A coroutine provider therefore wins over a Java async provider for the
+same identifier, whatever their `@Order` values, so one source
 can supply fixtures while another reads from a database or an external
 service without either implementation knowing about the other.
 

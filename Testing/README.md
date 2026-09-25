@@ -102,4 +102,4 @@ CompletionStage<CommandScenarioResult<Object>> result =
 
 Canceling a returned future cancels its child coroutine. The asynchronous bridges never use `GlobalScope` or `ThreadLocal` state.
 
-See the [testing guide](../Documentation/guides/testing.md) for Chronicle Kotlin extensions and their `ChronicleCommandScenarios` Java static bridges.
+See the [testing guide](../Documentation/guides/testing.mdx) for Chronicle Kotlin extensions and their `ChronicleCommandScenarios` Java static bridges.

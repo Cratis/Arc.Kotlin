@@ -1,6 +1,7 @@
 # Samples
 
-Four runnable applications and one frontend that talks to any of them.
+Four runnable applications and one frontend that talks to either plain Arc application. The
+Chronicle samples are HTTP-only: `run.sh --chronicle` starts no frontend.
 
 Each sample is the same application written twice, once in Kotlin and once in Java, so you can read
 whichever you will actually write. The showcase features mirror the Arc .NET sample application
@@ -35,8 +36,10 @@ backend so the browser sees a single origin.
 | [`Java/ChronicleSpringBoot`](Java/ChronicleSpringBoot) | The same, in Java. |
 | [`Frontend`](Frontend) | One React application that runs against either plain Arc host unchanged. |
 
-Both plain Arc hosts serve identical routes, which is why one frontend covers both: the generated
-proxies are regenerated from whichever backend you are about to run and copied in before Vite
+Both plain Arc hosts serve the routes the shared frontend consumes, which is why one frontend covers
+both. The Kotlin host additionally exposes runtime-contract endpoints, including calendar queries and
+batch task creation, that the frontend does not use. The
+generated proxies are regenerated from whichever backend you are about to run and copied in before Vite
 starts, so the client can never drift from the server it talks to.
 
 ## The showcase

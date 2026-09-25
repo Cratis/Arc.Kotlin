@@ -81,9 +81,11 @@ model are untouched:
 
 ## Generate the TypeScript proxies on their own
 
+Run this from the repository root, which holds the Gradle wrapper:
+
 ```shell
 ./gradlew :Samples:Java:SpringBoot:generateArcProxies --no-configuration-cache
 ```
 
-Output lands untracked in `build/generated/arc-proxies`, laid out by feature and identical in shape
-to the Kotlin sample's.
+Output lands untracked in `build/generated/arc-proxies`, laid out by feature, with the files the shared frontend
+consumes. The Kotlin sample additionally generates calendar and batch-task contract clients.

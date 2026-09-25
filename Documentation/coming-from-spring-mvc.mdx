@@ -15,7 +15,7 @@ difference is what you write to expose a command or a query over HTTP.
 | `@RestController` class with a `@GetMapping` method | `@ReadModel` class with a static or `@JvmStatic` companion query method |
 | `@RequestBody CreateTaskRequest body` | The command's own constructor properties — the command *is* the request body |
 | `@RequestParam` / `@PathVariable` | Unannotated query method parameters |
-| `@Autowired` field or constructor injection into the controller | Unannotated `handle`/query parameters resolved from Spring by type, or `@FromServices` on a query parameter |
+| `@Autowired` field or constructor injection into the controller | Unannotated `handle` parameters resolved from Spring by type; a query method needs `@FromServices` on each service parameter, because an unannotated query parameter is a client argument |
 | `@Valid @RequestBody X body, BindingResult result` | Automatic Jakarta validation on the command or query-argument graph when a `Validator` bean exists — see [Add validation](guides/commands.mdx#add-validation) |
 | `ResponseEntity<T>` | A `CommandResult<T>` or `QueryResult<T>` JSON envelope — see the [HTTP contract reference](reference/http-contract.md) |
 | `@PreAuthorize("hasRole('ADMIN')")` | `@Authorize(roles = ["admin"])` or `@Roles("admin")` on the class or the operation — see [Protect the command](guides/commands.mdx#protect-the-command) |

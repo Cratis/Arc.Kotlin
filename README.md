@@ -27,8 +27,9 @@ Arc.Kotlin is part of one deliberately simple Cratis ecosystem — AI-friendly b
 
 - [Build your first Arc application in Kotlin](Documentation/get-started/index.md) or
   [in Java](Documentation/get-started/java.md) — a runnable command and query in about five minutes.
-- [Browse the guides](Documentation/guides/index.md) — commands, queries, security, Spring Data,
-  TypeScript proxies, OpenAPI, observability, Chronicle, and in-process testing.
+- [Browse the documentation overview](Documentation/index.md) — module map, current status, and the
+  guides for commands, queries, security, Spring Data, TypeScript proxies, OpenAPI, observability,
+  Chronicle, and in-process testing.
 - [Look things up in the reference](Documentation/reference/index.md) — annotations, configuration,
   the HTTP contract, and shared fluent validation.
 - [Read the feature parity matrix](Documentation/reference/parity.md) — the honest, evidence-backed
@@ -65,7 +66,7 @@ behavior when configured: returned events are staged and committed as part of th
 Chronicle read models resolve into command handlers, and reactors can execute commands as side
 effects. **`io.cratis:cratis` is the preferred single dependency for an event-sourced application** -
 it is a pure aggregator over Arc, its Spring Boot wiring, and this Chronicle integration. See the
-[Chronicle integration guide](Documentation/guides/chronicle.md).
+[Chronicle integration guide](Documentation/guides/chronicle.mdx).
 
 [Chronicle](https://github.com/Cratis/Chronicle) is Cratis's storage-agnostic event-sourcing database
 and runtime — MIT licensed and free to use. This repository consumes it through
@@ -94,7 +95,7 @@ Add the plugin and the Spring Boot starter, then annotate a command:
 // build.gradle.kts
 plugins {
     id("io.cratis.arc") version "<version>"
-    kotlin("plugin.spring") version "2.4.10"
+    kotlin("plugin.spring") version "2.4.20"
     id("org.springframework.boot") version "4.1.1"
     id("io.spring.dependency-management") version "1.1.7"
 }
@@ -190,8 +191,8 @@ Supply a release version with `-Pversion=<version>`; local builds default to `0.
 
 ## Running the samples
 
-One command starts a backend, regenerates its TypeScript proxies, and opens a React frontend against
-them:
+One command starts a backend, regenerates its TypeScript proxies, and, for the plain Arc samples,
+opens a React frontend against them. The Chronicle sample runs backend-only:
 
 ```shell
 ./Samples/run.sh                     # Kotlin, in memory, with the frontend on :5173
@@ -208,7 +209,9 @@ authorization through command and query filters. A toolbar switches the transpor
 and Server-Sent Events, changes the connection count and transfer mode, and signs a user in and out
 — and every page keeps working, which is the point.
 
-Both plain Arc hosts serve identical routes, so the one frontend runs against either unchanged.
+Both plain Arc hosts serve the routes the shared frontend consumes, so it runs against either
+unchanged. The Kotlin host additionally exposes runtime-contract endpoints, including calendar
+queries and batch task creation.
 `./Samples/run.sh --help` lists every option; [`Samples/README.md`](Samples/README.md) explains what
 each page demonstrates. Anything a run starts — a database container, the Chronicle kernel, the
 frontend — is stopped again on exit.
@@ -218,8 +221,11 @@ frontend — is stopped again on exit.
 - [Documentation index](Documentation/index.md) — module map, current status, and how to choose a
   path through the rest of the docs.
 - [Get started](Documentation/get-started/index.md) — the Kotlin and Java tutorials.
-- [Guides](Documentation/guides/index.md) — commands, queries, security, Spring Data, TypeScript
-  proxies, OpenAPI, observability, Chronicle, and testing.
+- Guides — [commands](Documentation/guides/commands.mdx), [queries](Documentation/guides/queries.mdx),
+  [security](Documentation/guides/security.mdx), [Spring Data](Documentation/guides/spring-data/index.mdx),
+  [TypeScript proxies](Documentation/guides/typescript-proxies.mdx), [OpenAPI](Documentation/guides/openapi.md),
+  [observability](Documentation/guides/observability.md), [Chronicle](Documentation/guides/chronicle.mdx), and
+  [testing](Documentation/guides/testing.mdx).
 - [Reference](Documentation/reference/index.md) — annotations, configuration, the HTTP contract, and
   shared fluent validation.
 - [Feature parity](Documentation/reference/parity.md) — the complete, evidence-backed status matrix.

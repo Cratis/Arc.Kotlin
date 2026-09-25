@@ -14,7 +14,7 @@ When Arc resolves a MongoDB read-model collection, it delegates to a `NamingPoli
 
 ## Default policy
 
-`DefaultNamingPolicy` is registered automatically by the MongoDB integration. It pluralises the simple class name using [Evo Inflector](https://github.com/atteo/evo-inflector) (`org.atteo:evo-inflector`).
+`DefaultNamingPolicy` is registered automatically by the MongoDB integration. It pluralizes the simple class name using [Evo Inflector](https://github.com/atteo/evo-inflector) (`org.atteo:evo-inflector`), except for a small built-in list of nouns where Evo Inflector and the kernel disagree: `Person` becomes `People` and `Index` becomes `Indices`, matching the kernel.
 
 <ArcBackendTabs snippet="guides/read-model-naming/default-policy" variants="kotlin,java" />
 
@@ -22,7 +22,7 @@ Setting `pluralizeReadModelNames = false` returns the simple class name unchange
 
 ## The Chronicle Kernel is authoritative
 
-Pluralisation on the JVM uses Evo Inflector, a different library from the Humanizer library used by the .NET Chronicle Kernel. The two libraries agree on most common English nouns, but where they disagree on a specific noun the kernel is authoritative: the application must override the naming policy for that type so that the JVM reads from the collection the kernel writes to.
+Pluralization on the JVM uses Evo Inflector, a different library from the Humanizer library used by the .NET Chronicle Kernel. The two libraries agree on most common English nouns, but where they disagree on a specific noun the kernel is authoritative. The built-in corrections cover only the nouns measured so far; for any other noun that differs, the application must override the naming policy for that type so that the JVM reads from the collection the kernel writes to.
 
 The cases pinned by `DefaultNamingPolicyTests` record what Evo Inflector actually produces. A library upgrade that changes a plural will fail those tests rather than silently moving a collection name.
 
@@ -32,4 +32,4 @@ Register a Spring bean that implements `NamingPolicy` and is annotated with `@Co
 
 <ArcBackendTabs snippet="guides/read-model-naming/override-policy" variants="kotlin,java" />
 
-The `NamingPolicy` bean is consulted once per type at lookup time. Implementations are responsible for their own caching when the computation is expensive.
+Arc calls the `NamingPolicy` bean on every collection lookup and does not cache the result. Keep `getReadModelName` cheap and deterministic, and cache inside your implementation when the computation is expensive.

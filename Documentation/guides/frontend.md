@@ -150,9 +150,11 @@ does not have yet. `when(condition)` is the way out:
 const [result] = ById.when(selectedId !== undefined).use({ id: selectedId });
 ```
 
-While the condition is false nothing happens: no request is sent and no subscription is opened. This
-is not a request whose result is thrown away — it is no request at all. Use it for the query that
-needs a selection, and for the query that needs a signed-in user:
+While the condition is false, the hook sends no request and starts no subscription of its own. It is
+not a request whose result is thrown away. The hook can still create a query instance and use the
+shared query cache, and a subscription another component already holds stays open. The shared
+[conditional queries](/arc/frontend/react/queries/conditional-queries/) guide covers the exact
+rules. Use it for the query that needs a selection, and for the query that needs a signed-in user:
 
 ```tsx
 const identity = useIdentity();
@@ -167,12 +169,17 @@ const [result] = Authenticated.when(identity.isSet).use();
 ```tsx
 import { useIdentity } from '@cratis/arc.react/identity';
 
-const identity = useIdentity();
+const identity = useIdentity<YourIdentityDetails>();
 identity.isSet;                    // resolved and authenticated
 identity.name;
 identity.isInRole('administrator');
-identity.details;                  // your own details type
+identity.details;                  // typed as YourIdentityDetails
 ```
+
+A bare `useIdentity()` types `details` as `object`. The generic argument only changes the TypeScript
+type. To hydrate complex values such as a `Guid` into real instances, declare the details class with
+`@field` decorators and pass it once as `<Arc detailsType={YourIdentityDetails}>`. The shared
+[identity guide](/arc/frontend/react/identity/) describes both steps.
 
 ## Serving the page from a dev server
 
@@ -190,7 +197,9 @@ export default defineConfig({
 });
 ```
 
-`ws: true` matters on both: observable queries upgrade to a WebSocket under `/.cratis`.
+`ws: true` matters on both: observable queries upgrade to a WebSocket under `/.cratis`. The backend
+registers those WebSocket routes only when Spring WebSocket is on its classpath, as described in
+[Consume an observable query](queries.mdx#consume-an-observable-query).
 
 :::caution[Name the dev-server origin on the backend]
 Spring refuses a cross-origin WebSocket handshake with `403`, and a browser reports that as a socket

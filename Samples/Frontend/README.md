@@ -1,7 +1,8 @@
 # Sample frontend
 
 One React application that runs against either plain Arc sample — the Kotlin host or the Java one —
-without a single change, because both generate identical routes.
+without a single change, because both generate the routes it consumes. The
+Chronicle samples do not use it.
 
 ## Run it
 

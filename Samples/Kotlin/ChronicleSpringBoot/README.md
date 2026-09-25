@@ -3,7 +3,7 @@
 
 # Kotlin Chronicle Spring Boot sample
 
-This optional sample combines generated Arc endpoints with the released Chronicle 4.0.0 Spring Boot starter. It uses the required `x-cratis-tenant-id` header and resolves the same `ArcKotlinChronicleSample` event store in that exact namespace; there is no default tenant fallback.
+This optional sample combines generated Arc endpoints with the Chronicle Spring Boot starter that `io.cratis:arc-chronicle-spring-boot-starter` brings in (Chronicle.Kotlin 6.3.2 by default). It uses the required `x-cratis-tenant-id` header and resolves the same `ArcKotlinChronicleSample` event store in that exact namespace; there is no default tenant fallback.
 
 ## Run it
 
@@ -13,10 +13,11 @@ From this directory, run:
 ./run.sh
 ```
 
-This starts the pinned Chronicle development kernel with Docker, waits for it to report healthy,
-runs the application on `:8080`, and stops the container again on exit. Pass `--no-docker` to use a
-Chronicle 18.4.0+ kernel you already have running on `localhost:35000` instead. The sample's event
-store uses an in-memory sink, so no database is needed either way.
+This requires Docker. It starts the pinned `cratis/chronicle:18.4.0-development` kernel, waits for it
+to report healthy, runs the application on `:8080` without the shared frontend, and stops the
+container again on exit. The sample's event store uses an in-memory sink, so no database is needed.
+To use a Chronicle 18.4.0+ kernel you already have running on `localhost:35000`, skip `run.sh` and
+use the manual steps below.
 
 From the repository root, the equivalent manual steps are running a compatible Chronicle 18.4.0+
 development kernel and then `./gradlew :Samples:Kotlin:ChronicleSpringBoot:bootRun` with JDK 17

@@ -55,4 +55,7 @@ rejected at that point rather than appending to the wrong stream.
 
 The C# implementation spells the same two mechanisms `[Key]` and
 `ICanProvideKeyForCommand.GetKey()`. The concept, the "exactly one" rule and the
-role in resolving command state are the same; only the names differ.
+role in resolving command state are the same. The types differ: C#'s `GetKey()` returns a string,
+while the JVM `CommandKeyProvider.commandKey()` returns `Any?`, so each integration decides which key
+types it accepts. The Chronicle integration accepts `String`, `UUID`, a number, or a concept wrapping
+one of those. The [parity reference](../reference/parity.md) tracks the exact status.

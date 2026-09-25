@@ -30,8 +30,9 @@ graph LR
 ```
 
 Nothing here is reflection at request time, and nothing is hand-registered: KSP discovers every
-`@Command` and `@ReadModel` on the classpath, and the generated `ArcArtifactModule` is found through
-`ServiceLoader` when the application starts.
+`@Command` and `@ReadModel` in the sources it compiles, and each module's generated
+`ArcArtifactModule`, including those in dependency JARs, is found through `ServiceLoader` when the
+application starts.
 
 ## What you get
 

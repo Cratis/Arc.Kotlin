@@ -79,6 +79,8 @@ in the driver's default database rather than in `arc-samples`.
 
 ## Generate the TypeScript proxies on their own
 
+Run this from the repository root, which holds the Gradle wrapper:
+
 ```shell
 ./gradlew :Samples:Kotlin:SpringBoot:generateArcProxies --no-configuration-cache
 ```
