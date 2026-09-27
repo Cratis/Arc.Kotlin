@@ -1468,6 +1468,33 @@ SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
             data class UpdateProfile(val name: String, val email: String)
         """,
     ),
+    "arc-without-event-sourcing/author-read-model": SnippetContext(
+        kind="declaration", fixtures=("concepts",),
+        imports=(IMPORT_READ_MODEL, IMPORT_FROM_SERVICES, IMPORT_FLOW, IMPORT_MONGO_QUERY, IMPORT_MONGO_OBSERVE),
+    ),
+    "arc-without-event-sourcing/register-author": SnippetContext(
+        kind="declaration", fixtures=("concepts", "library"),
+        imports=(IMPORT_COMMAND, IMPORT_FROM_SERVICES),
+    ),
+    "arc-without-event-sourcing/rename-author": SnippetContext(
+        kind="declaration", fixtures=("concepts", "library"),
+        imports=(IMPORT_COMMAND, IMPORT_FROM_SERVICES),
+    ),
+    "arc-without-event-sourcing/standalone-host": SnippetContext(kind="declaration"),
+    "tutorial/first-slice/relational-author-slice": SnippetContext(
+        kind="declaration", fixtures=("concepts",),
+        imports=(IMPORT_COMMAND, IMPORT_READ_MODEL, IMPORT_FROM_SERVICES, IMPORT_FLOW,
+                 "import io.cratis.arc.springdata.jpa.JpaObservableQuery", "import io.cratis.arc.springdata.jpa.observe"),
+        prelude="interface AuthorRepository { suspend fun save(author: Author) }",
+    ),
+    "tutorial/validation/relational-duplicate-name-rule": SnippetContext(
+        kind="declaration", fixtures=("concepts", "library", "librarycommands"),
+        imports=(IMPORT_COMPONENT, IMPORT_COMMAND_VALIDATOR, IMPORT_COMMAND_CONTEXT, IMPORT_VALIDATION_RESULT),
+    ),
+    "tutorial/books-and-relationships/relational-add-book": SnippetContext(
+        kind="declaration", fixtures=("concepts",), imports=(IMPORT_COMMAND, IMPORT_FROM_SERVICES),
+        prelude="data class Book(val id: BookId, val authorId: AuthorId, val title: BookTitle)\ninterface BookRepository { suspend fun save(book: Book) }",
+    ),
     "tutorial/first-slice/author-slice": SnippetContext(
         # The chapter's own Author is the read model the reader declares, so the snippet
         # declares it and the prelude supplies only the repository it saves through.
@@ -3011,6 +3038,30 @@ JAVA_SNIPPET_CONTEXTS: dict[str, JavaSnippetContext] = {
             record UpdateProfile(String name, String email) {
             }
         """,
+    ),
+    "arc-without-event-sourcing/author-read-model": JavaSnippetContext(
+        fixtures=("concepts",), imports=JAVA_OBSERVABLE_QUERY_IMPORTS,
+    ),
+    "arc-without-event-sourcing/register-author": JavaSnippetContext(
+        fixtures=("concepts", "library"), imports=(JAVA_IMPORT_COMMAND, JAVA_IMPORT_FROM_SERVICES),
+    ),
+    "arc-without-event-sourcing/rename-author": JavaSnippetContext(
+        fixtures=("concepts", "library"), imports=(JAVA_IMPORT_COMMAND, JAVA_IMPORT_FROM_SERVICES),
+    ),
+    "arc-without-event-sourcing/standalone-host": JavaSnippetContext(),
+    "tutorial/first-slice/relational-author-slice": JavaSnippetContext(
+        fixtures=("concepts",), imports=(JAVA_IMPORT_COMMAND, JAVA_IMPORT_READ_MODEL, JAVA_IMPORT_FROM_SERVICES,
+                                      JAVA_IMPORT_LIST, "import java.util.concurrent.Flow;",
+                                      "import io.cratis.arc.springdata.jpa.JpaObservableQuery;",
+                                      "import io.cratis.arc.springdata.jpa.JpaObservations;"),
+        prelude="interface AuthorRepository { void save(Author author); }",
+    ),
+    "tutorial/validation/relational-duplicate-name-rule": JavaSnippetContext(
+        fixtures=("concepts", "library", "librarycommands"), imports=JAVA_BLOCKING_VALIDATOR_IMPORTS,
+    ),
+    "tutorial/books-and-relationships/relational-add-book": JavaSnippetContext(
+        fixtures=("concepts",), imports=(JAVA_IMPORT_COMMAND, JAVA_IMPORT_FROM_SERVICES),
+        prelude="record Book(BookId id, AuthorId authorId, BookTitle title) {}\ninterface BookRepository { void save(Book book); }",
     ),
     "tutorial/first-slice/author-slice": JavaSnippetContext(
         # The chapter's own Author is the read model the reader declares, so the snippet
