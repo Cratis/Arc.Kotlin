@@ -1,4 +1,7 @@
 ```java
+import org.springframework.data.mongodb.core.mapping.Document;
+
+@Document
 @ReadModel
 @AllowAnonymous
 public record Author(AuthorId id, AuthorName name) {

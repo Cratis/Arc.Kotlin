@@ -1518,6 +1518,10 @@ SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
         kind="declaration", fixtures=("concepts",), imports=(IMPORT_COMMAND, IMPORT_ALLOW_ANONYMOUS, IMPORT_FROM_SERVICES),
         prelude="data class Book(val id: BookId, val authorId: AuthorId, val title: BookTitle)\ninterface BookRepository { suspend fun save(book: Book) }",
     ),
+    "tutorial/first-slice/typed-command": SnippetContext(
+        kind="declaration", fixtures=("concepts", "library"),
+        imports=(IMPORT_COMMAND, IMPORT_ALLOW_ANONYMOUS, IMPORT_FROM_SERVICES),
+    ),
     "tutorial/first-slice/author-slice": SnippetContext(
         # The chapter's own Author is the read model the reader declares, so the snippet
         # declares it and the prelude supplies only the repository it saves through.
@@ -3106,6 +3110,10 @@ JAVA_SNIPPET_CONTEXTS: dict[str, JavaSnippetContext] = {
     "tutorial/books-and-relationships/relational-add-book": JavaSnippetContext(
         fixtures=("concepts",), imports=(JAVA_IMPORT_COMMAND, JAVA_IMPORT_ALLOW_ANONYMOUS, JAVA_IMPORT_FROM_SERVICES),
         prelude="record Book(BookId id, AuthorId authorId, BookTitle title) {}\ninterface BookRepository { void save(Book book); }",
+    ),
+    "tutorial/first-slice/typed-command": JavaSnippetContext(
+        fixtures=("concepts", "library"),
+        imports=(JAVA_IMPORT_COMMAND, JAVA_IMPORT_ALLOW_ANONYMOUS, JAVA_IMPORT_FROM_SERVICES),
     ),
     "tutorial/first-slice/author-slice": JavaSnippetContext(
         # The chapter's own Author is the read model the reader declares, so the snippet

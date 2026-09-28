@@ -1,4 +1,7 @@
 ```kotlin
+import org.springframework.data.mongodb.core.mapping.Document
+
+@Document
 @ReadModel
 @AllowAnonymous
 data class Author(val id: AuthorId, val name: AuthorName) {
