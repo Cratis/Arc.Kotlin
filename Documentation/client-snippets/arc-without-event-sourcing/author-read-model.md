@@ -1,12 +1,7 @@
 ```kotlin
-@Command
-@AllowAnonymous
-data class RegisterAuthor(val id: AuthorId, val name: AuthorName) {
-    suspend fun handle(@FromServices authors: AuthorRepository) {
-        authors.save(Author(id, name))
-    }
-}
+import org.springframework.data.mongodb.core.mapping.Document
 
+@Document
 @ReadModel
 @AllowAnonymous
 data class Author(val id: AuthorId, val name: AuthorName) {

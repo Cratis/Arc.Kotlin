@@ -1,5 +1,6 @@
 ```java
 @ReadModel
+@AllowAnonymous
 public record Book(BookId id, AuthorId authorId, BookTitle title) {
     public static Flow.Publisher<List<Book>> booksForAuthor(
         AuthorId authorId,

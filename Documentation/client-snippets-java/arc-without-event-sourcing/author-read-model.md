@@ -1,12 +1,7 @@
 ```java
-@Command
-@AllowAnonymous
-public record RegisterAuthor(AuthorId id, AuthorName name) {
-    public void handle(@FromServices AuthorRepository authors) {
-        authors.save(new Author(id, name));
-    }
-}
+import org.springframework.data.mongodb.core.mapping.Document;
 
+@Document
 @ReadModel
 @AllowAnonymous
 public record Author(AuthorId id, AuthorName name) {
