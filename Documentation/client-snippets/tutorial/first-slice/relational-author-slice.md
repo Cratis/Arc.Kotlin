@@ -7,6 +7,7 @@ class AuthorRow(
 )
 
 @Command
+@AllowAnonymous
 data class RegisterAuthor(val id: AuthorId, val name: AuthorName) {
     suspend fun handle(@FromServices authors: AuthorRepository) {
         authors.save(Author(id, name))
@@ -14,6 +15,7 @@ data class RegisterAuthor(val id: AuthorId, val name: AuthorName) {
 }
 
 @ReadModel
+@AllowAnonymous
 data class Author(val id: AuthorId, val name: AuthorName) {
     companion object {
         @JvmStatic

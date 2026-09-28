@@ -1,5 +1,6 @@
 ```kotlin
 @ReadModel
+@AllowAnonymous
 data class Author(val id: AuthorId, val name: AuthorName) {
     companion object {
         @JvmStatic

@@ -1,3 +1,9 @@
-```text
-Kotlin does not support this workflow yet: this .NET MongoDB driver index-creation step is host-specific. Configure a unique index with your Spring Data MongoDB schema tooling instead.
+```kotlin
+@Component
+class AuthorIndexes(template: MongoTemplate) {
+    init {
+        template.indexOps(Author::class.java)
+            .createIndex(Index().on("name", Sort.Direction.ASC).unique())
+    }
+}
 ```

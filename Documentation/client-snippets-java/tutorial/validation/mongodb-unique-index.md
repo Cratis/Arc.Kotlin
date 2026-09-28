@@ -1,3 +1,9 @@
-```text
-Java does not support this workflow yet: this .NET MongoDB driver index-creation step is host-specific. Configure a unique index with your Spring Data MongoDB schema tooling instead.
+```java
+@Component
+class AuthorIndexes {
+    AuthorIndexes(MongoTemplate template) {
+        template.indexOps(Author.class)
+            .createIndex(new Index().on("name", Sort.Direction.ASC).unique());
+    }
+}
 ```

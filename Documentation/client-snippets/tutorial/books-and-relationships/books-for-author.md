@@ -1,5 +1,6 @@
 ```kotlin
 @ReadModel
+@AllowAnonymous
 data class Book(val id: BookId, val authorId: AuthorId, val title: BookTitle) {
     companion object {
         @JvmStatic

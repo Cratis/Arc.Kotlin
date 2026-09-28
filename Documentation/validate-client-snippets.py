@@ -487,6 +487,7 @@ IMPORT_UUID = "import java.util.UUID"
 IMPORT_CONCEPT_AS = "import io.cratis.arc.concepts.ConceptAs"
 IMPORT_CONCEPT_VALIDATOR = "import io.cratis.arc.validation.ConceptValidator"
 IMPORT_ROLES = "import io.cratis.arc.authorization.Roles"
+IMPORT_ALLOW_ANONYMOUS = "import io.cratis.arc.authorization.AllowAnonymous"
 
 
 # A snippet id is its path under client-snippets without the extension. Every snippet is
@@ -1470,20 +1471,20 @@ SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
     ),
     "arc-without-event-sourcing/author-read-model": SnippetContext(
         kind="declaration", fixtures=("concepts",),
-        imports=(IMPORT_READ_MODEL, IMPORT_FROM_SERVICES, IMPORT_FLOW, IMPORT_MONGO_QUERY, IMPORT_MONGO_OBSERVE),
+        imports=(IMPORT_READ_MODEL, IMPORT_ALLOW_ANONYMOUS, IMPORT_FROM_SERVICES, IMPORT_FLOW, IMPORT_MONGO_QUERY, IMPORT_MONGO_OBSERVE),
     ),
     "arc-without-event-sourcing/register-author": SnippetContext(
         kind="declaration", fixtures=("concepts", "library"),
-        imports=(IMPORT_COMMAND, IMPORT_FROM_SERVICES),
+        imports=(IMPORT_COMMAND, IMPORT_ALLOW_ANONYMOUS, IMPORT_FROM_SERVICES),
     ),
     "arc-without-event-sourcing/rename-author": SnippetContext(
         kind="declaration", fixtures=("concepts", "library"),
-        imports=(IMPORT_COMMAND, IMPORT_FROM_SERVICES),
+        imports=(IMPORT_COMMAND, IMPORT_ALLOW_ANONYMOUS, IMPORT_FROM_SERVICES),
     ),
     "arc-without-event-sourcing/standalone-host": SnippetContext(kind="declaration"),
     "tutorial/first-slice/relational-author-slice": SnippetContext(
         kind="declaration", fixtures=("concepts",),
-        imports=(IMPORT_COMMAND, IMPORT_READ_MODEL, IMPORT_FROM_SERVICES, IMPORT_FLOW, IMPORT_UUID,
+        imports=(IMPORT_COMMAND, IMPORT_READ_MODEL, IMPORT_ALLOW_ANONYMOUS, IMPORT_FROM_SERVICES, IMPORT_FLOW, IMPORT_UUID,
                  "import jakarta.persistence.Entity", "import jakarta.persistence.Table",
                  "import jakarta.persistence.Id", "import jakarta.persistence.Column",
                  "import io.cratis.arc.springdata.jpa.JpaObservableQuery",
@@ -1492,11 +1493,17 @@ SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
     ),
     "tutorial/books-and-relationships/relational-books-for-author": SnippetContext(
         kind="declaration", fixtures=("concepts",),
-        imports=(IMPORT_READ_MODEL, IMPORT_FROM_SERVICES, IMPORT_FLOW, IMPORT_UUID,
+        imports=(IMPORT_READ_MODEL, IMPORT_ALLOW_ANONYMOUS, IMPORT_FROM_SERVICES, IMPORT_FLOW, IMPORT_UUID,
                  "import jakarta.persistence.Entity", "import jakarta.persistence.Table",
                  "import jakarta.persistence.Id", "import jakarta.persistence.Column",
                  "import io.cratis.arc.springdata.jpa.JpaObservableQuery",
                  "import io.cratis.arc.springdata.jpa.JpaSnapshotQuery"),
+    ),
+    "tutorial/validation/mongodb-unique-index": SnippetContext(
+        kind="declaration", fixtures=("library",),
+        imports=(IMPORT_COMPONENT, "import org.springframework.data.mongodb.core.MongoTemplate",
+                 "import org.springframework.data.mongodb.core.index.Index",
+                 "import org.springframework.data.domain.Sort"),
     ),
     "tutorial/validation/relational-unique-name": SnippetContext(
         kind="declaration", imports=(IMPORT_UUID, "import jakarta.persistence.Entity",
@@ -1508,7 +1515,7 @@ SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
         imports=(IMPORT_COMPONENT, IMPORT_COMMAND_VALIDATOR, IMPORT_COMMAND_CONTEXT, IMPORT_VALIDATION_RESULT),
     ),
     "tutorial/books-and-relationships/relational-add-book": SnippetContext(
-        kind="declaration", fixtures=("concepts",), imports=(IMPORT_COMMAND, IMPORT_FROM_SERVICES),
+        kind="declaration", fixtures=("concepts",), imports=(IMPORT_COMMAND, IMPORT_ALLOW_ANONYMOUS, IMPORT_FROM_SERVICES),
         prelude="data class Book(val id: BookId, val authorId: AuthorId, val title: BookTitle)\ninterface BookRepository { suspend fun save(book: Book) }",
     ),
     "tutorial/first-slice/author-slice": SnippetContext(
@@ -1519,6 +1526,7 @@ SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
         imports=(
             IMPORT_COMMAND,
             IMPORT_READ_MODEL,
+            IMPORT_ALLOW_ANONYMOUS,
             IMPORT_FROM_SERVICES,
             IMPORT_FLOW,
             IMPORT_MONGO_QUERY,
@@ -1549,7 +1557,7 @@ SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
     "tutorial/books-and-relationships/add-book": SnippetContext(
         kind="declaration",
         fixtures=("concepts",),
-        imports=(IMPORT_COMMAND, IMPORT_FROM_SERVICES),
+        imports=(IMPORT_COMMAND, IMPORT_ALLOW_ANONYMOUS, IMPORT_FROM_SERVICES),
         prelude="""
             data class Book(val id: BookId, val authorId: AuthorId, val title: BookTitle)
 
@@ -1563,6 +1571,7 @@ SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
         fixtures=("concepts",),
         imports=(
             IMPORT_READ_MODEL,
+            IMPORT_ALLOW_ANONYMOUS,
             IMPORT_FROM_SERVICES,
             IMPORT_FLOW,
             IMPORT_MONGO_QUERY,
@@ -3056,17 +3065,17 @@ JAVA_SNIPPET_CONTEXTS: dict[str, JavaSnippetContext] = {
         """,
     ),
     "arc-without-event-sourcing/author-read-model": JavaSnippetContext(
-        fixtures=("concepts",), imports=JAVA_OBSERVABLE_QUERY_IMPORTS,
+        fixtures=("concepts",), imports=(*JAVA_OBSERVABLE_QUERY_IMPORTS, JAVA_IMPORT_ALLOW_ANONYMOUS),
     ),
     "arc-without-event-sourcing/register-author": JavaSnippetContext(
-        fixtures=("concepts", "library"), imports=(JAVA_IMPORT_COMMAND, JAVA_IMPORT_FROM_SERVICES),
+        fixtures=("concepts", "library"), imports=(JAVA_IMPORT_COMMAND, JAVA_IMPORT_ALLOW_ANONYMOUS, JAVA_IMPORT_FROM_SERVICES),
     ),
     "arc-without-event-sourcing/rename-author": JavaSnippetContext(
-        fixtures=("concepts", "library"), imports=(JAVA_IMPORT_COMMAND, JAVA_IMPORT_FROM_SERVICES),
+        fixtures=("concepts", "library"), imports=(JAVA_IMPORT_COMMAND, JAVA_IMPORT_ALLOW_ANONYMOUS, JAVA_IMPORT_FROM_SERVICES),
     ),
     "arc-without-event-sourcing/standalone-host": JavaSnippetContext(),
     "tutorial/first-slice/relational-author-slice": JavaSnippetContext(
-        fixtures=("concepts",), imports=(JAVA_IMPORT_COMMAND, JAVA_IMPORT_READ_MODEL, JAVA_IMPORT_FROM_SERVICES,
+        fixtures=("concepts",), imports=(JAVA_IMPORT_COMMAND, JAVA_IMPORT_READ_MODEL, JAVA_IMPORT_ALLOW_ANONYMOUS, JAVA_IMPORT_FROM_SERVICES,
                                       JAVA_IMPORT_LIST, JAVA_IMPORT_UUID, "import java.util.concurrent.Flow;",
                                       "import jakarta.persistence.Entity;", "import jakarta.persistence.Table;",
                                       "import jakarta.persistence.Id;", "import jakarta.persistence.Column;",
@@ -3074,11 +3083,17 @@ JAVA_SNIPPET_CONTEXTS: dict[str, JavaSnippetContext] = {
         prelude="interface AuthorRepository { void save(Author author); }",
     ),
     "tutorial/books-and-relationships/relational-books-for-author": JavaSnippetContext(
-        fixtures=("concepts",), imports=(JAVA_IMPORT_READ_MODEL, JAVA_IMPORT_FROM_SERVICES,
+        fixtures=("concepts",), imports=(JAVA_IMPORT_READ_MODEL, JAVA_IMPORT_ALLOW_ANONYMOUS, JAVA_IMPORT_FROM_SERVICES,
             JAVA_IMPORT_LIST, JAVA_IMPORT_UUID, "import java.util.concurrent.Flow;",
             "import jakarta.persistence.Entity;", "import jakarta.persistence.Table;",
             "import jakarta.persistence.Id;", "import jakarta.persistence.Column;",
             "import io.cratis.arc.springdata.jpa.JpaObservableQuery;"),
+    ),
+    "tutorial/validation/mongodb-unique-index": JavaSnippetContext(
+        fixtures=("library",), imports=(JAVA_IMPORT_COMPONENT,
+            "import org.springframework.data.mongodb.core.MongoTemplate;",
+            "import org.springframework.data.mongodb.core.index.Index;",
+            "import org.springframework.data.domain.Sort;"),
     ),
     "tutorial/validation/relational-unique-name": JavaSnippetContext(
         imports=(JAVA_IMPORT_UUID, "import jakarta.persistence.Entity;", "import jakarta.persistence.Table;",
@@ -3089,14 +3104,14 @@ JAVA_SNIPPET_CONTEXTS: dict[str, JavaSnippetContext] = {
         fixtures=("concepts", "library", "librarycommands"), imports=JAVA_BLOCKING_VALIDATOR_IMPORTS,
     ),
     "tutorial/books-and-relationships/relational-add-book": JavaSnippetContext(
-        fixtures=("concepts",), imports=(JAVA_IMPORT_COMMAND, JAVA_IMPORT_FROM_SERVICES),
+        fixtures=("concepts",), imports=(JAVA_IMPORT_COMMAND, JAVA_IMPORT_ALLOW_ANONYMOUS, JAVA_IMPORT_FROM_SERVICES),
         prelude="record Book(BookId id, AuthorId authorId, BookTitle title) {}\ninterface BookRepository { void save(Book book); }",
     ),
     "tutorial/first-slice/author-slice": JavaSnippetContext(
         # The chapter's own Author is the read model the reader declares, so the snippet
         # declares it and the prelude supplies only the repository it saves through.
         fixtures=("concepts",),
-        imports=(JAVA_IMPORT_COMMAND, *JAVA_OBSERVABLE_QUERY_IMPORTS),
+        imports=(JAVA_IMPORT_COMMAND, JAVA_IMPORT_ALLOW_ANONYMOUS, *JAVA_OBSERVABLE_QUERY_IMPORTS),
         prelude="""
             interface AuthorRepository {
                 void save(Author author);
@@ -3123,7 +3138,7 @@ JAVA_SNIPPET_CONTEXTS: dict[str, JavaSnippetContext] = {
     ),
     "tutorial/books-and-relationships/add-book": JavaSnippetContext(
         fixtures=("concepts",),
-        imports=(JAVA_IMPORT_COMMAND, JAVA_IMPORT_FROM_SERVICES),
+        imports=(JAVA_IMPORT_COMMAND, JAVA_IMPORT_ALLOW_ANONYMOUS, JAVA_IMPORT_FROM_SERVICES),
         prelude="""
             record Book(BookId id, AuthorId authorId, BookTitle title) {
             }
@@ -3135,7 +3150,7 @@ JAVA_SNIPPET_CONTEXTS: dict[str, JavaSnippetContext] = {
     ),
     "tutorial/books-and-relationships/books-for-author": JavaSnippetContext(
         fixtures=("concepts",),
-        imports=(*JAVA_OBSERVABLE_QUERY_IMPORTS, JAVA_IMPORT_MONGO_OBSERVATIONS, JAVA_IMPORT_CRITERIA),
+        imports=(*JAVA_OBSERVABLE_QUERY_IMPORTS, JAVA_IMPORT_ALLOW_ANONYMOUS, JAVA_IMPORT_MONGO_OBSERVATIONS, JAVA_IMPORT_CRITERIA),
     ),
     "tutorial/authorization/roles-on-command": JavaSnippetContext(
         fixtures=("concepts",),
