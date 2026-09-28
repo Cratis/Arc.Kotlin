@@ -1392,23 +1392,6 @@ SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
         hides=("Withdraw",),
         imports=(IMPORT_COMMAND, IMPORT_COMMAND_KEY, IMPORT_BIG_DECIMAL),
     ),
-    "scenarios/use-current-state-in-a-command/seed-events": SnippetContext(
-        # The generated enclosing class stands in for the test class the fragment is a
-        # member of; the prelude supplies the scenario and event source a real test declares.
-        kind="member",
-        fixtures=("ledger", "generatedmodule"),
-        imports=(
-            IMPORT_BEFORE_EACH,
-            IMPORT_BIG_DECIMAL,
-            IMPORT_COMMAND_SCENARIO,
-            IMPORT_GENERATED_MODULE,
-            IMPORT_GIVEN_CHRONICLE,
-        ),
-        prelude="""
-            private val scenario = CommandScenario(LibraryArcArtifactModule(), Withdraw::class.java)
-            private val accountId = "account-42"
-        """,
-    ),
     "scenarios/use-current-state-in-a-command/pin-read-model": SnippetContext(
         kind="member",
         fixtures=("ledger", "generatedmodule"),
@@ -2891,18 +2874,6 @@ JAVA_SNIPPET_CONTEXTS: dict[str, JavaSnippetContext] = {
             JAVA_IMPORT_BEFORE_EACH,
             JAVA_IMPORT_BIG_DECIMAL,
             JAVA_IMPORT_COMMAND_SCENARIO,
-            JAVA_IMPORT_GENERATED_MODULE,
-        ),
-        host=JAVA_SCENARIO_HOST,
-    ),
-    "scenarios/use-current-state-in-a-command/seed-events": JavaSnippetContext(
-        kind="member",
-        fixtures=("ledger", "generatedmodule"),
-        imports=(
-            JAVA_IMPORT_BEFORE_EACH,
-            JAVA_IMPORT_BIG_DECIMAL,
-            JAVA_IMPORT_COMMAND_SCENARIO,
-            JAVA_IMPORT_CHRONICLE_SCENARIOS,
             JAVA_IMPORT_GENERATED_MODULE,
         ),
         host=JAVA_SCENARIO_HOST,
