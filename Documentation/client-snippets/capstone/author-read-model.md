@@ -1,6 +1,7 @@
 ```kotlin
 import io.cratis.arc.artifacts.FromServices
 import io.cratis.arc.artifacts.ReadModel as ArcReadModel
+import io.cratis.arc.authorization.AllowAnonymous
 import io.cratis.chronicle.IEventStore
 import io.cratis.chronicle.events.EventContext
 import io.cratis.chronicle.observation.Reducer
@@ -9,6 +10,7 @@ import kotlinx.coroutines.flow.Flow
 
 @ArcReadModel
 @ChronicleReadModel
+@AllowAnonymous
 data class Author(val id: String = "", val name: String = "") {
     companion object {
         @JvmStatic

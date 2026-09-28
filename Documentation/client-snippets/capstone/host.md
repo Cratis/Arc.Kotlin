@@ -6,12 +6,8 @@ import io.cratis.chronicle.connection.ChronicleConnectionString
 import io.cratis.chronicle.sinks.WellKnownSinkTypes
 import io.cratis.chronicle.spring.ChronicleProperties
 import org.springframework.beans.factory.annotation.Value
-import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
-
-@SpringBootApplication
-class LibraryApplication
 
 @Configuration(proxyBeanMethods = false)
 class ChronicleConfiguration {
@@ -19,13 +15,23 @@ class ChronicleConfiguration {
     fun chronicleOptions(
         properties: ChronicleProperties,
         artifactActivator: IArtifactActivator,
-        @Value("\${spring.application.name:Library}") applicationName: String
+        @Value("\${spring.application.name:Unknown}") applicationName: String
     ): ChronicleOptions = ChronicleOptions(
         connectionString = ChronicleConnectionString.parse(properties.connectionString),
         programIdentifier = properties.programIdentifier ?: applicationName,
-        defaultSinkTypeId = properties.defaultSinkTypeId ?: WellKnownSinkTypes.MONGODB,
+        defaultSinkTypeId = properties.defaultSinkTypeId
+            ?: System.getenv("CHRONICLE_SINK_TYPE")
+            ?: WellKnownSinkTypes.MONGODB,
         autoDiscoverAndRegister = properties.autoDiscoverAndRegister,
-        artifacts = KnownClientArtifacts(AuthorRegistered::class, Author::class, AuthorReducer::class),
+        artifacts = KnownClientArtifacts(
+            Registered::class,
+            Listing::class,
+            ListingReducer::class,
+            RegistrationReactor::class,
+            AuthorRegistered::class,
+            Author::class,
+            AuthorReducer::class
+        ),
         artifactActivator = artifactActivator
     )
 }

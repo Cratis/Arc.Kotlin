@@ -188,6 +188,17 @@ FIXTURES: dict[str, DomainFixture] = {
             class AuthorReducer
         """,
     ),
+    "capstonescaffold": DomainFixture(
+        # The capstone host is the scaffold's ChronicleConfiguration with the author types
+        # added; these stand in for the artifacts `dotnet new cratis --language Kotlin` ships.
+        types=("Registered", "Listing", "ListingReducer", "RegistrationReactor"),
+        declarations="""
+            data class Registered(val name: String = "")
+            data class Listing(val id: String = "", val name: String = "")
+            class ListingReducer
+            class RegistrationReactor
+        """,
+    ),
     # Keep every fixture minimal: it exists to give a fragment the types it references,
     # not to model anything.
     "concepts": DomainFixture(
@@ -510,7 +521,7 @@ IMPORT_ALLOW_ANONYMOUS = "import io.cratis.arc.authorization.AllowAnonymous"
 # listed: an unlisted snippet would silently compile as a bare declaration fragment, and
 # "it compiled because nothing referenced anything" is not a verdict worth having.
 SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
-    "capstone/host": SnippetContext(fixtures=("capstone",)),
+    "capstone/host": SnippetContext(fixtures=("capstone", "capstonescaffold")),
     "capstone/author-id": SnippetContext(),
     "capstone/register-author": SnippetContext(fixtures=("capstone",), hides=("AuthorRegistered",)),
     "capstone/author-read-model": SnippetContext(fixtures=("capstone",), hides=("Author", "AuthorReducer")),
@@ -1740,6 +1751,17 @@ JAVA_FIXTURES: dict[str, JavaFixture] = {
             public final class AuthorReducer { }
         """,
     ),
+    "capstonescaffold": JavaFixture(
+        # The capstone host is the scaffold's ChronicleConfiguration with the author types
+        # added; these stand in for the artifacts `dotnet new cratis --language Java` ships.
+        types=("Registered", "Listing", "ListingReducer", "RegistrationReactor"),
+        declarations="""
+            public record Registered(String name) { }
+            public record Listing(String id, String name) { }
+            public final class ListingReducer { }
+            public final class RegistrationReactor { }
+        """,
+    ),
     # Keep every fixture minimal: it exists to give a fragment the types it references,
     # not to model anything. Repository and service methods are blocking, because a Java
     # Spring Data repository is; the asynchronous shapes appear only where a snippet is
@@ -2048,7 +2070,7 @@ JAVA_SCENARIO_HOST = """
 # would silently compile as a bare fragment, and "it compiled because nothing referenced
 # anything" is not a verdict worth having.
 JAVA_SNIPPET_CONTEXTS: dict[str, JavaSnippetContext] = {
-    "capstone/host": JavaSnippetContext(fixtures=("capstone",)),
+    "capstone/host": JavaSnippetContext(fixtures=("capstone", "capstonescaffold")),
     "capstone/author-id": JavaSnippetContext(),
     "capstone/register-author": JavaSnippetContext(fixtures=("capstone",), hides=("AuthorRegistered",)),
     "capstone/author-read-model": JavaSnippetContext(fixtures=("capstone",), hides=("Author", "AuthorReducer")),

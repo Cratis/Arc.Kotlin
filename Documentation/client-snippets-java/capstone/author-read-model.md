@@ -1,5 +1,6 @@
 ```java
 import io.cratis.arc.artifacts.FromServices;
+import io.cratis.arc.authorization.AllowAnonymous;
 import io.cratis.chronicle.events.EventContext;
 import io.cratis.chronicle.java.ReadModelsJavaBridge;
 import io.cratis.chronicle.observation.Reducer;
@@ -9,6 +10,7 @@ import java.util.concurrent.Flow;
 
 @io.cratis.arc.artifacts.ReadModel
 @io.cratis.chronicle.readModels.ReadModel
+@AllowAnonymous
 public record Author(String id, String name) {
     public static Flow.Publisher<List<Author>> allAuthors(@FromServices IEventStore store) {
         return ReadModelsJavaBridge.observeMaterializedInstancesPublisher(store.getReadModels(), Author.class, 0, 50);
