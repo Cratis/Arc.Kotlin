@@ -172,6 +172,22 @@ class DomainFixture:
 
 
 FIXTURES: dict[str, DomainFixture] = {
+    "capstone": DomainFixture(
+        types=("AuthorId", "AuthorRegistered", "Author", "AuthorReducer"),
+        imports=(
+            "import io.cratis.arc.concepts.ConceptAs as ArcConceptAs",
+            "import io.cratis.chronicle.concepts.ConceptAs as ChronicleConceptAs",
+        ),
+        declarations="""
+            data class AuthorId(private val id: String) : ArcConceptAs<String>, ChronicleConceptAs<String> {
+                override fun value(): String = id
+                override val value: String get() = id
+            }
+            data class AuthorRegistered(val name: String = "")
+            data class Author(val id: String = "", val name: String = "")
+            class AuthorReducer
+        """,
+    ),
     # Keep every fixture minimal: it exists to give a fragment the types it references,
     # not to model anything.
     "concepts": DomainFixture(
@@ -494,6 +510,10 @@ IMPORT_ALLOW_ANONYMOUS = "import io.cratis.arc.authorization.AllowAnonymous"
 # listed: an unlisted snippet would silently compile as a bare declaration fragment, and
 # "it compiled because nothing referenced anything" is not a verdict worth having.
 SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
+    "capstone/host": SnippetContext(fixtures=("capstone",)),
+    "capstone/author-id": SnippetContext(),
+    "capstone/register-author": SnippetContext(fixtures=("capstone",), hides=("AuthorRegistered",)),
+    "capstone/author-read-model": SnippetContext(fixtures=("capstone",), hides=("Author", "AuthorReducer")),
     "guides/observable-queries/from-repository": SnippetContext(
         imports=(IMPORT_READ_MODEL, IMPORT_FROM_SERVICES, IMPORT_FLOW,
                  "import io.cratis.arc.authorization.AllowAnonymous"),
@@ -1708,6 +1728,18 @@ class JavaFixture:
 
 
 JAVA_FIXTURES: dict[str, JavaFixture] = {
+    "capstone": JavaFixture(
+        types=("AuthorId", "AuthorRegistered", "Author", "AuthorReducer"),
+        imports=(JAVA_IMPORT_CONCEPT_AS,),
+        declarations="""
+            public record AuthorId(String value) implements ConceptAs<String>, io.cratis.chronicle.concepts.ConceptAs<String> {
+                public String getValue() { return value; }
+            }
+            public record AuthorRegistered(String name) { }
+            public record Author(String id, String name) { }
+            public final class AuthorReducer { }
+        """,
+    ),
     # Keep every fixture minimal: it exists to give a fragment the types it references,
     # not to model anything. Repository and service methods are blocking, because a Java
     # Spring Data repository is; the asynchronous shapes appear only where a snippet is
@@ -2016,6 +2048,10 @@ JAVA_SCENARIO_HOST = """
 # would silently compile as a bare fragment, and "it compiled because nothing referenced
 # anything" is not a verdict worth having.
 JAVA_SNIPPET_CONTEXTS: dict[str, JavaSnippetContext] = {
+    "capstone/host": JavaSnippetContext(fixtures=("capstone",)),
+    "capstone/author-id": JavaSnippetContext(),
+    "capstone/register-author": JavaSnippetContext(fixtures=("capstone",), hides=("AuthorRegistered",)),
+    "capstone/author-read-model": JavaSnippetContext(fixtures=("capstone",), hides=("Author", "AuthorReducer")),
     "guides/observable-queries/from-repository": JavaSnippetContext(
         imports=("import io.cratis.arc.artifacts.FromServices;",
                  "import io.cratis.arc.artifacts.ReadModel;",

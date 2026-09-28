@@ -39,7 +39,10 @@ public class ChronicleTenantConfiguration {
             TaskCreated::class,
             TaskRenamed::class,
             TaskView::class,
-            TaskViewReducer::class
+            TaskViewReducer::class,
+            AuthorRegistered::class,
+            Author::class,
+            AuthorReducer::class
         ),
         artifactActivator = artifactActivator
     )
