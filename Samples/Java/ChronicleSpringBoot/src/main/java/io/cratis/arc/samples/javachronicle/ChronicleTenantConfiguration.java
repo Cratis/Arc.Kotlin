@@ -35,7 +35,10 @@ public class ChronicleTenantConfiguration {
             JvmClassMappingKt.getKotlinClass(TaskCreated.class),
             JvmClassMappingKt.getKotlinClass(TaskRenamed.class),
             JvmClassMappingKt.getKotlinClass(TaskView.class),
-            JvmClassMappingKt.getKotlinClass(TaskViewReducer.class)));
+            JvmClassMappingKt.getKotlinClass(TaskViewReducer.class),
+            JvmClassMappingKt.getKotlinClass(AuthorRegistered.class),
+            JvmClassMappingKt.getKotlinClass(Author.class),
+            JvmClassMappingKt.getKotlinClass(AuthorReducer.class)));
         var sinkType = properties.getDefaultSinkTypeId();
         if (sinkType == null) sinkType = System.getenv("CHRONICLE_SINK_TYPE");
         if (sinkType == null) sinkType = WellKnownSinkTypes.MONGODB;

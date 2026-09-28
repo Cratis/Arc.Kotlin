@@ -3,7 +3,7 @@
 
 # Java Chronicle Spring Boot sample
 
-This optional ordinary-Java sample combines generated Arc endpoints with the Chronicle Spring Boot starter that `io.cratis:arc-chronicle-spring-boot-starter` brings in (Chronicle.Kotlin 6.3.2 by default). It uses `CompletionStage` command/query handlers, the public Arc concurrency builder bridge, and the required `x-cratis-tenant-id` header. The configured `ArcJavaChronicleSample` event store is resolved in exactly that namespace with no default tenant fallback.
+This optional ordinary-Java sample combines generated Arc endpoints with the Chronicle Spring Boot starter that `io.cratis:arc-chronicle-spring-boot-starter` brings in (Chronicle.Kotlin 6.7.0 by default). It uses `CompletionStage` command/query handlers, the public Arc concurrency builder bridge, and the required `x-cratis-tenant-id` header. The configured `ArcJavaChronicleSample` event store is resolved in exactly that namespace with no default tenant fallback.
 
 ## Run it
 
@@ -13,13 +13,13 @@ From this directory, run:
 ./run.sh
 ```
 
-This requires Docker. It starts the pinned `cratis/chronicle:18.4.0-development` kernel, waits for it
+This requires Docker. It starts the pinned `cratis/chronicle:19.21.1-development` kernel, waits for it
 to report healthy, runs the application on `:8080` without the shared frontend, and stops the
 container again on exit. The sample's event store uses an in-memory sink, so no database is needed.
-To use a Chronicle 18.4.0+ kernel you already have running on `localhost:35000`, skip `run.sh` and
+To use a compatible Chronicle 19.21.1 kernel you already have running on `localhost:35000`, skip `run.sh` and
 use the manual steps below.
 
-From the repository root, the equivalent manual steps are running a compatible Chronicle 18.4.0+
+From the repository root, the equivalent manual steps are running a compatible Chronicle 19.21.1
 development kernel and then `./gradlew :Samples:Java:ChronicleSpringBoot:bootRun` with JDK 17
 active on `JAVA_HOME`/`PATH`.
 

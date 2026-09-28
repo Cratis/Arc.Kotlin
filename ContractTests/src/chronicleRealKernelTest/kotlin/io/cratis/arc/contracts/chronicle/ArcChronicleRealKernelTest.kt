@@ -19,10 +19,12 @@ import java.net.URLEncoder
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
+import java.net.http.WebSocket
 import java.nio.charset.StandardCharsets
 import java.time.Duration
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import java.util.regex.Pattern
 import kotlinx.coroutines.delay
@@ -33,6 +35,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeAll
+import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
 import org.testcontainers.containers.GenericContainer
 import org.testcontainers.containers.wait.strategy.Wait
@@ -54,6 +57,22 @@ class ArcChronicleRealKernelTest {
             )
         } catch (throwable: Throwable) {
             throw AssertionError("${throwable.message}\nKernel logs:\n${kernel.logs}", throwable)
+        }
+    }
+
+    @Test
+    @Disabled("Materialized ObserveInstances never emits a live page: MissingIdMapping on MongoDB, empty snapshots on InMemory (Cratis/Chronicle#4365)")
+    fun `generated Kotlin and Java author queries emit after registration`() = runBlocking {
+        for ((jarProperty, storeName, queryName) in listOf(
+            Triple("arc.chronicle.kotlinSample.jar", "ArcKotlinChronicleSample", "io.cratis.arc.samples.kotlin.chronicle.Author.allAuthors"),
+            Triple("arc.chronicle.javaSample.jar", "ArcJavaChronicleSample", "io.cratis.arc.samples.javachronicle.Author.allAuthors")
+        )) {
+            val tenant = "author-" + UUID.randomUUID().toString().take(8)
+            provision(storeName, tenant)
+            val jar = checkNotNull(System.getProperty(jarProperty))
+            SampleApplication.start(jar, connectionString).use { application ->
+                application.assertLiveAuthors(tenant, UUID.randomUUID().toString().take(8), queryName)
+            }
         }
     }
 
@@ -131,7 +150,7 @@ class ArcChronicleRealKernelTest {
                 val accepted = tenantAEvents.single { it.content.contains("Accepted title") }
                 val acceptedContent = objectMapper.readTree(accepted.content)
                 assertEquals("Tenant A title", acceptedContent.path("previousTitle").asString())
-                // SDK 5.1.0's read path (Sequences.EventContext.toClient) drops eventSourceType,
+                // The read path (Sequences.EventContext.toClient) drops eventSourceType,
                 // eventStreamType and eventStreamId alike, so the returned context cannot be asserted
                 // on - see #161. Filtering server-side is what proves the metadata was persisted.
                 val metadataFiltered = tenantAStore.eventLog.getForEventSourceIdAndEventTypes(
@@ -218,6 +237,70 @@ class ArcChronicleRealKernelTest {
                 .POST(HttpRequest.BodyPublishers.ofString(json))
                 .build()
         )
+
+        /** Exercises the generated observable query over its actual WebSocket transport. */
+        fun assertLiveAuthors(tenant: String, suffix: String, queryName: String) {
+            val listener = AuthorFrames()
+            val socket = http.newWebSocketBuilder().header(TENANT_HEADER, tenant)
+                .buildAsync(URI.create(origin.replace("http://", "ws://") + "/.cratis/queries/ws"), listener)
+                .get(10, TimeUnit.SECONDS)
+            try {
+                assertEquals("Connected", listener.next().path("type").asString())
+                socket.sendText(
+                    """{"type":"Subscribe","queryId":"authors","revision":1,"payload":{"queryName":"$queryName","arguments":{}}}""",
+                    true
+                ).get(5, TimeUnit.SECONDS)
+                val initial = listener.nextResult()
+                assertEquals("QueryResult", initial.path("type").asString(), initial.toString())
+                assertTrue(initial.path("payload").path("isSuccess").asBoolean(), initial.toString())
+                assertTrue(initial.path("payload").path("data").isArray, initial.toString())
+                val id = "author-$suffix"
+                val name = "Registered $suffix"
+                val command = postCommand("/api/register-author", tenant, """{"id":"$id","name":"$name"}""")
+                assertEquals(200, command.status, "$command\n$output")
+                assertTrue(command.json.path("isSuccess").asBoolean(), command.body)
+                val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(60)
+                var update: JsonNode
+                do {
+                    update = listener.nextResult()
+                    assertEquals("QueryResult", update.path("type").asString(), update.toString())
+                    assertTrue(update.path("payload").path("isSuccess").asBoolean(), update.toString())
+                    if (update.path("payload").path("data").any {
+                        it.path("id").asString() == id && it.path("name").asString() == name
+                    }) break
+                } while (System.nanoTime() < deadline)
+                assertTrue(update.path("payload").path("data").any {
+                    it.path("id").asString() == id && it.path("name").asString() == name
+                }, "No registered author in subsequent observable emission: $update\n$output")
+            } finally {
+                socket.sendClose(WebSocket.NORMAL_CLOSURE, "done").get(5, TimeUnit.SECONDS)
+            }
+        }
+
+        private inner class AuthorFrames : WebSocket.Listener {
+            private val messages = LinkedBlockingQueue<JsonNode>()
+            private val text = StringBuilder()
+            override fun onOpen(webSocket: WebSocket) { webSocket.request(1) }
+            override fun onText(webSocket: WebSocket, data: CharSequence, last: Boolean): java.util.concurrent.CompletionStage<*> {
+                text.append(data)
+                if (last) {
+                    messages.add(mapper.readTree(text.toString()))
+                    text.setLength(0)
+                }
+                webSocket.request(1)
+                return CompletableFuture.completedFuture(null)
+            }
+            fun next(): JsonNode = requireNotNull(messages.poll(20, TimeUnit.SECONDS)) {
+                "No observable query frame; sample output:\n$output"
+            }
+            fun nextResult(): JsonNode {
+                repeat(30) {
+                    val frame = next()
+                    if (frame.path("type").asString() != "Ping") return frame
+                }
+                error("Only keepalive frames received for observable query; sample output:\n$output")
+            }
+        }
 
         fun queryAll(tenant: String): Exchange = exchange(
             HttpRequest.newBuilder(URI.create("$origin/api/tasks"))
