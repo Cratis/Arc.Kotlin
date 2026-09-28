@@ -1,0 +1,64 @@
+# Copyright (c) Cratis. All rights reserved.
+# Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+name: Client Snippet Verification
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - "**"
+    paths:
+      - "Documentation/client-snippets/**"
+      - "Documentation/client-snippets-java/**"
+      - "Documentation/validate-client-snippets.py"
+      - "Source/**"
+      - "Testing/**"
+      - "Integrations/**"
+      - "CodeGeneration/**"
+      - "GradlePlugin/**"
+      - "ContractTests/**"
+      - "Samples/**"
+      - "gradle/**"
+      - "gradlew"
+      - "build.gradle.kts"
+      - "settings.gradle.kts"
+      - "gradle.properties"
+      - ".github/workflows/client-snippets.yml"
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Validate Gradle wrapper
+        uses: gradle/actions/wrapper-validation@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+
+      - name: Compile Kotlin and Java client snippets
+        run: python3 Documentation/validate-client-snippets.py
+
+      - name: Verify both compilers reject invalid snippets
+        run: python3 Documentation/validate-client-snippets.py --self-test
