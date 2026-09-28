@@ -18,6 +18,7 @@ on:
       - "CodeGeneration/**"
       - "GradlePlugin/**"
       - "ContractTests/**"
+      - "Samples/**"
       - "gradle/**"
       - "gradlew"
       - "build.gradle.kts"
