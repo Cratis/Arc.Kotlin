@@ -494,6 +494,19 @@ IMPORT_ALLOW_ANONYMOUS = "import io.cratis.arc.authorization.AllowAnonymous"
 # listed: an unlisted snippet would silently compile as a bare declaration fragment, and
 # "it compiled because nothing referenced anything" is not a verdict worth having.
 SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
+    "scenarios/vertical-slices/state-view/author-list": SnippetContext(
+        fixtures=("concepts",),
+    ),
+    "scenarios/vertical-slices/state-view/fluent-projection": SnippetContext(
+        fixtures=("concepts",),
+        prelude="""
+            data class Author(
+                val id: String = "",
+                val firstName: AuthorName = AuthorName(""),
+                val lastName: AuthorName = AuthorName("")
+            )
+        """,
+    ),
     "guides/observable-queries/from-repository": SnippetContext(
         imports=(IMPORT_READ_MODEL, IMPORT_FROM_SERVICES, IMPORT_FLOW,
                  "import io.cratis.arc.authorization.AllowAnonymous"),
@@ -2016,6 +2029,15 @@ JAVA_SCENARIO_HOST = """
 # would silently compile as a bare fragment, and "it compiled because nothing referenced
 # anything" is not a verdict worth having.
 JAVA_SNIPPET_CONTEXTS: dict[str, JavaSnippetContext] = {
+    "scenarios/vertical-slices/state-view/author-list": JavaSnippetContext(
+        fixtures=("concepts",),
+    ),
+    "scenarios/vertical-slices/state-view/fluent-projection": JavaSnippetContext(
+        fixtures=("concepts",),
+        prelude="""
+            public record Author(String id, AuthorName firstName, AuthorName lastName) { }
+        """,
+    ),
     "guides/observable-queries/from-repository": JavaSnippetContext(
         imports=("import io.cratis.arc.artifacts.FromServices;",
                  "import io.cratis.arc.artifacts.ReadModel;",
