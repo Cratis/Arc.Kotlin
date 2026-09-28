@@ -2,8 +2,8 @@
 # Shared by Samples/*/ChronicleSpringBoot/run.sh — starts the pinned Chronicle development kernel
 # via Docker, waits for it to report healthy, and stops it again when the sample exits.
 #
-# The image is pinned to the same digest ContractTests and Documentation/guides/chronicle.md use,
-# so the samples run against the same kernel version the repository's own compatibility gate does.
+# The samples pin Chronicle 18.4.0 independently of ContractTests, which pins 19.1.2.
+# Keep this image aligned with the version documented in both Chronicle sample READMEs.
 #
 # Source this file; it is not meant to be executed directly.
 
@@ -14,8 +14,9 @@ start_chronicle_kernel() {
 
     if ! command -v docker &>/dev/null; then
         echo "Error: 'docker' not found in PATH." >&2
-        echo "Install Docker, or pass --no-docker and point the sample at a Chronicle 18.4.0+" >&2
-        echo "kernel already running on localhost:35000." >&2
+        echo "Install Docker to use ./run.sh --chronicle, or start a Chronicle 18.4.0+ kernel" >&2
+        echo "on localhost:35000 and follow the manual steps in the Kotlin or Java" >&2
+        echo "ChronicleSpringBoot sample README (run ./gradlew :Samples:<Language>:ChronicleSpringBoot:bootRun)." >&2
         exit 1
     fi
 
