@@ -15,7 +15,7 @@ plugins {
 val springDataVersion = "4.1.1"
 val testcontainersVersion = "2.0.5"
 val defaultChronicleKernelImage =
-    "cratis/chronicle:19.1.2-development@sha256:8477bf1622813730dfde0787b688f4ed6698b9ca45032163813f26f429235a38"
+    "cratis/chronicle:19.21.1-development@sha256:6071390202d556ee0a9262d2993f5bbfde6db9ac893ba6269963e82bb928beb2"
 val defaultMongoReplicaSetImage =
     "mongo:8.2@sha256:e0ce8c35124d4a9f9785532d1f268f39e9728ffa1cb38f46fa482436424c4bd3"
 

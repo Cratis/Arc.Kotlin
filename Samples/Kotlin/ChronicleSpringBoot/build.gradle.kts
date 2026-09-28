@@ -27,6 +27,7 @@ val arcProxyDirectory = layout.buildDirectory.dir("generated/arc-proxies")
 dependencies {
     implementation(project(":Integrations:Chronicle"))
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
+    implementation("org.springframework.boot:spring-boot-starter-websocket")
     implementation(kotlin("reflect"))
     ksp(project(":CodeGeneration:KSP"))
     arcProxyGenerator(project(":GradlePlugin"))
@@ -64,8 +65,14 @@ val generateArcProxies by tasks.registering(JavaExec::class) {
     inputs.file(arcManifestDirectory.map { it.file("META-INF/cratis/arc/$arcModuleName.json") })
     outputs.dir(arcProxyDirectory)
     doLast {
-        listOf("CreateTask.ts", "RenameTask.ts", "TaskView.ts", "ById.ts", "All.ts").forEach { name ->
+        listOf("CreateTask.ts", "RenameTask.ts", "TaskView.ts", "ById.ts", "All.ts", "Author.ts", "RegisterAuthor.ts", "AllAuthors.ts").forEach { name ->
             check(arcProxyDirectory.get().file(name).asFile.isFile) { "Expected generated proxy '$name'." }
+        }
+        check("id?: string" in arcProxyDirectory.get().file("RegisterAuthor.ts").asFile.readText()) {
+            "Kotlin author id must be string-backed in the generated command proxy."
+        }
+        check("extends ObservableQueryFor<Author[]>" in arcProxyDirectory.get().file("AllAuthors.ts").asFile.readText()) {
+            "Kotlin authors query must be observable in the generated proxy."
         }
         listOf("CreateTask" to "ICreateTask", "RenameTask" to "IRenameTask").forEach { (name, contract) ->
             val source = arcProxyDirectory.get().file("$name.ts").asFile.readText()
