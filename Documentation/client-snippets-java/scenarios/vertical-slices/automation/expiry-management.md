@@ -8,8 +8,8 @@ import io.cratis.chronicle.events.EventContext;
 import io.cratis.chronicle.events.EventType;
 import io.cratis.chronicle.observation.OnceOnly;
 import io.cratis.chronicle.observation.Reactor;
-import io.cratis.chronicle.observation.Reducer;
 import io.cratis.chronicle.projections.FromEvent;
+import io.cratis.chronicle.projections.FromEventSourceId;
 import io.cratis.chronicle.projections.RemovedWith;
 import io.cratis.chronicle.readModels.Passive;
 import io.cratis.chronicle.readModels.ReadModel;
@@ -21,32 +21,15 @@ import java.util.UUID;
 // ─── Read Models ──────────────────────────────────────────────────────────────
 
 // Reservations/ExpiryManagement/ReservationDueForExpiry.java
-// A reducer, not @FromEvent: it copies the event-source ID into the model.
 @ReadModel
-public record ReservationDueForExpiry(String id, Instant expiresAt, boolean open) {
-    ReservationDueForExpiry closed() {
-        return new ReservationDueForExpiry(id, expiresAt, false);
-    }
-}
-
-// Reservations/ExpiryManagement/ReservationDueForExpiryReducer.java
-@Reducer
-public final class ReservationDueForExpiryReducer {
-    public ReservationDueForExpiry reserved(BookReserved event, ReservationDueForExpiry state, EventContext context) {
-        return new ReservationDueForExpiry(context.getEventSourceId(), event.expiresAt(), true);
-    }
-
-    public ReservationDueForExpiry collected(BookBorrowedFromReservation event, ReservationDueForExpiry state) {
-        return state == null ? null : state.closed();
-    }
-
-    public ReservationDueForExpiry cancelled(ReservationCancelled event, ReservationDueForExpiry state) {
-        return state == null ? null : state.closed();
-    }
-
-    public ReservationDueForExpiry expired(ReservationExpired event, ReservationDueForExpiry state) {
-        return state == null ? null : state.closed();
-    }
+@FromEvent(eventType = BookReserved.class)
+@RemovedWith(eventType = BookBorrowedFromReservation.class)
+@RemovedWith(eventType = ReservationCancelled.class)
+@RemovedWith(eventType = ReservationExpired.class)
+public class ReservationDueForExpiry {
+    @FromEventSourceId
+    public String id = "";
+    public long expiresAt;
 }
 
 // Reservations/ExpiryManagement/PendingReservation.java
@@ -59,7 +42,7 @@ public final class ReservationDueForExpiryReducer {
 public class PendingReservation {
     public ISBN isbn = ISBN.NOT_SET;
     public MemberId memberId = MemberId.NOT_SET;
-    public Instant expiresAt = Instant.EPOCH;
+    public long expiresAt;
 }
 
 // ─── Events ───────────────────────────────────────────────────────────────────
@@ -72,7 +55,7 @@ public record ReservationExpired(ISBN isbn, MemberId memberId) { }
 // Reservations/ExpiryManagement/DailyTick.java
 /** Records the scheduler's daily opportunity to check overdue reservations. */
 @EventType
-public record DailyTick(Instant occurredAt) { }
+public record DailyTick(long occurredAt) { }
 
 // ─── Command ──────────────────────────────────────────────────────────────────
 
@@ -85,7 +68,7 @@ public record CancelExpiredReservation(@CommandKey ReservationId reservationId) 
     }
 
     public ReservationExpired handle(Instant now, Optional<PendingReservation> reservation) {
-        if (reservation.isEmpty() || reservation.get().expiresAt.isAfter(now)) {
+        if (reservation.isEmpty() || reservation.get().expiresAt > now.toEpochMilli()) {
             return null;
         }
 
@@ -109,11 +92,11 @@ public class ReservationExpiryReactor {
     @OnceOnly
     public void dailyTick(DailyTick event, EventContext context) {
         var expired = chronicle.readModels(ReservationDueForExpiry.class).stream()
-            .filter(reservation -> reservation.open() && !reservation.expiresAt().isAfter(event.occurredAt()))
+            .filter(reservation -> reservation.expiresAt <= event.occurredAt())
             .toList();
 
         for (var reservation : expired) {
-            var reservationId = new ReservationId(UUID.fromString(reservation.id()));
+            var reservationId = new ReservationId(UUID.fromString(reservation.id));
             CommandResult<?> result = commands
                 .executeAsync(new CancelExpiredReservation(reservationId), ReservationExpiryReactor.class, context)
                 .toCompletableFuture()

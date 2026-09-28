@@ -8,7 +8,16 @@ import Cratis.Chronicle.Contracts.Namespaces.NamespacesOuterClass
 import tools.jackson.databind.JsonNode
 import io.cratis.arc.json.ArcObjectMapper
 import io.cratis.chronicle.ChronicleClient
+import io.cratis.arc.contracts.chronicle.slices.BookReserved
+import io.cratis.arc.contracts.chronicle.slices.ISBN
+import io.cratis.arc.contracts.chronicle.slices.JavaPendingReservation
+import io.cratis.arc.contracts.chronicle.slices.JavaReservationDueForExpiry
+import io.cratis.arc.contracts.chronicle.slices.MemberId
+import io.cratis.arc.contracts.chronicle.slices.PendingReservation
+import io.cratis.arc.contracts.chronicle.slices.ReservationDueForExpiry
+import io.cratis.arc.contracts.chronicle.slices.ReservationExpired
 import io.cratis.chronicle.ChronicleOptions
+import io.cratis.chronicle.IEventStore
 import io.cratis.chronicle.connection.ChronicleConnection
 import io.cratis.chronicle.connection.ChronicleConnectionString
 import io.cratis.chronicle.eventSequences.EventSequenceNumber
@@ -22,6 +31,7 @@ import java.net.http.HttpResponse
 import java.net.http.WebSocket
 import java.nio.charset.StandardCharsets
 import java.time.Duration
+import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.LinkedBlockingQueue
@@ -74,6 +84,70 @@ class ArcChronicleRealKernelTest {
                 application.assertLiveAuthors(tenant, UUID.randomUUID().toString().take(8), queryName)
             }
         }
+    }
+
+    /**
+     * The read models behind the Kotlin and Java tabs of the vertical-slice Automation page: projection
+     * instances keyed by their event source (Chronicle#3924), the passive decision model resolved on
+     * demand by that key - what Arc's command read-model resolver asks for - and closing events
+     * removing the instance from both.
+     */
+    @Test
+    fun `vertical-slice expiry read models are keyed and remove closed reservations`() = runBlocking {
+        val eventStoreName = "ArcVerticalSlices" + UUID.randomUUID().toString().replace("-", "").take(8)
+        val client = ChronicleClient(
+            ChronicleOptions.fromConnectionString(connectionString)
+                .withArtifactsFrom("io.cratis.arc.contracts.chronicle.slices")
+        )
+        try {
+            val store = client.getEventStore(eventStoreName)
+            store.awaitRegistration()
+            val member = MemberId(UUID.randomUUID())
+            val due = UUID.randomUUID().toString()
+            val later = UUID.randomUUID().toString()
+            val dueAt = Instant.parse("2026-01-01T00:00:00Z").toEpochMilli()
+            val laterAt = Instant.parse("2026-02-01T00:00:00Z").toEpochMilli()
+            assertTrue(store.eventLog.append(due, BookReserved(ISBN("978-0-00-000001-1"), member, dueAt)).isSuccess)
+            assertTrue(store.eventLog.append(later, BookReserved(ISBN("978-0-00-000002-2"), member, laterAt)).isSuccess)
+
+            assertEquals(
+                PendingReservation(ISBN("978-0-00-000001-1"), member, dueAt),
+                store.readModels.getInstanceByKey(PendingReservation::class, due)
+            )
+            assertEquals(
+                PendingReservation(ISBN("978-0-00-000002-2"), member, laterAt),
+                store.readModels.getInstanceByKey(PendingReservation::class, later)
+            )
+            val javaPending = store.readModels.getInstanceByKey(JavaPendingReservation::class, later)
+            assertEquals(listOf("978-0-00-000002-2", member, laterAt),
+                listOf(javaPending?.isbn?.value, javaPending?.memberId, javaPending?.expiresAt))
+            awaitToDo(store, setOf(ReservationDueForExpiry(due, dueAt), ReservationDueForExpiry(later, laterAt)))
+
+            assertTrue(store.eventLog.append(due, ReservationExpired(ISBN("978-0-00-000001-1"), member)).isSuccess)
+
+            assertEquals(null, store.readModels.getInstanceByKey(PendingReservation::class, due))
+            assertEquals(null, store.readModels.getInstanceByKey(JavaPendingReservation::class, due))
+            awaitToDo(store, setOf(ReservationDueForExpiry(later, laterAt)))
+        } catch (throwable: Throwable) {
+            throw AssertionError("${throwable.message}\nKernel logs:\n${kernel.logs}", throwable)
+        } finally {
+            client.dispose()
+        }
+    }
+
+    /** Waits for the active to-do projection, which Chronicle updates asynchronously. */
+    private suspend fun awaitToDo(store: IEventStore, expected: Set<ReservationDueForExpiry>) {
+        var kotlin: Set<ReservationDueForExpiry> = emptySet()
+        var java: Set<ReservationDueForExpiry> = emptySet()
+        repeat(150) {
+            kotlin = store.readModels.getInstances(ReservationDueForExpiry::class).toSet()
+            java = store.readModels.getInstances(JavaReservationDueForExpiry::class)
+                .map { ReservationDueForExpiry(it.id, it.expiresAt) }.toSet()
+            if (kotlin == expected && java == expected) return
+            delay(200)
+        }
+        assertEquals(expected, kotlin, "The Kotlin to-do projection did not reach the expected instances.")
+        assertEquals(expected, java, "The Java to-do projection did not reach the expected instances.")
     }
 
     private suspend fun verifySample(

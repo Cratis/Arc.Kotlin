@@ -2,7 +2,6 @@
 import io.cratis.arc.concepts.ConceptAs as ArcConceptAs
 import io.cratis.chronicle.concepts.ConceptAs as ChronicleConceptAs
 import io.cratis.chronicle.events.EventType
-import java.time.Instant
 import java.util.UUID
 
 // Reservations/ReservationId.kt
@@ -29,8 +28,9 @@ data class ISBN(private val isbn: String) : ArcConceptAs<String>, ChronicleConce
 // Reservations/ReservationEvents.kt
 
 /** Records a book held for a member until the collection deadline. */
+// Deadlines are epoch milliseconds: the JVM Chronicle client cannot append java.time values yet.
 @EventType
-data class BookReserved(val isbn: ISBN, val memberId: MemberId, val expiresAt: Instant)
+data class BookReserved(val isbn: ISBN, val memberId: MemberId, val expiresAt: Long)
 
 /** Records that a reservation was canceled without collection. */
 @EventType

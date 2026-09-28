@@ -4,6 +4,7 @@ import io.cratis.chronicle.events.EventContext
 import io.cratis.chronicle.events.EventType
 import io.cratis.chronicle.observation.OnceOnly
 import io.cratis.chronicle.observation.Reactor
+import java.util.UUID
 
 // Members/HRIntegration/HRIntegration.kt
 
@@ -31,8 +32,10 @@ class MemberImportReactor(private val commands: ChronicleCommandSideEffectHandle
             return
         }
 
+        // The same employee always maps to the same member, so a retried import cannot mint a second one.
+        val memberId = MemberId(UUID.nameUUIDFromBytes("hr-employee:${event.employeeId}".toByteArray()))
         val result = commands.execute(
-            RegisterMember(MemberId.new(), MemberName(event.givenName), MemberName(event.familyName)),
+            RegisterMember(memberId, MemberName(event.givenName), MemberName(event.familyName)),
             MemberImportReactor::class.java,
             context
         )

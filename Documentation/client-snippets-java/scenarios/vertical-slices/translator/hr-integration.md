@@ -5,6 +5,8 @@ import io.cratis.chronicle.events.EventContext;
 import io.cratis.chronicle.events.EventType;
 import io.cratis.chronicle.observation.OnceOnly;
 import io.cratis.chronicle.observation.Reactor;
+import java.nio.charset.StandardCharsets;
+import java.util.UUID;
 
 // ─── External Event ───────────────────────────────────────────────────────────
 // The inbound adapter records this integration event in Chronicle.
@@ -33,8 +35,11 @@ public class MemberImportReactor {
             return;
         }
 
+        // The same employee always maps to the same member, so a retried import cannot mint a second one.
+        var memberId = new MemberId(UUID.nameUUIDFromBytes(
+            ("hr-employee:" + event.employeeId()).getBytes(StandardCharsets.UTF_8)));
         var command = new RegisterMember(
-            MemberId.newId(),
+            memberId,
             new MemberName(event.givenName()),
             new MemberName(event.familyName()));
         CommandResult<?> result = commands
