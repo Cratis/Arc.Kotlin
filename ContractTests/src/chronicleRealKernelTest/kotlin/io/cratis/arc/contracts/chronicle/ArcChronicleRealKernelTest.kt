@@ -61,7 +61,7 @@ class ArcChronicleRealKernelTest {
     }
 
     @Test
-    @Disabled("Kernel 19.21.1 ObserveInstances fails with MissingIdMapping for MongoDB.Bson.BsonDocument; InMemory emits only empty snapshots")
+    @Disabled("Materialized ObserveInstances never emits a live page: MissingIdMapping on MongoDB, empty snapshots on InMemory (Cratis/Chronicle#4365)")
     fun `generated Kotlin and Java author queries emit after registration`() = runBlocking {
         for ((jarProperty, storeName, queryName) in listOf(
             Triple("arc.chronicle.kotlinSample.jar", "ArcKotlinChronicleSample", "io.cratis.arc.samples.kotlin.chronicle.Author.allAuthors"),
