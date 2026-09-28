@@ -15,6 +15,7 @@ import io.cratis.arc.contracts.chronicle.slices.JavaReservationDueForExpiry
 import io.cratis.arc.contracts.chronicle.slices.MemberId
 import io.cratis.arc.contracts.chronicle.slices.PendingReservation
 import io.cratis.arc.contracts.chronicle.slices.ReservationDueForExpiry
+import io.cratis.arc.contracts.chronicle.slices.ReservationCancelled
 import io.cratis.arc.contracts.chronicle.slices.ReservationExpired
 import io.cratis.chronicle.ChronicleOptions
 import io.cratis.chronicle.IEventStore
@@ -118,6 +119,9 @@ class ArcChronicleRealKernelTest {
                 PendingReservation(ISBN("978-0-00-000002-2"), member, laterAt),
                 store.readModels.getInstanceByKey(PendingReservation::class, later)
             )
+            val javaDue = store.readModels.getInstanceByKey(JavaPendingReservation::class, due)
+            assertEquals(listOf("978-0-00-000001-1", member, dueAt),
+                listOf(javaDue?.isbn?.value, javaDue?.memberId, javaDue?.expiresAt))
             val javaPending = store.readModels.getInstanceByKey(JavaPendingReservation::class, later)
             assertEquals(listOf("978-0-00-000002-2", member, laterAt),
                 listOf(javaPending?.isbn?.value, javaPending?.memberId, javaPending?.expiresAt))
@@ -128,6 +132,12 @@ class ArcChronicleRealKernelTest {
             assertEquals(null, store.readModels.getInstanceByKey(PendingReservation::class, due))
             assertEquals(null, store.readModels.getInstanceByKey(JavaPendingReservation::class, due))
             awaitToDo(store, setOf(ReservationDueForExpiry(later, laterAt)))
+
+            assertTrue(store.eventLog.append(later, ReservationCancelled(ISBN("978-0-00-000002-2"), member)).isSuccess)
+
+            assertEquals(null, store.readModels.getInstanceByKey(PendingReservation::class, later))
+            assertEquals(null, store.readModels.getInstanceByKey(JavaPendingReservation::class, later))
+            awaitToDo(store, emptySet())
         } catch (throwable: Throwable) {
             throw AssertionError("${throwable.message}\nKernel logs:\n${kernel.logs}", throwable)
         } finally {

@@ -16,7 +16,9 @@ import java.util.UUID
 // real-kernel test proves what the Kotlin and Java tabs rely on: projection instances keyed by their
 // event source (Chronicle#3924), a passive projection resolved on demand by that key, and closing
 // events removing the instance from both. Deadlines are epoch milliseconds: the JVM client
-// serializes java.time values as JSON objects, which the kernel's schema validation rejects.
+// serializes java.time values as JSON objects, which the kernel's schema validation rejects
+// (Cratis/Chronicle.Kotlin#104). The concepts here implement only Chronicle's ConceptAs: the
+// snippets also implement Arc's so commands can take them, which the kernel never sees.
 
 data class ISBN(private val isbn: String) : ConceptAs<String> {
     override val value: String get() = isbn
