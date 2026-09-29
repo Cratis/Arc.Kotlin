@@ -1,6 +1,7 @@
 ```java
 import io.cratis.arc.chronicle.ChronicleCommandScenario;
 import io.cratis.arc.chronicle.ChronicleCommandScenarios;
+import io.cratis.arc.generated.LibraryArcArtifactModule;
 import io.cratis.arc.testing.CommandScenario;
 import io.cratis.arc.testing.java.BlockingCommandScenario;
 import org.junit.jupiter.api.Test;

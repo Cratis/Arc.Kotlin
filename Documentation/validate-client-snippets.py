@@ -1855,7 +1855,6 @@ JAVA_IMPORT_GENERATED_MODULE = (
 JAVA_IMPORT_TEST = "import org.junit.jupiter.api.Test;"
 JAVA_IMPORT_BEFORE_EACH = "import org.junit.jupiter.api.BeforeEach;"
 JAVA_IMPORT_ASSERT_EQUALS = "import static org.junit.jupiter.api.Assertions.assertEquals;"
-JAVA_IMPORT_ARRAY_LIST = "import java.util.ArrayList;"
 JAVA_IMPORT_LIST = "import java.util.List;"
 JAVA_IMPORT_OPTIONAL = "import java.util.Optional;"
 JAVA_IMPORT_UUID = "import java.util.UUID;"
@@ -2241,6 +2240,12 @@ class JavaSnippetContext:
                the interesting lines.
     host:      "member" only - the field declarations of the generated enclosing class.
     prelude:   supporting declarations no fixture supplies.
+    prelude_from:
+               the id of another Java snippet whose code becomes the prelude, read from
+               that snippet file at validation time with its imports hoisted. Use it when
+               the page shows the supporting declarations as a snippet of their own, so the
+               spec compiles against exactly what the reader sees rather than a hand copy
+               that can drift. It cannot be combined with `prelude`.
     """
 
     kind: str = "declaration"
@@ -2249,6 +2254,7 @@ class JavaSnippetContext:
     imports: tuple[str, ...] = ()
     host: str = ""
     prelude: str = ""
+    prelude_from: str = ""
 
 
 JAVA_KNOWN_KINDS = ("declaration", "member")
@@ -3218,16 +3224,10 @@ JAVA_SNIPPET_CONTEXTS: dict[str, JavaSnippetContext] = {
     "scenarios/test-a-command/spec": JavaSnippetContext(
         # The command under test is a prelude rather than a second file, because Java's
         # one-public-type-per-file rule makes a whole-file snippet the wrong shape here.
+        # The context imports only what the prelude needs and the generated module the
+        # snippet does not import; everything else the snippet imports itself.
         fixtures=("concepts", "generatedmodule"),
-        imports=(
-            JAVA_IMPORT_COMMAND,
-            JAVA_IMPORT_GENERATED_MODULE,
-            JAVA_IMPORT_ARRAY_LIST,
-            JAVA_IMPORT_LIST,
-            JAVA_IMPORT_UUID,
-            JAVA_IMPORT_TEST,
-            JAVA_IMPORT_ASSERT_EQUALS,
-        ),
+        imports=(JAVA_IMPORT_COMMAND, JAVA_IMPORT_GENERATED_MODULE),
         prelude="""
             interface AuthorRegistration {
                 void register(AuthorId id, AuthorName name);
@@ -3244,23 +3244,12 @@ JAVA_SNIPPET_CONTEXTS: dict[str, JavaSnippetContext] = {
     "testing-with-cratis/register-author": JavaSnippetContext(),
     "testing-with-cratis/register-author-spec": JavaSnippetContext(
         # The slice is a prelude for the same one-public-type-per-file reason as the
-        # test-a-command spec; it repeats the register-author snippet shown beside it.
-        fixtures=("generatedmodule",),
-        imports=(
-            JAVA_IMPORT_GENERATED_MODULE,
-            JAVA_IMPORT_COMMAND,
-            JAVA_IMPORT_COMMAND_KEY,
-            "import io.cratis.chronicle.events.EventType;",
-        ),
-        prelude="""
-            @EventType
-            record AuthorRegistered(String name) { }
-
-            @Command
-            record RegisterAuthor(@CommandKey String authorId, String name) {
-                public AuthorRegistered handle() { return new AuthorRegistered(name); }
-            }
-        """,
+        # test-a-command spec, read from the register-author snippet shown beside it so
+        # the spec compiles against the real slice. The snippet imports the generated
+        # module from `io.cratis.arc.generated` like its Kotlin twin, which resolves to the
+        # Kotlin `generatedmodule` fixture compiled into the same source set; the Java
+        # fixture's same-named type would clash with that import, so it is not listed.
+        prelude_from="testing-with-cratis/register-author",
     ),
     "scenarios/use-current-state-in-a-command/chronicle-commands": JavaSnippetContext(
         fixtures=("ledger",),
@@ -3847,7 +3836,34 @@ def java_fixture_imports(context: JavaSnippetContext, identifier: str) -> list[s
     return imports
 
 
-def generate_java_snippet_source(snippet: Snippet, corrupt: bool = False) -> str:
+def java_prelude(
+    context: JavaSnippetContext,
+    identifier: str,
+    snippets: dict[str, Snippet],
+) -> tuple[list[str], str]:
+    """The prelude imports and declarations for a Java snippet context."""
+    if not context.prelude_from:
+        return [], textwrap.dedent(context.prelude).strip()
+    if context.prelude:
+        raise SnippetError(
+            f"Java snippet {identifier!r} declares both a prelude and prelude_from; use one")
+    source = snippets.get(context.prelude_from)
+    if source is None:
+        raise SnippetError(
+            f"Java snippet {identifier!r} takes its prelude from {context.prelude_from!r}, "
+            "which is not a compilable Java snippet")
+    if JAVA_SNIPPET_CONTEXTS.get(source.identifier, JavaSnippetContext()).prelude_from:
+        raise SnippetError(
+            f"Java snippet {identifier!r} takes its prelude from {context.prelude_from!r}, "
+            "which takes its own prelude from another snippet; chains are not supported")
+    return split_java_imports(source.code)
+
+
+def generate_java_snippet_source(
+    snippet: Snippet,
+    corrupt: bool = False,
+    snippets: dict[str, Snippet] | None = None,
+) -> str:
     """Render one Java snippet into its own compilation unit.
 
     Every snippet becomes members of a wrapper interface named after it. Interface members
@@ -3869,8 +3885,13 @@ def generate_java_snippet_source(snippet: Snippet, corrupt: bool = False) -> str
             "only a 'member' context has a generated enclosing class")
 
     snippet_imports, snippet_body = split_java_imports(snippet.code)
-    prelude = textwrap.dedent(context.prelude).strip()
-    imports = sorted({*context.imports, *java_fixture_imports(context, snippet.identifier), *snippet_imports})
+    prelude_imports, prelude = java_prelude(context, snippet.identifier, snippets or {})
+    imports = sorted({
+        *context.imports,
+        *java_fixture_imports(context, snippet.identifier),
+        *prelude_imports,
+        *snippet_imports,
+    })
 
     if context.kind == "declaration":
         members = "\n\n".join(part for part in (prelude, snippet_body) if part)
@@ -3937,8 +3958,10 @@ def write_java_generated(snippets: list[Snippet], corrupt: str | None = None) ->
         path.write_text(generate_java_fixture_source(name), encoding="utf-8")
         written.append(path)
 
+    by_identifier = {snippet.identifier: snippet for snippet in snippets}
     for snippet in snippets:
-        source = generate_java_snippet_source(snippet, corrupt=snippet.identifier == corrupt)
+        source = generate_java_snippet_source(
+            snippet, corrupt=snippet.identifier == corrupt, snippets=by_identifier)
         path = JAVA_SNIPPET_DIR / f"Snippet_{sanitized(snippet.identifier)}.java"
         path.write_text(source, encoding="utf-8")
         written.append(path)
@@ -4083,6 +4106,9 @@ def run_self_test(kotlin: list[Snippet], java: list[Snippet]) -> int:
     if not kotlin or not java:
         raise SnippetError("--self-test needs at least one compilable snippet in each language")
 
+    if self_test_java_prelude_from(java) != 0:
+        return 1
+
     for language_name, corrupt_kotlin, corrupt_java, tasks in (
         (SNIPPET_LANGUAGE, kotlin[0].identifier, None, (GRADLE_TASK,)),
         (JAVA_SNIPPET_LANGUAGE, None, java[0].identifier, (JAVA_GRADLE_TASK,)),
@@ -4110,6 +4136,45 @@ def run_self_test(kotlin: list[Snippet], java: list[Snippet]) -> int:
             f"Self-test passed ({language_name}): the planted defect failed compilation "
             f"(exit code {exit_code}).")
 
+    return 0
+
+
+def self_test_java_prelude_from(java: list[Snippet]) -> int:
+    """Plant a marker in every prelude_from source and fail unless each dependent carries it.
+
+    A prelude_from context that stopped reading its source snippet would compile against a
+    stale or empty prelude and still pass, so this proves the wiring without a compile.
+    """
+    by_identifier = {snippet.identifier: snippet for snippet in java}
+    dependents = [
+        snippet for snippet in java
+        if JAVA_SNIPPET_CONTEXTS.get(snippet.identifier, JavaSnippetContext()).prelude_from]
+    if not dependents:
+        print("Self-test (java prelude_from): no Java snippet takes its prelude from another; skipped.")
+        return 0
+
+    marker = "// --self-test planted defect: prelude_from source marker"
+    for dependent in dependents:
+        source_id = JAVA_SNIPPET_CONTEXTS[dependent.identifier].prelude_from
+        source = by_identifier.get(source_id)
+        if source is None:
+            raise SnippetError(
+                f"Java snippet {dependent.identifier!r} takes its prelude from {source_id!r}, "
+                "which is not a compilable Java snippet")
+        planted = Snippet(
+            identifier=source.identifier, path=source.path, language=source.language,
+            code=f"{source.code}\n{marker}")
+        generated = generate_java_snippet_source(
+            dependent, snippets={**by_identifier, source_id: planted})
+        if marker not in generated:
+            print(
+                f"Self-test FAILED (java prelude_from): {dependent.identifier!r} did not pick up a "
+                f"change planted in {source_id!r}, so its prelude is not read from that snippet.",
+                file=sys.stderr)
+            return 1
+        print(
+            f"Self-test passed (java prelude_from): {dependent.identifier!r} carries the change "
+            f"planted in {source_id!r}.")
     return 0
 
 
