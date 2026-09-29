@@ -1,4 +1,5 @@
 ```java
+import io.cratis.arc.generated.LibraryArcArtifactModule;
 import io.cratis.arc.testing.CommandScenario;
 import io.cratis.arc.testing.java.BlockingCommandScenario;
 import java.util.ArrayList;
