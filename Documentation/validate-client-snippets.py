@@ -442,6 +442,102 @@ FIXTURES: dict[str, DomainFixture] = {
             }
         """,
     ),
+    "libraryslices": DomainFixture(
+        # The Library application the State Change, Automation and Translation pages build.
+        # Each page snippet declares its own slice and draws the other slices' types from
+        # here, so these declarations mirror the snippets that show them.
+        types=(
+            "AuthorId", "AuthorName", "AuthorRegistered", "RegisterAuthor",
+            "MemberId", "MemberName", "MemberRegistered", "RegisterMember",
+            "ReservationId", "ISBN", "BookReserved", "ReservationCancelled", "BookBorrowedFromReservation",
+        ),
+        imports=(
+            "import io.cratis.arc.artifacts.Command",
+            "import io.cratis.arc.artifacts.CommandKey",
+            "import io.cratis.arc.authorization.AllowAnonymous",
+            "import io.cratis.arc.concepts.ConceptAs as ArcConceptAs",
+            "import io.cratis.chronicle.concepts.ConceptAs as ChronicleConceptAs",
+            "import io.cratis.chronicle.events.EventType",
+            "import java.util.UUID",
+        ),
+        declarations="""
+            data class AuthorId(private val id: UUID) : ArcConceptAs<UUID>, ChronicleConceptAs<UUID> {
+                override fun value(): UUID = id
+                override val value: UUID get() = id
+
+                companion object {
+                    val NOT_SET = AuthorId(UUID(0, 0))
+                    fun new(): AuthorId = AuthorId(UUID.randomUUID())
+                }
+            }
+
+            data class AuthorName(private val name: String) : ArcConceptAs<String>, ChronicleConceptAs<String> {
+                override fun value(): String = name
+                override val value: String get() = name
+            }
+
+            @EventType
+            data class AuthorRegistered(val firstName: AuthorName, val lastName: AuthorName)
+
+            @Command
+            @AllowAnonymous
+            data class RegisterAuthor(@CommandKey val id: AuthorId, val firstName: AuthorName, val lastName: AuthorName) {
+                fun handle(): Pair<AuthorId, AuthorRegistered> = id to AuthorRegistered(firstName, lastName)
+            }
+
+            data class MemberId(private val id: UUID) : ArcConceptAs<UUID>, ChronicleConceptAs<UUID> {
+                override fun value(): UUID = id
+                override val value: UUID get() = id
+
+                companion object {
+                    val NOT_SET = MemberId(UUID(0, 0))
+                    fun new(): MemberId = MemberId(UUID.randomUUID())
+                }
+            }
+
+            data class MemberName(private val name: String) : ArcConceptAs<String>, ChronicleConceptAs<String> {
+                override fun value(): String = name
+                override val value: String get() = name
+            }
+
+            @EventType
+            data class MemberRegistered(val firstName: MemberName, val lastName: MemberName)
+
+            @Command
+            @AllowAnonymous
+            data class RegisterMember(@CommandKey val id: MemberId, val firstName: MemberName, val lastName: MemberName) {
+                fun handle(): Pair<MemberId, MemberRegistered> = id to MemberRegistered(firstName, lastName)
+            }
+
+            data class ReservationId(private val id: UUID) : ArcConceptAs<UUID>, ChronicleConceptAs<UUID> {
+                override fun value(): UUID = id
+                override val value: UUID get() = id
+
+                companion object {
+                    val NOT_SET = ReservationId(UUID(0, 0))
+                    fun new(): ReservationId = ReservationId(UUID.randomUUID())
+                }
+            }
+
+            data class ISBN(private val isbn: String) : ArcConceptAs<String>, ChronicleConceptAs<String> {
+                override fun value(): String = isbn
+                override val value: String get() = isbn
+
+                companion object {
+                    val NOT_SET = ISBN("")
+                }
+            }
+
+            @EventType
+            data class BookReserved(val isbn: ISBN, val memberId: MemberId, val expiresAt: Long)
+
+            @EventType
+            data class ReservationCancelled(val isbn: ISBN, val memberId: MemberId)
+
+            @EventType
+            data class BookBorrowedFromReservation(val isbn: ISBN, val memberId: MemberId)
+        """,
+    ),
     "generatedmodule": DomainFixture(
         # The spec snippet imports the module Arc's KSP processor generates for an
         # application. Standing it in here is the only way to compile a snippet that is
@@ -521,6 +617,31 @@ IMPORT_ALLOW_ANONYMOUS = "import io.cratis.arc.authorization.AllowAnonymous"
 # listed: an unlisted snippet would silently compile as a bare declaration fragment, and
 # "it compiled because nothing referenced anything" is not a verdict worth having.
 SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
+    # The State Change, Automation and Translation pages: each snippet shows one slice of the
+    # Library application and draws the other slices' types from the `libraryslices` fixture.
+    "scenarios/vertical-slices/state-change/concepts": SnippetContext(),
+    "scenarios/vertical-slices/state-change/registration": SnippetContext(
+        fixtures=("libraryslices",),
+        hides=("AuthorRegistered", "RegisterAuthor"),
+    ),
+    "scenarios/vertical-slices/state-change/register-author-spec": SnippetContext(
+        fixtures=("libraryslices", "generatedmodule"),
+    ),
+    "scenarios/vertical-slices/automation/reservation-domain": SnippetContext(
+        fixtures=("libraryslices",),
+        hides=("ReservationId", "ISBN", "BookReserved", "ReservationCancelled", "BookBorrowedFromReservation"),
+    ),
+    "scenarios/vertical-slices/automation/expiry-management": SnippetContext(
+        fixtures=("libraryslices",),
+    ),
+    "scenarios/vertical-slices/translator/member-concepts": SnippetContext(),
+    "scenarios/vertical-slices/translator/member-registration": SnippetContext(
+        fixtures=("libraryslices",),
+        hides=("MemberRegistered", "RegisterMember"),
+    ),
+    "scenarios/vertical-slices/translator/hr-integration": SnippetContext(
+        fixtures=("libraryslices",),
+    ),
     "capstone/host": SnippetContext(fixtures=("capstone", "capstonescaffold")),
     "capstone/author-id": SnippetContext(),
     "capstone/register-author": SnippetContext(fixtures=("capstone",), hides=("AuthorRegistered",)),
@@ -1989,6 +2110,88 @@ JAVA_FIXTURES: dict[str, JavaFixture] = {
             }
         """,
     ),
+    "libraryslices": JavaFixture(
+        # The Library application the State Change, Automation and Translation pages build;
+        # see the Kotlin fixture of the same name. These mirror the Java snippets that show them.
+        types=(
+            "AuthorId", "AuthorName", "AuthorRegistered", "RegisterAuthor",
+            "MemberId", "MemberName", "MemberRegistered", "RegisterMember",
+            "ReservationId", "ISBN", "BookReserved", "ReservationCancelled", "BookBorrowedFromReservation",
+        ),
+        imports=(
+            JAVA_IMPORT_COMMAND,
+            JAVA_IMPORT_COMMAND_KEY,
+            JAVA_IMPORT_ALLOW_ANONYMOUS,
+            JAVA_IMPORT_CONCEPT_AS,
+            JAVA_IMPORT_UUID,
+            "import io.cratis.chronicle.events.EventType;",
+            "import kotlin.Pair;",
+        ),
+        declarations="""
+            record AuthorId(UUID value) implements ConceptAs<UUID>, io.cratis.chronicle.concepts.ConceptAs<UUID> {
+                public static final AuthorId NOT_SET = new AuthorId(new UUID(0, 0));
+                public static AuthorId newId() { return new AuthorId(UUID.randomUUID()); }
+                @Override public UUID getValue() { return value; }
+            }
+
+            record AuthorName(String value) implements ConceptAs<String>, io.cratis.chronicle.concepts.ConceptAs<String> {
+                @Override public String getValue() { return value; }
+            }
+
+            @EventType
+            record AuthorRegistered(AuthorName firstName, AuthorName lastName) { }
+
+            @Command
+            @AllowAnonymous
+            record RegisterAuthor(@CommandKey AuthorId id, AuthorName firstName, AuthorName lastName) {
+                public Pair<AuthorId, AuthorRegistered> handle() {
+                    return new Pair<>(id, new AuthorRegistered(firstName, lastName));
+                }
+            }
+
+            record MemberId(UUID value) implements ConceptAs<UUID>, io.cratis.chronicle.concepts.ConceptAs<UUID> {
+                public static final MemberId NOT_SET = new MemberId(new UUID(0, 0));
+                public static MemberId newId() { return new MemberId(UUID.randomUUID()); }
+                @Override public UUID getValue() { return value; }
+            }
+
+            record MemberName(String value) implements ConceptAs<String>, io.cratis.chronicle.concepts.ConceptAs<String> {
+                @Override public String getValue() { return value; }
+            }
+
+            @EventType
+            record MemberRegistered(MemberName firstName, MemberName lastName) { }
+
+            @Command
+            @AllowAnonymous
+            record RegisterMember(@CommandKey MemberId id, MemberName firstName, MemberName lastName) {
+                public Pair<MemberId, MemberRegistered> handle() {
+                    return new Pair<>(id, new MemberRegistered(firstName, lastName));
+                }
+            }
+
+            record ReservationId(UUID value)
+                implements ConceptAs<UUID>, io.cratis.chronicle.concepts.ConceptAs<UUID> {
+                public static final ReservationId NOT_SET = new ReservationId(new UUID(0, 0));
+                public static ReservationId newId() { return new ReservationId(UUID.randomUUID()); }
+                @Override public UUID getValue() { return value; }
+            }
+
+            record ISBN(String value) implements ConceptAs<String>, io.cratis.chronicle.concepts.ConceptAs<String> {
+                public static final ISBN NOT_SET = new ISBN("");
+                @Override public String getValue() { return value; }
+            }
+
+            @EventType
+            record BookReserved(ISBN isbn, MemberId memberId, long expiresAt) { }
+
+            @EventType
+            record ReservationCancelled(ISBN isbn, MemberId memberId) { }
+
+            @EventType
+            record BookBorrowedFromReservation(ISBN isbn, MemberId memberId) { }
+        """,
+    ),
     "generatedmodule": JavaFixture(
         # The spec snippets construct the module Arc's KSP processor generates for an
         # application. Standing it in here is the only way to compile a snippet that is
@@ -2083,6 +2286,33 @@ JAVA_SCENARIO_HOST = """
 # would silently compile as a bare fragment, and "it compiled because nothing referenced
 # anything" is not a verdict worth having.
 JAVA_SNIPPET_CONTEXTS: dict[str, JavaSnippetContext] = {
+    # The State Change, Automation and Translation pages; see the Kotlin table.
+    "scenarios/vertical-slices/state-change/concepts": JavaSnippetContext(),
+    "scenarios/vertical-slices/state-change/registration": JavaSnippetContext(
+        fixtures=("libraryslices",),
+        hides=("AuthorRegistered", "RegisterAuthor"),
+    ),
+    "scenarios/vertical-slices/state-change/register-author-spec": JavaSnippetContext(
+        # The generated artifact module is imported by the context: the page shows the
+        # application's own `io.cratis.arc.generated` import, which only KSP produces.
+        fixtures=("libraryslices", "generatedmodule"),
+        imports=(JAVA_IMPORT_GENERATED_MODULE,),
+    ),
+    "scenarios/vertical-slices/automation/reservation-domain": JavaSnippetContext(
+        fixtures=("libraryslices",),
+        hides=("ReservationId", "ISBN", "BookReserved", "ReservationCancelled", "BookBorrowedFromReservation"),
+    ),
+    "scenarios/vertical-slices/automation/expiry-management": JavaSnippetContext(
+        fixtures=("libraryslices",),
+    ),
+    "scenarios/vertical-slices/translator/member-concepts": JavaSnippetContext(),
+    "scenarios/vertical-slices/translator/member-registration": JavaSnippetContext(
+        fixtures=("libraryslices",),
+        hides=("MemberRegistered", "RegisterMember"),
+    ),
+    "scenarios/vertical-slices/translator/hr-integration": JavaSnippetContext(
+        fixtures=("libraryslices",),
+    ),
     "capstone/host": JavaSnippetContext(fixtures=("capstone", "capstonescaffold")),
     "capstone/author-id": JavaSnippetContext(),
     "capstone/register-author": JavaSnippetContext(fixtures=("capstone",), hides=("AuthorRegistered",)),
