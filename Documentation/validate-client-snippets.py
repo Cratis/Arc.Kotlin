@@ -1471,6 +1471,10 @@ SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
         kind="file",
         fixtures=("libraryauthorspackage",),
     ),
+    # The Testing with Cratis page: a slice and its spec as two whole files of `library.authors`,
+    # so the spec compiles against the very command the page shows beside it.
+    "testing-with-cratis/register-author": SnippetContext(kind="file"),
+    "testing-with-cratis/register-author-spec": SnippetContext(kind="file", fixtures=("generatedmodule",)),
     "scenarios/test-a-command/spec": SnippetContext(
         # Compiles against the `library.authors` types declared by the command-under-test
         # snippet it is rendered next to, in the same compilation.
@@ -3234,6 +3238,27 @@ JAVA_SNIPPET_CONTEXTS: dict[str, JavaSnippetContext] = {
                 void handle(AuthorRegistration registration) {
                     registration.register(id, name);
                 }
+            }
+        """,
+    ),
+    "testing-with-cratis/register-author": JavaSnippetContext(),
+    "testing-with-cratis/register-author-spec": JavaSnippetContext(
+        # The slice is a prelude for the same one-public-type-per-file reason as the
+        # test-a-command spec; it repeats the register-author snippet shown beside it.
+        fixtures=("generatedmodule",),
+        imports=(
+            JAVA_IMPORT_GENERATED_MODULE,
+            JAVA_IMPORT_COMMAND,
+            JAVA_IMPORT_COMMAND_KEY,
+            "import io.cratis.chronicle.events.EventType;",
+        ),
+        prelude="""
+            @EventType
+            record AuthorRegistered(String name) { }
+
+            @Command
+            record RegisterAuthor(@CommandKey String authorId, String name) {
+                public AuthorRegistered handle() { return new AuthorRegistered(name); }
             }
         """,
     ),
