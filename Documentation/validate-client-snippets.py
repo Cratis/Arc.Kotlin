@@ -459,6 +459,7 @@ FIXTURES: dict[str, DomainFixture] = {
             "import io.cratis.arc.concepts.ConceptAs as ArcConceptAs",
             "import io.cratis.chronicle.concepts.ConceptAs as ChronicleConceptAs",
             "import io.cratis.chronicle.events.EventType",
+            "import java.time.Instant",
             "import java.util.UUID",
         ),
         declarations="""
@@ -530,7 +531,7 @@ FIXTURES: dict[str, DomainFixture] = {
             }
 
             @EventType
-            data class BookReserved(val isbn: ISBN, val memberId: MemberId, val expiresAt: Long)
+            data class BookReserved(val isbn: ISBN, val memberId: MemberId, val expiresAt: Instant)
 
             @EventType
             data class ReservationCancelled(val isbn: ISBN, val memberId: MemberId)
@@ -2140,6 +2141,7 @@ JAVA_FIXTURES: dict[str, JavaFixture] = {
             JAVA_IMPORT_CONCEPT_AS,
             JAVA_IMPORT_UUID,
             "import io.cratis.chronicle.events.EventType;",
+            "import java.time.Instant;",
             "import kotlin.Pair;",
         ),
         declarations="""
@@ -2198,7 +2200,7 @@ JAVA_FIXTURES: dict[str, JavaFixture] = {
             }
 
             @EventType
-            record BookReserved(ISBN isbn, MemberId memberId, long expiresAt) { }
+            record BookReserved(ISBN isbn, MemberId memberId, Instant expiresAt) { }
 
             @EventType
             record ReservationCancelled(ISBN isbn, MemberId memberId) { }

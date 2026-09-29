@@ -29,7 +29,7 @@ import java.util.UUID;
 public class ReservationDueForExpiry {
     @FromEventSourceId
     public String id = "";
-    public long expiresAt;
+    public Instant expiresAt = Instant.EPOCH;
 }
 
 // Reservations/ExpiryManagement/PendingReservation.java
@@ -42,7 +42,7 @@ public class ReservationDueForExpiry {
 public class PendingReservation {
     public ISBN isbn = ISBN.NOT_SET;
     public MemberId memberId = MemberId.NOT_SET;
-    public long expiresAt;
+    public Instant expiresAt = Instant.EPOCH;
 }
 
 // ─── Events ───────────────────────────────────────────────────────────────────
@@ -55,7 +55,7 @@ public record ReservationExpired(ISBN isbn, MemberId memberId) { }
 // Reservations/ExpiryManagement/DailyTick.java
 /** Records the scheduler's daily opportunity to check overdue reservations. */
 @EventType
-public record DailyTick(long occurredAt) { }
+public record DailyTick(Instant occurredAt) { }
 
 // ─── Command ──────────────────────────────────────────────────────────────────
 
@@ -68,7 +68,7 @@ public record CancelExpiredReservation(@CommandKey ReservationId reservationId) 
     }
 
     public ReservationExpired handle(Instant now, Optional<PendingReservation> reservation) {
-        if (reservation.isEmpty() || reservation.get().expiresAt > now.toEpochMilli()) {
+        if (reservation.isEmpty() || reservation.get().expiresAt.isAfter(now)) {
             return null;
         }
 
@@ -92,7 +92,7 @@ public class ReservationExpiryReactor {
     @OnceOnly
     public void dailyTick(DailyTick event, EventContext context) {
         var expired = chronicle.readModels(ReservationDueForExpiry.class).stream()
-            .filter(reservation -> reservation.expiresAt <= event.occurredAt())
+            .filter(reservation -> !reservation.expiresAt.isAfter(event.occurredAt()))
             .toList();
 
         for (var reservation : expired) {
