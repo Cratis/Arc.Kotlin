@@ -4,9 +4,10 @@
 package io.cratis.arc.samples.javachronicle;
 
 import io.cratis.arc.concepts.ConceptAs;
+import java.util.UUID;
 
-/** A string-backed command key serialized consistently by Arc and Chronicle. */
-public record AuthorId(String value) implements ConceptAs<String>, io.cratis.chronicle.concepts.ConceptAs<String> {
+/** A UUID-backed command key: a {@code Guid} in the generated proxy, a string event source id in Chronicle. */
+public record AuthorId(UUID value) implements ConceptAs<UUID>, io.cratis.chronicle.concepts.ConceptAs<UUID> {
     @Override
-    public String getValue() { return value; }
+    public UUID getValue() { return value; }
 }

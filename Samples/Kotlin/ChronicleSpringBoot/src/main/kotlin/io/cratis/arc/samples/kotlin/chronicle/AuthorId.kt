@@ -5,9 +5,10 @@ package io.cratis.arc.samples.kotlin.chronicle
 
 import io.cratis.arc.concepts.ConceptAs as ArcConceptAs
 import io.cratis.chronicle.concepts.ConceptAs as ChronicleConceptAs
+import java.util.UUID
 
-/** A string-backed command key serialized consistently by Arc and Chronicle. */
-public data class AuthorId(private val id: String) : ArcConceptAs<String>, ChronicleConceptAs<String> {
-    override fun value(): String = id
-    override val value: String get() = id
+/** A UUID-backed command key: a `Guid` in the generated proxy, a string event source id in Chronicle. */
+public data class AuthorId(private val id: UUID) : ArcConceptAs<UUID>, ChronicleConceptAs<UUID> {
+    override fun value(): UUID = id
+    override val value: UUID get() = id
 }

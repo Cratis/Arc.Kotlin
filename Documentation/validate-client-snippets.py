@@ -177,11 +177,12 @@ FIXTURES: dict[str, DomainFixture] = {
         imports=(
             "import io.cratis.arc.concepts.ConceptAs as ArcConceptAs",
             "import io.cratis.chronicle.concepts.ConceptAs as ChronicleConceptAs",
+            "import java.util.UUID",
         ),
         declarations="""
-            data class AuthorId(private val id: String) : ArcConceptAs<String>, ChronicleConceptAs<String> {
-                override fun value(): String = id
-                override val value: String get() = id
+            data class AuthorId(private val id: UUID) : ArcConceptAs<UUID>, ChronicleConceptAs<UUID> {
+                override fun value(): UUID = id
+                override val value: UUID get() = id
             }
             data class AuthorRegistered(val name: String = "")
             data class Author(val id: String = "", val name: String = "")
@@ -1880,10 +1881,10 @@ class JavaFixture:
 JAVA_FIXTURES: dict[str, JavaFixture] = {
     "capstone": JavaFixture(
         types=("AuthorId", "AuthorRegistered", "Author", "AuthorReducer"),
-        imports=(JAVA_IMPORT_CONCEPT_AS,),
+        imports=(JAVA_IMPORT_CONCEPT_AS, JAVA_IMPORT_UUID),
         declarations="""
-            public record AuthorId(String value) implements ConceptAs<String>, io.cratis.chronicle.concepts.ConceptAs<String> {
-                public String getValue() { return value; }
+            public record AuthorId(UUID value) implements ConceptAs<UUID>, io.cratis.chronicle.concepts.ConceptAs<UUID> {
+                public UUID getValue() { return value; }
             }
             public record AuthorRegistered(String name) { }
             public record Author(String id, String name) { }
