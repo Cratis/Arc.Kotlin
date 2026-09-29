@@ -3,7 +3,7 @@
 
 # Java Chronicle Spring Boot sample
 
-This optional ordinary-Java sample combines generated Arc endpoints with the Chronicle Spring Boot starter that `io.cratis:arc-chronicle-spring-boot-starter` brings in (Chronicle.Kotlin 6.7.0 by default). It uses `CompletionStage` command/query handlers, the public Arc concurrency builder bridge, and the required `x-cratis-tenant-id` header. The configured `ArcJavaChronicleSample` event store is resolved in exactly that namespace with no default tenant fallback.
+This optional ordinary-Java sample combines generated Arc endpoints with the Chronicle Spring Boot starter that `io.cratis:arc-chronicle-spring-boot-starter` brings in (Chronicle.Kotlin 6.9.0 by default). It uses `CompletionStage` command/query handlers, the public Arc concurrency builder bridge, and the required `x-cratis-tenant-id` header. The configured `ArcJavaChronicleSample` event store is resolved in exactly that namespace with no default tenant fallback.
 
 ## Run it
 

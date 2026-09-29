@@ -7,6 +7,7 @@ import io.cratis.chronicle.projections.FromEvent;
 import io.cratis.chronicle.projections.RemovedWith;
 import io.cratis.chronicle.readModels.Passive;
 import io.cratis.chronicle.readModels.ReadModel;
+import java.time.Instant;
 
 /** The Java tab's passive decision model, resolved on demand by the command key. */
 @ReadModel
@@ -18,5 +19,5 @@ import io.cratis.chronicle.readModels.ReadModel;
 public class JavaPendingReservation {
     public ISBN isbn = ISBN.Companion.getNOT_SET();
     public MemberId memberId = MemberId.Companion.getNOT_SET();
-    public long expiresAt;
+    public Instant expiresAt = Instant.EPOCH;
 }

@@ -7,6 +7,7 @@ import io.cratis.chronicle.projections.FromEvent;
 import io.cratis.chronicle.projections.FromEventSourceId;
 import io.cratis.chronicle.projections.RemovedWith;
 import io.cratis.chronicle.readModels.ReadModel;
+import java.time.Instant;
 
 /** The Java tab's to-do list: an active projection that maps the key with {@code @FromEventSourceId}. */
 @ReadModel
@@ -17,5 +18,5 @@ import io.cratis.chronicle.readModels.ReadModel;
 public class JavaReservationDueForExpiry {
     @FromEventSourceId
     public String id = "";
-    public long expiresAt;
+    public Instant expiresAt = Instant.EPOCH;
 }

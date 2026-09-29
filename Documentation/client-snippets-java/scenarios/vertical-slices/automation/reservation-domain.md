@@ -1,6 +1,7 @@
 ```java
 import io.cratis.arc.concepts.ConceptAs;
 import io.cratis.chronicle.events.EventType;
+import java.time.Instant;
 import java.util.UUID;
 
 // Reservations/ReservationId.java
@@ -30,9 +31,8 @@ public record ISBN(String value) implements ConceptAs<String>, io.cratis.chronic
 
 // Reservations/BookReserved.java
 /** Records a book held for a member until the collection deadline. */
-// Deadlines are epoch milliseconds: the JVM Chronicle client cannot append java.time values yet.
 @EventType
-public record BookReserved(ISBN isbn, MemberId memberId, long expiresAt) { }
+public record BookReserved(ISBN isbn, MemberId memberId, Instant expiresAt) { }
 
 // Reservations/ReservationCancelled.java
 /** Records that a reservation was canceled without collection. */

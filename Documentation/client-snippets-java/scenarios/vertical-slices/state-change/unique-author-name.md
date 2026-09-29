@@ -1,3 +1,19 @@
-```text
-Java does not support this workflow yet: a Chronicle.Kotlin unique constraint covers a single event property, so it cannot guard the first-name and last-name combination this rule needs. Track https://github.com/Cratis/Chronicle.Kotlin/issues/101.
+```java
+import io.cratis.chronicle.constraints.Constraint;
+import io.cratis.chronicle.constraints.IConstraint;
+import io.cratis.chronicle.constraints.IConstraintBuilder;
+import io.cratis.chronicle.java.UniqueConstraintBuilderJavaBridge;
+
+// Authors/Registration/UniqueAuthorName.java
+@Constraint
+public class UniqueAuthorName implements IConstraint {
+    @Override
+    public void define(IConstraintBuilder builder) {
+        builder.unique(unique -> {
+            UniqueConstraintBuilderJavaBridge
+                .on(unique, AuthorRegistered.class, "firstName", "lastName")
+                .withMessage("An author with that name is already registered");
+        });
+    }
+}
 ```

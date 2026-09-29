@@ -27,7 +27,7 @@ import java.util.UUID
 @RemovedWith(ReservationExpired::class)
 data class ReservationDueForExpiry(
     @FromEventSourceId val id: String = "",
-    val expiresAt: Long = 0
+    val expiresAt: Instant = Instant.EPOCH
 )
 
 @ReadModel
@@ -39,7 +39,7 @@ data class ReservationDueForExpiry(
 data class PendingReservation(
     val isbn: ISBN = ISBN.NOT_SET,
     val memberId: MemberId = MemberId.NOT_SET,
-    val expiresAt: Long = 0
+    val expiresAt: Instant = Instant.EPOCH
 )
 
 // ─── Events ───────────────────────────────────────────────────────────────────
@@ -50,7 +50,7 @@ data class ReservationExpired(val isbn: ISBN, val memberId: MemberId)
 
 /** Records the scheduler's daily opportunity to check overdue reservations. */
 @EventType
-data class DailyTick(val occurredAt: Long)
+data class DailyTick(val occurredAt: Instant)
 
 // ─── Command ──────────────────────────────────────────────────────────────────
 
@@ -60,7 +60,7 @@ data class CancelExpiredReservation(@CommandKey val reservationId: ReservationId
     fun provide(): Instant = Instant.now()
 
     fun handle(now: Instant, reservation: PendingReservation?): ReservationExpired? {
-        if (reservation == null || reservation.expiresAt > now.toEpochMilli()) {
+        if (reservation == null || reservation.expiresAt > now) {
             return null
         }
 

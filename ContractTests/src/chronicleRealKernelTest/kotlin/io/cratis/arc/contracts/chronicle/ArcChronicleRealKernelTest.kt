@@ -76,7 +76,7 @@ class ArcChronicleRealKernelTest {
     // Re-enabling this also means returning the samples' allAuthors to the observable
     // materialized.observeInstances / observeMaterializedInstancesPublisher; they are snapshots meanwhile.
     @Test
-    @Disabled("Materialized ObserveInstances never emits a live page: MissingIdMapping on MongoDB, empty snapshots on InMemory (Cratis/Chronicle#4365); the client also asks for the second page (Cratis/Chronicle.Kotlin#106)")
+    @Disabled("Materialized ObserveInstances never emits a live page: MissingIdMapping on MongoDB, empty snapshots on InMemory (Cratis/Chronicle#4365)")
     fun `generated Kotlin and Java author queries emit after registration`() = runBlocking {
         for ((jarProperty, storeName, queryName) in listOf(
             Triple("arc.chronicle.kotlinSample.jar", "ArcKotlinChronicleSample", "io.cratis.arc.samples.kotlin.chronicle.Author.allAuthors"),
@@ -138,8 +138,8 @@ class ArcChronicleRealKernelTest {
             val member = MemberId(UUID.randomUUID())
             val due = UUID.randomUUID().toString()
             val later = UUID.randomUUID().toString()
-            val dueAt = Instant.parse("2026-01-01T00:00:00Z").toEpochMilli()
-            val laterAt = Instant.parse("2026-02-01T00:00:00Z").toEpochMilli()
+            val dueAt = Instant.parse("2026-01-01T00:00:00Z")
+            val laterAt = Instant.parse("2026-02-01T00:00:00Z")
             assertTrue(store.eventLog.append(due, BookReserved(ISBN("978-0-00-000001-1"), member, dueAt)).isSuccess)
             assertTrue(store.eventLog.append(later, BookReserved(ISBN("978-0-00-000002-2"), member, laterAt)).isSuccess)
 
@@ -180,8 +180,8 @@ class ArcChronicleRealKernelTest {
     /**
      * The author-list snapshot behind the Kotlin and Java tabs of the capstone and the State View page:
      * `readModels.getInstances` returns the projected author. The sink-backed
-     * `readModels.materialized.getInstances(type, 0, 50)` is not used there: in Chronicle.Kotlin 6.7.0 it
-     * asks the kernel for the second page and returns an empty list (Cratis/Chronicle.Kotlin#106).
+     * `readModels.materialized.getInstances(type, 0, 50)` also pages correctly since Chronicle.Kotlin 6.9.0
+     * (Cratis/Chronicle.Kotlin#106); the snapshot API is what the pages show, so it is what this checks.
      */
     @Test
     fun `author list snapshot returns the projected author`() = runBlocking {
