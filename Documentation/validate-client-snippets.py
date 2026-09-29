@@ -1398,6 +1398,13 @@ SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
             class PersonView(val id: String)
         """,
     ),
+    "guides/read-model-naming/chronicle-policy": SnippetContext(
+        imports=(
+            "import io.cratis.chronicle.readModels.ReadModelNamingPolicy",
+            "import org.springframework.context.annotation.Bean",
+            "import org.springframework.context.annotation.Configuration",
+        ),
+    ),
     "scenarios/provide-data-to-a-command/assess-loan": SnippetContext(
         kind="declaration",
         fixtures=("loan",),
@@ -3165,6 +3172,13 @@ JAVA_SNIPPET_CONTEXTS: dict[str, JavaSnippetContext] = {
                 String id;
             }
         """,
+    ),
+    "guides/read-model-naming/chronicle-policy": JavaSnippetContext(
+        imports=(
+            "import io.cratis.chronicle.readModels.ReadModelNamingPolicy;",
+            "import org.springframework.context.annotation.Bean;",
+            "import org.springframework.context.annotation.Configuration;",
+        ),
     ),
     "scenarios/provide-data-to-a-command/assess-loan": JavaSnippetContext(
         fixtures=("loan",),

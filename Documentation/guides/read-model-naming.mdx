@@ -1,6 +1,6 @@
 ---
 title: Read-model naming policy
-description: Control how Arc derives MongoDB collection names from read-model types, and override the default for types where the kernel and the JVM inflector disagree.
+description: Control how Arc derives MongoDB collection names from read-model types, how the same names reach Chronicle projections, and how to override the default for types where the kernel and the JVM inflector disagree.
 ---
 
 ## How Arc names read-model collections
@@ -20,9 +20,23 @@ When Arc resolves a MongoDB read-model collection, it delegates to a `NamingPoli
 
 Setting `pluralizeReadModelNames = false` returns the simple class name unchanged.
 
-## The Chronicle Kernel is authoritative
+## Chronicle projections use the same names
 
-Pluralization on the JVM uses Evo Inflector, a different library from the Humanizer library used by the .NET Chronicle Kernel. The two libraries agree on most common English nouns, but where they disagree on a specific noun the kernel is authoritative. The built-in corrections cover only the nouns measured so far; for any other noun that differs, the application must override the naming policy for that type so that the JVM reads from the collection the kernel writes to.
+With the Chronicle integration (`io.cratis:arc-chronicle-spring-boot-starter`, or `io.cratis:cratis`) next to the MongoDB integration, Arc's `NamingPolicy` also names the collection Chronicle projects each read model into. The integration adapts the single `NamingPolicy` bean into a Chronicle `ReadModelNamingPolicy` bean, and the Chronicle Spring Boot starter gives that bean to the `ChronicleOptions` it builds. A projected `Author` therefore lands in `Authors`, the collection Arc reads by default, with no configuration:
+
+- The default `DefaultNamingPolicy` flows through, and so does a custom `NamingPolicy` bean that replaces it.
+- The policy names only the collection. The read model identifier, and everything keyed on it (projections, reducers, observers), is unchanged, and an explicit `@ReadModel(id = ...)` no longer changes the collection name.
+- Declare your own `ReadModelNamingPolicy` bean to name Chronicle's collections differently. It wins over the adapter, and Arc keeps reading through its `NamingPolicy`, so keep the two consistent.
+- Without a `NamingPolicy` bean, which means without the MongoDB integration, Chronicle keeps naming the collection after the read model identifier.
+- An application that declares its own `ChronicleOptions` bean builds the options itself, so it must call `withReadModelNamingPolicy` there.
+
+<ArcBackendTabs snippet="guides/read-model-naming/chronicle-policy" variants="kotlin,java" />
+
+Existing data does not follow a renamed collection. Chronicle does not move or delete documents when a read model's collection name changes, so a read model already projected under an earlier name stays in its old collection. Replay the projection to fill the new collection, and drop the old one yourself when you no longer need it.
+
+## The Chronicle Kernel is authoritative for .NET clients
+
+Pluralization on the JVM uses Evo Inflector, a different library from the Humanizer library used by the .NET Chronicle client. The two libraries agree on most common English nouns, but where they disagree on a specific noun, a collection written by a .NET client follows Humanizer. The built-in corrections cover only the nouns measured so far; for any other noun that differs, override the naming policy for that type so that Arc reads the collection the .NET client writes to. Read models projected through the JVM Chronicle integration need no such correction, because Chronicle then uses Arc's policy for the collection name.
 
 The cases pinned by `DefaultNamingPolicyTests` record what Evo Inflector actually produces. A library upgrade that changes a plural will fail those tests rather than silently moving a collection name.
 

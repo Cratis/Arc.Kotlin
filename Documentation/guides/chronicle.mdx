@@ -116,6 +116,10 @@ Resolution uses the generated command key and the captured tenant store. A value
 
 The same artifact list configures `ChronicleReadModelInterceptor`. Before one-shot or observable query data leaves the pipeline, each matching read-model value is passed through Chronicle's `readModels.release(...)` operation for compliance-protected data. Collection items are intercepted individually, and the tenant store must match the captured query namespace.
 
+## Name read model collections
+
+When Arc's MongoDB integration is present, its `NamingPolicy` also names the collection Chronicle projects each read model into, so a projected `Author` lands in `Authors`, the collection Arc reads by default. The Chronicle integration adapts the single `NamingPolicy` bean into a Chronicle `ReadModelNamingPolicy` bean unless the application declares one, and the Chronicle starter applies it to the `ChronicleOptions` it builds. See [read-model naming](read-model-naming.mdx#chronicle-projections-use-the-same-names).
+
 ## Execute reactor command side effects
 
 `ChronicleCommandSideEffectHandler` explicitly hands one command or a non-empty nested command aggregate from a Chronicle reactor to Arc's real `CommandPipeline`. It accepts `CommandResponseValues`, `ArcOneOf`, Kotlin tuples, iterables, and arrays only when every leaf is a registered command. Commands run sequentially in declaration order and stop at the first failed result. These reactor side-effect calls are independent top-level command executions; earlier commands remain durable if a later one fails. `executeAsync(...)` exposes the same contract as a Java `CompletionStage`.
