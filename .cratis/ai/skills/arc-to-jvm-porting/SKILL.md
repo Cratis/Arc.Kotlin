@@ -35,7 +35,7 @@ git -C "$ARC" rev-parse --abbrev-ref HEAD
 There is no version file to cite: `Source/DotNET/Directory.Build.props` hardcodes a
 placeholder `1.0.0`, and real package versions are injected from release tags by
 `.github/workflows/publish.yml`. The sha plus `describe --tags` output *is* the pin. Put it in
-your notes, in the PR body, and in any parity edit that results.
+your notes, in a pull request comment (never the description), and in any parity edit that results.
 
 Locate four artifacts, not one — implementation, its specs, its documentation, and its
 generated or wire contract:
@@ -133,7 +133,7 @@ already has — inventing a second bridge for the same concept is a defect, not 
 | Handlebars `.hbs` proxy templates | `GradlePlugin/src/main/kotlin/io/cratis/arc/gradle/TypeScriptProxyGenerator.kt` |
 | ASP.NET tenancy middleware | `Source/src/main/kotlin/io/cratis/arc/tenancy/` resolvers plus Spring request capture |
 
-If genuinely nothing fits, say so explicitly in the PR and propose the new seam as a design
+If genuinely nothing fits, say so explicitly in a pull request comment and propose the new seam as a design
 decision — do not smuggle it in as part of a port.
 
 ## 5. Prove it in both languages
@@ -276,7 +276,7 @@ credit-card constraints stay server-only because the pinned client runtime has n
 
 Done means all of the following, and say so with evidence:
 
-- The pinned Arc .NET sha and `describe --tags` output are recorded in the PR.
+- The pinned Arc .NET sha and `describe --tags` output are recorded in a pull request comment.
 - The written behavior description exists and names anything left unspecified in .NET.
 - Every affected module builds with zero warnings and zero errors.
 - The behavior is exercised from Kotlin **and** from compiled Java.

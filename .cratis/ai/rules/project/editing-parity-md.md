@@ -12,5 +12,5 @@ applyTo: "**/*"
 4. Reflect anything that changed for consumers in `README.md` (the "Current limits" section) and in
    the relevant `Documentation/reference/` page.
 5. Run `./Documentation/verify-markdown.sh`.
-6. In the pull request, name the test, contract test, or sample that justifies each status change,
-   and name anything you did not verify.
+6. In a pull request comment (never the description), name the test, contract test, or sample that
+   justifies each status change, and name anything you did not verify.
