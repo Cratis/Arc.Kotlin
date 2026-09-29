@@ -43,5 +43,5 @@ Consequences for any change to what the processor writes:
    `GradlePlugin` tests that assert acceptance and rejection of each format.
 2. Never write a field the reader rejects, and never relax the reader to accept output you did not
    intend to produce.
-3. The manifest is consumed by released tooling. Treat a version bump as a breaking change and say so
-   in the pull request.
+3. The manifest is consumed by released tooling. Treat a version bump as a breaking change and
+   state the upgrade action as a bullet under `## Changed` in the pull request description.

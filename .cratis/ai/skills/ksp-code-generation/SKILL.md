@@ -91,7 +91,8 @@ So a manifest field change is a lockstep change across four places in one commit
 
 Bumping the version invalidates every previously published manifest, including manifests
 inside dependency jars, because the reader rejects mismatches outright. Prefer an additive,
-validated field over a bump, and say explicitly in the PR which you chose and why.
+validated field over a bump, and say explicitly in a pull request comment which you chose and why (a bump also needs a `## Changed`
+bullet in the description stating the upgrade action).
 
 ## 3. Add the rule with positive and negative fixtures together
 
