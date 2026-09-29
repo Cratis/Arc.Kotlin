@@ -14,7 +14,7 @@ plugins {
 val jacksonVersion = "3.2.2"
 val coroutinesVersion = "1.11.0"
 val jakartaValidationVersion = "3.1.1"
-val slf4jVersion = "2.0.19"
+val slf4jVersion = "2.0.20"
 
 kotlin {
     compilerOptions {
