@@ -642,6 +642,11 @@ SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
     "scenarios/vertical-slices/translator/hr-integration": SnippetContext(
         fixtures=("libraryslices",),
     ),
+    # The Real-Time Chat pages show each chat backend whole, and the Camel Casing page shows the
+    # JVM read-model naming; they declare every type they use, so they need no fixture.
+    "scenarios/chat/in-memory/backend": SnippetContext(),
+    "scenarios/chat/rabbitmq/backend": SnippetContext(),
+    "scenarios/camel-casing/setup": SnippetContext(),
     "capstone/host": SnippetContext(fixtures=("capstone", "capstonescaffold")),
     "capstone/author-id": SnippetContext(),
     "capstone/register-author": SnippetContext(fixtures=("capstone",), hides=("AuthorRegistered",)),
@@ -2313,6 +2318,10 @@ JAVA_SNIPPET_CONTEXTS: dict[str, JavaSnippetContext] = {
     "scenarios/vertical-slices/translator/hr-integration": JavaSnippetContext(
         fixtures=("libraryslices",),
     ),
+    # The Real-Time Chat and Camel Casing pages; see the Kotlin table.
+    "scenarios/chat/in-memory/backend": JavaSnippetContext(),
+    "scenarios/chat/rabbitmq/backend": JavaSnippetContext(),
+    "scenarios/camel-casing/setup": JavaSnippetContext(),
     "capstone/host": JavaSnippetContext(fixtures=("capstone", "capstonescaffold")),
     "capstone/author-id": JavaSnippetContext(),
     "capstone/register-author": JavaSnippetContext(fixtures=("capstone",), hides=("AuthorRegistered",)),
