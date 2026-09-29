@@ -3,7 +3,7 @@
 
 # Kotlin Chronicle Spring Boot sample
 
-This optional sample combines generated Arc endpoints with the Chronicle Spring Boot starter that `io.cratis:arc-chronicle-spring-boot-starter` brings in (Chronicle.Kotlin 6.9.0 by default). It uses the required `x-cratis-tenant-id` header and resolves the same `ArcKotlinChronicleSample` event store in that exact namespace; there is no default tenant fallback.
+This optional sample combines generated Arc endpoints with the Chronicle Spring Boot starter that `io.cratis:arc-chronicle-spring-boot-starter` brings in (Chronicle.Kotlin 6.10.0 by default). It uses the required `x-cratis-tenant-id` header and resolves the same `ArcKotlinChronicleSample` event store in that exact namespace; there is no default tenant fallback.
 
 ## Run it
 

@@ -21,7 +21,7 @@ dependencies {
 }
 ```
 
-Either starter transitively includes `io.cratis:chronicle-spring-boot-starter` and follows its Spring Boot bean backoff conventions. The current integration depends on Chronicle.Kotlin 6.9.0; the compatibility gate below runs it against kernel 19.21.1. The Chronicle client checks the kernel contracts during connection and refuses incompatible servers. Configure `cratis.chronicle.event-store`; Chronicle then supplies the conventional client and `IEventStore` beans while Arc adds tenant-aware event-store resolution, a staged command scope, response handlers, read-model adapters, and a reactor command-side-effect helper.
+Either starter transitively includes `io.cratis:chronicle-spring-boot-starter` and follows its Spring Boot bean backoff conventions. The current integration depends on Chronicle.Kotlin 6.10.0; the compatibility gate below runs it against kernel 19.21.1. The Chronicle client checks the kernel contracts during connection and refuses incompatible servers. Configure `cratis.chronicle.event-store`; Chronicle then supplies the conventional client and `IEventStore` beans while Arc adds tenant-aware event-store resolution, a staged command scope, response handlers, read-model adapters, and a reactor command-side-effect helper.
 
 ## Run the complete Kotlin and Java samples
 
