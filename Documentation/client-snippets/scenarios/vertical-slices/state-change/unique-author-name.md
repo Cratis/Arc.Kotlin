@@ -1,3 +1,17 @@
-```text
-Kotlin does not support this workflow yet: a Chronicle.Kotlin unique constraint covers a single event property, so it cannot guard the first-name and last-name combination this rule needs. Track https://github.com/Cratis/Chronicle.Kotlin/issues/101.
+```kotlin
+import io.cratis.chronicle.constraints.Constraint
+import io.cratis.chronicle.constraints.IConstraint
+import io.cratis.chronicle.constraints.IConstraintBuilder
+
+// Authors/Registration/Registration.kt (continued)
+@Constraint
+class UniqueAuthorName : IConstraint {
+    override fun define(builder: IConstraintBuilder) {
+        builder.unique { unique ->
+            unique
+                .on(AuthorRegistered::class, AuthorRegistered::firstName, AuthorRegistered::lastName)
+                .withMessage("An author with that name is already registered")
+        }
+    }
+}
 ```

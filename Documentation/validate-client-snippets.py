@@ -643,6 +643,12 @@ SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
     "scenarios/vertical-slices/translator/hr-integration": SnippetContext(
         fixtures=("libraryslices",),
     ),
+    "scenarios/vertical-slices/state-change/unique-author-name": SnippetContext(
+        fixtures=("libraryslices",),
+    ),
+    "scenarios/vertical-slices/translator/unique-member-name": SnippetContext(
+        fixtures=("libraryslices",),
+    ),
     # The Real-Time Chat pages show each chat backend whole, and the Camel Casing page shows the
     # JVM read-model naming; they declare every type they use, so they need no fixture.
     "scenarios/chat/in-memory/backend": SnippetContext(),
@@ -2328,6 +2334,12 @@ JAVA_SNIPPET_CONTEXTS: dict[str, JavaSnippetContext] = {
         hides=("MemberRegistered", "RegisterMember"),
     ),
     "scenarios/vertical-slices/translator/hr-integration": JavaSnippetContext(
+        fixtures=("libraryslices",),
+    ),
+    "scenarios/vertical-slices/state-change/unique-author-name": JavaSnippetContext(
+        fixtures=("libraryslices",),
+    ),
+    "scenarios/vertical-slices/translator/unique-member-name": JavaSnippetContext(
         fixtures=("libraryslices",),
     ),
     # The Real-Time Chat and Camel Casing pages; see the Kotlin table.
