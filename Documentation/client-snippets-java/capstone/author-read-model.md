@@ -6,14 +6,14 @@ import io.cratis.chronicle.java.ReadModelsJavaBridge;
 import io.cratis.chronicle.observation.Reducer;
 import io.cratis.chronicle.IEventStore;
 import java.util.List;
-import java.util.concurrent.Flow;
 
 @io.cratis.arc.artifacts.ReadModel
 @io.cratis.chronicle.readModels.ReadModel
 @AllowAnonymous
 public record Author(String id, String name) {
-    public static Flow.Publisher<List<Author>> allAuthors(@FromServices IEventStore store) {
-        return ReadModelsJavaBridge.observeMaterializedInstancesPublisher(store.getReadModels(), Author.class, 0, 50);
+    public static List<Author> allAuthors(@FromServices IEventStore store) {
+        // A snapshot: live updates wait on https://github.com/Cratis/Chronicle/issues/4365
+        return ReadModelsJavaBridge.getInstances(store.getReadModels(), Author.class);
     }
 }
 

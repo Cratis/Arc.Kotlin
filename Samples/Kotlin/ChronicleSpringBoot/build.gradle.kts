@@ -68,11 +68,11 @@ val generateArcProxies by tasks.registering(JavaExec::class) {
         listOf("CreateTask.ts", "RenameTask.ts", "TaskView.ts", "ById.ts", "All.ts", "Author.ts", "RegisterAuthor.ts", "AllAuthors.ts").forEach { name ->
             check(arcProxyDirectory.get().file(name).asFile.isFile) { "Expected generated proxy '$name'." }
         }
-        check("id?: string" in arcProxyDirectory.get().file("RegisterAuthor.ts").asFile.readText()) {
-            "Kotlin author id must be string-backed in the generated command proxy."
+        check("id?: Guid" in arcProxyDirectory.get().file("RegisterAuthor.ts").asFile.readText()) {
+            "Kotlin author id must be UUID-backed, a Guid in the generated command proxy."
         }
-        check("extends ObservableQueryFor<Author[]>" in arcProxyDirectory.get().file("AllAuthors.ts").asFile.readText()) {
-            "Kotlin authors query must be observable in the generated proxy."
+        check("extends QueryFor<Author[]" in arcProxyDirectory.get().file("AllAuthors.ts").asFile.readText()) {
+            "Kotlin authors query must be a snapshot until Cratis/Chronicle#4365 is fixed."
         }
         listOf("CreateTask" to "ICreateTask", "RenameTask" to "IRenameTask").forEach { (name, contract) ->
             val source = arcProxyDirectory.get().file("$name.ts").asFile.readText()

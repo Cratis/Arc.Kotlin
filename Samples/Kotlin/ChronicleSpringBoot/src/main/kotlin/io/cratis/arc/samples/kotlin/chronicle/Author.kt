@@ -12,7 +12,6 @@ import io.cratis.arc.queries.QueryContext
 import io.cratis.chronicle.events.EventContext
 import io.cratis.chronicle.observation.Reducer
 import io.cratis.chronicle.readModels.ReadModel as ChronicleReadModel
-import kotlinx.coroutines.flow.Flow
 
 @ArcReadModel
 @ChronicleReadModel
@@ -21,11 +20,12 @@ public data class Author(val id: String = "", val name: String = "") {
     public companion object {
         @JvmStatic
         @Path("/api/authors")
-        public fun allAuthors(context: QueryContext, @FromServices resolver: TenantEventStoreResolver): Flow<List<Author>> {
+        public suspend fun allAuthors(context: QueryContext, @FromServices resolver: TenantEventStoreResolver): List<Author> {
             val namespace = requireNotNull(context.tenantNamespace) { "A tenant namespace is required." }
             val store = requireNotNull(resolver.resolve(namespace)) { "No event store for '$namespace'." }
             check(store.namespace == namespace) { "Unexpected event store namespace '${store.namespace}'." }
-            return store.readModels.materialized.observeInstances(Author::class, 0, 50)
+            // A snapshot: live updates wait on Cratis/Chronicle#4365.
+            return store.readModels.getInstances(Author::class)
         }
     }
 }

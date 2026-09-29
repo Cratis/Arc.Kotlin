@@ -1,8 +1,9 @@
 ```java
 import io.cratis.arc.concepts.ConceptAs;
+import java.util.UUID;
 
-public record AuthorId(String value) implements ConceptAs<String>, io.cratis.chronicle.concepts.ConceptAs<String> {
+public record AuthorId(UUID value) implements ConceptAs<UUID>, io.cratis.chronicle.concepts.ConceptAs<UUID> {
     @Override
-    public String getValue() { return value; }
+    public UUID getValue() { return value; }
 }
 ```

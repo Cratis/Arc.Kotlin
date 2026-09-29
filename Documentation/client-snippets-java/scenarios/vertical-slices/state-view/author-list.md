@@ -1,13 +1,12 @@
 ```java
 import io.cratis.arc.artifacts.FromServices;
 import io.cratis.arc.authorization.AllowAnonymous;
+import io.cratis.chronicle.IEventStore;
 import io.cratis.chronicle.events.EventContext;
 import io.cratis.chronicle.events.EventType;
+import io.cratis.chronicle.java.ReadModelsJavaBridge;
 import io.cratis.chronicle.observation.Reducer;
-import io.cratis.chronicle.spring.Chronicle;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionStage;
 
 @EventType
 public record AuthorRegistered(AuthorName firstName, AuthorName lastName) { }
@@ -16,8 +15,9 @@ public record AuthorRegistered(AuthorName firstName, AuthorName lastName) { }
 @io.cratis.chronicle.readModels.ReadModel
 @AllowAnonymous
 public record Author(String id, AuthorName firstName, AuthorName lastName) {
-    public static CompletionStage<List<Author>> allAuthors(@FromServices Chronicle chronicle) {
-        return CompletableFuture.completedFuture(chronicle.readModels(Author.class));
+    public static List<Author> allAuthors(@FromServices IEventStore store) {
+        // A snapshot: live updates wait on https://github.com/Cratis/Chronicle/issues/4365
+        return ReadModelsJavaBridge.getInstances(store.getReadModels(), Author.class);
     }
 }
 
