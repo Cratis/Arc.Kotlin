@@ -21,7 +21,7 @@ dependencies {
 }
 ```
 
-Either starter transitively includes `io.cratis:chronicle-spring-boot-starter` and follows its Spring Boot bean backoff conventions. The current integration depends on Chronicle.Kotlin 6.9.0; the compatibility gate below runs it against kernel 19.21.1. The Chronicle client checks the kernel contracts during connection and refuses incompatible servers. Configure `cratis.chronicle.event-store`; Chronicle then supplies the conventional client and `IEventStore` beans while Arc adds tenant-aware event-store resolution, a staged command scope, response handlers, read-model adapters, and a reactor command-side-effect helper.
+Either starter transitively includes `io.cratis:chronicle-spring-boot-starter` and follows its Spring Boot bean backoff conventions. The current integration depends on Chronicle.Kotlin 6.10.0; the compatibility gate below runs it against kernel 19.21.1. The Chronicle client checks the kernel contracts during connection and refuses incompatible servers. Configure `cratis.chronicle.event-store`; Chronicle then supplies the conventional client and `IEventStore` beans while Arc adds tenant-aware event-store resolution, a staged command scope, response handlers, read-model adapters, and a reactor command-side-effect helper.
 
 ## Run the complete Kotlin and Java samples
 
@@ -115,6 +115,10 @@ When `ChronicleOptions` lists read-model artifacts, the integration declares tho
 Resolution uses the generated command key and the captured tenant store. A value produced by `provide` still has precedence. Once the ownership registry claims a read-model type, it resolves before ordinary Spring services so a model bean cannot bypass tenant/key selection. A missing model leaves the dependency unresolved; an invalid key or unavailable/mismatched store fails the command rather than falling through to another store. Chronicle claims declared ownership only for its discovered types, so Arc can arbitrate them against custom or Spring Data resolvers deterministically.
 
 The same artifact list configures `ChronicleReadModelInterceptor`. Before one-shot or observable query data leaves the pipeline, each matching read-model value is passed through Chronicle's `readModels.release(...)` operation for compliance-protected data. Collection items are intercepted individually, and the tenant store must match the captured query namespace.
+
+## Name read model collections
+
+When Arc's MongoDB integration is present, its `NamingPolicy` also names the collection Chronicle projects each read model into, so a projected `Author` lands in `Authors`, the collection Arc reads by default. The Chronicle integration adapts the single `NamingPolicy` bean into a Chronicle `ReadModelNamingPolicy` bean unless the application declares one, and the Chronicle starter applies it to the `ChronicleOptions` it builds. See [read-model naming](read-model-naming.mdx#chronicle-projections-use-the-same-names).
 
 ## Execute reactor command side effects
 

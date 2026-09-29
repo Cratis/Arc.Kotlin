@@ -17,13 +17,16 @@ import io.cratis.arc.commands.CommandHandlerRegistry
 import io.cratis.arc.commands.CommandPipeline
 import io.cratis.arc.commands.CommandResponseValueHandler
 import io.cratis.arc.commands.ServiceResolver
+import io.cratis.arc.naming.NamingPolicy
 import io.cratis.arc.springboot.ArcApplicationCoroutineScope
 import io.cratis.chronicle.ChronicleOptions
 import io.cratis.chronicle.IEventStore
+import io.cratis.chronicle.readModels.ReadModelNamingPolicy
 import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
+import org.springframework.boot.autoconfigure.condition.ConditionalOnSingleCandidate
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.context.annotation.Bean
 
@@ -31,11 +34,29 @@ import org.springframework.context.annotation.Bean
 @AutoConfiguration(
     afterName = [
         "io.cratis.arc.springboot.ArcAutoConfiguration",
+        "io.cratis.arc.springdata.mongodb.springboot.ArcSpringDataMongoAutoConfiguration",
         "io.cratis.chronicle.spring.ChronicleAutoConfiguration"
     ]
 )
 @ConditionalOnClass(IEventStore::class, CommandResponseValueHandler::class)
 public class ChronicleArcAutoConfiguration {
+    /**
+     * Names each Chronicle read model's container with Arc's [NamingPolicy], so a projection lands in the
+     * collection Arc reads it from.
+     *
+     * Chronicle's Spring Boot starter gives the single [ReadModelNamingPolicy] bean to the
+     * [ChronicleOptions] it builds. This bean is registered only when exactly one Arc [NamingPolicy]
+     * exists — the MongoDB integration's default or an application's own — and the application has not
+     * declared a [ReadModelNamingPolicy] of its own. The policy names the container only; the read model
+     * identifier is unchanged. Ordering after the MongoDB auto-configuration is what lets the
+     * [NamingPolicy] condition see its default bean.
+     */
+    @Bean
+    @ConditionalOnSingleCandidate(NamingPolicy::class)
+    @ConditionalOnMissingBean(ReadModelNamingPolicy::class)
+    public fun arcReadModelNamingPolicy(namingPolicy: NamingPolicy): ReadModelNamingPolicy =
+        ReadModelNamingPolicy { readModelClass -> namingPolicy.getReadModelName(readModelClass) }
+
     /** Resolves tenant stores from an optional provider and the default Chronicle store. */
     @Bean
     @ConditionalOnBean(IEventStore::class)
