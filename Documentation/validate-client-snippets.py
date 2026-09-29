@@ -2309,10 +2309,11 @@ JAVA_SNIPPET_CONTEXTS: dict[str, JavaSnippetContext] = {
         hides=("AuthorRegistered", "RegisterAuthor"),
     ),
     "scenarios/vertical-slices/state-change/register-author-spec": JavaSnippetContext(
-        # The generated artifact module is imported by the context: the page shows the
-        # application's own `io.cratis.arc.generated` import, which only KSP produces.
-        fixtures=("libraryslices", "generatedmodule"),
-        imports=(JAVA_IMPORT_GENERATED_MODULE,),
+        # The snippet imports the generated module from `io.cratis.arc.generated` like its
+        # Kotlin twin, which resolves to the Kotlin `generatedmodule` fixture compiled into
+        # the same source set; the Java fixture's same-named type would clash with that
+        # import, so it is not listed.
+        fixtures=("libraryslices",),
     ),
     "scenarios/vertical-slices/automation/reservation-domain": JavaSnippetContext(
         fixtures=("libraryslices",),
@@ -3224,23 +3225,16 @@ JAVA_SNIPPET_CONTEXTS: dict[str, JavaSnippetContext] = {
     ),
     "scenarios/test-a-command/spec": JavaSnippetContext(
         # The command under test is a prelude rather than a second file, because Java's
-        # one-public-type-per-file rule makes a whole-file snippet the wrong shape here.
-        # The context imports only what the prelude needs and the generated module the
-        # snippet does not import; everything else the snippet imports itself.
-        fixtures=("concepts", "generatedmodule"),
-        imports=(JAVA_IMPORT_COMMAND, JAVA_IMPORT_GENERATED_MODULE),
-        prelude="""
-            interface AuthorRegistration {
-                void register(AuthorId id, AuthorName name);
-            }
-
-            @Command
-            record RecordAuthor(AuthorId id, AuthorName name) {
-                void handle(AuthorRegistration registration) {
-                    registration.register(id, name);
-                }
-            }
-        """,
+        # one-public-type-per-file rule makes a whole-file snippet the wrong shape here. It is
+        # read from the command-under-test snippet shown beside it, so the spec compiles
+        # against the real command. A prelude carries the source's own declarations but not
+        # its context, so the fixtures and imports that snippet relies on are listed here. The
+        # snippet imports the generated module from `io.cratis.arc.generated`, which resolves
+        # to the Kotlin `generatedmodule` fixture; the Java fixture's same-named type would
+        # clash with that import, so it is not listed.
+        fixtures=("concepts",),
+        imports=(JAVA_IMPORT_COMMAND, *JAVA_BLOCKING_VALIDATOR_IMPORTS),
+        prelude_from="scenarios/test-a-command/command-under-test",
     ),
     "testing-with-cratis/register-author": JavaSnippetContext(),
     "testing-with-cratis/register-author-spec": JavaSnippetContext(
@@ -4151,8 +4145,9 @@ def self_test_java_prelude_from(java: list[Snippet]) -> int:
         snippet for snippet in java
         if JAVA_SNIPPET_CONTEXTS.get(snippet.identifier, JavaSnippetContext()).prelude_from]
     if not dependents:
-        print("Self-test (java prelude_from): no Java snippet takes its prelude from another; skipped.")
-        return 0
+        raise SnippetError(
+            "Self-test (java prelude_from): no Java snippet takes its prelude from another, so the "
+            "prelude_from check has become vacuous; restore a prelude_from context or remove the check")
 
     marker = "// --self-test planted defect: prelude_from source marker"
     for dependent in dependents:
