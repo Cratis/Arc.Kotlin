@@ -1,6 +1,12 @@
 ```java
 import io.cratis.arc.testing.CommandScenario;
 import io.cratis.arc.testing.java.BlockingCommandScenario;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class WhenRecordingAnAuthor {
     @Test
