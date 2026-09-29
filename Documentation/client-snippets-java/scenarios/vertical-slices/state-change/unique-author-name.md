@@ -9,9 +9,11 @@ import io.cratis.chronicle.java.UniqueConstraintBuilderJavaBridge;
 public class UniqueAuthorName implements IConstraint {
     @Override
     public void define(IConstraintBuilder builder) {
-        builder.unique(unique -> UniqueConstraintBuilderJavaBridge
-            .on(unique, AuthorRegistered.class, "firstName", "lastName")
-            .withMessage("An author with that name is already registered"));
+        builder.unique(unique -> {
+            UniqueConstraintBuilderJavaBridge
+                .on(unique, AuthorRegistered.class, "firstName", "lastName")
+                .withMessage("An author with that name is already registered");
+        });
     }
 }
 ```
