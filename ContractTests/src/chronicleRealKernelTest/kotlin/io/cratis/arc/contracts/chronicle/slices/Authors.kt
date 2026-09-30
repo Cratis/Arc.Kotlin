@@ -9,8 +9,8 @@ import io.cratis.chronicle.observation.Reducer
 import io.cratis.chronicle.readModels.ReadModel
 
 // The author list behind the Kotlin and Java tabs of the full-stack capstone and the vertical-slice
-// State View page: a reducer keyed by the event source, read back as a snapshot with
-// readModels.getInstances.
+// State View page: a reducer keyed by the event source, observed live through the materialized
+// read models and readable as a snapshot with readModels.getInstances.
 
 @EventType
 data class AuthorRegistered(val name: String = "")

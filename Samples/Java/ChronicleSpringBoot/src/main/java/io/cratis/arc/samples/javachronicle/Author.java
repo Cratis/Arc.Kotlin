@@ -10,13 +10,14 @@ import io.cratis.arc.queries.Path;
 import io.cratis.arc.queries.QueryContext;
 import io.cratis.chronicle.java.ReadModelsJavaBridge;
 import java.util.List;
+import java.util.concurrent.Flow;
 
 @io.cratis.arc.artifacts.ReadModel
 @io.cratis.chronicle.readModels.ReadModel
 @AllowAnonymous
 public record Author(String id, String name) {
     @Path("/api/authors")
-    public static List<Author> allAuthors(
+    public static Flow.Publisher<List<Author>> allAuthors(
         QueryContext context, @FromServices TenantEventStoreResolver resolver
     ) {
         var namespace = context.getTenantNamespace();
@@ -24,7 +25,6 @@ public record Author(String id, String name) {
         var store = resolver.resolve(namespace);
         if (store == null) throw new IllegalStateException("No event store for '" + namespace + "'.");
         if (!namespace.equals(store.getNamespace())) throw new IllegalStateException("Unexpected event store namespace.");
-        // A snapshot: live updates wait on Cratis/Chronicle#4365.
-        return ReadModelsJavaBridge.getInstances(store.getReadModels(), Author.class);
+        return ReadModelsJavaBridge.observeMaterializedInstancesPublisher(store.getReadModels(), Author.class, 0, 50);
     }
 }

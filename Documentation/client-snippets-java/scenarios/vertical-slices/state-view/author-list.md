@@ -7,6 +7,7 @@ import io.cratis.chronicle.events.EventType;
 import io.cratis.chronicle.java.ReadModelsJavaBridge;
 import io.cratis.chronicle.observation.Reducer;
 import java.util.List;
+import java.util.concurrent.Flow;
 
 @EventType
 public record AuthorRegistered(AuthorName firstName, AuthorName lastName) { }
@@ -15,9 +16,8 @@ public record AuthorRegistered(AuthorName firstName, AuthorName lastName) { }
 @io.cratis.chronicle.readModels.ReadModel
 @AllowAnonymous
 public record Author(String id, AuthorName firstName, AuthorName lastName) {
-    public static List<Author> allAuthors(@FromServices IEventStore store) {
-        // A snapshot: live updates wait on https://github.com/Cratis/Chronicle/issues/4365
-        return ReadModelsJavaBridge.getInstances(store.getReadModels(), Author.class);
+    public static Flow.Publisher<List<Author>> allAuthors(@FromServices IEventStore store) {
+        return ReadModelsJavaBridge.observeMaterializedInstancesPublisher(store.getReadModels(), Author.class, 0, 50);
     }
 }
 

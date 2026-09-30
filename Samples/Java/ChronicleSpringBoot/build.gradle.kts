@@ -72,8 +72,8 @@ val generateArcProxies by tasks.registering(JavaExec::class) {
         check("id?: Guid" in arcProxyDirectory.get().file("RegisterAuthor.ts").asFile.readText()) {
             "Java author id must be UUID-backed, a Guid in the generated command proxy."
         }
-        check("extends QueryFor<Author[]" in arcProxyDirectory.get().file("AllAuthors.ts").asFile.readText()) {
-            "Java authors query must be a snapshot until Cratis/Chronicle#4365 is fixed."
+        check("extends ObservableQueryFor<Author[]>" in arcProxyDirectory.get().file("AllAuthors.ts").asFile.readText()) {
+            "Java authors query must be observable in the generated proxy."
         }
         listOf("CreateTask" to "ICreateTask", "RenameTask" to "IRenameTask").forEach { (name, contract) ->
             val source = arcProxyDirectory.get().file("$name.ts").asFile.readText()

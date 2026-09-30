@@ -13,13 +13,13 @@ From this directory, run:
 ./run.sh
 ```
 
-This requires Docker. It starts the pinned `cratis/chronicle:19.21.1-development` kernel, waits for it
+This requires Docker. It starts the pinned `cratis/chronicle:19.22.2-development` kernel, waits for it
 to report healthy, runs the application on `:8080` without the shared frontend, and stops the
 container again on exit. The sample's event store uses an in-memory sink, so no database is needed.
-To use a compatible Chronicle 19.21.1 kernel you already have running on `localhost:35000`, skip `run.sh` and
+To use a compatible Chronicle 19.22.2 kernel you already have running on `localhost:35000`, skip `run.sh` and
 use the manual steps below.
 
-From the repository root, the equivalent manual steps are running a compatible Chronicle 19.21.1
+From the repository root, the equivalent manual steps are running a compatible Chronicle 19.22.2
 development kernel and then `./gradlew :Samples:Java:ChronicleSpringBoot:bootRun` with JDK 17
 active on `JAVA_HOME`/`PATH`.
 
