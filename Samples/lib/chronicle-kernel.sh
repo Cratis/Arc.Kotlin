@@ -2,19 +2,19 @@
 # Shared by Samples/*/ChronicleSpringBoot/run.sh — starts the pinned Chronicle development kernel
 # via Docker, waits for it to report healthy, and stops it again when the sample exits.
 #
-# The samples and ContractTests pin the same Chronicle 19.21.1 development kernel.
+# The samples and ContractTests pin the same Chronicle 19.22.2 development kernel.
 # Keep this image aligned with the version documented in both Chronicle sample READMEs.
 #
 # Source this file; it is not meant to be executed directly.
 
-CHRONICLE_KERNEL_IMAGE="cratis/chronicle:19.21.1-development@sha256:6071390202d556ee0a9262d2993f5bbfde6db9ac893ba6269963e82bb928beb2"
+CHRONICLE_KERNEL_IMAGE="cratis/chronicle:19.22.2-development@sha256:83e33a9ac7b5ded1b31801083498782d370e5b4ac86b7cc2447165b08e48057f"
 
 start_chronicle_kernel() {
     local container_name="$1"
 
     if ! command -v docker &>/dev/null; then
         echo "Error: 'docker' not found in PATH." >&2
-        echo "Install Docker to use ./run.sh --chronicle, or start a compatible Chronicle 19.21.1 kernel" >&2
+        echo "Install Docker to use ./run.sh --chronicle, or start a compatible Chronicle 19.22.2 kernel" >&2
         echo "on localhost:35000 and follow the manual steps in the Kotlin or Java" >&2
         echo "ChronicleSpringBoot sample README (run ./gradlew :Samples:<Language>:ChronicleSpringBoot:bootRun)." >&2
         exit 1
