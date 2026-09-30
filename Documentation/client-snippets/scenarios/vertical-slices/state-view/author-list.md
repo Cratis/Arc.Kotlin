@@ -7,6 +7,7 @@ import io.cratis.chronicle.events.EventContext
 import io.cratis.chronicle.events.EventType
 import io.cratis.chronicle.observation.Reducer
 import io.cratis.chronicle.readModels.ReadModel as ChronicleReadModel
+import kotlinx.coroutines.flow.Flow
 
 @EventType
 data class AuthorRegistered(val firstName: AuthorName, val lastName: AuthorName)
@@ -20,10 +21,9 @@ data class Author(
     val lastName: AuthorName = AuthorName("")
 ) {
     companion object {
-        // A snapshot: live updates wait on https://github.com/Cratis/Chronicle/issues/4365
         @JvmStatic
-        suspend fun allAuthors(@FromServices eventStore: IEventStore): List<Author> =
-            eventStore.readModels.getInstances(Author::class)
+        fun allAuthors(@FromServices eventStore: IEventStore): Flow<List<Author>> =
+            eventStore.readModels.materialized.observeInstances(Author::class, 0, 50)
     }
 }
 
