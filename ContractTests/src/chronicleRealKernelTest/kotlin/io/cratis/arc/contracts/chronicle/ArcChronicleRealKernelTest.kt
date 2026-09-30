@@ -48,7 +48,6 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeAll
-import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
 import org.testcontainers.containers.GenericContainer
 import org.testcontainers.containers.wait.strategy.Wait
@@ -73,10 +72,12 @@ class ArcChronicleRealKernelTest {
         }
     }
 
-    // Re-enabling this also means returning the samples' allAuthors to the observable
-    // materialized.observeInstances / observeMaterializedInstancesPublisher; they are snapshots meanwhile.
+    /**
+     * The samples' `allAuthors` observes materialized read-model instances: the generated register-author
+     * command takes a UUID-backed id (a `Guid` in the proxy), and the generated observable query emits the
+     * current list on subscribe and a new emission once the registered author is projected.
+     */
     @Test
-    @Disabled("Materialized ObserveInstances never emits a live page: MissingIdMapping on MongoDB, empty snapshots on InMemory (Cratis/Chronicle#4365)")
     fun `generated Kotlin and Java author queries emit after registration`() = runBlocking {
         for ((jarProperty, storeName, queryName) in listOf(
             Triple("arc.chronicle.kotlinSample.jar", "ArcKotlinChronicleSample", "io.cratis.arc.samples.kotlin.chronicle.Author.allAuthors"),
@@ -88,34 +89,6 @@ class ArcChronicleRealKernelTest {
             SampleApplication.start(jar, connectionString).use { application ->
                 application.assertLiveAuthors(tenant, UUID.randomUUID().toString().take(8), queryName)
             }
-        }
-    }
-
-    /**
-     * The Kotlin and Java tabs of the capstone end to end: the generated register-author command takes a
-     * UUID-backed id (a `Guid` in the proxy), Chronicle appends under it, and the generated snapshot query
-     * returns the projected author keyed by that id.
-     */
-    @Test
-    fun `generated Kotlin and Java author queries return a registered author as a snapshot`() = runBlocking {
-        try {
-            for ((jarProperty, storeName) in listOf(
-                "arc.chronicle.kotlinSample.jar" to "ArcKotlinChronicleSample",
-                "arc.chronicle.javaSample.jar" to "ArcJavaChronicleSample"
-            )) {
-                val tenant = "snapshot-" + UUID.randomUUID().toString().take(8)
-                provision(storeName, tenant)
-                val jar = checkNotNull(System.getProperty(jarProperty)) { "Missing system property '$jarProperty'." }
-                SampleApplication.start(jar, connectionString).use { application ->
-                    val id = UUID.randomUUID().toString()
-                    val name = "Registered " + id.take(8)
-                    application.postCommand("/api/register-author", tenant, """{"id":"$id","name":"$name"}""")
-                        .shouldSucceedWithoutResponse()
-                    application.awaitAuthor(tenant, id, name)
-                }
-            }
-        } catch (throwable: Throwable) {
-            throw AssertionError("${throwable.message}\nKernel logs:\n${kernel.logs}", throwable)
         }
     }
 
@@ -178,10 +151,9 @@ class ArcChronicleRealKernelTest {
     }
 
     /**
-     * The author-list snapshot behind the Kotlin and Java tabs of the capstone and the State View page:
-     * `readModels.getInstances` returns the projected author. The sink-backed
-     * `readModels.materialized.getInstances(type, 0, 50)` also pages correctly since Chronicle.Kotlin 6.9.0
-     * (Cratis/Chronicle.Kotlin#106); the snapshot API is what the pages show, so it is what this checks.
+     * The reducer behind the Kotlin and Java author lists of the capstone and the State View page: the
+     * projected author is readable as a snapshot with `readModels.getInstances`. The live query over the
+     * same read model is covered by the observable author test above.
      */
     @Test
     fun `author list snapshot returns the projected author`() = runBlocking {
@@ -461,28 +433,6 @@ class ArcChronicleRealKernelTest {
                 .method("QUERY", HttpRequest.BodyPublishers.ofString("""{"arguments":{}}"""))
                 .build()
         )
-
-        /** Polls the snapshot author query until Chronicle has projected the registration. */
-        suspend fun awaitAuthor(tenant: String, id: String, name: String) {
-            var last: Exchange? = null
-            repeat(300) {
-                val response = exchange(
-                    HttpRequest.newBuilder(URI.create("$origin/api/authors"))
-                        .timeout(Duration.ofSeconds(10))
-                        .header("Content-Type", "application/json")
-                        .header(TENANT_HEADER, tenant)
-                        .method("QUERY", HttpRequest.BodyPublishers.ofString("""{"arguments":{}}"""))
-                        .build()
-                )
-                last = response
-                assertEquals(200, response.status, "${response.body}\n$output")
-                assertTrue(response.json.path("isSuccess").asBoolean(), "${response.body}\n$output")
-                if (response.json.path("data").any { it.path("id").asString() == id && it.path("name").asString() == name }) return
-                check(process.isAlive) { "Sample application exited while awaiting the author:\n$output" }
-                delay(200)
-            }
-            throw AssertionError("The author query never returned '$id'. Last response: ${last?.body}\n$output")
-        }
 
         suspend fun awaitTask(tenant: String, id: String, predicate: (JsonNode) -> Boolean): JsonNode {
             var lastResponse: Exchange? = null
