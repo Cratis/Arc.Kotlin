@@ -19,17 +19,22 @@ import com.tschuchort.compiletesting.SourceFile
 import com.tschuchort.compiletesting.kspWithCompilation
 import com.tschuchort.compiletesting.symbolProcessorProviders
 import com.tschuchort.compiletesting.useKsp2
+import java.io.File
 import org.jetbrains.kotlin.compiler.plugin.ExperimentalCompilerApi
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.io.TempDir
 
 @OptIn(ExperimentalCompilerApi::class)
 internal class MetadataCollectorPropertyDiagnosticCompilationTest {
+    @TempDir lateinit var work: File
+
     @Test
     fun `property diagnostics use real Kotlin and Java member nodes and only fall back for missing record members`() {
         val provider = DiagnosticSiteProvider()
         val result = KotlinCompilation().apply {
+            workingDir = work
             useKsp2()
             sources = listOf(
                 SourceFile.kotlin("DiagnosticSites.kt", """
@@ -110,6 +115,7 @@ internal class MetadataCollectorPropertyDiagnosticCompilationTest {
             }
         }
         val result = KotlinCompilation().apply {
+            workingDir = work
             useKsp2()
             sources = listOf(
                 SourceFile.kotlin("KotlinSequence.kt", """

@@ -19,14 +19,19 @@ import io.cratis.arc.artifacts.ArcArtifactManifest
 import io.cratis.arc.artifacts.ArcArtifactModule
 import io.cratis.arc.commands.CommandHandler
 import io.cratis.arc.json.ArcObjectMapper
+import java.io.File
+import java.nio.file.Files
 import org.jetbrains.kotlin.compiler.plugin.ExperimentalCompilerApi
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.io.TempDir
 
 @OptIn(ExperimentalCompilerApi::class)
 internal class ArcSymbolProcessorLateDerivativesCompilationTest {
+    @TempDir lateinit var work: File
+
     @Test
     fun `plain Kotlin leaf discovered after early performer refreshes the whole reachable graph`() {
         verify(java = false, commands = false)
@@ -111,6 +116,7 @@ internal class ArcSymbolProcessorLateDerivativesCompilationTest {
             }
         }
         val compilation = KotlinCompilation().apply {
+            workingDir = work
             useKsp2()
             this.sources = sources
             inheritClassPath = true
@@ -223,6 +229,7 @@ internal class ArcSymbolProcessorLateDerivativesCompilationTest {
                 }
             }
             val compilation = KotlinCompilation().apply {
+                workingDir = Files.createTempDirectory(work.toPath(), "arc-ksp-").toFile()
                 useKsp2()
                 this.sources = sources
                 inheritClassPath = true

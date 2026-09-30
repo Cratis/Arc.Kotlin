@@ -22,6 +22,7 @@ import io.cratis.arc.authorization.ArcPrincipal
 import io.cratis.arc.commands.CommandContext
 import io.cratis.arc.commands.ServiceResolver
 import io.cratis.arc.json.ArcObjectMapper
+import java.io.File
 import java.io.OutputStream
 import java.util.UUID
 import kotlinx.coroutines.runBlocking
@@ -31,9 +32,12 @@ import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.io.TempDir
 
 @OptIn(ExperimentalCompilerApi::class)
 internal class ArcSymbolProcessorRoundDependenciesTest {
+    @TempDir lateinit var work: File
+
     @Test
     fun `aggregate outputs use terminal round files and retain later generated commands`() {
         val rounds = mutableListOf<List<KSFile>>()
@@ -79,6 +83,7 @@ internal class ArcSymbolProcessorRoundDependenciesTest {
             }
         }
         val compilation = KotlinCompilation().apply {
+            workingDir = work
             useKsp2()
             sources = listOf(
                 SourceFile.kotlin("PackageMarker.kt", "package rounds"),

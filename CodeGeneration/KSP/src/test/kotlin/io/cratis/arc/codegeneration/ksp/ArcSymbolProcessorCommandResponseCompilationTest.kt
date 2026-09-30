@@ -420,6 +420,7 @@ internal class ArcSymbolProcessorCommandResponseCompilationTest {
     @Test
     fun `KSP annotation lookup does not expose annotated dependency handlers`() {
         val dependency = KotlinCompilation().apply {
+            workingDir = work.resolve("dependency")
             sources = listOf(
                 SourceFile.kotlin(
                     "DependencyResponses.kt",
@@ -805,11 +806,11 @@ internal class ArcSymbolProcessorCommandResponseCompilationTest {
         sources: List<SourceFile>,
         moduleName: String = "ResponseMetadata",
         additionalClasspaths: List<File> = emptyList(),
-        workingDirectory: File? = null
+        workingDirectory: File = Files.createTempDirectory(work.toPath(), "arc-response-").toFile()
     ): JvmCompilationResult = KotlinCompilation().apply {
         useKsp2()
         this.sources = sources
-        workingDirectory?.let { directory -> workingDir = directory }
+        workingDir = workingDirectory
         inheritClassPath = true
         classpaths = additionalClasspaths
         symbolProcessorProviders = mutableListOf(ArcSymbolProcessorProvider())

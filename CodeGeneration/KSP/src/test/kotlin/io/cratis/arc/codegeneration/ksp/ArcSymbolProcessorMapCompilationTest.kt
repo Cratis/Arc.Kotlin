@@ -352,11 +352,14 @@ internal class ArcSymbolProcessorMapCompilationTest {
         .getDeclaredConstructor()
         .newInstance() as ArcArtifactModule
 
-    private fun compile(sources: List<SourceFile>, workingDirectory: File? = null): JvmCompilationResult =
+    private fun compile(
+        sources: List<SourceFile>,
+        workingDirectory: File = Files.createTempDirectory(work.toPath(), "arc-map-").toFile()
+    ): JvmCompilationResult =
         KotlinCompilation().apply {
             useKsp2()
             this.sources = sources
-            workingDirectory?.let { directory -> workingDir = directory }
+            workingDir = workingDirectory
             inheritClassPath = true
             symbolProcessorProviders = mutableListOf(ArcSymbolProcessorProvider())
             kspProcessorOptions = mutableMapOf("arc.moduleName" to "MapMetadata")

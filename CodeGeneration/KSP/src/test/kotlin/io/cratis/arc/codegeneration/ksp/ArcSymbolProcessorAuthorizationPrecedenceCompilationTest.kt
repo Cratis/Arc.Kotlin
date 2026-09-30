@@ -16,6 +16,8 @@ import io.cratis.arc.authorization.AuthorizationEvaluator
 import io.cratis.arc.authorization.AuthorizationResult
 import io.cratis.arc.authorization.ConcurrentAuthorizationPolicyRegistry
 import io.cratis.arc.metadata.AuthorizationMetadata
+import java.io.File
+import java.nio.file.Files
 import kotlinx.coroutines.runBlocking
 import org.jetbrains.kotlin.compiler.plugin.ExperimentalCompilerApi
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -23,6 +25,7 @@ import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.io.TempDir
 
 /**
  * Operation-level authorization must replace class-level authorization rather than merge with it.
@@ -34,6 +37,8 @@ import org.junit.jupiter.api.Test
  */
 @OptIn(ExperimentalCompilerApi::class)
 internal class ArcSymbolProcessorAuthorizationPrecedenceCompilationTest {
+    @TempDir lateinit var work: File
+
     @Test
     fun `operation authorization replaces class authorization instead of merging with it`() {
         val result = compile(precedenceSources())
@@ -336,6 +341,7 @@ internal class ArcSymbolProcessorAuthorizationPrecedenceCompilationTest {
         moduleName: String = "AuthorizationPrecedence"
     ): JvmCompilationResult =
         KotlinCompilation().apply {
+            workingDir = Files.createTempDirectory(work.toPath(), "arc-ksp-").toFile()
             useKsp2()
             this.sources = sources
             inheritClassPath = true

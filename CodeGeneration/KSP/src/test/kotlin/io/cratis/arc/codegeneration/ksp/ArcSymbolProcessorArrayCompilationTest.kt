@@ -15,14 +15,18 @@ import com.tschuchort.compiletesting.symbolProcessorProviders
 import com.tschuchort.compiletesting.useKsp2
 import io.cratis.arc.artifacts.ArcArtifactModule
 import io.cratis.arc.metadata.SequenceKind
+import java.io.File
 import java.nio.file.Path
 import org.jetbrains.kotlin.compiler.plugin.ExperimentalCompilerApi
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.io.TempDir
 
 @OptIn(ExperimentalCompilerApi::class)
 internal class ArcSymbolProcessorArrayCompilationTest {
+    @TempDir lateinit var work: File
+
     @Test
     fun `ordinary Java arrays and invariant Kotlin arrays generate concrete sequence parameters`() {
         val observations = linkedSetOf<String>()
@@ -46,6 +50,7 @@ internal class ArcSymbolProcessorArrayCompilationTest {
             }
         }
         val result = KotlinCompilation().apply {
+            workingDir = work
             useKsp2()
             sources = listOf(
                 SourceFile.kotlin("KotlinArrays.kt", """
@@ -96,6 +101,7 @@ internal class ArcSymbolProcessorArrayCompilationTest {
     fun `array parameter support does not admit explicit projections generic elements or nullable entries`() {
         val root = Path.of(System.getProperty("arc.contractNegativeFixtures"))
         val result = KotlinCompilation().apply {
+            workingDir = work
             useKsp2()
             sources = listOf(
                 SourceFile.kotlin("ProjectedArrayQueries.kt", root.resolve("kotlin/io/cratis/arc/contracts/negative/ProjectedArrayQueries.kt").toFile().readText()),

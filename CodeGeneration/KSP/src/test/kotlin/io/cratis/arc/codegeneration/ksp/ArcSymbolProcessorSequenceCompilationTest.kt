@@ -40,6 +40,7 @@ internal class ArcSymbolProcessorSequenceCompilationTest {
     fun `explicit Java record type use nullable entries fail rather than disappearing in fallback`() {
         val sources = listOf(fixture("java", "Nullable.java"), fixture("java", "NullableJavaSequenceProperty.java"))
         val java = KotlinCompilation().apply {
+            workingDir = work.resolve("java")
             this.sources = sources
             inheritClassPath = true
             jvmTarget = "17"

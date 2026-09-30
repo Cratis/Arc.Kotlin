@@ -10,6 +10,7 @@ import com.tschuchort.compiletesting.kspProcessorOptions
 import com.tschuchort.compiletesting.kspWithCompilation
 import com.tschuchort.compiletesting.symbolProcessorProviders
 import com.tschuchort.compiletesting.useKsp2
+import java.io.File
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.io.path.extension
@@ -19,9 +20,12 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.jetbrains.kotlin.compiler.plugin.ExperimentalCompilerApi
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.io.TempDir
 
 @OptIn(ExperimentalCompilerApi::class)
 internal class ArcSymbolProcessorNegativeCompilationTest {
+    @TempDir lateinit var work: File
+
     @Test
     fun `invalid Kotlin and Java contract fixtures report stable Arc diagnostics`() {
         val fixtureRoot = Path.of(System.getProperty("arc.contractNegativeFixtures"))
@@ -281,6 +285,7 @@ internal class ArcSymbolProcessorNegativeCompilationTest {
             .map { name -> SourceFile.java("$name.java", Files.readString(fixtureRoot.resolve("$name.java"))) }
         // Prove the fixture is valid Java 17 and its sealed base is instantiable without Arc processing.
         val javaResult = KotlinCompilation().apply {
+            workingDir = work.resolve("java")
             this.sources = sources
             inheritClassPath = true
             jvmTarget = "17"
@@ -515,6 +520,7 @@ internal class ArcSymbolProcessorNegativeCompilationTest {
     )
 
     private fun compile(sources: List<SourceFile>): JvmCompilationResult = KotlinCompilation().apply {
+        workingDir = Files.createTempDirectory(work.toPath(), "arc-ksp-").toFile()
         useKsp2()
         this.sources = sources
         inheritClassPath = true

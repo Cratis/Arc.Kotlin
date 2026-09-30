@@ -143,6 +143,7 @@ internal class ArcSymbolProcessorPolymorphicPropertyCompilationTest {
     @Test
     fun `dependency Kotlin sealed base properties remain legal with a source descendant`() {
         val dependency = KotlinCompilation().apply {
+            workingDir = workingDirectory.resolve("dependency")
             sources = listOf(SourceFile.kotlin("SealedDependency.kt", """
                 package polymorphic.dependency
                 public sealed class SealedBase
@@ -242,6 +243,7 @@ internal class ArcSymbolProcessorPolymorphicPropertyCompilationTest {
     @Test
     fun `dependency concrete base with source descendant is rejected at the property use`() {
         val dependency = KotlinCompilation().apply {
+            workingDir = workingDirectory.resolve("dependency")
             sources = listOf(SourceFile.kotlin("DependencyBase.kt", """
                 package polymorphic.dependency
                 public open class DependencyBase
