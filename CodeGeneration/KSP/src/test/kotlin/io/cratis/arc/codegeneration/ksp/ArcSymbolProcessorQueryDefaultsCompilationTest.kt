@@ -20,14 +20,17 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.io.TempDir
 
 @OptIn(ExperimentalCompilerApi::class)
 internal class ArcSymbolProcessorQueryDefaultsCompilationTest {
+    @TempDir lateinit var work: File
+
     @Test
     fun `Kotlin query defaults generate deterministic exhaustive named invocation branches`() {
         val sources = defaultQuerySources()
-        val firstDirectory = Files.createTempDirectory("arc-query-defaults-first").toFile()
-        val secondDirectory = Files.createTempDirectory("arc-query-defaults-second").toFile()
+        val firstDirectory = Files.createTempDirectory(work.toPath(), "arc-query-defaults-first").toFile()
+        val secondDirectory = Files.createTempDirectory(work.toPath(), "arc-query-defaults-second").toFile()
         val first = compile(sources, firstDirectory)
         val second = compile(sources, secondDirectory)
 
@@ -104,7 +107,7 @@ internal class ArcSymbolProcessorQueryDefaultsCompilationTest {
 
     @Test
     fun `annotated helper with an invalid query return remains a compilation error`() {
-        val directory = Files.createTempDirectory("arc-invalid-annotated-helper").toFile()
+        val directory = Files.createTempDirectory(work.toPath(), "arc-invalid-annotated-helper").toFile()
         val result = compile(
             listOf(
                 SourceFile.kotlin(

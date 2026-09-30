@@ -9,8 +9,11 @@ import java.nio.file.Files
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.io.TempDir
 
 internal class FluentValidationMetadataTest {
+    @TempDir lateinit var work: File
+
     private val declaration = FluentDeclaration("fixture.Rules", "fixture.Person", listOf(
         FluentMember("name", "java.lang.String", listOf(ValidationRuleDescriptor("maxLength", listOf(5), "Name \"quoted\"\nline")))
     ))
@@ -51,7 +54,7 @@ internal class FluentValidationMetadataTest {
     }
 
     private fun read(content: String): List<FluentDeclaration> {
-        val root = File(System.getProperty("arc.fluent.evidence") ?: System.getProperty("java.io.tmpdir")).apply { mkdirs() }
+        val root = (System.getProperty("arc.fluent.evidence")?.let(::File) ?: work).apply { mkdirs() }
         val file = Files.createTempFile(root.toPath(), "fluent-index-", ".json").toFile().apply { writeText(content) }
         return FluentValidationMetadata.readIndex(file.toURI().toASCIIString())
     }

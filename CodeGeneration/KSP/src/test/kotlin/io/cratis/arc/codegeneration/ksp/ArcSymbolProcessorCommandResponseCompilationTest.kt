@@ -18,9 +18,12 @@ import org.jetbrains.kotlin.compiler.plugin.ExperimentalCompilerApi
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.io.TempDir
 
 @OptIn(ExperimentalCompilerApi::class)
 internal class ArcSymbolProcessorCommandResponseCompilationTest {
+    @TempDir lateinit var work: File
+
     @Test
     fun `Kotlin and Java aggregates produce ordered response metadata`() {
         val result = compile(
@@ -666,8 +669,8 @@ internal class ArcSymbolProcessorCommandResponseCompilationTest {
                 """.trimIndent()
             )
         )
-        val firstDirectory = Files.createTempDirectory("arc-response-determinism-first").toFile()
-        val secondDirectory = Files.createTempDirectory("arc-response-determinism-second").toFile()
+        val firstDirectory = Files.createTempDirectory(work.toPath(), "arc-response-determinism-first").toFile()
+        val secondDirectory = Files.createTempDirectory(work.toPath(), "arc-response-determinism-second").toFile()
         val first = compile(sources, "DeterministicResponse", workingDirectory = firstDirectory)
         val second = compile(sources, "DeterministicResponse", workingDirectory = secondDirectory)
 

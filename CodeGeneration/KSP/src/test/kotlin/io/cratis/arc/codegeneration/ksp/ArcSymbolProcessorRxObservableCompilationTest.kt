@@ -17,6 +17,7 @@ import org.jetbrains.kotlin.compiler.plugin.ExperimentalCompilerApi
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.io.TempDir
 
 /**
  * Proves KSP recognises RxJava 3 return types as observable queries, in the same static-method shape
@@ -24,6 +25,8 @@ import org.junit.jupiter.api.Test
  */
 @OptIn(ExperimentalCompilerApi::class)
 internal class ArcSymbolProcessorRxObservableCompilationTest {
+    @TempDir lateinit var work: File
+
     @Test
     fun `a Kotlin companion query returning Observable is an observable query`() {
         val result = compile(
@@ -178,7 +181,7 @@ internal class ArcSymbolProcessorRxObservableCompilationTest {
     }
 
     private fun compile(sources: List<SourceFile>): JvmCompilationResult {
-        val workingDirectory: File = Files.createTempDirectory("arc-rx-observable").toFile()
+        val workingDirectory: File = Files.createTempDirectory(work.toPath(), "arc-rx-observable").toFile()
         return KotlinCompilation().apply {
             useKsp2()
             this.sources = sources

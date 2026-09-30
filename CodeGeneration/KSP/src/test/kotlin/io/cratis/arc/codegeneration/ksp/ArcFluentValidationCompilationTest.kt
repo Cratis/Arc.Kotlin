@@ -26,10 +26,14 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.io.TempDir
 
 @OptIn(ExperimentalCompilerApi::class)
 internal class ArcFluentValidationCompilationTest {
-    private val root = File(System.getProperty("arc.fluent.evidence") ?: System.getProperty("java.io.tmpdir"))
+    @TempDir lateinit var work: File
+
+    // Compilations are kept only when an evidence directory is requested explicitly; otherwise they are removed after each test.
+    private val root: File get() = System.getProperty("arc.fluent.evidence")?.let(::File) ?: work
     private data class Compilation(val result: JvmCompilationResult, val directory: File) {
         fun resource(path: String): File = directory.resolve("ksp/sources/resources/$path")
     }

@@ -20,12 +20,15 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.io.TempDir
 
 @OptIn(ExperimentalCompilerApi::class)
 internal class ArcSymbolProcessorSpringDataCompilationTest {
+    @TempDir lateinit var work: File
+
     @Test
     fun `exact Spring Data adapters and pages generate direct request-owned code`() {
-        val directory = Files.createTempDirectory("arc-spring-data-query").toFile()
+        val directory = Files.createTempDirectory(work.toPath(), "arc-spring-data-query").toFile()
         val result = compile(springDataSources(), directory)
 
         assertEquals(KotlinCompilation.ExitCode.OK, result.exitCode, result.messages)
