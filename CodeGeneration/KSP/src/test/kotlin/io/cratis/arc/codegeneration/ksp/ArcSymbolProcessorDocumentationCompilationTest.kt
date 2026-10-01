@@ -22,13 +22,16 @@ import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.io.TempDir
 
 @OptIn(ExperimentalCompilerApi::class)
 internal class ArcSymbolProcessorDocumentationCompilationTest {
+    @TempDir lateinit var work: File
+
     @Test
     fun `Kotlin and Java documentation reaches generated metadata and the manifest deterministically`() {
-        val firstDirectory = Files.createTempDirectory("arc-documentation-first").toFile()
-        val secondDirectory = Files.createTempDirectory("arc-documentation-second").toFile()
+        val firstDirectory = Files.createTempDirectory(work.toPath(), "arc-documentation-first").toFile()
+        val secondDirectory = Files.createTempDirectory(work.toPath(), "arc-documentation-second").toFile()
         val first = compile(documentedSources(), firstDirectory)
         val second = compile(documentedSources(), secondDirectory)
 
@@ -68,7 +71,7 @@ internal class ArcSymbolProcessorDocumentationCompilationTest {
 
     @Test
     fun `generated Kotlin carries documentation that would otherwise break a string literal`() {
-        val directory = Files.createTempDirectory("arc-documentation-generated").toFile()
+        val directory = Files.createTempDirectory(work.toPath(), "arc-documentation-generated").toFile()
         val result = compile(documentedSources(), directory)
 
         assertEquals(KotlinCompilation.ExitCode.OK, result.exitCode, result.messages)
@@ -86,7 +89,7 @@ internal class ArcSymbolProcessorDocumentationCompilationTest {
 
     @Test
     fun `excluded documentation never reaches metadata`() {
-        val directory = Files.createTempDirectory("arc-documentation-excluded").toFile()
+        val directory = Files.createTempDirectory(work.toPath(), "arc-documentation-excluded").toFile()
         val result = compile(excludedSources(), directory)
 
         assertEquals(KotlinCompilation.ExitCode.OK, result.exitCode, result.messages)

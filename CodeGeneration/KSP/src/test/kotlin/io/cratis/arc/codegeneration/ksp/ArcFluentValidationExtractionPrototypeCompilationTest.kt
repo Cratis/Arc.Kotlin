@@ -57,6 +57,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.io.TempDir
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.net.URI
@@ -70,6 +71,8 @@ import javax.tools.ToolProvider
 /** Embedded extraction experiment only: no production processor, DSL, packaging or enforcement claim. */
 @OptIn(ExperimentalCompilerApi::class)
 internal class ArcFluentValidationExtractionPrototypeCompilationTest {
+    @TempDir lateinit var work: File
+
     @Test
     fun `Kotlin and ordinary compiled Java share descriptors without constructing declarations`() {
         val kotlin = kotlinDeclaration("Rules", """
@@ -215,8 +218,8 @@ internal class ArcFluentValidationExtractionPrototypeCompilationTest {
     }
 
     private fun compile(label: String, sources: List<SourceFile>, probe: PrototypeProvider? = null): JvmCompilationResult {
-        val root = System.getProperty("arc.prototype.evidence")?.let(::File)
-            ?: File(System.getProperty("arc.ksp.projectDir"), "../../.ai-work/keep/epic-171-phase2-proof").canonicalFile
+        // Kept only when an evidence directory is requested explicitly; otherwise removed after the test.
+        val root = System.getProperty("arc.prototype.evidence")?.let(::File) ?: work
         root.mkdirs()
         val directory = Files.createTempDirectory(root.toPath(), "$label-").toFile()
         val output = ByteArrayOutputStream()

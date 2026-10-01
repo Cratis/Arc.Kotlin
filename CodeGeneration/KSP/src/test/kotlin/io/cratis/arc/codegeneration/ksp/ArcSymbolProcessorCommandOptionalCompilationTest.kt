@@ -10,13 +10,18 @@ import com.tschuchort.compiletesting.kspProcessorOptions
 import com.tschuchort.compiletesting.kspWithCompilation
 import com.tschuchort.compiletesting.symbolProcessorProviders
 import com.tschuchort.compiletesting.useKsp2
+import java.io.File
+import java.nio.file.Files
 import org.jetbrains.kotlin.compiler.plugin.ExperimentalCompilerApi
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.io.TempDir
 
 @OptIn(ExperimentalCompilerApi::class)
 internal class ArcSymbolProcessorCommandOptionalCompilationTest {
+    @TempDir lateinit var work: File
+
     @Test
     fun `provided Java value consumed through Optional compiles without an unused value warning`() {
         val result = compile(
@@ -156,6 +161,7 @@ internal class ArcSymbolProcessorCommandOptionalCompilationTest {
     )
 
     private fun compile(vararg sources: SourceFile): JvmCompilationResult = KotlinCompilation().apply {
+        workingDir = Files.createTempDirectory(work.toPath(), "arc-ksp-").toFile()
         useKsp2()
         this.sources = sources.toList()
         inheritClassPath = true

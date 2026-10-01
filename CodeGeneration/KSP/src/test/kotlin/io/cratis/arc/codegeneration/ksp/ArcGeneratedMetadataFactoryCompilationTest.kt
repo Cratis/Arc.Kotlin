@@ -3,6 +3,8 @@
 
 package io.cratis.arc.codegeneration.ksp
 
+import java.io.File
+import org.junit.jupiter.api.io.TempDir
 import tools.jackson.databind.JsonNode
 import com.google.devtools.ksp.getConstructors
 import com.google.devtools.ksp.getDeclaredFunctions
@@ -39,6 +41,8 @@ import org.junit.jupiter.params.provider.CsvSource
 
 @OptIn(ExperimentalCompilerApi::class)
 internal class ArcGeneratedMetadataFactoryCompilationTest {
+    @TempDir lateinit var work: File
+
     @ParameterizedTest(name = "java={0}, companionFirst={1}")
     @CsvSource("false,false", "false,true", "true,false", "true,true")
     fun `early invoker signatures remain valid before fresh final metadata factories exist`(
@@ -49,6 +53,7 @@ internal class ArcGeneratedMetadataFactoryCompilationTest {
         val performerName = queryPerformerClassName("factories.View.find")
         val companion = SignatureConsumerProvider(handlerName, performerName)
         val compilation = KotlinCompilation().apply {
+            workingDir = work
             useKsp2()
             sources = fixtureSources(java, handlerName, performerName)
             inheritClassPath = true

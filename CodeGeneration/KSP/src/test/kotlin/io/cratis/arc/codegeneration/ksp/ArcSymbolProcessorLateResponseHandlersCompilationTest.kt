@@ -30,6 +30,8 @@ import io.cratis.arc.java.BlockingCommandResponseValueHandlerAdapter
 import io.cratis.arc.json.ArcObjectMapper
 import io.cratis.arc.metadata.CommandResponseValueDisposition.CLIENT
 import io.cratis.arc.metadata.CommandResponseValueDisposition.HANDLED
+import java.io.File
+import java.nio.file.Files
 import java.util.UUID
 import kotlinx.coroutines.runBlocking
 import org.jetbrains.kotlin.compiler.plugin.ExperimentalCompilerApi
@@ -39,9 +41,12 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.io.TempDir
 
 @OptIn(ExperimentalCompilerApi::class)
 internal class ArcSymbolProcessorLateResponseHandlersCompilationTest {
+    @TempDir lateinit var work: File
+
     @Test
     fun `early and late Kotlin handlers invoke the same registered instance for initial and witness commands`() {
         listOf(false, true).forEach { late -> verify(late = late) }
@@ -233,6 +238,7 @@ internal class ArcSymbolProcessorLateResponseHandlersCompilationTest {
 
     private fun compile(sources: List<SourceFile>, providers: List<SymbolProcessorProvider> = emptyList()): KotlinCompilation =
         KotlinCompilation().apply {
+            workingDir = Files.createTempDirectory(work.toPath(), "arc-ksp-").toFile()
             useKsp2()
             this.sources = sources
             inheritClassPath = true

@@ -18,9 +18,12 @@ import org.jetbrains.kotlin.compiler.plugin.ExperimentalCompilerApi
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.io.TempDir
 
 @OptIn(ExperimentalCompilerApi::class)
 internal class ArcSymbolProcessorCommandResponseCompilationTest {
+    @TempDir lateinit var work: File
+
     @Test
     fun `Kotlin and Java aggregates produce ordered response metadata`() {
         val result = compile(
@@ -417,6 +420,7 @@ internal class ArcSymbolProcessorCommandResponseCompilationTest {
     @Test
     fun `KSP annotation lookup does not expose annotated dependency handlers`() {
         val dependency = KotlinCompilation().apply {
+            workingDir = work.resolve("dependency")
             sources = listOf(
                 SourceFile.kotlin(
                     "DependencyResponses.kt",
@@ -666,8 +670,8 @@ internal class ArcSymbolProcessorCommandResponseCompilationTest {
                 """.trimIndent()
             )
         )
-        val firstDirectory = Files.createTempDirectory("arc-response-determinism-first").toFile()
-        val secondDirectory = Files.createTempDirectory("arc-response-determinism-second").toFile()
+        val firstDirectory = Files.createTempDirectory(work.toPath(), "arc-response-determinism-first").toFile()
+        val secondDirectory = Files.createTempDirectory(work.toPath(), "arc-response-determinism-second").toFile()
         val first = compile(sources, "DeterministicResponse", workingDirectory = firstDirectory)
         val second = compile(sources, "DeterministicResponse", workingDirectory = secondDirectory)
 
@@ -802,11 +806,11 @@ internal class ArcSymbolProcessorCommandResponseCompilationTest {
         sources: List<SourceFile>,
         moduleName: String = "ResponseMetadata",
         additionalClasspaths: List<File> = emptyList(),
-        workingDirectory: File? = null
+        workingDirectory: File = Files.createTempDirectory(work.toPath(), "arc-response-").toFile()
     ): JvmCompilationResult = KotlinCompilation().apply {
         useKsp2()
         this.sources = sources
-        workingDirectory?.let { directory -> workingDir = directory }
+        workingDir = workingDirectory
         inheritClassPath = true
         classpaths = additionalClasspaths
         symbolProcessorProviders = mutableListOf(ArcSymbolProcessorProvider())

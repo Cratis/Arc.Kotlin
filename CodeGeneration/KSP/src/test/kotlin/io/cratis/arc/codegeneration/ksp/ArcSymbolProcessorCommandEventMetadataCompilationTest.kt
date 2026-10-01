@@ -17,12 +17,15 @@ import org.jetbrains.kotlin.compiler.plugin.ExperimentalCompilerApi
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.io.TempDir
 
 @OptIn(ExperimentalCompilerApi::class)
 internal class ArcSymbolProcessorCommandEventMetadataCompilationTest {
+    @TempDir lateinit var work: File
+
     @Test
     fun `Kotlin and Java command event defaults are emitted as typed manifest metadata`() {
-        val workingDirectory = Files.createTempDirectory("arc-command-event-metadata").toFile()
+        val workingDirectory = Files.createTempDirectory(work.toPath(), "arc-command-event-metadata").toFile()
         val result = compile(
             listOf(
                 SourceFile.kotlin(

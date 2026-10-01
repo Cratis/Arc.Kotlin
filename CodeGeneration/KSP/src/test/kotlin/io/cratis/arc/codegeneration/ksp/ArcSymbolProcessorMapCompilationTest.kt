@@ -20,14 +20,17 @@ import org.jetbrains.kotlin.compiler.plugin.ExperimentalCompilerApi
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.io.TempDir
 
 @OptIn(ExperimentalCompilerApi::class)
 internal class ArcSymbolProcessorMapCompilationTest {
+    @TempDir lateinit var work: File
+
     @Test
     fun `Kotlin and Java map properties emit identical recursive runtime-safe shapes deterministically`() {
         val sources = positiveSources()
-        val firstDirectory = Files.createTempDirectory("arc-map-first").toFile()
-        val secondDirectory = Files.createTempDirectory("arc-map-second").toFile()
+        val firstDirectory = Files.createTempDirectory(work.toPath(), "arc-map-first").toFile()
+        val secondDirectory = Files.createTempDirectory(work.toPath(), "arc-map-second").toFile()
         val first = compile(sources, firstDirectory)
         val second = compile(sources, secondDirectory)
 
@@ -349,11 +352,14 @@ internal class ArcSymbolProcessorMapCompilationTest {
         .getDeclaredConstructor()
         .newInstance() as ArcArtifactModule
 
-    private fun compile(sources: List<SourceFile>, workingDirectory: File? = null): JvmCompilationResult =
+    private fun compile(
+        sources: List<SourceFile>,
+        workingDirectory: File = Files.createTempDirectory(work.toPath(), "arc-map-").toFile()
+    ): JvmCompilationResult =
         KotlinCompilation().apply {
             useKsp2()
             this.sources = sources
-            workingDirectory?.let { directory -> workingDir = directory }
+            workingDir = workingDirectory
             inheritClassPath = true
             symbolProcessorProviders = mutableListOf(ArcSymbolProcessorProvider())
             kspProcessorOptions = mutableMapOf("arc.moduleName" to "MapMetadata")

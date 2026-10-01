@@ -12,14 +12,18 @@ import com.tschuchort.compiletesting.useKsp2
 import io.cratis.arc.artifacts.ArcArtifactModule
 import io.cratis.arc.metadata.CommandResponseValueDisposition.HANDLED
 import java.io.File
+import java.nio.file.Files
 import org.jetbrains.kotlin.compiler.plugin.ExperimentalCompilerApi
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.io.TempDir
 
 @OptIn(ExperimentalCompilerApi::class)
 internal class ArcSymbolProcessorDependencyHandlersCompilationTest {
+    @TempDir lateinit var work: File
+
     @Test
     fun `handler only producer exports declarations without an artifact module`() {
         val producer = producer()
@@ -131,6 +135,7 @@ internal class ArcSymbolProcessorDependencyHandlersCompilationTest {
     """.trimIndent())))
 
     private fun compilation(module: String, sources: List<SourceFile>): KotlinCompilation = KotlinCompilation().apply {
+        workingDir = Files.createTempDirectory(work.toPath(), "arc-ksp-").toFile()
         useKsp2()
         this.sources = sources
         inheritClassPath = true
