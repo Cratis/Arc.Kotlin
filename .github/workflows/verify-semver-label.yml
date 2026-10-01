@@ -26,5 +26,17 @@ permissions:
   contents: read
 
 jobs:
-  verify:
-    uses: Cratis/Workflows/.github/workflows/verify-release-intent.yml@6a5e4f4b293e4b0854d348549d9a9f01255e42d2 # main
+  dependabot-labels:
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    uses: Cratis/Workflows/.github/workflows/normalize-dependabot-labels.yml@40125b4fcae388e62ed9471edfffd0e991422f0a # main on 2026-10-01
+    permissions:
+      pull-requests: write
+
+  release-intent:
+    needs: dependabot-labels
+    # Also after a failed or skipped correction: the gate reports the live labels.
+    if: ${{ !cancelled() }}
+    uses: Cratis/Workflows/.github/workflows/verify-release-intent.yml@40125b4fcae388e62ed9471edfffd0e991422f0a # main on 2026-10-01
+    permissions:
+      contents: read
+      pull-requests: read
