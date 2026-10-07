@@ -9,13 +9,21 @@
         "test:runtime": "node contracts/run-runtime-gate.mjs"
     },
     "dependencies": {
-        "@cratis/arc": "22.30.1",
-        "@cratis/arc.react": "22.30.1",
-        "@cratis/fundamentals": "7.19.6",
+        "@cratis/arc": "22.50.1",
+        "@cratis/arc.react": "22.50.1",
+        "@cratis/fundamentals": "7.22.0",
         "react": "19.3.0"
     },
+    "overrides": {
+        "@cratis/arc": {
+            "@cratis/fundamentals": "$@cratis/fundamentals"
+        },
+        "@cratis/arc.react": {
+            "@cratis/fundamentals": "$@cratis/fundamentals"
+        }
+    },
     "devDependencies": {
-        "@types/node": "26.6.3",
+        "@types/node": "26.6.4",
         "@types/react": "19.3.0",
         "eventsource": "5.1.2",
         "tsx": "4.23.15",
