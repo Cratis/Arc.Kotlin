@@ -30,6 +30,13 @@ updates:
         versions: [">=4.2.0"]
       - dependency-name: "org.springframework.boot"
         versions: [">=4.2.0"]
+      # Gradle 9 is a major upgrade needing the KSP, Kotlin, and plugin stack re-checked — migration
+      # work with its own verification, not a wrapper bump (#18 declined 9.7.1 for this reason).
+      # #268 showed the first concrete break: Gradle 9.8 deprecates Configuration.isVisible, and the
+      # -Werror GradlePlugin compile fails on it. The hold ends when the Gradle 9 migration tracked
+      # in #276 is taken on deliberately; wrapper updates within Gradle 8 still flow.
+      - dependency-name: "gradle-wrapper"
+        versions: [">=9.0.0"]
     groups:
       kotlin-ksp-toolchain:
         # PR #73 confirms Dependabot's names for kotlin("jvm") and kotlin("plugin.spring").
