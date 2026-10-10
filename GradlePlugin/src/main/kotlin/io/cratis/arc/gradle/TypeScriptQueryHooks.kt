@@ -149,27 +149,8 @@ internal fun StringBuilder.appendSortHelpers(
     properties: List<String>,
     actions: String = "SortingActionsForQuery"
 ) {
-    // `_name` and `name` are both valid row fields. Private storage must not collide with either
-    // public accessor, nor with another private slot (including collisions inherited from a base).
-    val reserved = properties.map(::lowerCamel).toMutableSet()
-    val storage = properties.associate { property ->
-        val name = lowerCamel(property)
-        var slot = "_$name"
-        while (!reserved.add(slot)) slot = "_$slot"
-        name to slot
-    }
-    append("\nclass ${className}SortBy {\n")
-    storage.values.forEach { append("    private $it: $actions<$model[]>;\n") }
-    append("\n    constructor(query: $className) {\n")
-    storage.forEach { (name, slot) ->
-        append("        this.$slot = new $actions<$model[]>('$name', query);\n")
-    }
-    append("    }\n")
-    if (properties.isNotEmpty()) append("\n")
-    storage.forEach { (name, slot) ->
-        append("    get $name(): $actions<$model[]> {\n        return this.$slot;\n    }\n")
-    }
-    if (properties.isEmpty()) append("\n")
+    val storage = sortStorage(properties)
+    appendSortBy(SortHelperNames(className, model, actions), properties.isEmpty(), storage)
     append("}\n\nclass ${className}SortByWithoutQuery {\n")
     storage.forEach { (name, slot) ->
         append("    private $slot: SortingActions  = new SortingActions('$name');\n")
@@ -180,6 +161,36 @@ internal fun StringBuilder.appendSortHelpers(
     }
     append("}\n")
     if (properties.isEmpty()) append("\n")
+}
+
+/** `_name` and `name` are both valid row fields. Private storage must not collide with either
+ * public accessor, nor with another private slot (including collisions inherited from a base). */
+private fun sortStorage(properties: List<String>): Map<String, String> {
+    val reserved = properties.map(::lowerCamel).toMutableSet()
+    return properties.associate { property ->
+        val name = lowerCamel(property)
+        var slot = "_$name"
+        while (!reserved.add(slot)) slot = "_$slot"
+        name to slot
+    }
+}
+
+private class SortHelperNames(val className: String, val model: String, val actions: String)
+
+private fun StringBuilder.appendSortBy(names: SortHelperNames, noProperties: Boolean, storage: Map<String, String>) {
+    val (className, model, actions) = Triple(names.className, names.model, names.actions)
+    append("\nclass ${className}SortBy {\n")
+    storage.values.forEach { append("    private $it: $actions<$model[]>;\n") }
+    append("\n    constructor(query: $className) {\n")
+    storage.forEach { (name, slot) ->
+        append("        this.$slot = new $actions<$model[]>('$name', query);\n")
+    }
+    append("    }\n")
+    if (!noProperties) append("\n")
+    storage.forEach { (name, slot) ->
+        append("    get $name(): $actions<$model[]> {\n        return this.$slot;\n    }\n")
+    }
+    if (noProperties) append("\n")
 }
 
 private fun lowerCamel(value: String): String = requireNotNull(ArcCamelCase.convert(value))
