@@ -1397,6 +1397,46 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
         return type.arguments.singleOrNull()?.type?.resolve()?.declaration?.qualifiedName?.asString() == readModelName
     }
 
+    private fun logGenericQueryFunction(identity: String, function: KSFunctionDeclaration) {
+        val typeParameterBounds = function.typeParameters.asSequence()
+            .flatMap { typeParameter -> typeParameter.bounds }
+            .map { bound -> bound.resolve() }
+            .toList()
+        val infrastructureBound = typeParameterBounds.firstNotNullOfOrNull { bound ->
+            matchingQueryBound(bound, QUERY_INFRASTRUCTURE_TYPES.keys, QUERY_INFRASTRUCTURE_SIMPLE_NAMES)
+        }
+        val hostAdapterBound = typeParameterBounds.firstNotNullOfOrNull { bound ->
+            matchingQueryBound(bound, QUERY_HOST_ADAPTER_TYPES.keys, QUERY_HOST_ADAPTER_SIMPLE_NAMES)
+        }
+        when {
+            infrastructureBound != null -> logger.error(
+                ArcDiagnostic.QUERY_INFRASTRUCTURE_PARAMETER,
+                "Query '$identity' must not use a generic infrastructure parameter bounded by " +
+                    "'$infrastructureBound'; only exact non-generic query infrastructure parameter types are supported.",
+                function
+            )
+            hostAdapterBound != null -> logger.error(
+                ArcDiagnostic.HOST_ADAPTER_PARAMETER,
+                "Query '$identity' must not use a generic host adapter parameter bounded by '$hostAdapterBound'; " +
+                    "only exact non-generic '$SPRING_PAGEABLE_TYPE' and '$SPRING_SORT_TYPE' parameters are supported.",
+                function
+            )
+            else -> logger.error("Query '$identity' must not declare type parameters.", function)
+        }
+    }
+
+    private fun matchingQueryBound(bound: KSType, exactTypes: Set<String>, simpleNames: Set<String>): String? {
+        val declaration = bound.declaration as? KSClassDeclaration ?: return null
+        val qualifiedName = declaration.qualifiedName?.asString() ?: return null
+        return qualifiedName.takeIf {
+            qualifiedName in exactTypes ||
+                declaration.simpleName.asString() in simpleNames ||
+                declaration.getAllSuperTypes().any { supertype ->
+                    supertype.declaration.qualifiedName?.asString() in exactTypes
+                }
+        }
+    }
+
     private fun buildQueryModel(
         readModel: KSClassDeclaration,
         function: KSFunctionDeclaration,
@@ -1427,47 +1467,7 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
             return null
         }
         if (function.typeParameters.isNotEmpty()) {
-            val typeParameterBounds = function.typeParameters.asSequence()
-                .flatMap { typeParameter -> typeParameter.bounds }
-                .map { bound -> bound.resolve() }
-                .toList()
-            val infrastructureBound = typeParameterBounds.firstNotNullOfOrNull { bound ->
-                val declaration = bound.declaration as? KSClassDeclaration ?: return@firstNotNullOfOrNull null
-                val qualifiedName = declaration.qualifiedName?.asString() ?: return@firstNotNullOfOrNull null
-                qualifiedName.takeIf {
-                    qualifiedName in QUERY_INFRASTRUCTURE_TYPES ||
-                        declaration.simpleName.asString() in QUERY_INFRASTRUCTURE_SIMPLE_NAMES ||
-                        declaration.getAllSuperTypes().any { supertype ->
-                            supertype.declaration.qualifiedName?.asString() in QUERY_INFRASTRUCTURE_TYPES
-                        }
-                }
-            }
-            val hostAdapterBound = typeParameterBounds.firstNotNullOfOrNull { bound ->
-                val declaration = bound.declaration as? KSClassDeclaration ?: return@firstNotNullOfOrNull null
-                val qualifiedName = declaration.qualifiedName?.asString() ?: return@firstNotNullOfOrNull null
-                qualifiedName.takeIf {
-                    qualifiedName in QUERY_HOST_ADAPTER_TYPES ||
-                        declaration.simpleName.asString() in QUERY_HOST_ADAPTER_SIMPLE_NAMES ||
-                        declaration.getAllSuperTypes().any { supertype ->
-                            supertype.declaration.qualifiedName?.asString() in QUERY_HOST_ADAPTER_TYPES
-                        }
-                }
-            }
-            when {
-                infrastructureBound != null -> logger.error(
-                    ArcDiagnostic.QUERY_INFRASTRUCTURE_PARAMETER,
-                    "Query '$identity' must not use a generic infrastructure parameter bounded by " +
-                        "'$infrastructureBound'; only exact non-generic query infrastructure parameter types are supported.",
-                    function
-                )
-                hostAdapterBound != null -> logger.error(
-                    ArcDiagnostic.HOST_ADAPTER_PARAMETER,
-                    "Query '$identity' must not use a generic host adapter parameter bounded by '$hostAdapterBound'; " +
-                        "only exact non-generic '$SPRING_PAGEABLE_TYPE' and '$SPRING_SORT_TYPE' parameters are supported.",
-                    function
-                )
-                else -> logger.error("Query '$identity' must not declare type parameters.", function)
-            }
+            logGenericQueryFunction(identity, function)
             return null
         }
 
@@ -1894,12 +1894,12 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
         resolver: Resolver
     ): QueryReturnShape? {
         val identity = "${requireNotNull(readModel.qualifiedName).asString()}.${function.simpleName.asString()}"
-        var returnType = function.returnType?.resolve()
-        if (returnType == null || returnType.isError) {
+        val declaredType = function.returnType?.resolve()
+        if (declaredType == null || declaredType.isError) {
             logger.error("Query '$identity' has no resolvable return type.", function)
             return null
         }
-        if (containsMapType(returnType)) {
+        if (containsMapType(declaredType)) {
             logger.error(
                 ArcDiagnostic.PROXY_SHAPE,
                 "Query '$identity' return value path 'return' uses a map; query and observable return maps are unsupported.",
@@ -1907,46 +1907,100 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
             )
             return null
         }
-        var invocationKind = QueryInvocationKind.DIRECT
-        var isObservable = false
+        val unwrapped = unwrapQueryReturn(identity, function, declaredType, resolver) ?: return null
+        val returnType = unwrapped.type
+        val returnName = validateQueryReturnName(identity, function, returnType) ?: return null
+        val isSpringDataPage = returnName == SPRING_PAGE_TYPE
+        if (!validateSpringDataPageReturn(identity, function, returnType, returnName, unwrapped.isObservable)) return null
+
+        val readModelName = requireNotNull(readModel.qualifiedName).asString()
+        if (returnName == readModelName) {
+            return QueryReturnShape(unwrapped.invocationKind, false, false, unwrapped.isObservable, false)
+        }
+        val isEnumerable = returnName in COLLECTION_TYPE_NAMES || returnName == "kotlin.Array"
+        val isPage = returnName == QUERY_PAGE_TYPE || isSpringDataPage
+        if (!isEnumerable && !isPage) {
+            val detail = if (returnType.arguments.isNotEmpty() || returnName in MAP_TYPE_NAMES) {
+                "unsupported generic or map return shape"
+            } else {
+                "return model '${returnName}' does not match annotated read model '$readModelName'"
+            }
+            logger.error("Query '$identity' has $detail.", function)
+            return null
+        }
+        if (!validateReturnElementType(identity, function, returnType, readModelName, isSpringDataPage)) return null
+        return QueryReturnShape(unwrapped.invocationKind, true, isPage, unwrapped.isObservable, isSpringDataPage)
+    }
+
+    private class UnwrappedQueryReturn(
+        val type: KSType,
+        val invocationKind: QueryInvocationKind,
+        val isObservable: Boolean
+    )
+
+    private fun unwrapQueryReturn(
+        identity: String,
+        function: KSFunctionDeclaration,
+        returnType: KSType,
+        resolver: Resolver
+    ): UnwrappedQueryReturn? {
         val outerReturnName = returnType.declaration.qualifiedName?.asString()
         if (outerReturnName == KOTLIN_FLOW_TYPE || outerReturnName in JDK_PUBLISHER_TYPES || outerReturnName in RXJAVA3_OBSERVABLE_TYPES) {
-            if (returnType.arguments.size != 1 || returnType.arguments.single().type == null) {
-                logger.error("Query '$identity' must return an observable type with a concrete model shape.", function)
-                return null
-            }
-            returnType = returnType.arguments.single().type!!.resolve()
-            if (returnType.isError || returnType.declaration is KSTypeParameter) {
-                logger.error("Query '$identity' has an unresolvable observable model shape.", function)
-                return null
-            }
-            if (returnType.nullability == Nullability.NULLABLE) {
-                logger.error("Query '$identity' must not return an observable nullable model shape.", function)
-                return null
-            }
-            invocationKind = when {
-                outerReturnName == KOTLIN_FLOW_TYPE -> QueryInvocationKind.FLOW
-                outerReturnName in RXJAVA3_OBSERVABLE_TYPES -> QueryInvocationKind.RX_OBSERVABLE
-                else -> QueryInvocationKind.JDK_PUBLISHER
-            }
-            isObservable = true
-        } else if (isCompletionStage(returnType, resolver)) {
-            if (function.origin != Origin.JAVA) {
-                logger.error("Query '$identity' may use CompletionStage only when declared in Java.", function)
-                return null
-            }
-            if (returnType.arguments.size != 1 || returnType.arguments.single().type == null) {
-                logger.error("Java query '$identity' must return CompletionStage<T> with a concrete T.", function)
-                return null
-            }
-            returnType = returnType.arguments.single().type!!.resolve()
-            if (returnType.nullability == Nullability.NULLABLE) {
-                logger.error("Java query '$identity' must not return CompletionStage<T?>.", function)
-                return null
-            }
-            invocationKind = QueryInvocationKind.COMPLETION_STAGE
+            return unwrapObservableReturn(identity, function, returnType, outerReturnName)
         }
+        if (isCompletionStage(returnType, resolver)) return unwrapCompletionStageReturn(identity, function, returnType)
+        return UnwrappedQueryReturn(returnType, QueryInvocationKind.DIRECT, false)
+    }
 
+    private fun unwrapObservableReturn(
+        identity: String,
+        function: KSFunctionDeclaration,
+        returnType: KSType,
+        outerReturnName: String?
+    ): UnwrappedQueryReturn? {
+        if (returnType.arguments.size != 1 || returnType.arguments.single().type == null) {
+            logger.error("Query '$identity' must return an observable type with a concrete model shape.", function)
+            return null
+        }
+        val modelType = returnType.arguments.single().type!!.resolve()
+        if (modelType.isError || modelType.declaration is KSTypeParameter) {
+            logger.error("Query '$identity' has an unresolvable observable model shape.", function)
+            return null
+        }
+        if (modelType.nullability == Nullability.NULLABLE) {
+            logger.error("Query '$identity' must not return an observable nullable model shape.", function)
+            return null
+        }
+        val invocationKind = when {
+            outerReturnName == KOTLIN_FLOW_TYPE -> QueryInvocationKind.FLOW
+            outerReturnName in RXJAVA3_OBSERVABLE_TYPES -> QueryInvocationKind.RX_OBSERVABLE
+            else -> QueryInvocationKind.JDK_PUBLISHER
+        }
+        return UnwrappedQueryReturn(modelType, invocationKind, true)
+    }
+
+    private fun unwrapCompletionStageReturn(
+        identity: String,
+        function: KSFunctionDeclaration,
+        returnType: KSType
+    ): UnwrappedQueryReturn? {
+        if (function.origin != Origin.JAVA) {
+            logger.error("Query '$identity' may use CompletionStage only when declared in Java.", function)
+            return null
+        }
+        if (returnType.arguments.size != 1 || returnType.arguments.single().type == null) {
+            logger.error("Java query '$identity' must return CompletionStage<T> with a concrete T.", function)
+            return null
+        }
+        val modelType = returnType.arguments.single().type!!.resolve()
+        if (modelType.nullability == Nullability.NULLABLE) {
+            logger.error("Java query '$identity' must not return CompletionStage<T?>.", function)
+            return null
+        }
+        return UnwrappedQueryReturn(modelType, QueryInvocationKind.COMPLETION_STAGE, false)
+    }
+
+    private fun validateQueryReturnName(identity: String, function: KSFunctionDeclaration, returnType: KSType): String? {
         val returnName = returnType.declaration.qualifiedName?.asString()
         if (returnName == null || returnType.declaration is KSTypeParameter || returnName in VOID_TYPE_NAMES) {
             logger.error("Query '$identity' must return its read model, a supported collection, array, QueryPage, or exact Spring Data Page.", function)
@@ -1956,7 +2010,16 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
             logger.error("Query '$identity' returns an unsupported observable publisher type.", function)
             return null
         }
+        return returnName
+    }
 
+    private fun validateSpringDataPageReturn(
+        identity: String,
+        function: KSFunctionDeclaration,
+        returnType: KSType,
+        returnName: String,
+        isObservable: Boolean
+    ): Boolean {
         val returnDeclaration = returnType.declaration as? KSClassDeclaration
         val springPageSupertype = returnDeclaration?.getAllSuperTypes()
             ?.mapNotNull { supertype -> supertype.declaration.qualifiedName?.asString() }
@@ -1969,7 +2032,7 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
                     "'$SPRING_PAGE_TYPE<T>' returns are supported.",
                 function
             )
-            return null
+            return false
         }
         if (isSpringDataPage && isObservable) {
             logger.error(
@@ -1978,7 +2041,7 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
                     "only for direct, suspending, and Java CompletionStage queries.",
                 function
             )
-            return null
+            return false
         }
         if (isSpringDataPage &&
             (returnType.nullability == Nullability.NULLABLE || function.hasNullableAnnotation())
@@ -1988,32 +2051,26 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
                 "Query '$identity' must return the exact non-null type '$SPRING_PAGE_TYPE<T>'.",
                 function
             )
-            return null
+            return false
         }
+        return true
+    }
 
-        val readModelName = requireNotNull(readModel.qualifiedName).asString()
-        if (returnName == readModelName) return QueryReturnShape(invocationKind, false, false, isObservable, false)
-        val isArray = returnName == "kotlin.Array"
-        val isEnumerable = returnName in COLLECTION_TYPE_NAMES || isArray
-        val isArcPage = returnName == QUERY_PAGE_TYPE
-        val isPage = isArcPage || isSpringDataPage
-        if (!isEnumerable && !isPage) {
-            val detail = if (returnType.arguments.isNotEmpty() || returnName in MAP_TYPE_NAMES) {
-                "unsupported generic or map return shape"
-            } else {
-                "return model '${returnName}' does not match annotated read model '$readModelName'"
-            }
-            logger.error("Query '$identity' has $detail.", function)
-            return null
-        }
+    private fun validateReturnElementType(
+        identity: String,
+        function: KSFunctionDeclaration,
+        returnType: KSType,
+        readModelName: String,
+        isSpringDataPage: Boolean
+    ): Boolean {
+        val diagnostic = if (isSpringDataPage) ArcDiagnostic.HOST_ADAPTER_PARAMETER else ArcDiagnostic.QUERY_RETURN
         if (returnType.arguments.size != 1 || returnType.arguments.single().type == null) {
-            val diagnostic = if (isSpringDataPage) ArcDiagnostic.HOST_ADAPTER_PARAMETER else ArcDiagnostic.QUERY_RETURN
             logger.error(
                 diagnostic,
                 "Query '$identity' must return a supported shape with the concrete read model element type.",
                 function
             )
-            return null
+            return false
         }
         if (isSpringDataPage && returnType.arguments.single().variance != Variance.INVARIANT) {
             logger.error(
@@ -2022,24 +2079,22 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
                     "page element types are unsupported.",
                 function
             )
-            return null
+            return false
         }
         val elementType = returnType.arguments.single().type!!.resolve()
         val elementName = elementType.declaration.qualifiedName?.asString()
         if (elementType.isError || elementType.declaration is KSTypeParameter || elementName == null) {
-            val diagnostic = if (isSpringDataPage) ArcDiagnostic.HOST_ADAPTER_PARAMETER else ArcDiagnostic.QUERY_RETURN
             logger.error(diagnostic, "Query '$identity' has an unresolvable return model element type.", function)
-            return null
+            return false
         }
         if (elementName != readModelName) {
             val nested = elementType.arguments.isNotEmpty() || elementType.declaration.parentDeclaration != null
             val detail = if (nested) "nested return models are not supported" else
                 "return model '$elementName' does not match annotated read model '$readModelName'"
-            val diagnostic = if (isSpringDataPage) ArcDiagnostic.HOST_ADAPTER_PARAMETER else ArcDiagnostic.QUERY_RETURN
             logger.error(diagnostic, "Query '$identity': $detail.", function)
-            return null
+            return false
         }
-        return QueryReturnShape(invocationKind, true, isPage, isObservable, isSpringDataPage)
+        return true
     }
 
     private fun resolveExplicitPath(
