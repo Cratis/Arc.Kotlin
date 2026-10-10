@@ -1501,6 +1501,7 @@ SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
         """,
     ),
     "site-concepts/cqrs/author-read-model": SnippetContext(),
+    "site-concepts/cqrs/register-author-events": SnippetContext(),
     "site-concepts/event-driven-architecture/loan-confirmation-reactor": SnippetContext(),
     "site-concepts/event-driven-architecture/borrow-book": SnippetContext(
         imports=("import io.cratis.chronicle.events.EventType",),
@@ -3286,6 +3287,7 @@ JAVA_SNIPPET_CONTEXTS: dict[str, JavaSnippetContext] = {
     ),
     "testing-with-cratis/register-author": JavaSnippetContext(),
     "site-concepts/cqrs/author-read-model": JavaSnippetContext(),
+    "site-concepts/cqrs/register-author-events": JavaSnippetContext(),
     "site-concepts/cqrs/register-author-state": JavaSnippetContext(prelude_from="site-concepts/cqrs/author-read-model"),
     "site-concepts/event-driven-architecture/loan-confirmation-reactor": JavaSnippetContext(),
     "site-concepts/event-driven-architecture/borrow-book": JavaSnippetContext(

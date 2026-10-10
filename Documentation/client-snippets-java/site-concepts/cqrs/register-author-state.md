@@ -6,7 +6,7 @@ import java.util.UUID;
 @Command
 public record RegisterAuthor(UUID id, String name) {
     public void handle(@FromServices AuthorRepository authors) {
-        authors.save(new Author(id, name));
+        authors.insert(new Author(id, name));
     }
 }
 ```

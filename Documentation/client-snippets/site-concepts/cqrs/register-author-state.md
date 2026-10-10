@@ -6,7 +6,7 @@ import java.util.UUID
 @Command
 data class RegisterAuthor(val id: UUID, val name: String) {
     fun handle(@FromServices authors: AuthorRepository) {
-        authors.save(Author(id, name))
+        authors.insert(Author(id, name))
     }
 }
 ```
