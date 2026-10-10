@@ -77,6 +77,25 @@ private data class ValidationTarget(
     val hasRules: Boolean = rules.isNotEmpty() || sharedEdge
 }
 
+private data class QueryRenderModel(
+    val query: QueryDescriptor,
+    val target: ArtifactTarget,
+    val route: String,
+    val parameters: List<ParameterDescriptor>,
+    val validationTargets: List<ValidationTarget>,
+    val model: TypeScriptType,
+    val referencedTypes: List<TypeScriptType>,
+    val imports: List<TypeScriptImport>,
+    val sortableProperties: List<String>,
+    val className: String,
+    val modelType: String,
+    val parameterType: String,
+    val method: String?,
+    val supportsSorting: Boolean,
+    val supportsPaging: Boolean,
+    val hasSortableProperties: Boolean
+)
+
 internal class TypeScriptProxyGenerator(
     private val artifacts: MergedArcArtifacts,
     private val options: ProxyGenerationOptions,
@@ -636,6 +655,13 @@ internal class TypeScriptProxyGenerator(
         if (query.transport == QueryTransportType.OBSERVABLE) {
             return renderObservableQuery(query, target, route)
         }
+        return renderQueryFile(queryRenderModel(query, target, route), observable = false)
+    }
+
+    private fun renderObservableQuery(query: QueryDescriptor, target: ArtifactTarget, route: String): String =
+        renderQueryFile(queryRenderModel(query, target, route), observable = true)
+
+    private fun queryRenderModel(query: QueryDescriptor, target: ArtifactTarget, route: String): QueryRenderModel {
         val parameters = query.parameters.filter { parameter -> parameter.source == QueryParameterSource.CLIENT }
             .sortedBy(ParameterDescriptor::name)
         val validationTargets = queryValidationTargets(parameters)
@@ -645,220 +671,179 @@ internal class TypeScriptProxyGenerator(
         val imports = customImports(referencedTypes, referencedTypes)
         val sortableProperties = returnedSortProperties(query)
         val className = target.typeScriptName
-        val modelType = model.name + if (query.isEnumerable) "[]" else ""
-        val parameterType = if (parameters.isEmpty()) "" else ", ${className}Parameters"
         val method = query.queryHttpMethod.takeIf {
             options.endpointOptions.enableQueryHttpMethod && it.name != "AUTO"
         }?.let { upperCamel(it.name.lowercase()) }
         val supportsSorting = query.isEnumerable && query.supportsSorting
-        val supportsPaging = query.isEnumerable && query.supportsPaging
-        val hasSortableProperties = supportsSorting && sortableProperties.isNotEmpty()
-        return buildString {
-            appendGeneratedHeader()
-            append("/* eslint-disable sort-imports */\n")
-            append("// eslint-disable-next-line header/header\n")
-            val validationImport = if (validationTargets.isNotEmpty()) ", QueryValidator" else ""
-            if (query.isEnumerable) {
-                val sorting = if (supportsSorting) ", Sorting" else ""
-                val sortingActions = if (hasSortableProperties) ", SortingActions, SortingActionsForQuery" else ""
-                val paging = if (supportsPaging) ", Paging" else ""
-                val httpMethod = if (method != null) ", QueryHttpMethod" else ""
-                append("import { QueryFor, QueryResultWithState$validationImport$sorting$sortingActions$paging$httpMethod } from '@cratis/arc/queries';\n")
-                val hooks = if (supportsPaging) {
-                    "useQuery, useQueryWithPaging, useSuspenseQuery, useSuspenseQueryWithPaging"
-                } else {
-                    "useQuery, useSuspenseQuery"
-                }
-                val sortingType = if (supportsSorting) ", type SetSorting" else ""
-                val pagingTypes = if (supportsPaging) ", type SetPage, type SetPageSize" else ""
-                append("import { $hooks, type PerformQuery$sortingType$pagingTypes, QueryWhen } from '@cratis/arc.react/queries';\n")
+        return QueryRenderModel(
+            query = query,
+            target = target,
+            route = route,
+            parameters = parameters,
+            validationTargets = validationTargets,
+            model = model,
+            referencedTypes = referencedTypes,
+            imports = imports,
+            sortableProperties = sortableProperties,
+            className = className,
+            modelType = model.name + if (query.isEnumerable) "[]" else "",
+            parameterType = if (parameters.isEmpty()) "" else ", ${className}Parameters",
+            method = method,
+            supportsSorting = supportsSorting,
+            supportsPaging = query.isEnumerable && query.supportsPaging,
+            hasSortableProperties = supportsSorting && sortableProperties.isNotEmpty()
+        )
+    }
+
+    private fun renderQueryFile(m: QueryRenderModel, observable: Boolean): String = buildString {
+        appendGeneratedHeader()
+        append("/* eslint-disable sort-imports */\n")
+        append("// eslint-disable-next-line header/header\n")
+        if (observable) appendObservableQueryImports(m) else appendQueryImports(m)
+        append("import { ParameterDescriptor } from '@cratis/arc/reflection';\n")
+        appendPackageImports(m.referencedTypes)
+        appendCustomImports(m.imports, m.target)
+        if (m.supportsSorting) {
+            if (observable) {
+                appendObservableSortHelpers(m.className, m.model.name, m.sortableProperties)
             } else {
-                val httpMethod = if (method != null) ", QueryHttpMethod" else ""
-                append("import { QueryFor, QueryResultWithState$validationImport$httpMethod } from '@cratis/arc/queries';\n")
-                append("import { useQuery, useSuspenseQuery, type PerformQuery, type SetSorting, QueryWhen } from '@cratis/arc.react/queries';\n")
+                appendSortHelpers(m.className, m.model.name, m.sortableProperties)
             }
-            append("import { ParameterDescriptor } from '@cratis/arc/reflection';\n")
-            appendPackageImports(referencedTypes)
-            appendCustomImports(imports, target)
-            if (supportsSorting) appendSortHelpers(className, model.name, sortableProperties)
-            if (parameters.isNotEmpty()) {
-                val parameterSpacing = if (query.isEnumerable) "\n" else "\n\n"
-                append(parameterSpacing)
-                appendDocumentation(query.summary)
-                append("export interface ${className}Parameters {\n")
-                parameters.forEach { parameter ->
-                    val optional = if (parameter.isNullable || parameter.hasDefault) "?" else ""
-                    val array = parameterArraySuffix(parameter)
-                    appendDocumentation(parameter.summary, "    ")
-                    append("    ${lowerCamel(parameter.name)}$optional: ${resolveParameterType(parameter, target).name}$array;\n")
-                }
-                append("}\n")
+        }
+        appendQueryParametersInterface(m, observable)
+        if (m.validationTargets.isNotEmpty()) append("\n")
+        appendQueryValidator(m.query, m.target, m.validationTargets)
+        append(querySpacing(m))
+        appendDocumentation(m.query.summary)
+        val baseClass = if (observable) "ObservableQueryFor" else "QueryFor"
+        append("export class ${m.className} extends $baseClass<${m.modelType}${m.parameterType}> {\n")
+        appendQueryClassFields(m)
+        appendQueryConstructor(m)
+        appendQueryParameterMembers(m)
+        if (m.supportsSorting) {
+            append("\n    get sortBy(): ${m.className}SortBy {\n        return this._sortBy;\n    }\n")
+            append("\n    static get sortBy(): ${m.className}SortByWithoutQuery {\n        return this._sortBy;\n    }\n")
+        }
+        if (observable) {
+            appendObservableQueryHooks(m.query, m.className, m.model.name, m.parameters.isNotEmpty())
+        } else {
+            appendQueryHooks(m.query, m.className, m.model.name, m.parameters.isNotEmpty())
+        }
+        append("}\n")
+    }
+
+    private fun StringBuilder.appendQueryImports(m: QueryRenderModel) {
+        val validationImport = if (m.validationTargets.isNotEmpty()) ", QueryValidator" else ""
+        val httpMethod = if (m.method != null) ", QueryHttpMethod" else ""
+        if (m.query.isEnumerable) {
+            val sorting = if (m.supportsSorting) ", Sorting" else ""
+            val sortingActions = if (m.hasSortableProperties) ", SortingActions, SortingActionsForQuery" else ""
+            val paging = if (m.supportsPaging) ", Paging" else ""
+            append("import { QueryFor, QueryResultWithState$validationImport$sorting$sortingActions$paging$httpMethod } from '@cratis/arc/queries';\n")
+            val hooks = if (m.supportsPaging) {
+                "useQuery, useQueryWithPaging, useSuspenseQuery, useSuspenseQueryWithPaging"
+            } else {
+                "useQuery, useSuspenseQuery"
             }
-            if (validationTargets.isNotEmpty()) append("\n")
-            appendQueryValidator(query, target, validationTargets)
-            val classSpacing = when {
-                query.isEnumerable && parameters.isEmpty() && validationTargets.isEmpty() -> "\n"
-                !query.isEnumerable && parameters.isEmpty() && validationTargets.isEmpty() -> "\n\n\n"
-                else -> "\n\n"
-            }
-            append(classSpacing)
-            appendDocumentation(query.summary)
-            append("export class $className extends QueryFor<$modelType$parameterType> {\n")
-            append("    readonly route: string = '${escape(route)}';\n")
-            append("    readonly queryName: string = '${escape(query.fullyQualifiedName)}';\n")
-            if (validationTargets.isNotEmpty()) {
-                append("    readonly validation: QueryValidator = new ${className}Validator();\n")
-            }
-            append("    readonly treatWarningsAsErrors: boolean = ${query.treatWarningsAsErrors};\n")
-            append("    readonly roles: string[] = ${roles(query.authorization.roles)};\n")
-            append("    readonly defaultValue: $modelType = ${if (query.isEnumerable) "[]" else "{} as any"};\n")
-            if (supportsSorting) {
-                append("    private readonly _sortBy: ${className}SortBy;\n")
-                append("    private static readonly _sortBy: ${className}SortByWithoutQuery = new ${className}SortByWithoutQuery();\n")
-            }
-            append("\n    constructor() {\n        super(${model.constructor}, ${query.isEnumerable});\n")
-            if (supportsSorting) append("        this._sortBy = new ${className}SortBy(this);\n")
-            if (method != null) append("        this.setHttpMethod(QueryHttpMethod.$method);\n")
-            append("    }\n\n")
-            append("    get requiredRequestParameters(): string[] {\n        return [\n")
-            parameters.filter { parameter -> !parameter.isNullable && !parameter.hasDefault }.forEach {
-                append("            '${lowerCamel(it.name)}',\n")
-            }
-            append("        ];\n    }\n\n")
-            append("    readonly parameterDescriptors: ParameterDescriptor[] = [\n")
-            parameters.forEach { parameter ->
-                append("        new ParameterDescriptor('${lowerCamel(parameter.name)}', ${resolveParameterType(parameter, target).constructor}, ${parameter.isEnumerable}),\n")
-            }
-            append("    ];\n\n")
-            parameters.forEach { parameter ->
-                val optional = if (parameter.hasDefault) "?" else "!"
-                val array = parameterArraySuffix(parameter)
-                append("    ${lowerCamel(parameter.name)}$optional: ${resolveParameterType(parameter, target).name}$array;\n")
-            }
-            if (!query.isEnumerable) append("\n")
-            if (supportsSorting) {
-                append("\n    get sortBy(): ${className}SortBy {\n        return this._sortBy;\n    }\n")
-                append("\n    static get sortBy(): ${className}SortByWithoutQuery {\n        return this._sortBy;\n    }\n")
-            }
-            appendQueryHooks(query, className, model.name, parameters.isNotEmpty())
-            append("}\n")
+            val sortingType = if (m.supportsSorting) ", type SetSorting" else ""
+            val pagingTypes = if (m.supportsPaging) ", type SetPage, type SetPageSize" else ""
+            append("import { $hooks, type PerformQuery$sortingType$pagingTypes, QueryWhen } from '@cratis/arc.react/queries';\n")
+        } else {
+            append("import { QueryFor, QueryResultWithState$validationImport$httpMethod } from '@cratis/arc/queries';\n")
+            append("import { useQuery, useSuspenseQuery, type PerformQuery, type SetSorting, QueryWhen } from '@cratis/arc.react/queries';\n")
         }
     }
 
-    private fun renderObservableQuery(query: QueryDescriptor, target: ArtifactTarget, route: String): String {
-        val parameters = query.parameters.filter { parameter -> parameter.source == QueryParameterSource.CLIENT }
-            .sortedBy(ParameterDescriptor::name)
-        val validationTargets = queryValidationTargets(parameters)
-        val model = resolveType(query.returnTypeName, target)
-        val parameterTypes = parameters.map { resolveParameterType(it, target) }
-        val referencedTypes = listOf(model) + parameterTypes
-        val imports = customImports(referencedTypes, referencedTypes)
-        val sortableProperties = returnedSortProperties(query)
-        val className = target.typeScriptName
-        val modelType = model.name + if (query.isEnumerable) "[]" else ""
-        val parameterType = if (parameters.isEmpty()) "" else ", ${className}Parameters"
-        val method = query.queryHttpMethod.takeIf {
-            options.endpointOptions.enableQueryHttpMethod && it.name != "AUTO"
-        }?.let { upperCamel(it.name.lowercase()) }
-        val supportsSorting = query.isEnumerable && query.supportsSorting
-        val supportsPaging = query.isEnumerable && query.supportsPaging
-        val hasSortableProperties = supportsSorting && sortableProperties.isNotEmpty()
-        return buildString {
-            appendGeneratedHeader()
-            append("/* eslint-disable sort-imports */\n")
-            append("// eslint-disable-next-line header/header\n")
-            val validationImport = if (validationTargets.isNotEmpty()) ", QueryValidator" else ""
-            if (query.isEnumerable) {
-                val sorting = if (supportsSorting) ", Sorting" else ""
-                val sortingActions = if (hasSortableProperties) {
-                    ", SortingActions, SortingActionsForObservableQuery"
-                } else {
-                    ""
-                }
-                val paging = if (supportsPaging) ", Paging" else ""
-                val httpMethod = if (method != null) ", QueryHttpMethod" else ""
-                append("import { ObservableQueryFor, QueryResultWithState$validationImport$sorting$sortingActions$paging, type ChangeSet$httpMethod } from '@cratis/arc/queries';\n")
-                val hooks = if (supportsPaging) {
-                    "useObservableQuery, useObservableQueryWithPaging, useSuspenseObservableQuery, " +
-                        "useSuspenseObservableQueryWithPaging"
-                } else {
-                    "useObservableQuery, useSuspenseObservableQuery"
-                }
-                val sortingType = if (supportsSorting) ", type SetSorting" else ""
-                val pagingTypes = if (supportsPaging) ", type SetPage, type SetPageSize" else ""
-                append("import { $hooks, useChangeStream$sortingType$pagingTypes, ObservableQueryWhen } from '@cratis/arc.react/queries';\n")
+    private fun StringBuilder.appendObservableQueryImports(m: QueryRenderModel) {
+        val validationImport = if (m.validationTargets.isNotEmpty()) ", QueryValidator" else ""
+        val httpMethod = if (m.method != null) ", QueryHttpMethod" else ""
+        if (m.query.isEnumerable) {
+            val sorting = if (m.supportsSorting) ", Sorting" else ""
+            val sortingActions = if (m.hasSortableProperties) {
+                ", SortingActions, SortingActionsForObservableQuery"
             } else {
-                val httpMethod = if (method != null) ", QueryHttpMethod" else ""
-                append("import { ObservableQueryFor, QueryResultWithState$validationImport$httpMethod } from '@cratis/arc/queries';\n")
-                append("import { useObservableQuery, useSuspenseObservableQuery, ObservableQueryWhen } from '@cratis/arc.react/queries';\n")
+                ""
             }
-            append("import { ParameterDescriptor } from '@cratis/arc/reflection';\n")
-            appendPackageImports(referencedTypes)
-            appendCustomImports(imports, target)
-            if (supportsSorting) appendObservableSortHelpers(className, model.name, sortableProperties)
-            if (parameters.isNotEmpty()) {
-                val parameterSpacing = if (query.isEnumerable) "\n" else "\n\n"
-                append(parameterSpacing)
-                appendDocumentation(query.summary)
-                append("export interface ${className}Parameters {\n")
-                parameters.forEach { parameter ->
-                    append("    \n")
-                    val optional = if (parameter.isNullable || parameter.hasDefault) "?" else ""
-                    val array = parameterArraySuffix(parameter)
-                    appendDocumentation(parameter.summary, "    ")
-                    append("    ${lowerCamel(parameter.name)}$optional: ${resolveParameterType(parameter, target).name}$array;\n")
-                }
-                append("}\n")
+            val paging = if (m.supportsPaging) ", Paging" else ""
+            append("import { ObservableQueryFor, QueryResultWithState$validationImport$sorting$sortingActions$paging, type ChangeSet$httpMethod } from '@cratis/arc/queries';\n")
+            val hooks = if (m.supportsPaging) {
+                "useObservableQuery, useObservableQueryWithPaging, useSuspenseObservableQuery, " +
+                    "useSuspenseObservableQueryWithPaging"
+            } else {
+                "useObservableQuery, useSuspenseObservableQuery"
             }
-            if (validationTargets.isNotEmpty()) append("\n")
-            appendQueryValidator(query, target, validationTargets)
-            val classSpacing = when {
-                query.isEnumerable && parameters.isEmpty() && validationTargets.isEmpty() -> "\n"
-                !query.isEnumerable && parameters.isEmpty() && validationTargets.isEmpty() -> "\n\n\n"
-                else -> "\n\n"
-            }
-            append(classSpacing)
-            appendDocumentation(query.summary)
-            append("export class $className extends ObservableQueryFor<$modelType$parameterType> {\n")
-            append("    readonly route: string = '${escape(route)}';\n")
-            append("    readonly queryName: string = '${escape(query.fullyQualifiedName)}';\n")
-            if (validationTargets.isNotEmpty()) {
-                append("    readonly validation: QueryValidator = new ${className}Validator();\n")
-            }
-            append("    readonly treatWarningsAsErrors: boolean = ${query.treatWarningsAsErrors};\n")
-            append("    readonly roles: string[] = ${roles(query.authorization.roles)};\n")
-            append("    readonly defaultValue: $modelType = ${if (query.isEnumerable) "[]" else "{} as any"};\n")
-            if (supportsSorting) {
-                append("    private readonly _sortBy: ${className}SortBy;\n")
-                append("    private static readonly _sortBy: ${className}SortByWithoutQuery = new ${className}SortByWithoutQuery();\n")
-            }
-            append("\n    constructor() {\n        super(${model.constructor}, ${query.isEnumerable});\n")
-            if (supportsSorting) append("        this._sortBy = new ${className}SortBy(this);\n")
-            if (method != null) append("        this.setHttpMethod(QueryHttpMethod.$method);\n")
-            append("    }\n\n")
-            append("    get requiredRequestParameters(): string[] {\n        return [\n")
-            parameters.filter { parameter -> !parameter.isNullable && !parameter.hasDefault }.forEach {
-                append("            '${lowerCamel(it.name)}',\n")
-            }
-            append("        ];\n    }\n\n")
-            append("    readonly parameterDescriptors: ParameterDescriptor[] = [\n")
-            parameters.forEach { parameter ->
-                append("        new ParameterDescriptor('${lowerCamel(parameter.name)}', ${resolveParameterType(parameter, target).constructor}, ${parameter.isEnumerable}),\n")
-            }
-            append("    ];\n\n")
-            parameters.forEach { parameter ->
-                val optional = if (parameter.hasDefault) "?" else "!"
-                val array = parameterArraySuffix(parameter)
-                append("    ${lowerCamel(parameter.name)}$optional: ${resolveParameterType(parameter, target).name}$array;\n")
-            }
-            if (!query.isEnumerable) append("\n")
-            if (supportsSorting) {
-                append("\n    get sortBy(): ${className}SortBy {\n        return this._sortBy;\n    }\n")
-                append("\n    static get sortBy(): ${className}SortByWithoutQuery {\n        return this._sortBy;\n    }\n")
-            }
-            appendObservableQueryHooks(query, className, model.name, parameters.isNotEmpty())
-            append("}\n")
+            val sortingType = if (m.supportsSorting) ", type SetSorting" else ""
+            val pagingTypes = if (m.supportsPaging) ", type SetPage, type SetPageSize" else ""
+            append("import { $hooks, useChangeStream$sortingType$pagingTypes, ObservableQueryWhen } from '@cratis/arc.react/queries';\n")
+        } else {
+            append("import { ObservableQueryFor, QueryResultWithState$validationImport$httpMethod } from '@cratis/arc/queries';\n")
+            append("import { useObservableQuery, useSuspenseObservableQuery, ObservableQueryWhen } from '@cratis/arc.react/queries';\n")
         }
+    }
+
+    private fun StringBuilder.appendQueryParametersInterface(m: QueryRenderModel, observable: Boolean) {
+        if (m.parameters.isEmpty()) return
+        append(if (m.query.isEnumerable) "\n" else "\n\n")
+        appendDocumentation(m.query.summary)
+        append("export interface ${m.className}Parameters {\n")
+        m.parameters.forEach { parameter ->
+            if (observable) append("    \n")
+            val optional = if (parameter.isNullable || parameter.hasDefault) "?" else ""
+            val array = parameterArraySuffix(parameter)
+            appendDocumentation(parameter.summary, "    ")
+            append("    ${lowerCamel(parameter.name)}$optional: ${resolveParameterType(parameter, m.target).name}$array;\n")
+        }
+        append("}\n")
+    }
+
+    private fun querySpacing(m: QueryRenderModel): String {
+        val bare = m.parameters.isEmpty() && m.validationTargets.isEmpty()
+        return when {
+            m.query.isEnumerable && bare -> "\n"
+            !m.query.isEnumerable && bare -> "\n\n\n"
+            else -> "\n\n"
+        }
+    }
+
+    private fun StringBuilder.appendQueryClassFields(m: QueryRenderModel) {
+        append("    readonly route: string = '${escape(m.route)}';\n")
+        append("    readonly queryName: string = '${escape(m.query.fullyQualifiedName)}';\n")
+        if (m.validationTargets.isNotEmpty()) {
+            append("    readonly validation: QueryValidator = new ${m.className}Validator();\n")
+        }
+        append("    readonly treatWarningsAsErrors: boolean = ${m.query.treatWarningsAsErrors};\n")
+        append("    readonly roles: string[] = ${roles(m.query.authorization.roles)};\n")
+        append("    readonly defaultValue: ${m.modelType} = ${if (m.query.isEnumerable) "[]" else "{} as any"};\n")
+        if (m.supportsSorting) {
+            append("    private readonly _sortBy: ${m.className}SortBy;\n")
+            append("    private static readonly _sortBy: ${m.className}SortByWithoutQuery = new ${m.className}SortByWithoutQuery();\n")
+        }
+    }
+
+    private fun StringBuilder.appendQueryConstructor(m: QueryRenderModel) {
+        append("\n    constructor() {\n        super(${m.model.constructor}, ${m.query.isEnumerable});\n")
+        if (m.supportsSorting) append("        this._sortBy = new ${m.className}SortBy(this);\n")
+        if (m.method != null) append("        this.setHttpMethod(QueryHttpMethod.${m.method});\n")
+        append("    }\n\n")
+    }
+
+    private fun StringBuilder.appendQueryParameterMembers(m: QueryRenderModel) {
+        append("    get requiredRequestParameters(): string[] {\n        return [\n")
+        m.parameters.filter { parameter -> !parameter.isNullable && !parameter.hasDefault }.forEach {
+            append("            '${lowerCamel(it.name)}',\n")
+        }
+        append("        ];\n    }\n\n")
+        append("    readonly parameterDescriptors: ParameterDescriptor[] = [\n")
+        m.parameters.forEach { parameter ->
+            append("        new ParameterDescriptor('${lowerCamel(parameter.name)}', ${resolveParameterType(parameter, m.target).constructor}, ${parameter.isEnumerable}),\n")
+        }
+        append("    ];\n\n")
+        m.parameters.forEach { parameter ->
+            val optional = if (parameter.hasDefault) "?" else "!"
+            val array = parameterArraySuffix(parameter)
+            append("    ${lowerCamel(parameter.name)}$optional: ${resolveParameterType(parameter, m.target).name}$array;\n")
+        }
+        if (!m.query.isEnumerable) append("\n")
     }
 
     private fun StringBuilder.appendSharedImports(target: ArtifactTarget, shapes: List<TypeShapeDescriptor>) {
