@@ -21,6 +21,7 @@ import com.google.devtools.ksp.symbol.KSFile
 import com.google.devtools.ksp.symbol.KSFunctionDeclaration
 import com.google.devtools.ksp.symbol.KSType
 import com.google.devtools.ksp.symbol.KSTypeParameter
+import com.google.devtools.ksp.symbol.KSValueParameter
 import com.google.devtools.ksp.symbol.Modifier
 import com.google.devtools.ksp.symbol.Nullability
 import com.google.devtools.ksp.symbol.Origin
@@ -1546,256 +1547,345 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
         val infrastructureSources = mutableSetOf<QueryParameterSource>()
         val hostAdapterKinds = mutableSetOf<QueryHostAdapterKind>()
         function.parameters.forEach { parameter ->
-            val name = parameter.name?.asString()
-            if (name == null) {
-                logger.error("Query '$queryName' has an unnamed parameter.", parameter)
-                return null
-            }
-            if (parameter.isVararg) {
-                logger.error("Query parameter '$queryName.$name' must not be variadic.", parameter)
-                return null
-            }
-            val type = parameter.type.resolve()
-            val declaration = type.declaration
-            val qualifiedName = declaration.qualifiedName?.asString()
-            if (type.isError || declaration is KSTypeParameter || declaration !is KSClassDeclaration || qualifiedName == null) {
-                logger.error("Query parameter '$queryName.$name' must have a resolvable class or interface type.", parameter)
-                return null
-            }
-            val hostAdapterKind = QUERY_HOST_ADAPTER_TYPES[qualifiedName]
-            val infrastructureSource = QUERY_INFRASTRUCTURE_TYPES[qualifiedName]
-                ?: hostAdapterKind?.let { QueryParameterSource.HOST_ADAPTER }
-            val supertypes = declaration.getAllSuperTypes()
-                .mapNotNull { supertype -> supertype.declaration.qualifiedName?.asString() }
-                .toList()
-            val infrastructureSupertype = supertypes.firstOrNull(QUERY_INFRASTRUCTURE_TYPES::containsKey)
-            val hostAdapterSupertype = supertypes.firstOrNull(QUERY_HOST_ADAPTER_TYPES::containsKey)
-            val infrastructureLike = declaration.simpleName.asString() in QUERY_INFRASTRUCTURE_SIMPLE_NAMES ||
-                infrastructureSupertype != null
-            val hostAdapterLike = declaration.simpleName.asString() in QUERY_HOST_ADAPTER_SIMPLE_NAMES ||
-                hostAdapterSupertype != null
-            if (infrastructureSource == null && infrastructureLike) {
-                logger.error(
-                    ArcDiagnostic.QUERY_INFRASTRUCTURE_PARAMETER,
-                    "Query parameter '$queryName.$name' uses infrastructure-like type '$qualifiedName'; only exact " +
-                        "non-null '$QUERY_REQUEST_TYPE' and '$QUERY_CONTEXT_TYPE' types are supported as query " +
-                        "infrastructure parameters.",
-                    parameter
-                )
-                return null
-            }
-            if (hostAdapterKind == null && hostAdapterLike) {
-                logger.error(
-                    ArcDiagnostic.HOST_ADAPTER_PARAMETER,
-                    "Query parameter '$queryName.$name' uses host-adapter-like type '$qualifiedName'; only exact " +
-                        "non-null '$SPRING_PAGEABLE_TYPE' and '$SPRING_SORT_TYPE' host adapter parameters are supported.",
-                    parameter
-                )
-                return null
-            }
-
-            val fromServices = parameter.hasAnnotation(FROM_SERVICES_ANNOTATION)
-            if (infrastructureSource != null) {
-                val diagnostic = if (hostAdapterKind == null) {
-                    ArcDiagnostic.QUERY_INFRASTRUCTURE_PARAMETER
-                } else {
-                    ArcDiagnostic.HOST_ADAPTER_PARAMETER
-                }
-                val parameterKind = if (hostAdapterKind == null) "Query infrastructure" else "Query host adapter"
-                if (type.arguments.isNotEmpty()) {
-                    logger.error(
-                        diagnostic,
-                        "$parameterKind parameter '$queryName.$name' must use the exact non-parameterized type '$qualifiedName'.",
-                        parameter
-                    )
-                    return null
-                }
-                if (type.nullability == Nullability.NULLABLE || parameter.hasNullableAnnotation()) {
-                    logger.error(
-                        diagnostic,
-                        "$parameterKind parameter '$queryName.$name' must use the exact non-null type '$qualifiedName'.",
-                        parameter
-                    )
-                    return null
-                }
-                if (fromServices) {
-                    logger.error(
-                        diagnostic,
-                        "$parameterKind parameter '$queryName.$name' must not be annotated @FromServices; its value is " +
-                            if (hostAdapterKind == null) {
-                                "supplied by the query execution context."
-                            } else {
-                                "supplied from the query request."
-                            },
-                        parameter
-                    )
-                    return null
-                }
-                if (function.origin == Origin.KOTLIN && parameter.hasDefault) {
-                    if (hostAdapterKind == null) {
-                        logger.error(
-                            ArcDiagnostic.QUERY_DEFAULT,
-                            "Kotlin query parameter default '$queryName.$name' is unsupported because QUERY_REQUEST and " +
-                                "QUERY_CONTEXT infrastructure parameters must always be supplied by Arc.",
-                            parameter
-                        )
-                    } else {
-                        logger.error(
-                            ArcDiagnostic.HOST_ADAPTER_PARAMETER,
-                            "Kotlin query host adapter parameter '$queryName.$name' must not declare a default value; " +
-                                "Arc always creates it from the query request.",
-                            parameter
-                        )
-                    }
-                    return null
-                }
-                if (hostAdapterKind != null) {
-                    if (!hostAdapterKinds.add(hostAdapterKind)) {
-                        logger.error(
-                            ArcDiagnostic.HOST_ADAPTER_PARAMETER,
-                            "Query '$queryName' declares more than one ${hostAdapterKind.name} host adapter parameter; " +
-                                "each host adapter kind may appear at most once.",
-                            parameter
-                        )
-                        return null
-                    }
-                } else if (!infrastructureSources.add(infrastructureSource)) {
-                    logger.error(
-                        ArcDiagnostic.QUERY_INFRASTRUCTURE_PARAMETER,
-                        "Query '$queryName' declares more than one ${infrastructureSource.name} infrastructure " +
-                            "parameter; each infrastructure source may appear at most once.",
-                        parameter
-                    )
-                    return null
-                }
-            }
-
-            if (infrastructureSource == null && hostAdapterKind == null && !fromServices &&
-                name.lowercase() in RESERVED_QUERY_PARAMETER_NAMES
-            ) {
-                logger.error(
-                    ArcDiagnostic.HOST_ADAPTER_PARAMETER,
-                    "Query client parameter '$queryName.$name' conflicts with reserved paging or sorting control " +
-                        "'$name'; use another parameter name.",
-                    parameter
-                )
-                return null
-            }
-
-            if (containsMapType(type)) {
-                logger.error(
-                    ArcDiagnostic.PROXY_SHAPE,
-                    "Query '$queryName' parameter '$name' value path 'parameter' uses a map; query, observable, and service parameters cannot use maps.",
-                    parameter
-                )
-                return null
-            }
-            if (infrastructureSource == null && !fromServices &&
-                (declaration.classKind == ClassKind.INTERFACE || Modifier.ABSTRACT in declaration.modifiers)
-            ) {
-                logger.error(
-                    ArcDiagnostic.QUERY_PARAMETER,
-                    "Query parameter '$queryName.$name' has service-like interface or abstract type '$qualifiedName'; " +
-                        "annotate it with @FromServices or use a concrete client-serializable parameter type.",
-                    parameter
-                )
-                return null
-            }
-            if (fromServices && type.nullability == Nullability.NULLABLE) {
-                logger.error(
-                    ArcDiagnostic.QUERY_PARAMETER,
-                    "Query service parameter '$queryName.$name' must be non-null because generated service resolution is required.",
-                    parameter
-                )
-                return null
-            }
-            if (function.origin == Origin.KOTLIN && parameter.hasDefault && fromServices) {
-                logger.error(
-                    ArcDiagnostic.QUERY_DEFAULT,
-                    "Kotlin query parameter default '$queryName.$name' is unsupported because service parameters must " +
-                        "always be supplied by Arc.",
-                    parameter
-                )
-                return null
-            }
-            if (fromServices && type.arguments.isNotEmpty()) {
-                logger.error("Query service parameter '$queryName.$name' must not use a parameterized type.", parameter)
-                return null
-            }
-            if (fromServices && qualifiedName == "kotlin.Array") {
-                logger.error("Query service parameter '$queryName.$name' must not use an array type.", parameter)
-                return null
-            }
-            val source = infrastructureSource ?: if (fromServices) QueryParameterSource.SERVICE else QueryParameterSource.CLIENT
-            val hasDefault = function.origin == Origin.KOTLIN &&
-                source == QueryParameterSource.CLIENT && parameter.hasDefault
-            val shape = if (source != QueryParameterSource.CLIENT) {
-                TypeShape(
-                    qualifiedName,
-                    TypeShapeDescriptor.value(qualifiedName, type.nullability == Nullability.NULLABLE),
-                    type
-                )
-            } else {
-                metadataCollector.describe(type, "$queryName.$name", parameter) ?: return null
-            }
-            val renderedName = renderKotlinType(type)
-            if (renderedName == null) {
-                logger.error("Query parameter '$queryName.$name' has an unsupported type.", parameter)
-                return null
-            }
-            if (source == QueryParameterSource.CLIENT &&
-                !metadataCollector.collect(shape, "$queryName.$name", parameter)
+            val context = queryParameterContext(queryName, parameter) ?: return null
+            if (!validateInfrastructureLikeParameter(context)) return null
+            if (context.infrastructureSource != null &&
+                !validateInfrastructureParameter(context, function, infrastructureSources, hostAdapterKinds)
             ) return null
-            val validation = metadataCollector.extractValidation(
-                listOf(parameter),
-                shape,
-                "$queryName.$name",
-                parameter
-            ) ?: return null
-            if (function.origin == Origin.JAVA && source == QueryParameterSource.CLIENT &&
-                validation.rules.isNotEmpty()
-            ) {
-                logger.error(
-                    ArcDiagnostic.VALIDATION,
-                    "Jakarta constraints declared directly on static Java query parameter '$queryName.$name' are " +
-                        "unsupported because Jakarta executable validation requires an invocation receiver; use a " +
-                        "QueryValidator or a validated argument model instead.",
-                    parameter
-                )
-                return null
-            }
-            if (source == QueryParameterSource.SERVICE &&
-                (validation.rules.isNotEmpty() || validation.validateRecursively)
-            ) {
-                logger.error(
-                    ArcDiagnostic.VALIDATION,
-                    "Validation annotations on service parameter '$queryName.$name' cannot be represented in a client proxy.",
-                    parameter
-                )
-                return null
-            }
-            parameters.add(
-                QueryParameterModel(
-                    name = name,
-                    typeName = shape.typeName,
-                    shape = shape.descriptor,
-                    renderedTypeName = renderedName,
-                    erasedTypeName = renderRuntimeType(qualifiedName),
-                    source = source,
-                    hostAdapterKind = hostAdapterKind,
-                    hasDefault = hasDefault,
-                    isNullable = shape.isNullable,
-                    isEnumerable = shape.isEnumerable,
-                    elementTypeName = shape.elementTypeName,
-                    validationRules = validation.rules,
-                    validateRecursively = validation.validateRecursively,
-                    // Only a client parameter reaches a generated proxy, so only it carries documentation.
-                    summary = documentation.paramTags[name]
-                        .takeIf { source == QueryParameterSource.CLIENT }
-                )
-            )
+            if (!validateClientOrServiceParameter(context, function)) return null
+            parameters.add(createQueryParameterModel(context, function, documentation) ?: return null)
         }
         return parameters
+    }
+
+    private class QueryParameterContext(
+        val queryName: String,
+        val name: String,
+        val parameter: KSValueParameter,
+        val type: KSType,
+        val declaration: KSClassDeclaration,
+        val qualifiedName: String,
+        val fromServices: Boolean
+    ) {
+        val hostAdapterKind = QUERY_HOST_ADAPTER_TYPES[qualifiedName]
+        val infrastructureSource = QUERY_INFRASTRUCTURE_TYPES[qualifiedName]
+            ?: hostAdapterKind?.let { QueryParameterSource.HOST_ADAPTER }
+    }
+
+    private fun queryParameterContext(queryName: String, parameter: KSValueParameter): QueryParameterContext? {
+        val name = parameter.name?.asString()
+        if (name == null) {
+            logger.error("Query '$queryName' has an unnamed parameter.", parameter)
+            return null
+        }
+        if (parameter.isVararg) {
+            logger.error("Query parameter '$queryName.$name' must not be variadic.", parameter)
+            return null
+        }
+        val type = parameter.type.resolve()
+        val declaration = type.declaration
+        val qualifiedName = declaration.qualifiedName?.asString()
+        if (type.isError || declaration is KSTypeParameter || declaration !is KSClassDeclaration || qualifiedName == null) {
+            logger.error("Query parameter '$queryName.$name' must have a resolvable class or interface type.", parameter)
+            return null
+        }
+        return QueryParameterContext(
+            queryName,
+            name,
+            parameter,
+            type,
+            declaration,
+            qualifiedName,
+            parameter.hasAnnotation(FROM_SERVICES_ANNOTATION)
+        )
+    }
+
+    private fun validateInfrastructureLikeParameter(context: QueryParameterContext): Boolean {
+        val (queryName, name, parameter) = Triple(context.queryName, context.name, context.parameter)
+        val qualifiedName = context.qualifiedName
+        val supertypes = context.declaration.getAllSuperTypes()
+            .mapNotNull { supertype -> supertype.declaration.qualifiedName?.asString() }
+            .toList()
+        val infrastructureSupertype = supertypes.firstOrNull(QUERY_INFRASTRUCTURE_TYPES::containsKey)
+        val hostAdapterSupertype = supertypes.firstOrNull(QUERY_HOST_ADAPTER_TYPES::containsKey)
+        val infrastructureLike = context.declaration.simpleName.asString() in QUERY_INFRASTRUCTURE_SIMPLE_NAMES ||
+            infrastructureSupertype != null
+        val hostAdapterLike = context.declaration.simpleName.asString() in QUERY_HOST_ADAPTER_SIMPLE_NAMES ||
+            hostAdapterSupertype != null
+        if (context.infrastructureSource == null && infrastructureLike) {
+            logger.error(
+                ArcDiagnostic.QUERY_INFRASTRUCTURE_PARAMETER,
+                "Query parameter '$queryName.$name' uses infrastructure-like type '$qualifiedName'; only exact " +
+                    "non-null '$QUERY_REQUEST_TYPE' and '$QUERY_CONTEXT_TYPE' types are supported as query " +
+                    "infrastructure parameters.",
+                parameter
+            )
+            return false
+        }
+        if (context.hostAdapterKind == null && hostAdapterLike) {
+            logger.error(
+                ArcDiagnostic.HOST_ADAPTER_PARAMETER,
+                "Query parameter '$queryName.$name' uses host-adapter-like type '$qualifiedName'; only exact " +
+                    "non-null '$SPRING_PAGEABLE_TYPE' and '$SPRING_SORT_TYPE' host adapter parameters are supported.",
+                parameter
+            )
+            return false
+        }
+        return true
+    }
+
+    private fun validateInfrastructureParameter(
+        context: QueryParameterContext,
+        function: KSFunctionDeclaration,
+        infrastructureSources: MutableSet<QueryParameterSource>,
+        hostAdapterKinds: MutableSet<QueryHostAdapterKind>
+    ): Boolean {
+        val (queryName, name, parameter) = Triple(context.queryName, context.name, context.parameter)
+        val hostAdapterKind = context.hostAdapterKind
+        val diagnostic = if (hostAdapterKind == null) {
+            ArcDiagnostic.QUERY_INFRASTRUCTURE_PARAMETER
+        } else {
+            ArcDiagnostic.HOST_ADAPTER_PARAMETER
+        }
+        val parameterKind = if (hostAdapterKind == null) "Query infrastructure" else "Query host adapter"
+        if (context.type.arguments.isNotEmpty()) {
+            logger.error(
+                diagnostic,
+                "$parameterKind parameter '$queryName.$name' must use the exact non-parameterized type '${context.qualifiedName}'.",
+                parameter
+            )
+            return false
+        }
+        if (context.type.nullability == Nullability.NULLABLE || parameter.hasNullableAnnotation()) {
+            logger.error(
+                diagnostic,
+                "$parameterKind parameter '$queryName.$name' must use the exact non-null type '${context.qualifiedName}'.",
+                parameter
+            )
+            return false
+        }
+        if (context.fromServices) {
+            logger.error(
+                diagnostic,
+                "$parameterKind parameter '$queryName.$name' must not be annotated @FromServices; its value is " +
+                    if (hostAdapterKind == null) {
+                        "supplied by the query execution context."
+                    } else {
+                        "supplied from the query request."
+                    },
+                parameter
+            )
+            return false
+        }
+        if (function.origin == Origin.KOTLIN && parameter.hasDefault) {
+            logInfrastructureDefault(context)
+            return false
+        }
+        return registerInfrastructureParameter(context, infrastructureSources, hostAdapterKinds)
+    }
+
+    private fun logInfrastructureDefault(context: QueryParameterContext) {
+        if (context.hostAdapterKind == null) {
+            logger.error(
+                ArcDiagnostic.QUERY_DEFAULT,
+                "Kotlin query parameter default '${context.queryName}.${context.name}' is unsupported because " +
+                    "QUERY_REQUEST and QUERY_CONTEXT infrastructure parameters must always be supplied by Arc.",
+                context.parameter
+            )
+        } else {
+            logger.error(
+                ArcDiagnostic.HOST_ADAPTER_PARAMETER,
+                "Kotlin query host adapter parameter '${context.queryName}.${context.name}' must not declare a " +
+                    "default value; Arc always creates it from the query request.",
+                context.parameter
+            )
+        }
+    }
+
+    private fun registerInfrastructureParameter(
+        context: QueryParameterContext,
+        infrastructureSources: MutableSet<QueryParameterSource>,
+        hostAdapterKinds: MutableSet<QueryHostAdapterKind>
+    ): Boolean {
+        val hostAdapterKind = context.hostAdapterKind
+        val infrastructureSource = requireNotNull(context.infrastructureSource)
+        if (hostAdapterKind != null) {
+            if (!hostAdapterKinds.add(hostAdapterKind)) {
+                logger.error(
+                    ArcDiagnostic.HOST_ADAPTER_PARAMETER,
+                    "Query '${context.queryName}' declares more than one ${hostAdapterKind.name} host adapter parameter; " +
+                        "each host adapter kind may appear at most once.",
+                    context.parameter
+                )
+                return false
+            }
+        } else if (!infrastructureSources.add(infrastructureSource)) {
+            logger.error(
+                ArcDiagnostic.QUERY_INFRASTRUCTURE_PARAMETER,
+                "Query '${context.queryName}' declares more than one ${infrastructureSource.name} infrastructure " +
+                    "parameter; each infrastructure source may appear at most once.",
+                context.parameter
+            )
+            return false
+        }
+        return true
+    }
+
+    private fun validateClientOrServiceParameter(context: QueryParameterContext, function: KSFunctionDeclaration): Boolean {
+        val (queryName, name, parameter) = Triple(context.queryName, context.name, context.parameter)
+        val (type, declaration) = context.type to context.declaration
+        val fromServices = context.fromServices
+        val infrastructureSource = context.infrastructureSource
+        if (infrastructureSource == null && context.hostAdapterKind == null && !fromServices &&
+            name.lowercase() in RESERVED_QUERY_PARAMETER_NAMES
+        ) {
+            logger.error(
+                ArcDiagnostic.HOST_ADAPTER_PARAMETER,
+                "Query client parameter '$queryName.$name' conflicts with reserved paging or sorting control " +
+                    "'$name'; use another parameter name.",
+                parameter
+            )
+            return false
+        }
+
+        if (containsMapType(type)) {
+            logger.error(
+                ArcDiagnostic.PROXY_SHAPE,
+                "Query '$queryName' parameter '$name' value path 'parameter' uses a map; query, observable, and service parameters cannot use maps.",
+                parameter
+            )
+            return false
+        }
+        if (infrastructureSource == null && !fromServices &&
+            (declaration.classKind == ClassKind.INTERFACE || Modifier.ABSTRACT in declaration.modifiers)
+        ) {
+            logger.error(
+                ArcDiagnostic.QUERY_PARAMETER,
+                "Query parameter '$queryName.$name' has service-like interface or abstract type '${context.qualifiedName}'; " +
+                    "annotate it with @FromServices or use a concrete client-serializable parameter type.",
+                parameter
+            )
+            return false
+        }
+        return !fromServices || validateServiceParameter(context, function)
+    }
+
+    private fun validateServiceParameter(context: QueryParameterContext, function: KSFunctionDeclaration): Boolean {
+        val (queryName, name, parameter) = Triple(context.queryName, context.name, context.parameter)
+        if (context.type.nullability == Nullability.NULLABLE) {
+            logger.error(
+                ArcDiagnostic.QUERY_PARAMETER,
+                "Query service parameter '$queryName.$name' must be non-null because generated service resolution is required.",
+                parameter
+            )
+            return false
+        }
+        if (function.origin == Origin.KOTLIN && parameter.hasDefault) {
+            logger.error(
+                ArcDiagnostic.QUERY_DEFAULT,
+                "Kotlin query parameter default '$queryName.$name' is unsupported because service parameters must " +
+                    "always be supplied by Arc.",
+                parameter
+            )
+            return false
+        }
+        if (context.type.arguments.isNotEmpty()) {
+            logger.error("Query service parameter '$queryName.$name' must not use a parameterized type.", parameter)
+            return false
+        }
+        if (context.qualifiedName == "kotlin.Array") {
+            logger.error("Query service parameter '$queryName.$name' must not use an array type.", parameter)
+            return false
+        }
+        return true
+    }
+
+    private fun createQueryParameterModel(
+        context: QueryParameterContext,
+        function: KSFunctionDeclaration,
+        documentation: ParsedDocumentation
+    ): QueryParameterModel? {
+        val (queryName, name, parameter) = Triple(context.queryName, context.name, context.parameter)
+        val type = context.type
+        val qualifiedName = context.qualifiedName
+        val source = context.infrastructureSource
+            ?: if (context.fromServices) QueryParameterSource.SERVICE else QueryParameterSource.CLIENT
+        val hasDefault = function.origin == Origin.KOTLIN &&
+            source == QueryParameterSource.CLIENT && parameter.hasDefault
+        val shape = if (source != QueryParameterSource.CLIENT) {
+            TypeShape(
+                qualifiedName,
+                TypeShapeDescriptor.value(qualifiedName, type.nullability == Nullability.NULLABLE),
+                type
+            )
+        } else {
+            metadataCollector.describe(type, "$queryName.$name", parameter) ?: return null
+        }
+        val renderedName = renderKotlinType(type)
+        if (renderedName == null) {
+            logger.error("Query parameter '$queryName.$name' has an unsupported type.", parameter)
+            return null
+        }
+        if (source == QueryParameterSource.CLIENT &&
+            !metadataCollector.collect(shape, "$queryName.$name", parameter)
+        ) return null
+        val validation = metadataCollector.extractValidation(
+            listOf(parameter),
+            shape,
+            "$queryName.$name",
+            parameter
+        ) ?: return null
+        if (!validateParameterValidation(context, function, source, validation)) return null
+        return QueryParameterModel(
+            name = name,
+            typeName = shape.typeName,
+            shape = shape.descriptor,
+            renderedTypeName = renderedName,
+            erasedTypeName = renderRuntimeType(qualifiedName),
+            source = source,
+            hostAdapterKind = context.hostAdapterKind,
+            hasDefault = hasDefault,
+            isNullable = shape.isNullable,
+            isEnumerable = shape.isEnumerable,
+            elementTypeName = shape.elementTypeName,
+            validationRules = validation.rules,
+            validateRecursively = validation.validateRecursively,
+            // Only a client parameter reaches a generated proxy, so only it carries documentation.
+            summary = documentation.paramTags[name]
+                .takeIf { source == QueryParameterSource.CLIENT }
+        )
+    }
+
+    private fun validateParameterValidation(
+        context: QueryParameterContext,
+        function: KSFunctionDeclaration,
+        source: QueryParameterSource,
+        validation: ValidationMetadata
+    ): Boolean {
+        val (queryName, name, parameter) = Triple(context.queryName, context.name, context.parameter)
+        if (function.origin == Origin.JAVA && source == QueryParameterSource.CLIENT &&
+            validation.rules.isNotEmpty()
+        ) {
+            logger.error(
+                ArcDiagnostic.VALIDATION,
+                "Jakarta constraints declared directly on static Java query parameter '$queryName.$name' are " +
+                    "unsupported because Jakarta executable validation requires an invocation receiver; use a " +
+                    "QueryValidator or a validated argument model instead.",
+                parameter
+            )
+            return false
+        }
+        if (source == QueryParameterSource.SERVICE &&
+            (validation.rules.isNotEmpty() || validation.validateRecursively)
+        ) {
+            logger.error(
+                ArcDiagnostic.VALIDATION,
+                "Validation annotations on service parameter '$queryName.$name' cannot be represented in a client proxy.",
+                parameter
+            )
+            return false
+        }
+        return true
     }
 
     private fun determineQueryReturnShape(
