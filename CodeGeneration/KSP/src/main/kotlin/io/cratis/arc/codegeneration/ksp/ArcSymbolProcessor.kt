@@ -440,33 +440,31 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
         configurationReported = true
     }
 
-    private fun buildCommandModel(command: KSClassDeclaration, resolver: Resolver): CommandModel? {
-        val qualifiedName = command.qualifiedName?.asString()
-        if (qualifiedName == null) {
-            logger.error(ArcDiagnostic.COMMAND_SHAPE, "@$COMMAND_SIMPLE_NAME classes must not be local.", command)
-            return null
-        }
+    private fun validateCommandClass(command: KSClassDeclaration, qualifiedName: String): Boolean {
         if (command.parentDeclaration != null) {
             logger.error("Command '$qualifiedName' must be a top-level class; nested commands are not supported.", command)
-            return null
+            return false
         }
         if (command.classKind != ClassKind.CLASS) {
             logger.error("Command '$qualifiedName' must be a concrete class.", command)
-            return null
+            return false
         }
         if (!command.isPublic()) {
             logger.error("Command '$qualifiedName' must be public so its generated handler can invoke it.", command)
-            return null
+            return false
         }
         if (Modifier.ABSTRACT in command.modifiers) {
             logger.error("Command '$qualifiedName' must not be abstract.", command)
-            return null
+            return false
         }
         if (command.typeParameters.isNotEmpty()) {
             logger.error("Command '$qualifiedName' must not declare type parameters.", command)
-            return null
+            return false
         }
+        return true
+    }
 
+    private fun findCommandHandler(command: KSClassDeclaration, qualifiedName: String): KSFunctionDeclaration? {
         val namedHandlers = command.getDeclaredFunctions().filter { it.simpleName.asString() == HANDLER_NAME }.toList()
         if (namedHandlers.isEmpty()) {
             logger.error("Command '$qualifiedName' must declare exactly one public instance function named '$HANDLER_NAME'.", command)
@@ -497,6 +495,33 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
             logger.error("Handler '$qualifiedName.$HANDLER_NAME' must not declare type parameters.", handler)
             return null
         }
+        return handler
+    }
+
+    private fun validateProvideMethod(method: KSFunctionDeclaration, qualifiedName: String): Boolean {
+        if (!method.isPublic()) {
+            logger.error("Provide method '$qualifiedName.$PROVIDE_NAME' must be public.", method)
+            return false
+        }
+        if (method.functionKind != FunctionKind.MEMBER || Modifier.JAVA_STATIC in method.modifiers) {
+            logger.error("Provide method '$qualifiedName.$PROVIDE_NAME' must be a non-static instance function.", method)
+            return false
+        }
+        if (Modifier.ABSTRACT in method.modifiers || method.extensionReceiver != null || method.typeParameters.isNotEmpty()) {
+            logger.error("Provide method '$qualifiedName.$PROVIDE_NAME' must be concrete, non-generic, and not an extension function.", method)
+            return false
+        }
+        return true
+    }
+
+    private fun buildCommandModel(command: KSClassDeclaration, resolver: Resolver): CommandModel? {
+        val qualifiedName = command.qualifiedName?.asString()
+        if (qualifiedName == null) {
+            logger.error(ArcDiagnostic.COMMAND_SHAPE, "@$COMMAND_SIMPLE_NAME classes must not be local.", command)
+            return null
+        }
+        if (!validateCommandClass(command, qualifiedName)) return null
+        val handler = findCommandHandler(command, qualifiedName) ?: return null
 
         val parameters = buildMethodParameters(qualifiedName, handler, HANDLER_NAME) ?: return null
         val invocationKind = determineInvocationKind(qualifiedName, handler, resolver, HANDLER_NAME) ?: return null
@@ -506,19 +531,8 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
             return null
         }
         val provideMethod = namedProvides.singleOrNull()
+        if (provideMethod != null && !validateProvideMethod(provideMethod, qualifiedName)) return null
         val provide = provideMethod?.let { method ->
-            if (!method.isPublic()) {
-                logger.error("Provide method '$qualifiedName.$PROVIDE_NAME' must be public.", method)
-                return null
-            }
-            if (method.functionKind != FunctionKind.MEMBER || Modifier.JAVA_STATIC in method.modifiers) {
-                logger.error("Provide method '$qualifiedName.$PROVIDE_NAME' must be a non-static instance function.", method)
-                return null
-            }
-            if (Modifier.ABSTRACT in method.modifiers || method.extensionReceiver != null || method.typeParameters.isNotEmpty()) {
-                logger.error("Provide method '$qualifiedName.$PROVIDE_NAME' must be concrete, non-generic, and not an extension function.", method)
-                return null
-            }
             ProvideModel(
                 buildMethodParameters(qualifiedName, method, PROVIDE_NAME) ?: return null,
                 determineInvocationKind(qualifiedName, method, resolver, PROVIDE_NAME, allowNullableReturn = true)
