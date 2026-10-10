@@ -301,16 +301,6 @@ internal class TypeScriptProxyGenerator(
             QueryDescriptor::location,
             options.endpointOptions.segmentsToSkipForRoute
         )
-        renderCommands(generated, commandNamespaces)
-        renderQueries(generated, queryNamespaces)
-        renderTypeArtifacts(generated)
-        return generated
-    }
-
-    private fun renderCommands(
-        generated: MutableMap<String, Pair<String, String>>,
-        commandNamespaces: Map<String, List<CommandDescriptor>>
-    ) {
         artifacts.commands.forEach { command ->
             val target = targetBySource.getValue(command.typeName)
             val namespace = command.location.drop(options.endpointOptions.segmentsToSkipForRoute).joinToString(".")
@@ -321,12 +311,6 @@ internal class TypeScriptProxyGenerator(
             )
             generated[target.relativePath] = command.typeName to renderCommand(command, target, route)
         }
-    }
-
-    private fun renderQueries(
-        generated: MutableMap<String, Pair<String, String>>,
-        queryNamespaces: Map<String, List<QueryDescriptor>>
-    ) {
         artifacts.queries.forEach { query ->
             val target = queryTarget(query)
             val namespace = query.location.drop(options.endpointOptions.segmentsToSkipForRoute).joinToString(".")
@@ -337,9 +321,6 @@ internal class TypeScriptProxyGenerator(
             )
             generated[target.relativePath] = query.declaringTypeName to renderQuery(query, target, route)
         }
-    }
-
-    private fun renderTypeArtifacts(generated: MutableMap<String, Pair<String, String>>) {
         emittedTypes.forEach { type ->
             val target = targetBySource.getValue(type.fullyQualifiedName)
             generated[target.relativePath] = type.fullyQualifiedName to renderType(type, target)
@@ -353,6 +334,7 @@ internal class TypeScriptProxyGenerator(
             val target = targetBySource.getValue(enum.fullyQualifiedName)
             generated[target.relativePath] = enum.fullyQualifiedName to renderEnum(enum)
         }
+        return generated
     }
 
     private fun validateValidationMetadata(
@@ -398,15 +380,6 @@ internal class TypeScriptProxyGenerator(
     ) {
         val imported = types.flatMap { type -> type.recursiveTypes() }.mapNotNull(TypeScriptType::target)
             .filterNot { it.sourceName == current.sourceName }.distinct()
-        validateImportedArtifactNames(current, imported)
-        val valueImports = types.flatMap { type -> type.recursiveTypes() }
-            .mapNotNull(TypeScriptType::valueImport).distinct()
-        validateFrameworkNames(current, imported, valueImports)
-        validateValueImportNames(current, imported, valueImports)
-        validateGlobalRuntimeConstructors(current, types, runtimeTypes, additionalGlobalRuntimeConstructors, valueImports)
-    }
-
-    private fun validateImportedArtifactNames(current: ArtifactTarget, imported: List<ArtifactTarget>) {
         imported.groupBy(ArtifactTarget::typeScriptName).filterValues { it.size > 1 }.forEach { (name, collisions) ->
             throw GradleException(
                 "Duplicate TypeScript name '$name' imported by '${current.sourceName}' from " +
@@ -418,6 +391,11 @@ internal class TypeScriptProxyGenerator(
                 "Duplicate TypeScript name '${current.typeScriptName}' in '${current.sourceName}' and '${it.sourceName}'."
             )
         }
+        val valueImports = types.flatMap { type -> type.recursiveTypes() }
+            .mapNotNull(TypeScriptType::valueImport).distinct()
+        validateFrameworkNames(current, imported, valueImports)
+        validateValueImportNames(current, imported, valueImports)
+        validateGlobalRuntimeConstructors(current, types, runtimeTypes, additionalGlobalRuntimeConstructors, valueImports)
     }
 
     private fun validateFrameworkNames(
@@ -428,18 +406,14 @@ internal class TypeScriptProxyGenerator(
         val sharedFrameworkNames = if (shared.contains(current.sourceName)) setOf("ArcSharedValidator", "ArcSharedResult", "ArcSharedSeverity", "${current.typeScriptName}Validator") else emptySet()
         if (current.typeScriptName in sharedFrameworkNames || imported.any { it.typeScriptName in sharedFrameworkNames })
             throw GradleException("[ARCVALIDATION_GRAPH] Shared validator scaffolding name collision in '${current.sourceName}'; rename the model.")
-        val frameworkNames = frameworkNames(current, sharedFrameworkNames)
-        valueImports.firstOrNull { it.name in frameworkNames }?.let { reference ->
-            throw GradleException("External TypeScript import '${reference.name}' in '${current.sourceName}' collides with generated framework scaffolding.")
-        }
-    }
-
-    private fun frameworkNames(current: ArtifactTarget, sharedFrameworkNames: Set<String>): Set<String> {
-        return sharedFrameworkNames + when (current.kind) {
+        val frameworkNames = sharedFrameworkNames + when (current.kind) {
             ArtifactKind.COMMAND -> setOf("Command", "CommandValidator", "PropertyDescriptor", "useCommand", "SetCommandValues", "ClearCommandValues", "I${current.typeScriptName}", "${current.typeScriptName}Validator")
             ArtifactKind.QUERY -> setOf("QueryFor", "ObservableQueryFor", "QueryResultWithState", "QueryValidator", "ParameterDescriptor", "Sorting", "Paging", "SortingActions", "SortingActionsForQuery", "SortingActionsForObservableQuery", "QueryHttpMethod", "QueryWhen", "ObservableQueryWhen", "ChangeSet", "PerformQuery", "SetSorting", "SetPage", "SetPageSize", "useQuery", "useQueryWithPaging", "useSuspenseQuery", "useSuspenseQueryWithPaging", "useObservableQuery", "useObservableQueryWithPaging", "useSuspenseObservableQuery", "useSuspenseObservableQueryWithPaging", "useChangeStream", "${current.typeScriptName}Parameters", "${current.typeScriptName}Validator", "${current.typeScriptName}SortBy", "${current.typeScriptName}SortByWithoutQuery")
             ArtifactKind.TYPE -> setOf("field", "derivedType")
             else -> emptySet()
+        }
+        valueImports.firstOrNull { it.name in frameworkNames }?.let { reference ->
+            throw GradleException("External TypeScript import '${reference.name}' in '${current.sourceName}' collides with generated framework scaffolding.")
         }
     }
 
@@ -711,16 +685,6 @@ internal class TypeScriptProxyGenerator(
     }.filter(ValidationTarget::hasRules)
 
     private fun renderQuery(query: QueryDescriptor, target: ArtifactTarget, route: String): String {
-        if (query.transport == QueryTransportType.OBSERVABLE) {
-            return renderObservableQuery(query, target, route)
-        }
-        return renderQueryFile(queryRenderModel(query, target, route), observable = false)
-    }
-
-    private fun renderObservableQuery(query: QueryDescriptor, target: ArtifactTarget, route: String): String =
-        renderQueryFile(queryRenderModel(query, target, route), observable = true)
-
-    private fun queryRenderModel(query: QueryDescriptor, target: ArtifactTarget, route: String): QueryRenderModel {
         val parameters = query.parameters.filter { parameter -> parameter.source == QueryParameterSource.CLIENT }
             .sortedBy(ParameterDescriptor::name)
         val validationTargets = queryValidationTargets(parameters)
@@ -734,7 +698,7 @@ internal class TypeScriptProxyGenerator(
             options.endpointOptions.enableQueryHttpMethod && it.name != "AUTO"
         }?.let { upperCamel(it.name.lowercase()) }
         val supportsSorting = query.isEnumerable && query.supportsSorting
-        return QueryRenderModel(
+        val renderModel = QueryRenderModel(
             query = query,
             target = target,
             route = route,
@@ -752,13 +716,22 @@ internal class TypeScriptProxyGenerator(
             supportsPaging = query.isEnumerable && query.supportsPaging,
             hasSortableProperties = supportsSorting && sortableProperties.isNotEmpty()
         )
+        return renderQueryFile(renderModel, observable = query.transport == QueryTransportType.OBSERVABLE)
     }
 
     private fun renderQueryFile(m: QueryRenderModel, observable: Boolean): String = buildString {
         appendGeneratedHeader()
         append("/* eslint-disable sort-imports */\n")
         append("// eslint-disable-next-line header/header\n")
-        if (observable) appendObservableQueryImports(m) else appendQueryImports(m)
+        val flags = QueryImportFlags(
+            isEnumerable = m.query.isEnumerable,
+            hasValidation = m.validationTargets.isNotEmpty(),
+            hasHttpMethod = m.method != null,
+            supportsSorting = m.supportsSorting,
+            supportsPaging = m.supportsPaging,
+            hasSortableProperties = m.hasSortableProperties
+        )
+        if (observable) appendObservableQueryImports(flags) else appendQueryImports(flags)
         append("import { ParameterDescriptor } from '@cratis/arc/reflection';\n")
         appendPackageImports(m.referencedTypes)
         appendCustomImports(m.imports, m.target)
@@ -772,12 +745,18 @@ internal class TypeScriptProxyGenerator(
         appendQueryParametersInterface(m, observable)
         if (m.validationTargets.isNotEmpty()) append("\n")
         appendQueryValidator(m.query, m.target, m.validationTargets)
-        append(querySpacing(m))
+        val bare = m.parameters.isEmpty() && m.validationTargets.isEmpty()
+        append(
+            when {
+                m.query.isEnumerable && bare -> "\n"
+                !m.query.isEnumerable && bare -> "\n\n\n"
+                else -> "\n\n"
+            }
+        )
         appendDocumentation(m.query.summary)
         val baseClass = if (observable) "ObservableQueryFor" else "QueryFor"
         append("export class ${m.className} extends $baseClass<${m.modelType}${m.parameterType}> {\n")
         appendQueryClassFields(m)
-        appendQueryConstructor(m)
         appendQueryParameterMembers(m)
         if (m.supportsSorting) {
             append("\n    get sortBy(): ${m.className}SortBy {\n        return this._sortBy;\n    }\n")
@@ -789,55 +768,6 @@ internal class TypeScriptProxyGenerator(
             appendQueryHooks(m.query, m.className, m.model.name, m.parameters.isNotEmpty())
         }
         append("}\n")
-    }
-
-    private fun StringBuilder.appendQueryImports(m: QueryRenderModel) {
-        val validationImport = if (m.validationTargets.isNotEmpty()) ", QueryValidator" else ""
-        val httpMethod = if (m.method != null) ", QueryHttpMethod" else ""
-        if (m.query.isEnumerable) {
-            val sorting = if (m.supportsSorting) ", Sorting" else ""
-            val sortingActions = if (m.hasSortableProperties) ", SortingActions, SortingActionsForQuery" else ""
-            val paging = if (m.supportsPaging) ", Paging" else ""
-            append("import { QueryFor, QueryResultWithState$validationImport$sorting$sortingActions$paging$httpMethod } from '@cratis/arc/queries';\n")
-            val hooks = if (m.supportsPaging) {
-                "useQuery, useQueryWithPaging, useSuspenseQuery, useSuspenseQueryWithPaging"
-            } else {
-                "useQuery, useSuspenseQuery"
-            }
-            val sortingType = if (m.supportsSorting) ", type SetSorting" else ""
-            val pagingTypes = if (m.supportsPaging) ", type SetPage, type SetPageSize" else ""
-            append("import { $hooks, type PerformQuery$sortingType$pagingTypes, QueryWhen } from '@cratis/arc.react/queries';\n")
-        } else {
-            append("import { QueryFor, QueryResultWithState$validationImport$httpMethod } from '@cratis/arc/queries';\n")
-            append("import { useQuery, useSuspenseQuery, type PerformQuery, type SetSorting, QueryWhen } from '@cratis/arc.react/queries';\n")
-        }
-    }
-
-    private fun StringBuilder.appendObservableQueryImports(m: QueryRenderModel) {
-        val validationImport = if (m.validationTargets.isNotEmpty()) ", QueryValidator" else ""
-        val httpMethod = if (m.method != null) ", QueryHttpMethod" else ""
-        if (m.query.isEnumerable) {
-            val sorting = if (m.supportsSorting) ", Sorting" else ""
-            val sortingActions = if (m.hasSortableProperties) {
-                ", SortingActions, SortingActionsForObservableQuery"
-            } else {
-                ""
-            }
-            val paging = if (m.supportsPaging) ", Paging" else ""
-            append("import { ObservableQueryFor, QueryResultWithState$validationImport$sorting$sortingActions$paging, type ChangeSet$httpMethod } from '@cratis/arc/queries';\n")
-            val hooks = if (m.supportsPaging) {
-                "useObservableQuery, useObservableQueryWithPaging, useSuspenseObservableQuery, " +
-                    "useSuspenseObservableQueryWithPaging"
-            } else {
-                "useObservableQuery, useSuspenseObservableQuery"
-            }
-            val sortingType = if (m.supportsSorting) ", type SetSorting" else ""
-            val pagingTypes = if (m.supportsPaging) ", type SetPage, type SetPageSize" else ""
-            append("import { $hooks, useChangeStream$sortingType$pagingTypes, ObservableQueryWhen } from '@cratis/arc.react/queries';\n")
-        } else {
-            append("import { ObservableQueryFor, QueryResultWithState$validationImport$httpMethod } from '@cratis/arc/queries';\n")
-            append("import { useObservableQuery, useSuspenseObservableQuery, ObservableQueryWhen } from '@cratis/arc.react/queries';\n")
-        }
     }
 
     private fun StringBuilder.appendQueryParametersInterface(m: QueryRenderModel, observable: Boolean) {
@@ -855,15 +785,6 @@ internal class TypeScriptProxyGenerator(
         append("}\n")
     }
 
-    private fun querySpacing(m: QueryRenderModel): String {
-        val bare = m.parameters.isEmpty() && m.validationTargets.isEmpty()
-        return when {
-            m.query.isEnumerable && bare -> "\n"
-            !m.query.isEnumerable && bare -> "\n\n\n"
-            else -> "\n\n"
-        }
-    }
-
     private fun StringBuilder.appendQueryClassFields(m: QueryRenderModel) {
         append("    readonly route: string = '${escape(m.route)}';\n")
         append("    readonly queryName: string = '${escape(m.query.fullyQualifiedName)}';\n")
@@ -877,9 +798,6 @@ internal class TypeScriptProxyGenerator(
             append("    private readonly _sortBy: ${m.className}SortBy;\n")
             append("    private static readonly _sortBy: ${m.className}SortByWithoutQuery = new ${m.className}SortByWithoutQuery();\n")
         }
-    }
-
-    private fun StringBuilder.appendQueryConstructor(m: QueryRenderModel) {
         append("\n    constructor() {\n        super(${m.model.constructor}, ${m.query.isEnumerable});\n")
         if (m.supportsSorting) append("        this._sortBy = new ${m.className}SortBy(this);\n")
         if (m.method != null) append("        this.setHttpMethod(QueryHttpMethod.${m.method});\n")
