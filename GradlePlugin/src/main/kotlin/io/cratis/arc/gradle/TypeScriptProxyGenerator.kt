@@ -131,62 +131,8 @@ internal class TypeScriptProxyGenerator(
         validateOutputTree()
         validateMappings()
         validateArtifacts()
-        val sharedTargets = targets.filter { shared.contains(it.sourceName) || it.kind == ArtifactKind.QUERY &&
-            artifacts.queries.single { query -> query.fullyQualifiedName == it.sourceName }.parameters.any { parameter -> shared.reaches(parameter.shape) } }
-        sharedTargets.forEach { target ->
-            if (targets.any { it.sourceName != target.sourceName && it.typeScriptName == target.typeScriptName + "Validator" })
-                throw GradleException("[ARCVALIDATION_GRAPH] Generated validator '${target.typeScriptName}Validator' collides with another artifact; rename the artifact.")
-        }
-        if (!options.endpointOptions.enableQueryHttpMethod && artifacts.queries.any { query -> query.parameters.any { shared.reaches(it.shape) } })
-            throw GradleException("[ARCVALIDATION_GRAPH] Shared model query arguments require enabled RFC QUERY transport.")
-        artifacts.types.filter { shared.contains(it.fullyQualifiedName) }.forEach { type ->
-            if (isExternallyMapped(type.fullyQualifiedName)) throw GradleException("[ARCVALIDATION_GRAPH] Shared model '${type.fullyQualifiedName}' cannot be externally mapped; generate its validator locally.")
-        }
-        val generated = linkedMapOf<String, Pair<String, String>>()
-        val commandNamespaces = EndpointRouteHelper.groupByNamespace(
-            artifacts.commands,
-            CommandDescriptor::location,
-            options.endpointOptions.segmentsToSkipForRoute
-        )
-        val queryNamespaces = EndpointRouteHelper.groupByNamespace(
-            artifacts.queries,
-            QueryDescriptor::location,
-            options.endpointOptions.segmentsToSkipForRoute
-        )
-
-        artifacts.commands.forEach { command ->
-            val target = targetBySource.getValue(command.typeName)
-            val namespace = command.location.drop(options.endpointOptions.segmentsToSkipForRoute).joinToString(".")
-            val route = EndpointRouteHelper.commandRoute(
-                command,
-                options.endpointOptions,
-                (commandNamespaces[namespace]?.size ?: 0) > 1
-            )
-            generated[target.relativePath] = command.typeName to renderCommand(command, target, route)
-        }
-        artifacts.queries.forEach { query ->
-            val target = queryTarget(query)
-            val namespace = query.location.drop(options.endpointOptions.segmentsToSkipForRoute).joinToString(".")
-            val route = EndpointRouteHelper.queryRoute(
-                query,
-                options.endpointOptions,
-                (queryNamespaces[namespace]?.size ?: 0) > 1
-            )
-            generated[target.relativePath] = query.declaringTypeName to renderQuery(query, target, route)
-        }
-        emittedTypes.forEach { type ->
-            val target = targetBySource.getValue(type.fullyQualifiedName)
-            generated[target.relativePath] = type.fullyQualifiedName to renderType(type, target)
-        }
-        emittedInterfaces.forEach { interfaceDescriptor ->
-            val target = targetBySource.getValue(interfaceDescriptor.fullyQualifiedName)
-            generated[target.relativePath] = interfaceDescriptor.fullyQualifiedName to
-                renderInterface(interfaceDescriptor, target)
-        }
-        emittedEnums.forEach { enum ->
-            val target = targetBySource.getValue(enum.fullyQualifiedName)
-            generated[target.relativePath] = enum.fullyQualifiedName to renderEnum(enum)
-        }
+        validateSharedGeneration()
+        val generated = renderArtifacts()
 
         val expectedFiles = generated.keys.map { File(options.outputDirectory, it).canonicalFile }.toSet()
         val written = generated.toSortedMap().map { (relativePath, sourceAndBody) ->
@@ -329,6 +275,86 @@ internal class TypeScriptProxyGenerator(
         }
     }
 
+    private fun validateSharedGeneration() {
+        val sharedTargets = targets.filter { shared.contains(it.sourceName) || it.kind == ArtifactKind.QUERY &&
+            artifacts.queries.single { query -> query.fullyQualifiedName == it.sourceName }.parameters.any { parameter -> shared.reaches(parameter.shape) } }
+        sharedTargets.forEach { target ->
+            if (targets.any { it.sourceName != target.sourceName && it.typeScriptName == target.typeScriptName + "Validator" })
+                throw GradleException("[ARCVALIDATION_GRAPH] Generated validator '${target.typeScriptName}Validator' collides with another artifact; rename the artifact.")
+        }
+        if (!options.endpointOptions.enableQueryHttpMethod && artifacts.queries.any { query -> query.parameters.any { shared.reaches(it.shape) } })
+            throw GradleException("[ARCVALIDATION_GRAPH] Shared model query arguments require enabled RFC QUERY transport.")
+        artifacts.types.filter { shared.contains(it.fullyQualifiedName) }.forEach { type ->
+            if (isExternallyMapped(type.fullyQualifiedName)) throw GradleException("[ARCVALIDATION_GRAPH] Shared model '${type.fullyQualifiedName}' cannot be externally mapped; generate its validator locally.")
+        }
+    }
+
+    private fun renderArtifacts(): LinkedHashMap<String, Pair<String, String>> {
+        val generated = linkedMapOf<String, Pair<String, String>>()
+        val commandNamespaces = EndpointRouteHelper.groupByNamespace(
+            artifacts.commands,
+            CommandDescriptor::location,
+            options.endpointOptions.segmentsToSkipForRoute
+        )
+        val queryNamespaces = EndpointRouteHelper.groupByNamespace(
+            artifacts.queries,
+            QueryDescriptor::location,
+            options.endpointOptions.segmentsToSkipForRoute
+        )
+        renderCommands(generated, commandNamespaces)
+        renderQueries(generated, queryNamespaces)
+        renderTypeArtifacts(generated)
+        return generated
+    }
+
+    private fun renderCommands(
+        generated: MutableMap<String, Pair<String, String>>,
+        commandNamespaces: Map<String, List<CommandDescriptor>>
+    ) {
+        artifacts.commands.forEach { command ->
+            val target = targetBySource.getValue(command.typeName)
+            val namespace = command.location.drop(options.endpointOptions.segmentsToSkipForRoute).joinToString(".")
+            val route = EndpointRouteHelper.commandRoute(
+                command,
+                options.endpointOptions,
+                (commandNamespaces[namespace]?.size ?: 0) > 1
+            )
+            generated[target.relativePath] = command.typeName to renderCommand(command, target, route)
+        }
+    }
+
+    private fun renderQueries(
+        generated: MutableMap<String, Pair<String, String>>,
+        queryNamespaces: Map<String, List<QueryDescriptor>>
+    ) {
+        artifacts.queries.forEach { query ->
+            val target = queryTarget(query)
+            val namespace = query.location.drop(options.endpointOptions.segmentsToSkipForRoute).joinToString(".")
+            val route = EndpointRouteHelper.queryRoute(
+                query,
+                options.endpointOptions,
+                (queryNamespaces[namespace]?.size ?: 0) > 1
+            )
+            generated[target.relativePath] = query.declaringTypeName to renderQuery(query, target, route)
+        }
+    }
+
+    private fun renderTypeArtifacts(generated: MutableMap<String, Pair<String, String>>) {
+        emittedTypes.forEach { type ->
+            val target = targetBySource.getValue(type.fullyQualifiedName)
+            generated[target.relativePath] = type.fullyQualifiedName to renderType(type, target)
+        }
+        emittedInterfaces.forEach { interfaceDescriptor ->
+            val target = targetBySource.getValue(interfaceDescriptor.fullyQualifiedName)
+            generated[target.relativePath] = interfaceDescriptor.fullyQualifiedName to
+                renderInterface(interfaceDescriptor, target)
+        }
+        emittedEnums.forEach { enum ->
+            val target = targetBySource.getValue(enum.fullyQualifiedName)
+            generated[target.relativePath] = enum.fullyQualifiedName to renderEnum(enum)
+        }
+    }
+
     private fun validateValidationMetadata(
         identity: String,
         rules: List<ValidationRuleDescriptor>,
@@ -372,6 +398,15 @@ internal class TypeScriptProxyGenerator(
     ) {
         val imported = types.flatMap { type -> type.recursiveTypes() }.mapNotNull(TypeScriptType::target)
             .filterNot { it.sourceName == current.sourceName }.distinct()
+        validateImportedArtifactNames(current, imported)
+        val valueImports = types.flatMap { type -> type.recursiveTypes() }
+            .mapNotNull(TypeScriptType::valueImport).distinct()
+        validateFrameworkNames(current, imported, valueImports)
+        validateValueImportNames(current, imported, valueImports)
+        validateGlobalRuntimeConstructors(current, types, runtimeTypes, additionalGlobalRuntimeConstructors, valueImports)
+    }
+
+    private fun validateImportedArtifactNames(current: ArtifactTarget, imported: List<ArtifactTarget>) {
         imported.groupBy(ArtifactTarget::typeScriptName).filterValues { it.size > 1 }.forEach { (name, collisions) ->
             throw GradleException(
                 "Duplicate TypeScript name '$name' imported by '${current.sourceName}' from " +
@@ -383,20 +418,36 @@ internal class TypeScriptProxyGenerator(
                 "Duplicate TypeScript name '${current.typeScriptName}' in '${current.sourceName}' and '${it.sourceName}'."
             )
         }
-        val valueImports = types.flatMap { type -> type.recursiveTypes() }
-            .mapNotNull(TypeScriptType::valueImport).distinct()
+    }
+
+    private fun validateFrameworkNames(
+        current: ArtifactTarget,
+        imported: List<ArtifactTarget>,
+        valueImports: List<TypeScriptValueImport>
+    ) {
         val sharedFrameworkNames = if (shared.contains(current.sourceName)) setOf("ArcSharedValidator", "ArcSharedResult", "ArcSharedSeverity", "${current.typeScriptName}Validator") else emptySet()
         if (current.typeScriptName in sharedFrameworkNames || imported.any { it.typeScriptName in sharedFrameworkNames })
             throw GradleException("[ARCVALIDATION_GRAPH] Shared validator scaffolding name collision in '${current.sourceName}'; rename the model.")
-        val frameworkNames = sharedFrameworkNames + when (current.kind) {
+        val frameworkNames = frameworkNames(current, sharedFrameworkNames)
+        valueImports.firstOrNull { it.name in frameworkNames }?.let { reference ->
+            throw GradleException("External TypeScript import '${reference.name}' in '${current.sourceName}' collides with generated framework scaffolding.")
+        }
+    }
+
+    private fun frameworkNames(current: ArtifactTarget, sharedFrameworkNames: Set<String>): Set<String> {
+        return sharedFrameworkNames + when (current.kind) {
             ArtifactKind.COMMAND -> setOf("Command", "CommandValidator", "PropertyDescriptor", "useCommand", "SetCommandValues", "ClearCommandValues", "I${current.typeScriptName}", "${current.typeScriptName}Validator")
             ArtifactKind.QUERY -> setOf("QueryFor", "ObservableQueryFor", "QueryResultWithState", "QueryValidator", "ParameterDescriptor", "Sorting", "Paging", "SortingActions", "SortingActionsForQuery", "SortingActionsForObservableQuery", "QueryHttpMethod", "QueryWhen", "ObservableQueryWhen", "ChangeSet", "PerformQuery", "SetSorting", "SetPage", "SetPageSize", "useQuery", "useQueryWithPaging", "useSuspenseQuery", "useSuspenseQueryWithPaging", "useObservableQuery", "useObservableQueryWithPaging", "useSuspenseObservableQuery", "useSuspenseObservableQueryWithPaging", "useChangeStream", "${current.typeScriptName}Parameters", "${current.typeScriptName}Validator", "${current.typeScriptName}SortBy", "${current.typeScriptName}SortByWithoutQuery")
             ArtifactKind.TYPE -> setOf("field", "derivedType")
             else -> emptySet()
         }
-        valueImports.firstOrNull { it.name in frameworkNames }?.let { reference ->
-            throw GradleException("External TypeScript import '${reference.name}' in '${current.sourceName}' collides with generated framework scaffolding.")
-        }
+    }
+
+    private fun validateValueImportNames(
+        current: ArtifactTarget,
+        imported: List<ArtifactTarget>,
+        valueImports: List<TypeScriptValueImport>
+    ) {
         valueImports.groupBy(TypeScriptValueImport::name).filterValues { imports ->
             imports.map(TypeScriptValueImport::packageName).distinct().size > 1
         }.forEach { (name, collisions) ->
@@ -419,7 +470,15 @@ internal class TypeScriptProxyGenerator(
                 )
             }
         }
+    }
 
+    private fun validateGlobalRuntimeConstructors(
+        current: ArtifactTarget,
+        types: List<TypeScriptType>,
+        runtimeTypes: List<TypeScriptType>,
+        additionalGlobalRuntimeConstructors: Set<String>,
+        valueImports: List<TypeScriptValueImport>
+    ) {
         val globalRuntimeConstructors = runtimeTypes.mapNotNull { it.globalRuntimeConstructor() }.toSet() +
             additionalGlobalRuntimeConstructors
         val valueImportedTargets = customImports(types, runtimeTypes)
