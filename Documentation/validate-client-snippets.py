@@ -1490,6 +1490,26 @@ SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
     # so the spec compiles against the very command the page shows beside it.
     "testing-with-cratis/register-author": SnippetContext(kind="file"),
     "testing-with-cratis/register-author-spec": SnippetContext(kind="file", fixtures=("generatedmodule",)),
+    # The cratis.io Concepts guides. A later snippet on a page uses a type the page declared in
+    # an earlier one, so the prelude restates that type here.
+    "site-concepts/cqrs/register-author-state": SnippetContext(
+        imports=("import org.springframework.data.mongodb.repository.MongoRepository",),
+        prelude="""
+            data class Author(val id: UUID, val name: String)
+
+            interface AuthorRepository : MongoRepository<Author, UUID>
+        """,
+    ),
+    "site-concepts/cqrs/author-read-model": SnippetContext(),
+    "site-concepts/event-driven-architecture/loan-confirmation-reactor": SnippetContext(),
+    "site-concepts/event-driven-architecture/borrow-book": SnippetContext(
+        imports=("import io.cratis.chronicle.events.EventType",),
+        prelude="@EventType data class BookBorrowed(val memberEmail: String, val dueDate: LocalDate)",
+    ),
+    "site-concepts/event-modeling/reserve-book": SnippetContext(),
+    "site-concepts/event-modeling/book-availability": SnippetContext(
+        prelude="@EventType data class BookReserved(val member: String)",
+    ),
     "scenarios/test-a-command/spec": SnippetContext(
         # Compiles against the `library.authors` types declared by the command-under-test
         # snippet it is rendered next to, in the same compilation.
@@ -3265,6 +3285,16 @@ JAVA_SNIPPET_CONTEXTS: dict[str, JavaSnippetContext] = {
         prelude_from="scenarios/test-a-command/command-under-test",
     ),
     "testing-with-cratis/register-author": JavaSnippetContext(),
+    "site-concepts/cqrs/author-read-model": JavaSnippetContext(),
+    "site-concepts/cqrs/register-author-state": JavaSnippetContext(prelude_from="site-concepts/cqrs/author-read-model"),
+    "site-concepts/event-driven-architecture/loan-confirmation-reactor": JavaSnippetContext(),
+    "site-concepts/event-driven-architecture/borrow-book": JavaSnippetContext(
+        prelude_from="site-concepts/event-driven-architecture/loan-confirmation-reactor",
+    ),
+    "site-concepts/event-modeling/reserve-book": JavaSnippetContext(),
+    "site-concepts/event-modeling/book-availability": JavaSnippetContext(
+        prelude_from="site-concepts/event-modeling/reserve-book",
+    ),
     "testing-with-cratis/register-author-spec": JavaSnippetContext(
         # The slice is a prelude for the same one-public-type-per-file reason as the
         # test-a-command spec, read from the register-author snippet shown beside it so
