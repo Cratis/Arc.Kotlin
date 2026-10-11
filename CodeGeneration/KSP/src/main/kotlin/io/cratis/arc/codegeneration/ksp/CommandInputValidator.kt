@@ -30,12 +30,23 @@ internal class CommandInputValidator(
     fun validate(declaration: KSClassDeclaration, visited: MutableSet<String> = mutableSetOf()): Boolean {
         val name = declaration.qualifiedName?.asString() ?: return true
         if (!visited.add(name) || isExempt(declaration, name)) return true
+        var valid = validateProperties(declaration, name, visited)
+        if (declaration.origin == Origin.JAVA && !validateJava(declaration, name, visited)) valid = false
+        if (!validateRelated(declaration, visited)) valid = false
+        return valid
+    }
+
+    private fun validateProperties(declaration: KSClassDeclaration, name: String, visited: MutableSet<String>): Boolean {
         var valid = true
         for (property in orderedDeclaredProperties(declaration)) {
             if (isSkipped(declaration, property)) continue
             if (!validateProperty(declaration, name, property, visited)) valid = false
         }
-        if (declaration.origin == Origin.JAVA && !validateJava(declaration, name, visited)) valid = false
+        return valid
+    }
+
+    private fun validateRelated(declaration: KSClassDeclaration, visited: MutableSet<String>): Boolean {
+        var valid = true
         for (related in declaration.superTypes.mapNotNull { it.resolve().declaration as? KSClassDeclaration } +
             derivativesOf(declaration).asSequence()) {
             if (!validate(related, visited)) valid = false

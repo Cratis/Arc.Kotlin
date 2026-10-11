@@ -37,7 +37,7 @@ internal class MetadataCollector(
 ) : ModelShapeSource {
     private val validationExtractor = ValidationMetadataExtractor(logger)
     private val conceptResolver = ConceptResolver(logger)
-    private val mapShapes = MapShapeDescriber(logger)
+    private val shapeDescriber = TypeShapeDescriber(logger, conceptResolver, ::registerConcept)
     private val collectedTypes = linkedMapOf<String, TypeModel>()
     private val collectedInterfaces = linkedMapOf<String, InterfaceModel>()
     private val collectedEnums = linkedMapOf<String, EnumModel>()
@@ -115,99 +115,9 @@ internal class MetadataCollector(
         return ModelPropertyDescriber(logger, binaryRecords, resolver, this).describe(declaration, identity)
     }
 
-    override fun describe(type: KSType, identity: String, node: KSNode, allowMaps: Boolean): TypeShape? {
-        if (type.isError || type.declaration is KSTypeParameter) {
-            logger.error("'$identity' has an unresolvable or generic type.", node)
-            return null
-        }
-        val declaration = type.declaration as? KSClassDeclaration
-        val qualifiedName = declaration?.qualifiedName?.asString()
-        if (declaration == null || qualifiedName == null) {
-            logger.error("'$identity' must use a resolvable class type.", node)
-            return null
-        }
-        if (qualifiedName in MAP_TYPE_NAMES) return describeMapShape(type, qualifiedName, identity, node, allowMaps)
-        if (qualifiedName in COLLECTION_TYPE_NAMES || qualifiedName == ARRAY_TYPE) {
-            return describeCollectionShape(type, qualifiedName, identity, node)
-        }
-        if (type.arguments.isNotEmpty()) {
-            logger.error("'$identity' uses unsupported generic type '$qualifiedName'.", node)
-            return null
-        }
-        val conceptResolution = conceptResolver.resolve(declaration, identity, node)
-        if (!conceptResolution.isValid) return null
-        val conceptValue = conceptResolution.value
-        conceptValue?.let { underlying -> registerConcept(declaration, underlying) }
-        return TypeShape(
-            typeName = qualifiedName,
-            descriptor = TypeShapeDescriptor.value(qualifiedName, type.nullability == Nullability.NULLABLE),
-            valueType = type,
-            underlyingTypeName = conceptValue?.declaration?.qualifiedName?.asString(),
-            underlyingValueType = conceptValue
-        )
-    }
+    override fun describe(type: KSType, identity: String, node: KSNode, allowMaps: Boolean): TypeShape? =
+        shapeDescriber.describe(type, identity, node, allowMaps)
 
-    private fun describeMapShape(
-        type: KSType,
-        qualifiedName: String,
-        identity: String,
-        node: KSNode,
-        allowMaps: Boolean
-    ): TypeShape? {
-        if (!allowMaps) {
-            logger.error(
-                ArcDiagnostic.PROXY_SHAPE,
-                "Artifact/property '$identity' value path 'value' uses map type '$qualifiedName'; maps are supported only for command, model, interface, and read-model properties.",
-                node
-            )
-            return null
-        }
-        val descriptor = mapShapes.describeMap(type, ShapeSite(identity, "value", node)) ?: return null
-        return TypeShape(typeName = descriptorTypeName(descriptor), descriptor = descriptor, valueType = type)
-    }
-
-    private fun describeCollectionShape(type: KSType, qualifiedName: String, identity: String, node: KSNode): TypeShape? {
-        val element = mapShapes.concreteTypeArguments(type, 1, ShapeSite(identity, "element", node))?.singleOrNull()
-            ?: return null
-        if (node is KSValueParameter && element.nullability == Nullability.NULLABLE) {
-            mapShapes.unsupported(ShapeSite(identity, "element", node), "nullable sequence elements are unsupported")
-            return null
-        }
-        if (element.nullability == Nullability.NULLABLE || element.annotations.hasNullableTypeUse() ||
-            type.arguments.single().type?.annotations?.hasNullableTypeUse() == true
-        ) {
-            mapShapes.unsupportedSequenceElement(identity, node)
-            return null
-        }
-        val elementDeclaration = element.declaration as? KSClassDeclaration
-        val elementName = elementDeclaration?.qualifiedName?.asString()
-        if (elementDeclaration == null || elementName == null) {
-            logger.error("'$identity' has an unnamed collection element type.", node)
-            return null
-        }
-        if (elementName in MAP_TYPE_NAMES || elementName in COLLECTION_TYPE_NAMES || elementName == ARRAY_TYPE ||
-            element.arguments.isNotEmpty()
-        ) {
-            logger.error("'$identity' uses an unsupported nested or generic collection element shape.", node)
-            return null
-        }
-        val conceptResolution = conceptResolver.resolve(elementDeclaration, "$identity element", node)
-        if (!conceptResolution.isValid) return null
-        val conceptValue = conceptResolution.value
-        conceptValue?.let { underlying -> registerConcept(elementDeclaration, underlying) }
-        val descriptor = TypeShapeDescriptor.sequence(
-            sequenceKind(qualifiedName),
-            TypeShapeDescriptor.value(elementName, element.nullability == Nullability.NULLABLE),
-            type.nullability == Nullability.NULLABLE
-        )
-        return TypeShape(
-            typeName = "$qualifiedName<$elementName>",
-            descriptor = descriptor,
-            valueType = element,
-            underlyingTypeName = conceptValue?.declaration?.qualifiedName?.asString(),
-            underlyingValueType = conceptValue
-        )
-    }
 
     fun collect(shape: TypeShape, identity: String, node: KSNode): Boolean =
         shape.descriptor.kind == TypeShapeKind.MAP || collectType(shape.valueType, identity, node)
@@ -236,15 +146,7 @@ internal class MetadataCollector(
         node: KSNode,
         knownProperties: List<PropertyModel>?
     ): Boolean {
-        val qualifiedName = declaration.qualifiedName?.asString()
-        if (qualifiedName == null || declaration.parentDeclaration != null) {
-            logger.error("'$identity' uses an unsupported local or nested model type.", node)
-            return false
-        }
-        if (declaration.typeParameters.isNotEmpty()) {
-            logger.error("'$identity' uses unsupported generic model '$qualifiedName'.", node)
-            return false
-        }
+        val qualifiedName = validatedModelName(declaration, identity, node) ?: return false
         val conceptResolution = conceptResolver.resolve(declaration, identity, node)
         if (!conceptResolution.isValid) return false
         conceptResolution.value?.let { underlying ->
@@ -257,9 +159,31 @@ internal class MetadataCollector(
             logger.error("'$identity' uses unsupported model declaration '$qualifiedName'.", node)
             return false
         }
+        return collectModel(declaration, qualifiedName, identity, node, knownProperties)
+    }
+
+    private fun validatedModelName(declaration: KSClassDeclaration, identity: String, node: KSNode): String? {
+        val qualifiedName = declaration.qualifiedName?.asString()
+        if (qualifiedName == null || declaration.parentDeclaration != null) {
+            logger.error("'$identity' uses an unsupported local or nested model type.", node)
+            return null
+        }
+        if (declaration.typeParameters.isNotEmpty()) {
+            logger.error("'$identity' uses unsupported generic model '$qualifiedName'.", node)
+            return null
+        }
+        return qualifiedName
+    }
+
+    private fun collectModel(
+        declaration: KSClassDeclaration,
+        qualifiedName: String,
+        identity: String,
+        node: KSNode,
+        knownProperties: List<PropertyModel>?
+    ): Boolean {
         val header = modelHeader(declaration, qualifiedName, identity, node) ?: return false
-        val describedProperties = knownProperties ?: describeProperties(declaration, qualifiedName)
-        if (describedProperties == null) return false
+        val describedProperties = knownProperties ?: describeProperties(declaration, qualifiedName) ?: return false
         val properties = withInterfaceDerivatives(describedProperties)
         registerModel(declaration, qualifiedName, properties, header)
         val valid = collectModelGraph(declaration, qualifiedName, properties, header)
@@ -277,12 +201,23 @@ internal class MetadataCollector(
         properties: List<PropertyModel>,
         header: ModelHeader
     ): Boolean {
+        var valid = collectSuperDeclarations(declaration, qualifiedName, header)
+        if (!collectPropertyGraph(declaration, qualifiedName, properties)) valid = false
+        if (!collectDerivatives(declaration, qualifiedName)) valid = false
+        return valid
+    }
+
+    private fun collectSuperDeclarations(declaration: KSClassDeclaration, qualifiedName: String, header: ModelHeader): Boolean {
         var valid = true
         for (superDeclaration in header.superDeclarations) {
             val superName = superDeclaration.qualifiedName?.asString() ?: continue
             if (!collectDeclaration(superDeclaration, "$qualifiedName base $superName", declaration)) valid = false
         }
-        if (!collectPropertyGraph(declaration, qualifiedName, properties)) valid = false
+        return valid
+    }
+
+    private fun collectDerivatives(declaration: KSClassDeclaration, qualifiedName: String): Boolean {
+        var valid = true
         for (derivative in derivativesFor(declaration)) {
             val derivativeName = derivative.qualifiedName?.asString() ?: continue
             collectedDerivedTypes.add(DerivedTypeRegistrationModel(qualifiedName, derivativeName))
@@ -381,44 +316,67 @@ internal class MetadataCollector(
         properties: List<PropertyModel>
     ): Boolean {
         var valid = true
-        val declarations = declaration.getDeclaredProperties().associateBy { property -> property.simpleName.asString() }
-        val accessors = if (declaration.origin == Origin.JAVA) {
+        val sites = PropertySites(declaration)
+        for (property in properties) {
+            if (!collectProperty(declaration, qualifiedName, property, sites)) valid = false
+        }
+        return valid
+    }
+
+    private fun collectProperty(
+        declaration: KSClassDeclaration,
+        qualifiedName: String,
+        property: PropertyModel,
+        sites: PropertySites
+    ): Boolean {
+        var valid = true
+        val site = sites.siteOf(property.name)
+        if (!validatePropertyUse(qualifiedName, property, site.node ?: declaration)) valid = false
+        if (!collectPropertyType(declaration, "$qualifiedName.${property.name}", property, site)) valid = false
+        for (derivativeName in property.derivatives) {
+            if (!collectNamedType(derivativeName, "$qualifiedName.${property.name} derivative", declaration)) valid = false
+        }
+        return valid
+    }
+
+    /** The KSP type and node a collected property was declared by, when KSP exposes them. */
+    private class PropertySite(val type: KSType?, val node: KSNode?)
+
+    private class PropertySites(declaration: KSClassDeclaration) {
+        private val declarations = declaration.getDeclaredProperties().associateBy { property -> property.simpleName.asString() }
+        private val accessors = if (declaration.origin == Origin.JAVA) {
             declaration.getDeclaredFunctions().filter { function -> function.parameters.isEmpty() }
                 .associateBy { function -> function.simpleName.asString() }
         } else {
             emptyMap()
         }
-        for (property in properties) {
-            val propertyDeclaration = declarations[property.name]
-            val accessor = accessors[property.name]
-                ?: accessors["get${property.name.replaceFirstChar(Char::uppercase)}"]
-                ?: accessors["is${property.name.replaceFirstChar(Char::uppercase)}"]
-            val propertyType = propertyDeclaration?.type?.resolve() ?: accessor?.returnType?.resolve()
-            val propertyNode = propertyDeclaration ?: accessor
-            if (!validatePropertyUse(qualifiedName, property, propertyNode ?: declaration)) valid = false
-            if (!collectPropertyType(declaration, qualifiedName, property, propertyType, propertyNode)) valid = false
-            for (derivativeName in property.derivatives) {
-                if (!collectNamedType(derivativeName, "$qualifiedName.${property.name} derivative", declaration)) valid = false
-            }
+
+        fun siteOf(propertyName: String): PropertySite {
+            val propertyDeclaration = declarations[propertyName]
+            val capitalized = propertyName.replaceFirstChar(Char::uppercase)
+            val accessor = accessors[propertyName] ?: accessors["get$capitalized"] ?: accessors["is$capitalized"]
+            return PropertySite(
+                propertyDeclaration?.type?.resolve() ?: accessor?.returnType?.resolve(),
+                propertyDeclaration ?: accessor
+            )
         }
-        return valid
     }
 
     private fun collectPropertyType(
         declaration: KSClassDeclaration,
-        qualifiedName: String,
+        identity: String,
         property: PropertyModel,
-        propertyType: KSType?,
-        propertyNode: KSNode?
+        site: PropertySite
     ): Boolean {
         // Runtime-safe map leaves never contribute model declarations to the closed graph.
         if (property.shape.kind == TypeShapeKind.MAP) return true
+        val propertyType = site.type
+        val propertyNode = site.node
         if (propertyType == null || propertyNode == null) {
-            val reachableName = property.elementTypeName ?: property.typeName
-            return collectNamedType(reachableName, "$qualifiedName.${property.name}", declaration)
+            return collectNamedType(property.elementTypeName ?: property.typeName, identity, declaration)
         }
-        val shape = describe(propertyType, "$qualifiedName.${property.name}", propertyNode, allowMaps = true)
-        return shape != null && collect(shape, "$qualifiedName.${property.name}", propertyNode)
+        val shape = describe(propertyType, identity, propertyNode, allowMaps = true)
+        return shape != null && collect(shape, identity, propertyNode)
     }
 
     private data class ConcretePropertyUse(val ownerName: String, val propertyName: String, val baseName: String)
