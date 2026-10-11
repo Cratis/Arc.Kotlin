@@ -66,6 +66,7 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
             BinaryRecordMetadata(null)
         }
     private var metadataCollector = MetadataCollector(graphLogger, binaryRecords = binaryRecords)
+    private val methodReader = CommandMethodReader(logger)
     private val commandNames = sortedSetOf<String>()
     private val readModelNames = sortedSetOf<String>()
     private val exportedTypeNames = sortedSetOf<String>()
@@ -550,8 +551,9 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
         if (!validateCommandClass(command, qualifiedName)) return null
         val handler = findCommandHandler(command, qualifiedName) ?: return null
 
-        val parameters = buildMethodParameters(qualifiedName, handler, HANDLER_NAME) ?: return null
-        val invocationKind = determineInvocationKind(qualifiedName, handler, resolver, HANDLER_NAME) ?: return null
+        val handlerSite = CommandMethodSite(qualifiedName, handler, HANDLER_NAME)
+        val parameters = methodReader.parameters(handlerSite) ?: return null
+        val invocationKind = methodReader.invocationKind(handlerSite, resolver) ?: return null
         val namedProvides = command.getDeclaredFunctions().filter { it.simpleName.asString() == PROVIDE_NAME }.toList()
         if (namedProvides.size > 1) {
             logger.error("Command '$qualifiedName' has overloaded '$PROVIDE_NAME' functions; at most one is supported.", command)
@@ -560,10 +562,10 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
         val provideMethod = namedProvides.singleOrNull()
         if (provideMethod != null && !validateProvideMethod(provideMethod, qualifiedName)) return null
         val provide = provideMethod?.let { method ->
+            val provideSite = CommandMethodSite(qualifiedName, method, PROVIDE_NAME)
             ProvideModel(
-                buildMethodParameters(qualifiedName, method, PROVIDE_NAME) ?: return null,
-                determineInvocationKind(qualifiedName, method, resolver, PROVIDE_NAME, allowNullableReturn = true)
-                    ?: return null
+                methodReader.parameters(provideSite) ?: return null,
+                methodReader.invocationKind(provideSite, resolver, allowNullableReturn = true) ?: return null
             )
         }
         if (provideMethod != null) warnForUnusedProvidedValues(qualifiedName, provideMethod, handler, resolver)
@@ -588,7 +590,8 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
         }
 
         // Validate unconditional response restrictions without traversing a provisional CLIENT-only graph.
-        determineCommandResponse(qualifiedName, handler, resolver, collectClientGraph = false) ?: return null
+        CommandResponseClassifier(responseServices(), qualifiedName, handler, collectClientGraph = false)
+            .determine(resolver) ?: return null
         if (moduleName != null && emittedCommands.add(qualifiedName)) {
             generateHandler(
                 CommandInvocationModel(
@@ -598,7 +601,8 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
                 containingFile
             )
         }
-        val response = determineCommandResponse(qualifiedName, handler, resolver) ?: return null
+        val response = CommandResponseClassifier(responseServices(), qualifiedName, handler).determine(resolver)
+            ?: return null
         return CommandModel(
             qualifiedName = qualifiedName,
             simpleName = command.simpleName.asString(),
@@ -619,6 +623,9 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
             eventMetadata = eventMetadata
         )
     }
+
+    private fun responseServices() =
+        CommandResponseServices(logger, graphLogger, metadataCollector, declarativeHandledResponseTypes)
 
     private fun warnForUnusedProvidedValues(
         commandName: String,
@@ -665,366 +672,6 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
                 )
             }
         }
-    }
-
-    private fun buildMethodParameters(
-        commandName: String,
-        method: KSFunctionDeclaration,
-        methodName: String
-    ): List<HandlerParameterModel>? {
-        val parameters = mutableListOf<HandlerParameterModel>()
-        method.parameters.forEach { parameter ->
-            parameters.add(buildMethodParameter(commandName, method, methodName, parameter, parameters.size) ?: return null)
-        }
-        return parameters
-    }
-
-    private fun buildMethodParameter(
-        commandName: String,
-        method: KSFunctionDeclaration,
-        methodName: String,
-        parameter: KSValueParameter,
-        index: Int
-    ): HandlerParameterModel? {
-        val type = parameter.type.resolve()
-        val parameterName = parameter.name?.asString() ?: "argument$index"
-        if (containsMapType(type)) {
-            logger.error(
-                ArcDiagnostic.PROXY_SHAPE,
-                "Service parameter '$commandName.$methodName.$parameterName' value path 'parameter' uses a map; maps are supported only for artifact properties.",
-                parameter
-            )
-            return null
-        }
-        val declaration = type.declaration
-        val qualifiedName = declaration.qualifiedName?.asString()
-        if (type.isError || declaration is KSTypeParameter || declaration !is KSClassDeclaration || qualifiedName == null) {
-            logger.error(
-                "Parameter '$parameterName' on '$commandName.$methodName' must have a resolvable class or interface type.",
-                parameter
-            )
-            return null
-        }
-        val isOptionalType = qualifiedName == JAVA_OPTIONAL_TYPE
-        if (isOptionalType && method.origin != Origin.JAVA) {
-            logger.error(
-                "Parameter '$parameterName' on '$commandName.$methodName' must not use java.util.Optional from Kotlin; " +
-                    "use a nullable @ReadModel parameter or an ordinary non-null service parameter.",
-                parameter
-            )
-            return null
-        }
-        val isJavaOptional = isOptionalType && method.origin == Origin.JAVA
-        val resolvedType = if (isJavaOptional) {
-            resolveJavaOptionalParameter(type, commandName, methodName, parameterName, parameter)
-        } else {
-            resolveServiceParameter(type, declaration, qualifiedName, commandName, methodName, parameterName, parameter)
-        } ?: return null
-        if (parameter.hasDefault) {
-            logger.warn(
-                ArcDiagnostic.INTEROP,
-                "Parameter '$parameterName' on '$commandName.$methodName' has a default value, but generated " +
-                    "Java/Kotlin invocation always resolves and supplies the argument.",
-                parameter
-            )
-        }
-        if (type.arguments.isNotEmpty() && !isJavaOptional) {
-            logger.error(
-                "Parameter '$parameterName' on '$commandName.$methodName' must not use a parameterized service type.",
-                parameter
-            )
-            return null
-        }
-        if (resolvedType.first == "kotlin.Array") {
-            logger.error(
-                "Parameter '$parameterName' on '$commandName.$methodName' must not use an array service type.",
-                parameter
-            )
-            return null
-        }
-        return HandlerParameterModel(parameterName, renderClassLiteralType(resolvedType.first), resolvedType.second)
-    }
-
-    private fun resolveJavaOptionalParameter(
-        type: KSType,
-        commandName: String,
-        methodName: String,
-        parameterName: String,
-        parameter: KSValueParameter
-    ): Pair<String, CommandParameterResolution>? {
-        val typeArgument = type.arguments.singleOrNull()
-        val argument = typeArgument?.type?.resolve()
-        val argumentName = (argument?.declaration as? KSClassDeclaration)?.qualifiedName?.asString()
-        val invalid = type.nullability == Nullability.NULLABLE || typeArgument?.variance != Variance.INVARIANT ||
-            argument == null || argument.isError || argumentName == null ||
-            argument.nullability == Nullability.NULLABLE || argument.arguments.isNotEmpty()
-        if (argumentName == null || invalid) {
-            logger.error(
-                "Java Optional parameter '$parameterName' on '$commandName.$methodName' must have one concrete, " +
-                    "invariant, non-null, non-parameterized class or interface type.",
-                parameter
-            )
-            return null
-        }
-        return argumentName to CommandParameterResolution.OPTIONAL
-    }
-
-    private fun resolveServiceParameter(
-        type: KSType,
-        declaration: KSClassDeclaration,
-        qualifiedName: String,
-        commandName: String,
-        methodName: String,
-        parameterName: String,
-        parameter: KSValueParameter
-    ): Pair<String, CommandParameterResolution>? {
-        val nullable = type.nullability == Nullability.NULLABLE
-        if (nullable && !declaration.hasAnnotation(READ_MODEL_ANNOTATION)) {
-            logger.error(
-                "Parameter '$parameterName' on '$commandName.$methodName' may be nullable only when its type is an @ReadModel command dependency.",
-                parameter
-            )
-            return null
-        }
-        return qualifiedName to if (nullable) CommandParameterResolution.NULLABLE else CommandParameterResolution.REQUIRED
-    }
-
-    private fun determineInvocationKind(
-        commandName: String,
-        method: KSFunctionDeclaration,
-        resolver: Resolver,
-        methodName: String,
-        allowNullableReturn: Boolean = true
-    ): InvocationKind? {
-        val returnReference = method.returnType
-        if (returnReference == null) {
-            logger.error("Command method '$commandName.$methodName' has no resolvable return type.", method)
-            return null
-        }
-        val returnType = returnReference.resolve()
-        val returnDeclaration = returnType.declaration
-        val returnName = returnDeclaration.qualifiedName?.asString()
-        if (returnType.isError || returnDeclaration is KSTypeParameter || returnName == null) {
-            logger.error("Command method '$commandName.$methodName' has an unsupported or unresolvable return type.", method)
-            return null
-        }
-        if (returnName == "kotlin.Nothing") {
-            logger.error("Command method '$commandName.$methodName' must return a value, Unit, void, or CompletionStage<T>.", method)
-            return null
-        }
-        if (!allowNullableReturn && returnType.nullability == Nullability.NULLABLE) {
-            logger.error("Command method '$commandName.$methodName' must not declare a nullable return type.", method)
-            return null
-        }
-
-        if (isCompletionStage(returnType, resolver)) {
-            if (returnType.arguments.size != 1 || returnType.arguments.single().type == null) {
-                logger.error("Command method '$commandName.$methodName' must return CompletionStage<T> with a concrete T.", method)
-                return null
-            }
-            val resultType = returnType.arguments.single().type!!.resolve()
-            val resultName = resultType.declaration.qualifiedName?.asString()
-            if (resultType.isError || resultType.declaration is KSTypeParameter || resultName == null) {
-                logger.error("Command method '$commandName.$methodName' has an unresolvable CompletionStage result type.", method)
-                return null
-            }
-            if (!allowNullableReturn && resultType.nullability == Nullability.NULLABLE) {
-                logger.error("Command method '$commandName.$methodName' must not return CompletionStage<T?>.", method)
-                return null
-            }
-            return if (resultName in VOID_TYPE_NAMES) {
-                InvocationKind.COMPLETION_STAGE_VOID
-            } else {
-                InvocationKind.COMPLETION_STAGE
-            }
-        }
-        return if (returnName in VOID_TYPE_NAMES) InvocationKind.UNIT else InvocationKind.VALUE
-    }
-
-    private fun determineCommandResponse(
-        commandName: String,
-        handler: KSFunctionDeclaration,
-        resolver: Resolver,
-        collectClientGraph: Boolean = true
-    ): CommandResponseModel? {
-        var responseType = handler.returnType?.resolve()
-        if (responseType == null || responseType.isError) {
-            logger.error("Handler '$commandName.$HANDLER_NAME' has no resolvable response type.", handler)
-            return null
-        }
-        if (rejectExplicitlyNullableResponseType(responseType, commandName, handler)) return null
-        if (isCompletionStage(responseType, resolver)) {
-            responseType = unwrapSingleTypeArgument(responseType, commandName, handler, "CompletionStage") ?: return null
-        }
-        if (responseType.declaration.qualifiedName?.asString() == COMMAND_RESULT_TYPE) {
-            responseType = unwrapSingleTypeArgument(responseType, commandName, handler, "CommandResult") ?: return null
-        }
-        if (responseType.declaration.qualifiedName?.asString() in MAP_TYPE_NAMES) {
-            logger.error(
-                ArcDiagnostic.PROXY_SHAPE,
-                "Command '$commandName' response value path 'response' uses a top-level map; command response maps are unsupported.",
-                handler
-            )
-            return null
-        }
-
-        val values = classifyCommandResponseType(responseType, commandName, handler, collectClientGraph) ?: return null
-        val clientValues = values.filter { value -> value.disposition == CommandResponseValueDisposition.CLIENT }
-        if (collectClientGraph && clientValues.size > 1) {
-            val conflictingTypes = clientValues.joinToString(", ") { value -> "'${value.typeName}'" }
-            graphLogger.error(
-                ArcDiagnostic.AMBIGUOUS_COMMAND_RESPONSE,
-                "Handler '$commandName.$HANDLER_NAME' has ambiguous command response values in declaration order: " +
-                    "$conflictingTypes.",
-                handler
-            )
-            return null
-        }
-        return CommandResponseModel(values)
-    }
-
-    private fun classifyCommandResponseType(
-        responseType: KSType,
-        commandName: String,
-        handler: KSFunctionDeclaration,
-        collectClientGraph: Boolean
-    ): List<CommandResponseValueModel>? {
-        if (responseType.isError || responseType.declaration is KSTypeParameter) {
-            logger.error("Handler '$commandName.$HANDLER_NAME' has an unresolvable or generic response type.", handler)
-            return null
-        }
-        if (rejectExplicitlyNullableResponseType(responseType, commandName, handler)) return null
-        val responseName = responseType.declaration.qualifiedName?.asString()
-        if (responseName == null) {
-            logger.error("Handler '$commandName.$HANDLER_NAME' has an unnamed response type.", handler)
-            return null
-        }
-        if (responseName in VOID_TYPE_NAMES || responseName == COMMAND_RESPONSE_VALUES_TYPE) return emptyList()
-        if (responseName == COMMAND_RESULT_TYPE) {
-            val response = resolveResponseTypeArguments(responseType, 1, commandName, handler)?.singleOrNull()
-                ?: return null
-            return classifyCommandResponseType(response, commandName, handler, collectClientGraph)
-        }
-
-        val aggregateSize = AGGREGATE_TYPE_ARITIES[responseName]
-        if (aggregateSize != null) {
-            val members = resolveResponseTypeArguments(responseType, aggregateSize, commandName, handler) ?: return null
-            return members.flatMap { member ->
-                classifyCommandResponseType(member, commandName, handler, collectClientGraph) ?: return null
-            }
-        }
-        if (responseName == ARC_ONE_OF_TYPE) {
-            val member = resolveResponseTypeArguments(responseType, 1, commandName, handler)?.singleOrNull() ?: return null
-            return classifyCommandResponseType(member, commandName, handler, collectClientGraph)
-        }
-        if (responseName in COLLECTION_TYPE_NAMES || responseName == ARRAY_TYPE) {
-            return classifyCollectionResponseLeaf(responseType, commandName, handler, collectClientGraph)?.let(::listOf)
-        }
-
-        val disposition = if (isHandledResponseLeaf(responseType)) {
-            CommandResponseValueDisposition.HANDLED
-        } else {
-            CommandResponseValueDisposition.CLIENT
-        }
-        if (collectClientGraph && disposition == CommandResponseValueDisposition.CLIENT) {
-            val identity = "$commandName.$HANDLER_NAME response"
-            val shape = metadataCollector.describe(responseType, identity, handler) ?: return null
-            if (!metadataCollector.collect(shape, identity, handler)) return null
-        }
-        return listOf(CommandResponseValueModel(responseName, false, disposition))
-    }
-
-    private fun rejectExplicitlyNullableResponseType(
-        responseType: KSType,
-        commandName: String,
-        handler: KSFunctionDeclaration
-    ): Boolean {
-        if (responseType.nullability != Nullability.NULLABLE) return false
-        val typeName = renderKotlinType(responseType) ?: responseType.toString()
-        logger.error(
-            ArcDiagnostic.COMMAND_RESPONSE,
-            "Handler '$commandName.$HANDLER_NAME' has explicitly nullable response type '$typeName'; " +
-                "nullable response nodes are unsupported until command response metadata can preserve branch nullability.",
-            handler
-        )
-        return true
-    }
-
-    private fun classifyCollectionResponseLeaf(
-        responseType: KSType,
-        commandName: String,
-        handler: KSFunctionDeclaration,
-        collectClientGraph: Boolean
-    ): CommandResponseValueModel? {
-        val element = resolveResponseTypeArguments(responseType, 1, commandName, handler)?.singleOrNull() ?: return null
-        if (element.isError || element.declaration is KSTypeParameter) {
-            logger.error("Handler '$commandName.$HANDLER_NAME' has an unresolvable response element type.", handler)
-            return null
-        }
-        if (element.nullability == Nullability.NULLABLE) {
-            val elementTypeName = renderKotlinType(element) ?: element.toString()
-            logger.error(
-                ArcDiagnostic.COMMAND_RESPONSE,
-                "Handler '$commandName.$HANDLER_NAME' has nullable response element type '$elementTypeName'; " +
-                    "nullable response elements are unsupported until command response metadata can preserve element nullability.",
-                handler
-            )
-            return null
-        }
-        val elementName = element.declaration.qualifiedName?.asString()
-        if (elementName == null) {
-            logger.error("Handler '$commandName.$HANDLER_NAME' has an unnamed response element type.", handler)
-            return null
-        }
-        val disposition = if (
-            isBuiltInHandledCollectionElement(element) || isDeclarativelyHandled(responseType)
-        ) {
-            CommandResponseValueDisposition.HANDLED
-        } else {
-            CommandResponseValueDisposition.CLIENT
-        }
-        if (collectClientGraph && disposition == CommandResponseValueDisposition.CLIENT) {
-            val identity = "$commandName.$HANDLER_NAME response"
-            val shape = metadataCollector.describe(responseType, identity, handler) ?: return null
-            if (!metadataCollector.collect(shape, identity, handler)) return null
-        }
-        return CommandResponseValueModel(elementName, true, disposition)
-    }
-
-    private fun resolveResponseTypeArguments(
-        responseType: KSType,
-        expectedCount: Int,
-        commandName: String,
-        handler: KSFunctionDeclaration
-    ): List<KSType>? {
-        if (responseType.arguments.size != expectedCount || responseType.arguments.any { argument -> argument.type == null }) {
-            logger.error(
-                "Handler '$commandName.$HANDLER_NAME' must use concrete response type arguments; " +
-                    "wildcards and star projections are unsupported.",
-                handler
-            )
-            return null
-        }
-        return responseType.arguments.map { argument -> requireNotNull(argument.type).resolve() }
-    }
-
-    private fun isHandledResponseLeaf(type: KSType): Boolean {
-        val typeName = type.declaration.qualifiedName?.asString()
-        return typeName in HANDLED_RESPONSE_LEAF_TYPES || isChronicleEvent(type) || isDeclarativelyHandled(type)
-    }
-
-    // Element contracts are safe only for built-ins whose runtime handlers intentionally consume empty containers.
-    private fun isBuiltInHandledCollectionElement(type: KSType): Boolean {
-        val typeName = type.declaration.qualifiedName?.asString()
-        return typeName in HANDLED_COLLECTION_ELEMENT_TYPES
-    }
-
-    private fun isDeclarativelyHandled(type: KSType): Boolean {
-        val declaration = type.declaration as? KSClassDeclaration ?: return false
-        return sequenceOf(declaration)
-            .plus(declaration.getAllSuperTypes().mapNotNull { superType -> superType.declaration as? KSClassDeclaration })
-            .mapNotNull { candidate -> candidate.qualifiedName?.asString() }
-            .any(declarativeHandledResponseTypes::contains)
     }
 
     private fun discoverDeclarativeHandledResponseTypes(resolver: Resolver): List<KSAnnotated> {
@@ -1155,32 +802,6 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
         declaration.getAllSuperTypes()
             .mapNotNull { superType -> superType.declaration.qualifiedName?.asString() }
             .any(SUPPORTED_RESPONSE_VALUE_HANDLER_TYPES::contains)
-
-    private fun unwrapSingleTypeArgument(
-        type: KSType,
-        commandName: String,
-        handler: KSFunctionDeclaration,
-        wrapperName: String
-    ): KSType? {
-        if (type.arguments.size != 1 || type.arguments.single().type == null) {
-            logger.error(
-                "Handler '$commandName.$HANDLER_NAME' must return $wrapperName<T> with a concrete T; " +
-                    "wildcards and star projections are unsupported.",
-                handler
-            )
-            return null
-        }
-        val result = type.arguments.single().type!!.resolve()
-        if (result.isError || result.declaration is KSTypeParameter) {
-            logger.error("Handler '$commandName.$HANDLER_NAME' has an unresolvable $wrapperName result type.", handler)
-            return null
-        }
-        return result
-    }
-
-    private fun isChronicleEvent(type: KSType): Boolean = type.declaration.annotations.any { annotation ->
-        annotation.annotationType.resolve().declaration.qualifiedName?.asString() == CHRONICLE_EVENT_TYPE_ANNOTATION
-    }
 
     private fun isParsedJavaRecord(command: KSClassDeclaration): Boolean {
         if (command.origin != Origin.JAVA) return false
