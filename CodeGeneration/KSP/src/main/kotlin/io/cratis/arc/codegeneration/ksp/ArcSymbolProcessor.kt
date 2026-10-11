@@ -19,6 +19,7 @@ import com.google.devtools.ksp.symbol.KSClassDeclaration
 import com.google.devtools.ksp.symbol.KSDeclaration
 import com.google.devtools.ksp.symbol.KSFile
 import com.google.devtools.ksp.symbol.KSFunctionDeclaration
+import com.google.devtools.ksp.symbol.KSPropertyDeclaration
 import com.google.devtools.ksp.symbol.KSType
 import com.google.devtools.ksp.symbol.KSTypeParameter
 import com.google.devtools.ksp.symbol.KSValueParameter
@@ -187,37 +188,63 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
             val name = declaration.qualifiedName?.asString() ?: return
             if (name.startsWith("kotlin.") || name.startsWith("java.")) { type.arguments.mapNotNull { it.type?.resolve() }.forEach(::visit); return }
             if (declarations.putIfAbsent(name, declaration) != null) return
-            val members = declaration.getAllProperties().filter { it.isPublic() && Modifier.JAVA_STATIC !in it.modifiers }
-                .filterNot { IgnoreValidationPolicy.isIgnored(listOfNotNull(it, it.getter), it, resolver, graphLogger) }.toList()
-            fun leaf(type: KSType): KSType = if (type.declaration.qualifiedName?.asString() in setOf("kotlin.Array", "kotlin.collections.List", "kotlin.collections.Set", "kotlin.collections.Collection", "java.util.List", "java.util.Set", "java.util.Collection"))
-                type.arguments.singleOrNull()?.type?.resolve() ?: type else type
-            edges[name] = (members.mapNotNull { member -> leaf(member.type.resolve()).declaration.qualifiedName?.asString()?.let { member.simpleName.asString() to it } } +
-                metadataCollector.propertiesFor(name).orEmpty().filterNot { it.ignoreValidation }.map { it.name to (it.elementTypeName ?: it.typeName) }).distinct()
-            members.forEach { visit(leaf(it.type.resolve())) }
+            val members = sharedWireMembers(declaration, resolver)
+            edges[name] = sharedWireEdgesOf(name, members)
+            members.forEach { visit(sharedWireLeaf(it.type.resolve())) }
             edges[name].orEmpty().forEach { (_, child) -> resolver.getClassDeclarationByName(resolver.getKSNameFromString(child))?.let { visit(it.asStarProjectedType()) } }
         }
         (metadataCollector.types.map { it.fullyQualifiedName } + fluentSnapshot.all.map { it.model }).distinct().forEach { name ->
             resolver.getClassDeclarationByName(resolver.getKSNameFromString(name))?.let { visit(it.asStarProjectedType()) }
         }
+        val active = activeSharedModels(edges)
+        active.forEach { name ->
+            val declaration = declarations[name] ?: return@forEach
+            reportSharedWireEdgeErrors(name, declaration, edges[name].orEmpty().filter { it.second in active })
+        }
+    }
+
+    private fun sharedWireMembers(declaration: KSClassDeclaration, resolver: Resolver): List<KSPropertyDeclaration> =
+        declaration.getAllProperties().filter { it.isPublic() && Modifier.JAVA_STATIC !in it.modifiers }
+            .filterNot { IgnoreValidationPolicy.isIgnored(listOfNotNull(it, it.getter), it, resolver, graphLogger) }.toList()
+
+    private fun sharedWireLeaf(type: KSType): KSType =
+        if (type.declaration.qualifiedName?.asString() in SHARED_WIRE_COLLECTION_TYPES) {
+            type.arguments.singleOrNull()?.type?.resolve() ?: type
+        } else {
+            type
+        }
+
+    private fun sharedWireEdgesOf(name: String, members: List<KSPropertyDeclaration>): List<Pair<String, String>> =
+        (members.mapNotNull { member ->
+            sharedWireLeaf(member.type.resolve()).declaration.qualifiedName?.asString()?.let { member.simpleName.asString() to it }
+        } + metadataCollector.propertiesFor(name).orEmpty().filterNot { it.ignoreValidation }
+            .map { it.name to (it.elementTypeName ?: it.typeName) }).distinct()
+
+    private fun activeSharedModels(edges: Map<String, List<Pair<String, String>>>): Set<String> {
         val active = fluentSnapshot.all.map { it.model }.toMutableSet()
         var changed: Boolean
         do {
             changed = false
             edges.forEach { (name, members) -> if (name !in active && members.any { it.second in active }) { active += name; changed = true } }
         } while (changed)
-        active.forEach { name ->
-            val declaration = declarations[name] ?: return@forEach
-            if (Modifier.OPEN in declaration.modifiers || Modifier.SEALED in declaration.modifiers || Modifier.ABSTRACT in declaration.modifiers)
-                graphLogger.error(ArcDiagnostic.FLUENT_RULE, "Shared validation graph '$name' is open, abstract or polymorphic; use concrete final shared input models or server-only validators.", declaration)
-            edges[name].orEmpty().filter { it.second in active }.forEach { (member, _) ->
-                try { FluentValidationDiscovery.requireWireMember(declaration, member) }
-                catch (exception: IllegalArgumentException) { graphLogger.error(ArcDiagnostic.FLUENT_RULE,
-                    "Shared validation edge '$name.$member': ${exception.message}.", declaration) }
-            }
-            val wire = metadataCollector.propertiesFor(name).orEmpty().map { it.name }.toSet()
-            edges[name].orEmpty().filter { it.second in active && it.first !in wire }.forEach { (member, _) ->
-                graphLogger.error(ArcDiagnostic.FLUENT_RULE, "Shared validation edge '$name.$member' is not a generated wire member; remove the ignored/inherited edge or use a server-only validator.", declaration)
-            }
+        return active
+    }
+
+    private fun reportSharedWireEdgeErrors(
+        name: String,
+        declaration: KSClassDeclaration,
+        activeEdges: List<Pair<String, String>>
+    ) {
+        if (Modifier.OPEN in declaration.modifiers || Modifier.SEALED in declaration.modifiers || Modifier.ABSTRACT in declaration.modifiers)
+            graphLogger.error(ArcDiagnostic.FLUENT_RULE, "Shared validation graph '$name' is open, abstract or polymorphic; use concrete final shared input models or server-only validators.", declaration)
+        activeEdges.forEach { (member, _) ->
+            try { FluentValidationDiscovery.requireWireMember(declaration, member) }
+            catch (exception: IllegalArgumentException) { graphLogger.error(ArcDiagnostic.FLUENT_RULE,
+                "Shared validation edge '$name.$member': ${exception.message}.", declaration) }
+        }
+        val wire = metadataCollector.propertiesFor(name).orEmpty().map { it.name }.toSet()
+        activeEdges.filter { it.first !in wire }.forEach { (member, _) ->
+            graphLogger.error(ArcDiagnostic.FLUENT_RULE, "Shared validation edge '$name.$member' is not a generated wire member; remove the ignored/inherited edge or use a server-only validator.", declaration)
         }
     }
 
@@ -647,96 +674,119 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
     ): List<HandlerParameterModel>? {
         val parameters = mutableListOf<HandlerParameterModel>()
         method.parameters.forEach { parameter ->
-            val type = parameter.type.resolve()
-            val parameterName = parameter.name?.asString() ?: "argument${parameters.size}"
-            if (containsMapType(type)) {
-                logger.error(
-                    ArcDiagnostic.PROXY_SHAPE,
-                    "Service parameter '$commandName.$methodName.$parameterName' value path 'parameter' uses a map; maps are supported only for artifact properties.",
-                    parameter
-                )
-                return null
-            }
-            val declaration = type.declaration
-            val qualifiedName = declaration.qualifiedName?.asString()
-            if (type.isError || declaration is KSTypeParameter || declaration !is KSClassDeclaration || qualifiedName == null) {
-                logger.error(
-                    "Parameter '$parameterName' on '$commandName.$methodName' must have a resolvable class or interface type.",
-                    parameter
-                )
-                return null
-            }
-            val isOptionalType = qualifiedName == JAVA_OPTIONAL_TYPE
-            if (isOptionalType && method.origin != Origin.JAVA) {
-                logger.error(
-                    "Parameter '$parameterName' on '$commandName.$methodName' must not use java.util.Optional from Kotlin; " +
-                        "use a nullable @ReadModel parameter or an ordinary non-null service parameter.",
-                    parameter
-                )
-                return null
-            }
-            val isJavaOptional = isOptionalType && method.origin == Origin.JAVA
-            val resolvedType = if (isJavaOptional) {
-                val typeArgument = type.arguments.singleOrNull()
-                val argument = typeArgument?.type?.resolve()
-                val argumentDeclaration = argument?.declaration as? KSClassDeclaration
-                val argumentName = argumentDeclaration?.qualifiedName?.asString()
-                if (type.nullability == Nullability.NULLABLE || typeArgument?.variance != Variance.INVARIANT ||
-                    argument == null || argument.isError || argumentDeclaration == null || argumentName == null ||
-                    argument.nullability == Nullability.NULLABLE || argument.arguments.isNotEmpty()) {
-                    logger.error(
-                        "Java Optional parameter '$parameterName' on '$commandName.$methodName' must have one concrete, " +
-                            "invariant, non-null, non-parameterized class or interface type.",
-                        parameter
-                    )
-                    return null
-                }
-                argumentName to CommandParameterResolution.OPTIONAL
-            } else {
-                if (type.nullability == Nullability.NULLABLE && !declaration.hasAnnotation(READ_MODEL_ANNOTATION)) {
-                    logger.error(
-                        "Parameter '$parameterName' on '$commandName.$methodName' may be nullable only when its type is an @ReadModel command dependency.",
-                        parameter
-                    )
-                    return null
-                }
-                qualifiedName to if (type.nullability == Nullability.NULLABLE) {
-                    CommandParameterResolution.NULLABLE
-                } else {
-                    CommandParameterResolution.REQUIRED
-                }
-            }
-            if (parameter.hasDefault) {
-                logger.warn(
-                    ArcDiagnostic.INTEROP,
-                    "Parameter '$parameterName' on '$commandName.$methodName' has a default value, but generated " +
-                        "Java/Kotlin invocation always resolves and supplies the argument.",
-                    parameter
-                )
-            }
-            if (type.arguments.isNotEmpty() && !isJavaOptional) {
-                logger.error(
-                    "Parameter '$parameterName' on '$commandName.$methodName' must not use a parameterized service type.",
-                    parameter
-                )
-                return null
-            }
-            if (resolvedType.first == "kotlin.Array") {
-                logger.error(
-                    "Parameter '$parameterName' on '$commandName.$methodName' must not use an array service type.",
-                    parameter
-                )
-                return null
-            }
-            parameters.add(
-                HandlerParameterModel(
-                    parameterName,
-                    renderClassLiteralType(resolvedType.first),
-                    resolvedType.second
-                )
-            )
+            parameters.add(buildMethodParameter(commandName, method, methodName, parameter, parameters.size) ?: return null)
         }
         return parameters
+    }
+
+    private fun buildMethodParameter(
+        commandName: String,
+        method: KSFunctionDeclaration,
+        methodName: String,
+        parameter: KSValueParameter,
+        index: Int
+    ): HandlerParameterModel? {
+        val type = parameter.type.resolve()
+        val parameterName = parameter.name?.asString() ?: "argument$index"
+        if (containsMapType(type)) {
+            logger.error(
+                ArcDiagnostic.PROXY_SHAPE,
+                "Service parameter '$commandName.$methodName.$parameterName' value path 'parameter' uses a map; maps are supported only for artifact properties.",
+                parameter
+            )
+            return null
+        }
+        val declaration = type.declaration
+        val qualifiedName = declaration.qualifiedName?.asString()
+        if (type.isError || declaration is KSTypeParameter || declaration !is KSClassDeclaration || qualifiedName == null) {
+            logger.error(
+                "Parameter '$parameterName' on '$commandName.$methodName' must have a resolvable class or interface type.",
+                parameter
+            )
+            return null
+        }
+        val isOptionalType = qualifiedName == JAVA_OPTIONAL_TYPE
+        if (isOptionalType && method.origin != Origin.JAVA) {
+            logger.error(
+                "Parameter '$parameterName' on '$commandName.$methodName' must not use java.util.Optional from Kotlin; " +
+                    "use a nullable @ReadModel parameter or an ordinary non-null service parameter.",
+                parameter
+            )
+            return null
+        }
+        val isJavaOptional = isOptionalType && method.origin == Origin.JAVA
+        val resolvedType = if (isJavaOptional) {
+            resolveJavaOptionalParameter(type, commandName, methodName, parameterName, parameter)
+        } else {
+            resolveServiceParameter(type, declaration, qualifiedName, commandName, methodName, parameterName, parameter)
+        } ?: return null
+        if (parameter.hasDefault) {
+            logger.warn(
+                ArcDiagnostic.INTEROP,
+                "Parameter '$parameterName' on '$commandName.$methodName' has a default value, but generated " +
+                    "Java/Kotlin invocation always resolves and supplies the argument.",
+                parameter
+            )
+        }
+        if (type.arguments.isNotEmpty() && !isJavaOptional) {
+            logger.error(
+                "Parameter '$parameterName' on '$commandName.$methodName' must not use a parameterized service type.",
+                parameter
+            )
+            return null
+        }
+        if (resolvedType.first == "kotlin.Array") {
+            logger.error(
+                "Parameter '$parameterName' on '$commandName.$methodName' must not use an array service type.",
+                parameter
+            )
+            return null
+        }
+        return HandlerParameterModel(parameterName, renderClassLiteralType(resolvedType.first), resolvedType.second)
+    }
+
+    private fun resolveJavaOptionalParameter(
+        type: KSType,
+        commandName: String,
+        methodName: String,
+        parameterName: String,
+        parameter: KSValueParameter
+    ): Pair<String, CommandParameterResolution>? {
+        val typeArgument = type.arguments.singleOrNull()
+        val argument = typeArgument?.type?.resolve()
+        val argumentName = (argument?.declaration as? KSClassDeclaration)?.qualifiedName?.asString()
+        val invalid = type.nullability == Nullability.NULLABLE || typeArgument?.variance != Variance.INVARIANT ||
+            argument == null || argument.isError || argumentName == null ||
+            argument.nullability == Nullability.NULLABLE || argument.arguments.isNotEmpty()
+        if (argumentName == null || invalid) {
+            logger.error(
+                "Java Optional parameter '$parameterName' on '$commandName.$methodName' must have one concrete, " +
+                    "invariant, non-null, non-parameterized class or interface type.",
+                parameter
+            )
+            return null
+        }
+        return argumentName to CommandParameterResolution.OPTIONAL
+    }
+
+    private fun resolveServiceParameter(
+        type: KSType,
+        declaration: KSClassDeclaration,
+        qualifiedName: String,
+        commandName: String,
+        methodName: String,
+        parameterName: String,
+        parameter: KSValueParameter
+    ): Pair<String, CommandParameterResolution>? {
+        val nullable = type.nullability == Nullability.NULLABLE
+        if (nullable && !declaration.hasAnnotation(READ_MODEL_ANNOTATION)) {
+            logger.error(
+                "Parameter '$parameterName' on '$commandName.$methodName' may be nullable only when its type is an @ReadModel command dependency.",
+                parameter
+            )
+            return null
+        }
+        return qualifiedName to if (nullable) CommandParameterResolution.NULLABLE else CommandParameterResolution.REQUIRED
     }
 
     private fun determineInvocationKind(
@@ -981,32 +1031,7 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
         // Only stable names cross rounds. Revalidate binary annotations and SPI through this resolver.
         handledTypeContributions.clear()
         exportedHandlers.clear()
-        importedHandlers.forEach { imported ->
-            val declaration = resolver.getClassDeclarationByName(resolver.getKSNameFromString(imported.handler))
-            fun invalid(reason: String) {
-                graphLogger.error(ArcDiagnostic.COMMAND_HANDLER,
-                    "Dependency handler '${imported.handler}' in ${imported.resource} $reason; rebuild the producer " +
-                        "and dependency handler index.")
-            }
-            if (declaration == null) {
-                invalid("cannot be resolved on the compilation classpath")
-                return@forEach
-            }
-            val values = declaration.annotationsNamed(HANDLES_COMMAND_RESPONSE_VALUES_ANNOTATION)
-                .flatMap { it.argumentValues("value").asSequence() }.mapNotNull { it as? KSType }.toList()
-            if (!declaration.validateForProcessing() || values.any(KSType::isError)) {
-                hasDeferredInputs = true
-                invalid("has unresolved annotation or SPI types")
-                return@forEach
-            }
-            if (!declaration.isPublic() || declaration.parentDeclaration != null ||
-                !isSupportedResponseValueHandler(declaration) || !values.all(::isExportableResponseType) ||
-                values.mapNotNull { it.declaration.qualifiedName?.asString() }.distinct().sorted() != imported.values) {
-                invalid("does not agree with its public top-level annotation and supported handler SPI")
-                return@forEach
-            }
-            handledTypeContributions[imported.handler] = imported.values
-        }
+        importedHandlers.forEach { imported -> revalidateImportedHandler(resolver, imported) }
         val discovered = resolver.getSymbolsWithAnnotation(HANDLES_COMMAND_RESPONSE_VALUES_ANNOTATION, inDepth = true)
             .toList()
         responseHandlerNames += discovered.filterIsInstance<KSClassDeclaration>()
@@ -1020,62 +1045,105 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
         symbols.filter(KSAnnotated::validateForProcessing)
             .filterIsInstance<KSClassDeclaration>()
             .sortedBy { declaration -> declaration.qualifiedName?.asString().orEmpty() }
-            .forEach { declaration ->
-                val qualifiedName = declaration.qualifiedName?.asString()
-                if (qualifiedName == null) {
-                    logger.error(
-                        ArcDiagnostic.COMMAND_HANDLER,
-                        "@$HANDLES_COMMAND_RESPONSE_VALUES_SIMPLE_NAME handlers must not be local.",
-                        declaration
-                    )
-                    return@forEach
-                }
-                val handledTypeSymbols = declaration.annotationsNamed(HANDLES_COMMAND_RESPONSE_VALUES_ANNOTATION)
-                    .flatMap { annotation -> annotation.argumentValues("value").asSequence() }
-                    .mapNotNull { value -> value as? KSType }
-                    .toList()
-                if (handledTypeSymbols.any(KSType::isError)) {
-                    deferred.add(declaration)
-                    return@forEach
-                }
-                if (!isSupportedResponseValueHandler(declaration)) {
-                    logger.error(
-                        ArcDiagnostic.COMMAND_HANDLER,
-                        "@$HANDLES_COMMAND_RESPONSE_VALUES_SIMPLE_NAME declaration '$qualifiedName' must implement " +
-                            "CommandResponseValueHandler, BlockingCommandResponseValueHandler, or " +
-                            "AsyncCommandResponseValueHandler.",
-                        declaration
-                    )
-                    return@forEach
-                }
-
-                val handledTypes = handledTypeSymbols
-                    .mapNotNull { type -> type.declaration.qualifiedName?.asString() }
-                if (handledTypes.isEmpty()) {
-                    logger.error(
-                        ArcDiagnostic.COMMAND_HANDLER,
-                        "@$HANDLES_COMMAND_RESPONSE_VALUES_SIMPLE_NAME declaration '$qualifiedName' must declare " +
-                            "at least one handled response value type.",
-                        declaration
-                    )
-                    return@forEach
-                }
-                val imported = importedHandlers.firstOrNull { it.handler == qualifiedName }
-                if (imported != null && imported.values != handledTypes.distinct().sorted()) {
-                    graphLogger.error(ArcDiagnostic.COMMAND_HANDLER,
-                        "Handler '$qualifiedName' conflicts with ${imported.resource}; remove the conflicting declaration.", declaration)
-                    return@forEach
-                }
-                handledTypeContributions[qualifiedName] = handledTypes
-                if (declaration.containingFile != null && declaration.isPublic() && declaration.parentDeclaration == null &&
-                    ResponseHandlerMetadata.exportableName(qualifiedName) && handledTypeSymbols.all(::isExportableResponseType)) {
-                    exportedHandlers[qualifiedName] = handledTypes.distinct().sorted()
-                }
-            }
+            .forEach { declaration -> registerResponseHandler(declaration, deferred) }
         declarativeHandledResponseTypes.clear()
         declarativeHandledResponseTypes += handledTypeContributions.values.flatten()
         return deferred
     }
+
+    private fun handledResponseValueTypes(declaration: KSClassDeclaration): List<KSType> =
+        declaration.annotationsNamed(HANDLES_COMMAND_RESPONSE_VALUES_ANNOTATION)
+            .flatMap { annotation -> annotation.argumentValues("value").asSequence() }
+            .mapNotNull { value -> value as? KSType }
+            .toList()
+
+    private fun revalidateImportedHandler(resolver: Resolver, imported: ResponseHandlerMetadata.Declaration) {
+        val declaration = resolver.getClassDeclarationByName(resolver.getKSNameFromString(imported.handler))
+        fun invalid(reason: String) {
+            graphLogger.error(ArcDiagnostic.COMMAND_HANDLER,
+                "Dependency handler '${imported.handler}' in ${imported.resource} $reason; rebuild the producer " +
+                    "and dependency handler index.")
+        }
+        if (declaration == null) {
+            invalid("cannot be resolved on the compilation classpath")
+            return
+        }
+        val values = handledResponseValueTypes(declaration)
+        if (!declaration.validateForProcessing() || values.any(KSType::isError)) {
+            hasDeferredInputs = true
+            invalid("has unresolved annotation or SPI types")
+            return
+        }
+        if (!importedHandlerAgrees(declaration, values, imported)) {
+            invalid("does not agree with its public top-level annotation and supported handler SPI")
+            return
+        }
+        handledTypeContributions[imported.handler] = imported.values
+    }
+
+    private fun importedHandlerAgrees(
+        declaration: KSClassDeclaration,
+        values: List<KSType>,
+        imported: ResponseHandlerMetadata.Declaration
+    ): Boolean = declaration.isPublic() && declaration.parentDeclaration == null &&
+        isSupportedResponseValueHandler(declaration) && values.all(::isExportableResponseType) &&
+        values.mapNotNull { it.declaration.qualifiedName?.asString() }.distinct().sorted() == imported.values
+
+    private fun registerResponseHandler(declaration: KSClassDeclaration, deferred: MutableList<KSAnnotated>) {
+        val qualifiedName = declaration.qualifiedName?.asString()
+        if (qualifiedName == null) {
+            logger.error(
+                ArcDiagnostic.COMMAND_HANDLER,
+                "@$HANDLES_COMMAND_RESPONSE_VALUES_SIMPLE_NAME handlers must not be local.",
+                declaration
+            )
+            return
+        }
+        val handledTypeSymbols = handledResponseValueTypes(declaration)
+        if (handledTypeSymbols.any(KSType::isError)) {
+            deferred.add(declaration)
+            return
+        }
+        if (!isSupportedResponseValueHandler(declaration)) {
+            logger.error(
+                ArcDiagnostic.COMMAND_HANDLER,
+                "@$HANDLES_COMMAND_RESPONSE_VALUES_SIMPLE_NAME declaration '$qualifiedName' must implement " +
+                    "CommandResponseValueHandler, BlockingCommandResponseValueHandler, or " +
+                    "AsyncCommandResponseValueHandler.",
+                declaration
+            )
+            return
+        }
+
+        val handledTypes = handledTypeSymbols
+            .mapNotNull { type -> type.declaration.qualifiedName?.asString() }
+        if (handledTypes.isEmpty()) {
+            logger.error(
+                ArcDiagnostic.COMMAND_HANDLER,
+                "@$HANDLES_COMMAND_RESPONSE_VALUES_SIMPLE_NAME declaration '$qualifiedName' must declare " +
+                    "at least one handled response value type.",
+                declaration
+            )
+            return
+        }
+        val imported = importedHandlers.firstOrNull { it.handler == qualifiedName }
+        if (imported != null && imported.values != handledTypes.distinct().sorted()) {
+            graphLogger.error(ArcDiagnostic.COMMAND_HANDLER,
+                "Handler '$qualifiedName' conflicts with ${imported.resource}; remove the conflicting declaration.", declaration)
+            return
+        }
+        handledTypeContributions[qualifiedName] = handledTypes
+        if (isExportableHandler(declaration, qualifiedName, handledTypeSymbols)) {
+            exportedHandlers[qualifiedName] = handledTypes.distinct().sorted()
+        }
+    }
+
+    private fun isExportableHandler(
+        declaration: KSClassDeclaration,
+        qualifiedName: String,
+        handledTypeSymbols: List<KSType>
+    ): Boolean = declaration.containingFile != null && declaration.isPublic() && declaration.parentDeclaration == null &&
+        ResponseHandlerMetadata.exportableName(qualifiedName) && handledTypeSymbols.all(::isExportableResponseType)
 
     private fun isExportableResponseType(value: KSType): Boolean {
         val type = value.declaration as? KSClassDeclaration ?: return false
@@ -2971,6 +3039,10 @@ public class $className : io.cratis.arc.artifacts.ArcArtifactModule(
     }
 
     private companion object {
+        val SHARED_WIRE_COLLECTION_TYPES = setOf(
+            "kotlin.Array", "kotlin.collections.List", "kotlin.collections.Set", "kotlin.collections.Collection",
+            "java.util.List", "java.util.Set", "java.util.Collection"
+        )
         const val MODULE_NAME_OPTION = "arc.moduleName"
         const val COMMAND_ANNOTATION = "io.cratis.arc.artifacts.Command"
         const val COMMAND_SIMPLE_NAME = "Command"

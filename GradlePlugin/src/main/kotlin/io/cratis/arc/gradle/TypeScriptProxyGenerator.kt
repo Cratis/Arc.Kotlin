@@ -1130,38 +1130,46 @@ internal class TypeScriptProxyGenerator(
             throw GradleException("Map property '$propertyName' entry path '$path' cannot be nullable.")
         }
         return when (shape.kind) {
-            TypeShapeKind.VALUE -> {
-                val typeName = requireNotNull(shape.typeName)
-                if (typeName !in MAP_SAFE_PRIMITIVE_TYPE_NAMES) {
-                    throw GradleException(
-                        "Map property '$propertyName' entry path '$path' has unsupported value leaf '$typeName'."
-                    )
-                }
-                val override = options.typeMappings[typeName]?.let { mapping ->
-                    if (mapping.npmPackage != null || mapping.typeScriptType !in setOf("string", "number", "boolean")) {
-                        throw GradleException("Map property '$propertyName' entry path '$path' cannot hydrate an external or non-scalar override for '$typeName'.")
-                    }
-                    mappedType(typeName, mapping.typeScriptType, null)
-                }
-                override ?: primitiveTypes[typeName] ?: throw GradleException(
-                    "Map property '$propertyName' entry path '$path' has no TypeScript primitive mapping for '$typeName'."
-                )
-            }
+            TypeShapeKind.VALUE -> resolveMapValueLeaf(shape, propertyName, path)
             TypeShapeKind.SEQUENCE -> {
                 val element = resolveMapShape(requireNotNull(shape.elementShape), propertyName, "$path[]", false)
                 TypeScriptType("${element.name}[]", element.constructor, nestedTypes = listOf(element))
             }
             TypeShapeKind.MAP -> {
-                val key = requireNotNull(shape.keyShape)
-                if (shape.keyCodec != MapKeyCodec.STRING || key.nullable || key.kind != TypeShapeKind.VALUE ||
-                    key.typeName !in MAP_STRING_TYPE_NAMES
-                ) {
-                    throw GradleException("Map property '$propertyName' entry path '$path.key' must use nonnullable String keys.")
-                }
+                requireStringMapKey(shape, propertyName, path)
                 val value = resolveMapShape(requireNotNull(shape.valueShape), propertyName, "$path.value", false)
                 TypeScriptType("Record<string, ${value.name}>", "Object", nestedTypes = listOf(value))
             }
         }
+    }
+
+    private fun requireStringMapKey(shape: TypeShapeDescriptor, propertyName: String, path: String) {
+        val key = requireNotNull(shape.keyShape)
+        val validKey = shape.keyCodec == MapKeyCodec.STRING && !key.nullable &&
+            key.kind == TypeShapeKind.VALUE && key.typeName in MAP_STRING_TYPE_NAMES
+        if (!validKey) {
+            throw GradleException("Map property '$propertyName' entry path '$path.key' must use nonnullable String keys.")
+        }
+    }
+
+    private fun resolveMapValueLeaf(shape: TypeShapeDescriptor, propertyName: String, path: String): TypeScriptType {
+        val typeName = requireNotNull(shape.typeName)
+        if (typeName !in MAP_SAFE_PRIMITIVE_TYPE_NAMES) {
+            throw GradleException(
+                "Map property '$propertyName' entry path '$path' has unsupported value leaf '$typeName'."
+            )
+        }
+        return mapScalarOverride(typeName, propertyName, path) ?: primitiveTypes[typeName] ?: throw GradleException(
+            "Map property '$propertyName' entry path '$path' has no TypeScript primitive mapping for '$typeName'."
+        )
+    }
+
+    private fun mapScalarOverride(typeName: String, propertyName: String, path: String): TypeScriptType? {
+        val mapping = options.typeMappings[typeName] ?: return null
+        if (mapping.npmPackage != null || mapping.typeScriptType !in setOf("string", "number", "boolean")) {
+            throw GradleException("Map property '$propertyName' entry path '$path' cannot hydrate an external or non-scalar override for '$typeName'.")
+        }
+        return mappedType(typeName, mapping.typeScriptType, null)
     }
 
     private fun TypeScriptType.recursiveTypes(): List<TypeScriptType> = listOf(this) + nestedTypes.flatMap {
@@ -1248,9 +1256,7 @@ internal class TypeScriptProxyGenerator(
             )
             return TypeScriptType(name, constructor)
         }
-        if (!TYPESCRIPT_IDENTIFIER.matches(name) || name in RESERVED_MAPPING_NAMES || !NPM_IMPORT_PATH.matches(npmPackage) ||
-            npmPackage.split('/').any { it == "." || it == ".." }
-        ) {
+        if (!isSafeMapping(name, npmPackage)) {
             throw GradleException("Unsafe Arc proxy mapping '$sourceName=$name=$npmPackage'; use an exported identifier and npm package path.")
         }
         val isEnum = artifacts.enums.any { it.fullyQualifiedName == sourceName }
@@ -1262,6 +1268,10 @@ internal class TypeScriptProxyGenerator(
         }
         return TypeScriptType(name, constructor, valueImport = TypeScriptValueImport(npmPackage, name, isEnum || isInterface))
     }
+
+    private fun isSafeMapping(name: String, npmPackage: String): Boolean =
+        TYPESCRIPT_IDENTIFIER.matches(name) && name !in RESERVED_MAPPING_NAMES &&
+            NPM_IMPORT_PATH.matches(npmPackage) && npmPackage.split('/').none { it == "." || it == ".." }
 
     private fun TypeScriptType.globalRuntimeConstructor(): String? {
         if (constructor !in GLOBAL_RUNTIME_CONSTRUCTORS || valueImport?.typeOnly == false) return null
@@ -1353,15 +1363,17 @@ internal class TypeScriptProxyGenerator(
     private fun removeStale(expectedFiles: Set<File>): Set<String> {
         val removed = mutableSetOf<String>()
         options.outputDirectory.walkBottomUp().forEach { file ->
-            if (
-                file.isFile && file.extension == "ts" && file.name != "index.ts" &&
-                file.canonicalFile !in expectedFiles && hasGeneratedMarker(file.readText())
-            ) {
+            if (isStaleGenerated(file, expectedFiles)) {
                 removed += file.relativeTo(options.outputDirectory).invariantSeparatorsPath
                 file.delete()
             }
         }
         return removed
+    }
+
+    private fun isStaleGenerated(file: File, expectedFiles: Set<File>): Boolean {
+        if (!file.isFile || file.extension != "ts" || file.name == "index.ts") return false
+        return file.canonicalFile !in expectedFiles && hasGeneratedMarker(file.readText())
     }
 
     private fun updateIndexFiles(generatedPaths: Set<String>, removedFiles: Set<String>): List<File> {
@@ -1387,9 +1399,9 @@ internal class TypeScriptProxyGenerator(
         }
     }
 
-    private fun updateIndexFile(directory: String, generatedNames: Set<String>, removedNames: Set<String>): File? {
-        val targetDirectory = if (directory.isEmpty()) options.outputDirectory else File(options.outputDirectory, directory)
-        val index = File(targetDirectory, "index.ts")
+    private class ExistingIndex(val text: String?, val generated: Boolean, val exports: List<String>, val manualLines: List<String>)
+
+    private fun readIndex(index: File): ExistingIndex {
         val existing = index.takeIf(File::isFile)?.readText()?.replace("\r\n", "\n")
         val generatedIndex = existing != null && hasGeneratedMarker(existing)
         val lines = existing?.lines().orEmpty().let { if (generatedIndex) it.drop(1) else it }
@@ -1403,7 +1415,10 @@ internal class TypeScriptProxyGenerator(
                 manualLines += line
             }
         }
+        return ExistingIndex(existing, generatedIndex, exports, manualLines)
+    }
 
+    private fun mergeIndexExports(exports: List<String>, generatedNames: Set<String>, removedNames: Set<String>): MutableList<String> {
         val removed = removedNames.map(String::lowercase).toSet()
         val finalExports = exports.filterNotTo(mutableListOf()) { export ->
             export.trimStart('.', '/').lowercase() in removed
@@ -1418,16 +1433,24 @@ internal class TypeScriptProxyGenerator(
                 existingNames += name
             }
         }
+        return finalExports
+    }
+
+    private fun updateIndexFile(directory: String, generatedNames: Set<String>, removedNames: Set<String>): File? {
+        val targetDirectory = if (directory.isEmpty()) options.outputDirectory else File(options.outputDirectory, directory)
+        val index = File(targetDirectory, "index.ts")
+        val current = readIndex(index)
+        val finalExports = mergeIndexExports(current.exports, generatedNames, removedNames)
 
         if (generatedNames.isEmpty() && finalExports.isEmpty()) {
-            if (generatedIndex || (manualLines.isEmpty() && removedNames.isNotEmpty())) index.delete()
+            if (current.generated || (current.manualLines.isEmpty() && removedNames.isNotEmpty())) index.delete()
             return null
         }
-        if (generatedNames.isEmpty() && !generatedIndex && removedNames.isEmpty()) return index.takeIf(File::isFile)
+        if (generatedNames.isEmpty() && !current.generated && removedNames.isEmpty()) return index.takeIf(File::isFile)
 
-        val body = (manualLines + finalExports.map { "export * from '$it';" }).joinToString("\n", postfix = "\n")
+        val body = (current.manualLines + finalExports.map { "export * from '$it';" }).joinToString("\n", postfix = "\n")
         val normalized = body.replace("\r\n", "\n").trimEnd() + "\n"
-        if (existing != normalized) Files.writeString(index.toPath(), normalized, StandardCharsets.UTF_8)
+        if (current.text != normalized) Files.writeString(index.toPath(), normalized, StandardCharsets.UTF_8)
         return index
     }
 

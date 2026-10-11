@@ -264,7 +264,7 @@ internal class MetadataCollector(
             )
         }
         return properties
-    
+
     }
 
     /** Constructor order is contractual; only the remaining declared state is name-sorted. */
@@ -464,58 +464,9 @@ internal class MetadataCollector(
             logger.error("'$identity' must use a resolvable class type.", node)
             return null
         }
-        if (qualifiedName in MAP_TYPE_NAMES) {
-            if (!allowMaps) {
-                logger.error(
-                    ArcDiagnostic.PROXY_SHAPE,
-                    "Artifact/property '$identity' value path 'value' uses map type '$qualifiedName'; maps are supported only for command, model, interface, and read-model properties.",
-                    node
-                )
-                return null
-            }
-            val descriptor = describeMap(type, identity, "value", node) ?: return null
-            return TypeShape(typeName = descriptorTypeName(descriptor), descriptor = descriptor, valueType = type)
-        }
+        if (qualifiedName in MAP_TYPE_NAMES) return describeMapShape(type, qualifiedName, identity, node, allowMaps)
         if (qualifiedName in COLLECTION_TYPE_NAMES || qualifiedName == ARRAY_TYPE) {
-            val element = concreteTypeArgument(type, 1, identity, "element", node)?.singleOrNull() ?: return null
-            if (node is KSValueParameter && element.nullability == Nullability.NULLABLE) {
-                unsupportedMapShape(identity, "element", "nullable sequence elements are unsupported", node)
-                return null
-            }
-            if (element.nullability == Nullability.NULLABLE || element.annotations.hasNullableTypeUse() ||
-                type.arguments.single().type?.annotations?.hasNullableTypeUse() == true
-            ) {
-                unsupportedSequenceElement(identity, node)
-                return null
-            }
-            val elementDeclaration = element.declaration as? KSClassDeclaration
-            val elementName = elementDeclaration?.qualifiedName?.asString()
-            if (elementName == null) {
-                logger.error("'$identity' has an unnamed collection element type.", node)
-                return null
-            }
-            if (elementName in MAP_TYPE_NAMES || elementName in COLLECTION_TYPE_NAMES || elementName == ARRAY_TYPE ||
-                element.arguments.isNotEmpty()
-            ) {
-                logger.error("'$identity' uses an unsupported nested or generic collection element shape.", node)
-                return null
-            }
-            val conceptResolution = resolveConceptValue(elementDeclaration, "$identity element", node)
-            if (!conceptResolution.isValid) return null
-            val conceptValue = conceptResolution.value
-            conceptValue?.let { underlying -> registerConcept(elementDeclaration, underlying) }
-            val descriptor = TypeShapeDescriptor.sequence(
-                sequenceKind(qualifiedName),
-                TypeShapeDescriptor.value(elementName, element.nullability == Nullability.NULLABLE),
-                type.nullability == Nullability.NULLABLE
-            )
-            return TypeShape(
-                typeName = "$qualifiedName<$elementName>",
-                descriptor = descriptor,
-                valueType = element,
-                underlyingTypeName = conceptValue?.declaration?.qualifiedName?.asString(),
-                underlyingValueType = conceptValue
-            )
+            return describeCollectionShape(type, qualifiedName, identity, node)
         }
         if (type.arguments.isNotEmpty()) {
             logger.error("'$identity' uses unsupported generic type '$qualifiedName'.", node)
@@ -529,6 +480,67 @@ internal class MetadataCollector(
             typeName = qualifiedName,
             descriptor = TypeShapeDescriptor.value(qualifiedName, type.nullability == Nullability.NULLABLE),
             valueType = type,
+            underlyingTypeName = conceptValue?.declaration?.qualifiedName?.asString(),
+            underlyingValueType = conceptValue
+        )
+    }
+
+    private fun describeMapShape(
+        type: KSType,
+        qualifiedName: String,
+        identity: String,
+        node: KSNode,
+        allowMaps: Boolean
+    ): TypeShape? {
+        if (!allowMaps) {
+            logger.error(
+                ArcDiagnostic.PROXY_SHAPE,
+                "Artifact/property '$identity' value path 'value' uses map type '$qualifiedName'; maps are supported only for command, model, interface, and read-model properties.",
+                node
+            )
+            return null
+        }
+        val descriptor = describeMap(type, identity, "value", node) ?: return null
+        return TypeShape(typeName = descriptorTypeName(descriptor), descriptor = descriptor, valueType = type)
+    }
+
+    private fun describeCollectionShape(type: KSType, qualifiedName: String, identity: String, node: KSNode): TypeShape? {
+        val element = concreteTypeArgument(type, 1, identity, "element", node)?.singleOrNull() ?: return null
+        if (node is KSValueParameter && element.nullability == Nullability.NULLABLE) {
+            unsupportedMapShape(identity, "element", "nullable sequence elements are unsupported", node)
+            return null
+        }
+        if (element.nullability == Nullability.NULLABLE || element.annotations.hasNullableTypeUse() ||
+            type.arguments.single().type?.annotations?.hasNullableTypeUse() == true
+        ) {
+            unsupportedSequenceElement(identity, node)
+            return null
+        }
+        val elementDeclaration = element.declaration as? KSClassDeclaration
+        val elementName = elementDeclaration?.qualifiedName?.asString()
+        if (elementDeclaration == null || elementName == null) {
+            logger.error("'$identity' has an unnamed collection element type.", node)
+            return null
+        }
+        if (elementName in MAP_TYPE_NAMES || elementName in COLLECTION_TYPE_NAMES || elementName == ARRAY_TYPE ||
+            element.arguments.isNotEmpty()
+        ) {
+            logger.error("'$identity' uses an unsupported nested or generic collection element shape.", node)
+            return null
+        }
+        val conceptResolution = resolveConceptValue(elementDeclaration, "$identity element", node)
+        if (!conceptResolution.isValid) return null
+        val conceptValue = conceptResolution.value
+        conceptValue?.let { underlying -> registerConcept(elementDeclaration, underlying) }
+        val descriptor = TypeShapeDescriptor.sequence(
+            sequenceKind(qualifiedName),
+            TypeShapeDescriptor.value(elementName, element.nullability == Nullability.NULLABLE),
+            type.nullability == Nullability.NULLABLE
+        )
+        return TypeShape(
+            typeName = "$qualifiedName<$elementName>",
+            descriptor = descriptor,
+            valueType = element,
             underlyingTypeName = conceptValue?.declaration?.qualifiedName?.asString(),
             underlyingValueType = conceptValue
         )
@@ -705,7 +717,21 @@ internal class MetadataCollector(
         if (describedProperties == null) return false
         val properties = withInterfaceDerivatives(describedProperties)
         registerModel(declaration, qualifiedName, properties, header)
+        val valid = collectModelGraph(declaration, qualifiedName, properties, header)
 
+        if (!valid) {
+            collectedTypes.remove(qualifiedName)
+            collectedInterfaces.remove(qualifiedName)
+        }
+        return valid
+    }
+
+    private fun collectModelGraph(
+        declaration: KSClassDeclaration,
+        qualifiedName: String,
+        properties: List<PropertyModel>,
+        header: ModelHeader
+    ): Boolean {
         var valid = true
         for (superDeclaration in header.superDeclarations) {
             val superName = superDeclaration.qualifiedName?.asString() ?: continue
@@ -716,11 +742,6 @@ internal class MetadataCollector(
             val derivativeName = derivative.qualifiedName?.asString() ?: continue
             collectedDerivedTypes.add(DerivedTypeRegistrationModel(qualifiedName, derivativeName))
             if (!collectDeclaration(derivative, "$qualifiedName derivative $derivativeName", derivative)) valid = false
-        }
-
-        if (!valid) {
-            collectedTypes.remove(qualifiedName)
-            collectedInterfaces.remove(qualifiedName)
         }
         return valid
     }

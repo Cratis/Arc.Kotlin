@@ -72,24 +72,26 @@ internal fun StringBuilder.appendQueryImports(m: QueryImportFlags) {
     }
 }
 
+private fun observableSortingActionsImport(m: QueryImportFlags) =
+    if (m.hasSortableProperties) ", SortingActions, SortingActionsForObservableQuery" else ""
+
+private fun observableHooksImport(m: QueryImportFlags) =
+    if (m.supportsPaging) {
+        "useObservableQuery, useObservableQueryWithPaging, useSuspenseObservableQuery, " +
+            "useSuspenseObservableQueryWithPaging"
+    } else {
+        "useObservableQuery, useSuspenseObservableQuery"
+    }
+
 internal fun StringBuilder.appendObservableQueryImports(m: QueryImportFlags) {
     val validationImport = if (m.hasValidation) ", QueryValidator" else ""
     val httpMethod = if (m.hasHttpMethod) ", QueryHttpMethod" else ""
     if (m.isEnumerable) {
         val sorting = if (m.supportsSorting) ", Sorting" else ""
-        val sortingActions = if (m.hasSortableProperties) {
-            ", SortingActions, SortingActionsForObservableQuery"
-        } else {
-            ""
-        }
+        val sortingActions = observableSortingActionsImport(m)
         val paging = if (m.supportsPaging) ", Paging" else ""
         append("import { ObservableQueryFor, QueryResultWithState$validationImport$sorting$sortingActions$paging, type ChangeSet$httpMethod } from '@cratis/arc/queries';\n")
-        val hooks = if (m.supportsPaging) {
-            "useObservableQuery, useObservableQueryWithPaging, useSuspenseObservableQuery, " +
-                "useSuspenseObservableQueryWithPaging"
-        } else {
-            "useObservableQuery, useSuspenseObservableQuery"
-        }
+        val hooks = observableHooksImport(m)
         val sortingType = if (m.supportsSorting) ", type SetSorting" else ""
         val pagingTypes = if (m.supportsPaging) ", type SetPage, type SetPageSize" else ""
         append("import { $hooks, useChangeStream$sortingType$pagingTypes, ObservableQueryWhen } from '@cratis/arc.react/queries';\n")
