@@ -77,9 +77,8 @@ internal fun TypeShapeDescriptor.withNullability(nullable: Boolean): TypeShapeDe
 
 /** The type whose properties are being described. */
 private class PropertyOwner(val declaration: KSClassDeclaration, val identity: String, val memberTags: Map<String, String>) {
-    val properties: Map<String, KSPropertyDeclaration> by lazy {
+    val properties: Map<String, KSPropertyDeclaration> =
         declaration.getDeclaredProperties().associateBy { property -> property.simpleName.asString() }
-    }
 }
 
 /** Describes the wire properties of a command, model, record or interface declaration. */

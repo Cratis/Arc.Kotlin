@@ -27,7 +27,7 @@ private class ProvideReading(val model: ProvideModel?)
 internal class CommandModelBuilder(
     private val services: CommandResponseServices,
     private val resolver: Resolver,
-    private val emitHandler: (CommandInvocationModel, KSFile) -> Unit
+    private val emitHandler: (String, () -> CommandInvocationModel, KSFile) -> Unit
 ) {
     private val logger = services.logger
     private val shapeValidator = ArtifactShapeValidator(logger)
@@ -54,12 +54,15 @@ internal class CommandModelBuilder(
 
         // Validate unconditional response restrictions without traversing a provisional CLIENT-only graph.
         classifyResponse(signature, collectClientGraph = false) ?: return null
-        val commandKeyUsesFunction by lazy { commandKey != null && isParsedJavaRecord(command) }
+        // The invocation model, including its source probe, is only built when the caller decides to emit.
         emitHandler(
-            CommandInvocationModel(
-                qualifiedName, commandHandlerClassName(qualifiedName), signature.parameters, signature.provide,
-                commandKey?.name, commandKeyUsesFunction, signature.invocationKind
-            ),
+            qualifiedName,
+            {
+                CommandInvocationModel(
+                    qualifiedName, commandHandlerClassName(qualifiedName), signature.parameters, signature.provide,
+                    commandKey?.name, commandKey != null && isParsedJavaRecord(command), signature.invocationKind
+                )
+            },
             containingFile
         )
         val response = classifyResponse(signature, collectClientGraph = true) ?: return null
@@ -71,7 +74,7 @@ internal class CommandModelBuilder(
             provide = signature.provide,
             properties = properties,
             commandKeyPropertyName = commandKey?.name,
-            commandKeyUsesFunction = commandKeyUsesFunction,
+            commandKeyUsesFunction = commandKey != null && isParsedJavaRecord(command),
             authorization = authorization,
             treatWarningsAsErrors = command.hasAnnotation(TREAT_WARNINGS_AS_ERRORS_ANNOTATION) ||
                 signature.handler.hasAnnotation(TREAT_WARNINGS_AS_ERRORS_ANNOTATION),

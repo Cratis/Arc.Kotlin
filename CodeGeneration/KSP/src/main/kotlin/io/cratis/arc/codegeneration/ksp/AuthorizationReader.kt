@@ -9,9 +9,12 @@ import com.google.devtools.ksp.symbol.KSClassDeclaration
 import com.google.devtools.ksp.symbol.KSFunctionDeclaration
 
 /** The authorization metadata declared directly on one class or operation. */
-private class AuthorizationScope(val node: KSAnnotated, val allowAnonymous: Boolean) {
-    val authorize: List<KSAnnotation> = node.annotationsNamed(AUTHORIZE_ANNOTATION).toList()
-    val roles: List<String> = node.roleAnnotations()
+private class AuthorizationScope(
+    val node: KSAnnotated,
+    val allowAnonymous: Boolean,
+    val authorize: List<KSAnnotation>,
+    val roles: List<String>
+) {
 
     val restricts: Boolean get() = authorize.isNotEmpty() || roles.isNotEmpty()
     val declaresAuthorization: Boolean get() = allowAnonymous || restricts
@@ -36,8 +39,12 @@ internal class AuthorizationReader(private val logger: ArcDiagnosticReporter) {
             return null
         }
 
-        val classScope = AuthorizationScope(declaration, classAllowAnonymous)
-        val operationScope = AuthorizationScope(operation, operationAllowAnonymous)
+        val classAuthorize = declaration.annotationsNamed(AUTHORIZE_ANNOTATION).toList()
+        val operationAuthorize = operation.annotationsNamed(AUTHORIZE_ANNOTATION).toList()
+        val classRoles = declaration.roleAnnotations()
+        val operationRoles = operation.roleAnnotations()
+        val classScope = AuthorizationScope(declaration, classAllowAnonymous, classAuthorize, classRoles)
+        val operationScope = AuthorizationScope(operation, operationAllowAnonymous, operationAuthorize, operationRoles)
         // One declaration that both opens and restricts access contradicts itself and has no defensible reading,
         // so it stays an error. Metadata split across the class and its operation is a different thing entirely:
         // that is the ordinary way to state a default and then override it for one operation.

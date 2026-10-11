@@ -360,8 +360,8 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
         configurationReported = true
     }
 
-    private fun commandModelBuilder(resolver: Resolver) = CommandModelBuilder(responseServices(), resolver) { invocation, file ->
-        if (moduleName != null && emittedCommands.add(invocation.qualifiedName)) generateHandler(invocation, file)
+    private fun commandModelBuilder(resolver: Resolver) = CommandModelBuilder(responseServices(), resolver) { name, invocation, file ->
+        if (moduleName != null && emittedCommands.add(name)) generateHandler(invocation(), file)
     }
 
     private fun responseServices() =
