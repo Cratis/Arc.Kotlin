@@ -67,6 +67,8 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
         }
     private var metadataCollector = MetadataCollector(graphLogger, binaryRecords = binaryRecords)
     private val methodReader = CommandMethodReader(logger)
+    private val authorizationReader = AuthorizationReader(logger)
+    private val providedValueWarner = ProvidedValueWarner(logger)
     private val commandNames = sortedSetOf<String>()
     private val readModelNames = sortedSetOf<String>()
     private val exportedTypeNames = sortedSetOf<String>()
@@ -97,6 +99,7 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
     private val emittedCommands = mutableSetOf<String>()
     private val emittedQueries = mutableSetOf<String>()
     private val inspectedCommandLikeTypes = mutableSetOf<String>()
+    private val commandLikeTypeInspector = CommandLikeTypeInspector(logger, inspectedCommandLikeTypes)
     private val ignoreValidationOwners = sortedSetOf<String>()
     private val ignoreValidationTopLevelProperties = sortedSetOf<String>()
     private val queryNames = mutableSetOf<String>()
@@ -137,7 +140,7 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
             } }.groupBy({ it.first }, { it.second }).mapValues { (_, rules) -> rules.flatten() }
             metadataCollector = MetadataCollector(graphLogger, fluentRules, binaryRecords)
             deferred += discoverDeclarativeHandledResponseTypes(resolver)
-            inspectCommandLikeTypes(resolver)
+            commandLikeTypeInspector.inspect(resolver)
             val commandSymbols = discoverRoots(resolver, COMMAND_ANNOTATION, commandNames)
             val readModelSymbols = discoverRoots(resolver, READ_MODEL_ANNOTATION, readModelNames)
             val exportedTypeSymbols = discoverRoots(resolver, EXPORTED_TYPE_ANNOTATION, exportedTypeNames)
@@ -164,7 +167,7 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
                     if (collected) exportRoots += name
                 }
             }.discover(latestRoundFiles.asSequence().flatMap { it.declarations })
-            validateSharedWireEdges(resolver)
+            SharedWireEdgeValidator(resolver, graphLogger, metadataCollector, fluentSnapshot.all).validate()
             fluentSnapshot.all.forEach { declaration ->
                 val properties = metadataCollector.propertiesFor(declaration.model)
                 if (properties != null) declaration.members.filter { member -> properties.none { it.name == member.name } }.forEach { member ->
@@ -177,75 +180,6 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
             return deferred.distinct()
         } finally {
             metadataCollector.releaseSymbols()
-        }
-    }
-
-    private fun validateSharedWireEdges(resolver: Resolver) {
-        if (fluentSnapshot.all.isEmpty()) return
-        val declarations = mutableMapOf<String, KSClassDeclaration>()
-        val edges = mutableMapOf<String, List<Pair<String, String>>>()
-        fun visit(type: KSType) {
-            val declaration = type.declaration as? KSClassDeclaration ?: return
-            val name = declaration.qualifiedName?.asString() ?: return
-            if (name.startsWith("kotlin.") || name.startsWith("java.")) { type.arguments.mapNotNull { it.type?.resolve() }.forEach(::visit); return }
-            if (declarations.putIfAbsent(name, declaration) != null) return
-            val members = sharedWireMembers(declaration, resolver)
-            edges[name] = sharedWireEdgesOf(name, members)
-            members.forEach { visit(sharedWireLeaf(it.type.resolve())) }
-            edges[name].orEmpty().forEach { (_, child) -> resolver.getClassDeclarationByName(resolver.getKSNameFromString(child))?.let { visit(it.asStarProjectedType()) } }
-        }
-        (metadataCollector.types.map { it.fullyQualifiedName } + fluentSnapshot.all.map { it.model }).distinct().forEach { name ->
-            resolver.getClassDeclarationByName(resolver.getKSNameFromString(name))?.let { visit(it.asStarProjectedType()) }
-        }
-        val active = activeSharedModels(edges)
-        active.forEach { name ->
-            val declaration = declarations[name] ?: return@forEach
-            reportSharedWireEdgeErrors(name, declaration, edges[name].orEmpty().filter { it.second in active })
-        }
-    }
-
-    private fun sharedWireMembers(declaration: KSClassDeclaration, resolver: Resolver): List<KSPropertyDeclaration> =
-        declaration.getAllProperties().filter { it.isPublic() && Modifier.JAVA_STATIC !in it.modifiers }
-            .filterNot { IgnoreValidationPolicy.isIgnored(listOfNotNull(it, it.getter), it, resolver, graphLogger) }.toList()
-
-    private fun sharedWireLeaf(type: KSType): KSType =
-        if (type.declaration.qualifiedName?.asString() in SHARED_WIRE_COLLECTION_TYPES) {
-            type.arguments.singleOrNull()?.type?.resolve() ?: type
-        } else {
-            type
-        }
-
-    private fun sharedWireEdgesOf(name: String, members: List<KSPropertyDeclaration>): List<Pair<String, String>> =
-        (members.mapNotNull { member ->
-            sharedWireLeaf(member.type.resolve()).declaration.qualifiedName?.asString()?.let { member.simpleName.asString() to it }
-        } + metadataCollector.propertiesFor(name).orEmpty().filterNot { it.ignoreValidation }
-            .map { it.name to (it.elementTypeName ?: it.typeName) }).distinct()
-
-    private fun activeSharedModels(edges: Map<String, List<Pair<String, String>>>): Set<String> {
-        val active = fluentSnapshot.all.map { it.model }.toMutableSet()
-        var changed: Boolean
-        do {
-            changed = false
-            edges.forEach { (name, members) -> if (name !in active && members.any { it.second in active }) { active += name; changed = true } }
-        } while (changed)
-        return active
-    }
-
-    private fun reportSharedWireEdgeErrors(
-        name: String,
-        declaration: KSClassDeclaration,
-        activeEdges: List<Pair<String, String>>
-    ) {
-        if (Modifier.OPEN in declaration.modifiers || Modifier.SEALED in declaration.modifiers || Modifier.ABSTRACT in declaration.modifiers)
-            graphLogger.error(ArcDiagnostic.FLUENT_RULE, "Shared validation graph '$name' is open, abstract or polymorphic; use concrete final shared input models or server-only validators.", declaration)
-        activeEdges.forEach { (member, _) ->
-            try { FluentValidationDiscovery.requireWireMember(declaration, member) }
-            catch (exception: IllegalArgumentException) { graphLogger.error(ArcDiagnostic.FLUENT_RULE,
-                "Shared validation edge '$name.$member': ${exception.message}.", declaration) }
-        }
-        val wire = metadataCollector.propertiesFor(name).orEmpty().map { it.name }.toSet()
-        activeEdges.filter { it.first !in wire }.forEach { (member, _) ->
-            graphLogger.error(ArcDiagnostic.FLUENT_RULE, "Shared validation edge '$name.$member' is not a generated wire member; remove the ignored/inherited edge or use a server-only validator.", declaration)
         }
     }
 
@@ -290,50 +224,6 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
     override fun onError() {
         graphLogger.flush()
         latestRoundFiles = emptyList()
-    }
-
-    private fun inspectCommandLikeTypes(resolver: Resolver) {
-        resolver.getAllFiles().flatMap { file -> file.declarations }
-            .filterIsInstance<KSClassDeclaration>()
-            .forEach { declaration ->
-                val qualifiedName = declaration.qualifiedName?.asString() ?: return@forEach
-                if (!inspectedCommandLikeTypes.add(qualifiedName) || declaration.hasAnnotation(COMMAND_ANNOTATION) ||
-                    declaration.classKind != ClassKind.CLASS || declaration.parentDeclaration != null ||
-                    declaration.simpleName.asString().endsWith("Extensions") ||
-                    declaration.simpleName.asString().endsWith("Helper") ||
-                    declaration.simpleName.asString().endsWith("Helpers")) {
-                    return@forEach
-                }
-                val handles = declaration.getDeclaredFunctions()
-                    .filter { function -> function.simpleName.asString() == HANDLER_NAME }
-                    .toList()
-                val commandLikeHandle = handles.firstOrNull { function ->
-                    function.functionKind == FunctionKind.MEMBER && Modifier.JAVA_STATIC !in function.modifiers &&
-                        function.isPublic()
-                }
-                val hasPublicState = declaration.getAllProperties().any { property -> property.isPublic() }
-                if (commandLikeHandle != null && hasPublicState) {
-                    logger.warn(
-                        ArcDiagnostic.MISSING_COMMAND,
-                        "Type '$qualifiedName' has a handle function and public state but is missing @Command; " +
-                            "add @Command or rename the function if this is not a command.",
-                        declaration
-                    )
-                }
-                handles.filter { function ->
-                    function.functionKind == FunctionKind.MEMBER && Modifier.JAVA_STATIC !in function.modifiers &&
-                        function.isPublic() && function.parameters.any { parameter ->
-                            (parameter.type.resolve().declaration as? KSClassDeclaration)?.hasAnnotation(COMMAND_ANNOTATION) == true
-                        }
-                }.forEach { function ->
-                    logger.error(
-                        ArcDiagnostic.COMMAND_HANDLER,
-                        "External handler '$qualifiedName.${function.simpleName.asString()}' accepts an @Command type; " +
-                            "move handling to a public instance handle function on the command.",
-                        function
-                    )
-                }
-            }
     }
 
     private fun processCommand(symbol: KSAnnotated, resolver: Resolver) {
@@ -568,7 +458,7 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
                 methodReader.invocationKind(provideSite, resolver, allowNullableReturn = true) ?: return null
             )
         }
-        if (provideMethod != null) warnForUnusedProvidedValues(qualifiedName, provideMethod, handler, resolver)
+        if (provideMethod != null) providedValueWarner.warn(qualifiedName, provideMethod, handler, resolver)
         val properties = buildProperties(command, qualifiedName) ?: return null
         val commandKeys = properties.filter(PropertyModel::isCommandKey)
         if (commandKeys.size > 1) {
@@ -580,9 +470,9 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
             return null
         }
         val commandKey = commandKeys.singleOrNull()
-        val eventMetadata = buildCommandEventMetadata(command, qualifiedName)
+        val eventMetadata = CommandEventMetadataReader(logger, command, qualifiedName).read()
         if (eventMetadata?.isValid == false) return null
-        val authorization = buildAuthorization(command, handler, qualifiedName, "Command") ?: return null
+        val authorization = authorizationReader.read(command, handler, qualifiedName, "Command") ?: return null
         val containingFile = command.containingFile
         if (containingFile == null) {
             logger.error(ArcDiagnostic.COMMAND_SHAPE, "Command '$qualifiedName' does not have a resolvable source file.", command)
@@ -626,53 +516,6 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
 
     private fun responseServices() =
         CommandResponseServices(logger, graphLogger, metadataCollector, declarativeHandledResponseTypes)
-
-    private fun warnForUnusedProvidedValues(
-        commandName: String,
-        provide: KSFunctionDeclaration,
-        handler: KSFunctionDeclaration,
-        resolver: Resolver
-    ) {
-        var providedType = provide.returnType?.resolve() ?: return
-        if (providedType.isError) return
-        if (isCompletionStage(providedType, resolver)) {
-            providedType = providedType.arguments.singleOrNull()?.type?.resolve() ?: return
-        }
-        val providedName = providedType.declaration.qualifiedName?.asString() ?: return
-        val producedTypes = if (providedName == "kotlin.Pair" || providedName == "kotlin.Triple") {
-            providedType.arguments.mapNotNull { argument -> argument.type?.resolve() }
-        } else {
-            listOf(providedType)
-        }
-        val handlerTypes = handler.parameters.map { parameter ->
-            val handlerType = parameter.type.resolve()
-            if (handler.origin == Origin.JAVA &&
-                handlerType.declaration.qualifiedName?.asString() == JAVA_OPTIONAL_TYPE
-            ) {
-                handlerType.arguments.singleOrNull()
-                    ?.takeIf { argument -> argument.variance == Variance.INVARIANT }
-                    ?.type
-                    ?.resolve()
-                    ?: handlerType
-            } else {
-                handlerType
-            }
-        }
-        producedTypes.filter { type ->
-            val name = type.declaration.qualifiedName?.asString()
-            name !in PROVIDE_CONTROL_TYPES && name !in PROVIDE_DYNAMIC_TYPES && name !in VOID_TYPE_NAMES
-        }.forEach { type ->
-            val consumed = handlerTypes.any { handlerType -> handlerType.isAssignableFrom(type) }
-            if (!consumed) {
-                val name = type.declaration.qualifiedName?.asString() ?: type.toString()
-                logger.warn(
-                    ArcDiagnostic.UNUSED_PROVIDED_VALUE,
-                    "Value of type '$name' produced by '$commandName.$PROVIDE_NAME' is not consumed by any handle parameter.",
-                    provide
-                )
-            }
-        }
-    }
 
     private fun discoverDeclarativeHandledResponseTypes(resolver: Resolver): List<KSAnnotated> {
         // Only stable names cross rounds. Revalidate binary annotations and SPI through this resolver.
@@ -811,135 +654,6 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
 
     private fun buildProperties(command: KSClassDeclaration, commandName: String): List<PropertyModel>? =
         metadataCollector.describeProperties(command, commandName)
-
-    private fun buildCommandEventMetadata(
-        command: KSClassDeclaration,
-        commandName: String
-    ): CommandEventMetadataModel? {
-        var isValid = true
-        fun value(annotationName: String): String? {
-            val annotation = command.annotationsNamed(annotationName).singleOrNull() ?: return null
-            val raw = annotation.stringArgument("value")
-            if (raw.isNullOrBlank() || raw.any(Char::isISOControl)) {
-                logger.error(
-                    ArcDiagnostic.COMMAND_EVENT_METADATA,
-                    "Command '$commandName' declares @${annotation.shortName.asString()} with a blank or " +
-                        "control-character value; omit the annotation or supply a safe nonblank value.",
-                    annotation
-                )
-                isValid = false
-                return null
-            }
-            return raw
-        }
-
-        fun provides(interfaceName: String): Boolean = command.getAllSuperTypes().any { superType ->
-            superType.declaration.qualifiedName?.asString() == interfaceName
-        }
-        if (
-            command.hasAnnotation(COMMAND_EVENT_STREAM_ID_ANNOTATION) &&
-            provides(COMMAND_EVENT_STREAM_ID_PROVIDER)
-        ) {
-            logger.error(
-                ArcDiagnostic.COMMAND_EVENT_METADATA,
-                "Command '$commandName' cannot declare @CommandEventStreamId and implement " +
-                    "CommandEventStreamIdProvider; choose one event-stream ID source.",
-                command
-            )
-            isValid = false
-        }
-        if (
-            command.hasAnnotation(COMMAND_EVENT_SUBJECT_ANNOTATION) &&
-            provides(COMMAND_EVENT_SUBJECT_PROVIDER)
-        ) {
-            logger.error(
-                ArcDiagnostic.COMMAND_EVENT_METADATA,
-                "Command '$commandName' cannot declare @CommandEventSubject and implement " +
-                    "CommandEventSubjectProvider; choose one subject source.",
-                command
-            )
-            isValid = false
-        }
-
-        val metadata = CommandEventMetadataModel(
-            eventSourceType = value(COMMAND_EVENT_SOURCE_TYPE_ANNOTATION),
-            eventStreamType = value(COMMAND_EVENT_STREAM_TYPE_ANNOTATION),
-            eventStreamId = value(COMMAND_EVENT_STREAM_ID_ANNOTATION),
-            subject = value(COMMAND_EVENT_SUBJECT_ANNOTATION),
-            isValid = isValid
-        )
-        return if (
-            !metadata.isValid || listOf(
-                metadata.eventSourceType,
-                metadata.eventStreamType,
-                metadata.eventStreamId,
-                metadata.subject
-            ).any { it != null }
-        ) metadata else null
-    }
-
-    private fun buildAuthorization(
-        declaration: KSClassDeclaration,
-        operation: KSFunctionDeclaration,
-        identity: String,
-        artifactKind: String
-    ): AuthorizationModel? {
-        val classAllowAnonymous = declaration.hasAnnotation(ALLOW_ANONYMOUS_ANNOTATION)
-        val operationAllowAnonymous = operation.hasAnnotation(ALLOW_ANONYMOUS_ANNOTATION)
-        if (classAllowAnonymous && operationAllowAnonymous) {
-            logger.error(
-                ArcDiagnostic.AUTHORIZATION,
-                "$artifactKind '$identity' declares @AllowAnonymous on both the class and operation; declare it once.",
-                operation
-            )
-            return null
-        }
-
-        val classAuthorize = declaration.annotationsNamed(AUTHORIZE_ANNOTATION).toList()
-        val operationAuthorize = operation.annotationsNamed(AUTHORIZE_ANNOTATION).toList()
-        val classRoles = declaration.roleAnnotations()
-        val operationRoles = operation.roleAnnotations()
-        // One declaration that both opens and restricts access contradicts itself and has no defensible reading,
-        // so it stays an error. Metadata split across the class and its operation is a different thing entirely:
-        // that is the ordinary way to state a default and then override it for one operation.
-        if (classAllowAnonymous && (classAuthorize.isNotEmpty() || classRoles.isNotEmpty())) {
-            logger.error(
-                ArcDiagnostic.AUTHORIZATION,
-                "$artifactKind '$identity' cannot combine @AllowAnonymous with @Authorize or @Roles on the same declaration.",
-                declaration
-            )
-            return null
-        }
-        if (operationAllowAnonymous && (operationAuthorize.isNotEmpty() || operationRoles.isNotEmpty())) {
-            logger.error(
-                ArcDiagnostic.AUTHORIZATION,
-                "$artifactKind '$identity' cannot combine @AllowAnonymous with @Authorize or @Roles on the same declaration.",
-                operation
-            )
-            return null
-        }
-
-        // Operation-level authorization replaces class-level authorization wholesale rather than merging with it,
-        // matching Arc .NET's AuthorizationEvaluator.IsAuthorized(MethodInfo): it resolves the method's own metadata
-        // first and only falls back to the declaring type when the method declares none. The class therefore states
-        // the default for a read model, and any one operation - open or restricted - overrides it.
-        val operationDeclaresAuthorization =
-            operationAllowAnonymous || operationAuthorize.isNotEmpty() || operationRoles.isNotEmpty()
-        val authorize = if (operationDeclaresAuthorization) operationAuthorize else classAuthorize
-        val declaredRoles = if (operationDeclaresAuthorization) operationRoles else classRoles
-        val roles = (
-            authorize.flatMap { annotation -> annotation.stringListArgument("roles") } + declaredRoles
-            ).distinct()
-        val schemes = authorize.flatMap { annotation -> annotation.stringListArgument("schemes") }.distinct()
-        return AuthorizationModel(
-            allowAnonymous = if (operationDeclaresAuthorization) operationAllowAnonymous else classAllowAnonymous,
-            policy = authorize.firstNotNullOfOrNull { annotation ->
-                annotation.stringArgument("policy")?.takeIf(String::isNotBlank)
-            },
-            roles = roles,
-            schemes = schemes
-        )
-    }
 
     private fun validateReadModelShape(readModel: KSClassDeclaration, qualifiedName: String): Boolean {
         if (readModel.parentDeclaration != null) {
@@ -1192,7 +906,7 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
             )
             return null
         }
-        val authorization = buildAuthorization(readModel, function, identity, "Query") ?: return null
+        val authorization = authorizationReader.read(readModel, function, identity, "Query") ?: return null
         val pathResolution = resolveExplicitPath(readModel, function, identity)
         if (!pathResolution.first) return null
         val explicitPath = pathResolution.second
