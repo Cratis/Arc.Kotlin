@@ -37,6 +37,7 @@ internal class MetadataCollector(
 ) {
     private val validationExtractor = ValidationMetadataExtractor(logger)
     private val wireValidator = WireAnnotationValidator(logger)
+    private val conceptResolver = ConceptResolver(logger)
     private val mapShapes = MapShapeDescriber(logger)
     private val collectedTypes = linkedMapOf<String, TypeModel>()
     private val collectedInterfaces = linkedMapOf<String, InterfaceModel>()
@@ -413,7 +414,7 @@ internal class MetadataCollector(
             logger.error("'$identity' uses unsupported generic type '$qualifiedName'.", node)
             return null
         }
-        val conceptResolution = resolveConceptValue(declaration, identity, node)
+        val conceptResolution = conceptResolver.resolve(declaration, identity, node)
         if (!conceptResolution.isValid) return null
         val conceptValue = conceptResolution.value
         conceptValue?.let { underlying -> registerConcept(declaration, underlying) }
@@ -470,7 +471,7 @@ internal class MetadataCollector(
             logger.error("'$identity' uses an unsupported nested or generic collection element shape.", node)
             return null
         }
-        val conceptResolution = resolveConceptValue(elementDeclaration, "$identity element", node)
+        val conceptResolution = conceptResolver.resolve(elementDeclaration, "$identity element", node)
         if (!conceptResolution.isValid) return null
         val conceptValue = conceptResolution.value
         conceptValue?.let { underlying -> registerConcept(elementDeclaration, underlying) }
@@ -524,7 +525,7 @@ internal class MetadataCollector(
             logger.error("'$identity' uses unsupported generic model '$qualifiedName'.", node)
             return false
         }
-        val conceptResolution = resolveConceptValue(declaration, identity, node)
+        val conceptResolution = conceptResolver.resolve(declaration, identity, node)
         if (!conceptResolution.isValid) return false
         conceptResolution.value?.let { underlying ->
             registerConcept(declaration, underlying)
@@ -764,7 +765,8 @@ internal class MetadataCollector(
             // Declaration parsing/fingerprints remain unchanged; only effective member rules are cut.
             return ValidationMetadata(emptyList(), false, true)
         }
-        val conceptRules = extractConceptValidationRules(shape, identity, node) ?: return null
+        val conceptRules = ConceptValidationRules(logger, validationExtractor, resolver, conceptResolver)
+            .extract(shape, identity, node) ?: return null
         return validationExtractor.extract(
             annotated,
             shape,
@@ -775,149 +777,6 @@ internal class MetadataCollector(
             fluentRules[identity].orEmpty()
         )
     }
-
-    private fun extractConceptValidationRules(
-        shape: TypeShape,
-        identity: String,
-        node: KSNode
-    ): List<ValidationRuleModel>? {
-        val underlying = shape.underlyingValueType ?: return emptyList()
-        val declaration = shape.valueType.declaration as? KSClassDeclaration ?: return emptyList()
-        val underlyingName = requireNotNull(underlying.declaration.qualifiedName).asString()
-        val effectiveShape = TypeShape(
-            typeName = underlyingName,
-            descriptor = TypeShapeDescriptor.value(underlyingName),
-            valueType = underlying
-        )
-        return collectConceptValidationRules(declaration, effectiveShape, identity, node, mutableSetOf())
-    }
-
-    private fun collectConceptValidationRules(
-        declaration: KSClassDeclaration,
-        effectiveShape: TypeShape,
-        identity: String,
-        node: KSNode,
-        visited: MutableSet<String>
-    ): List<ValidationRuleModel>? {
-        val declarationName = declaration.qualifiedName?.asString() ?: return emptyList()
-        if (!visited.add(declarationName)) return emptyList()
-        val rules = validationRulesForConceptDeclaration(declaration, effectiveShape, identity, node)?.toMutableList()
-            ?: return null
-        val conceptSuperDeclarations = declaration.superTypes.map { reference -> reference.resolve().declaration }
-            .filterIsInstance<KSClassDeclaration>()
-            .filter { candidate ->
-                candidate.qualifiedName?.asString() != CONCEPT_AS_TYPE && candidate.isAssignableTo(CONCEPT_AS_TYPE)
-            }
-            .sortedBy { candidate -> candidate.qualifiedName?.asString() }
-            .toList()
-        for (superDeclaration in conceptSuperDeclarations) {
-            rules += collectConceptValidationRules(superDeclaration, effectiveShape, identity, node, visited) ?: return null
-        }
-        val carriedConcept = findConceptValue(declaration, emptyMap(), mutableSetOf())
-            ?.declaration as? KSClassDeclaration
-        if (carriedConcept != null && carriedConcept.isAssignableTo(CONCEPT_AS_TYPE)) {
-            rules += collectConceptValidationRules(carriedConcept, effectiveShape, identity, node, visited) ?: return null
-        }
-        return rules
-    }
-
-    private fun validationRulesForConceptDeclaration(
-        declaration: KSClassDeclaration,
-        effectiveShape: TypeShape,
-        identity: String,
-        node: KSNode
-    ): List<ValidationRuleModel>? {
-        val constructorParameter = declaration.primaryConstructor?.parameters?.singleOrNull()
-        val constructorName = constructorParameter?.name?.asString()
-        val properties = declaration.getDeclaredProperties().filter { property ->
-            constructorName == null || property.simpleName.asString() == constructorName
-        }.toList()
-        val accessors = declaration.getDeclaredFunctions().filter { function ->
-            function.parameters.isEmpty() && function.simpleName.asString() in setOf(
-                "value",
-                "getValue",
-                constructorName.orEmpty(),
-                constructorName?.let { name -> "get${name.replaceFirstChar(Char::uppercase)}" }.orEmpty()
-            )
-        }.toList()
-        val sourceAnnotations = if (declaration.origin == Origin.JAVA) {
-            declaration.containingFile?.filePath?.let(::File)?.takeIf(File::isFile)?.readText()
-                ?.let { source -> parseJavaRecordProperties(source, declaration.simpleName.asString()) }
-                ?.singleOrNull()
-                ?.validationAnnotations
-                .orEmpty()
-        } else {
-            emptyList()
-        }
-        if (sourceAnnotations.any { it.qualifiedName == IgnoreValidationPolicy.ANNOTATION } || properties.any {
-                IgnoreValidationPolicy.isIgnored(listOfNotNull(it, it.getter), it, resolver, logger)
-            }) return emptyList()
-        return validationExtractor.extract(
-            listOfNotNull(constructorParameter) + properties + accessors,
-            effectiveShape,
-            "$identity concept value",
-            node,
-            sourceAnnotations
-        )?.rules
-    }
-
-    private fun resolveConceptValue(
-        declaration: KSClassDeclaration,
-        identity: String,
-        node: KSNode
-    ): ConceptValueResolution {
-        if (!declaration.isAssignableTo(CONCEPT_AS_TYPE)) return ConceptValueResolution(true, null)
-        val value = findConceptValue(declaration, emptyMap(), mutableSetOf())
-        val valueDeclaration = value?.declaration as? KSClassDeclaration
-        val valueName = valueDeclaration?.qualifiedName?.asString()
-        if (value == null || value.isError || value.declaration is KSTypeParameter || valueName == null) {
-            logger.error(
-                ArcDiagnostic.PROXY_SHAPE,
-                "Concept '$identity' implements ConceptAs<T>, but its underlying generic type cannot be resolved.",
-                node
-            )
-            return ConceptValueResolution(false, null)
-        }
-        if (value.arguments.isNotEmpty() || valueName in MAP_TYPE_NAMES || valueName in COLLECTION_TYPE_NAMES || valueName == ARRAY_TYPE) {
-            logger.error(
-                ArcDiagnostic.PROXY_SHAPE,
-                "Concept artifact/property '$identity' value path 'conceptValue' has unsupported non-scalar underlying type '$valueName'.",
-                node
-            )
-            return ConceptValueResolution(false, null)
-        }
-        if (valueDeclaration.isAssignableTo(CONCEPT_AS_TYPE)) {
-            return resolveConceptValue(valueDeclaration, identity, node)
-        }
-        return ConceptValueResolution(true, value)
-    }
-
-    private fun findConceptValue(
-        declaration: KSClassDeclaration,
-        substitutions: Map<String, KSType>,
-        seen: MutableSet<String>
-    ): KSType? {
-        val declarationName = declaration.qualifiedName?.asString() ?: return null
-        if (!seen.add(declarationName)) return null
-        for (reference in declaration.superTypes) {
-            val superType = reference.resolve()
-            val superDeclaration = superType.declaration as? KSClassDeclaration ?: continue
-            val superName = superDeclaration.qualifiedName?.asString()
-            if (superName == CONCEPT_AS_TYPE) {
-                val argument = superType.arguments.singleOrNull()?.type?.resolve() ?: return null
-                return substitute(argument, substitutions)
-            }
-            val superSubstitutions = superDeclaration.typeParameters.mapIndexedNotNull { index, parameter ->
-                val argument = superType.arguments.getOrNull(index)?.type?.resolve() ?: return@mapIndexedNotNull null
-                parameter.name.asString() to substitute(argument, substitutions)
-            }.toMap()
-            findConceptValue(superDeclaration, superSubstitutions, seen)?.let { return it }
-        }
-        return null
-    }
-
-    private fun substitute(type: KSType, substitutions: Map<String, KSType>): KSType =
-        (type.declaration as? KSTypeParameter)?.name?.asString()?.let(substitutions::get) ?: type
 
     private fun registerConcept(declaration: KSClassDeclaration, underlying: KSType) {
         val name = requireNotNull(declaration.qualifiedName).asString()
@@ -932,8 +791,6 @@ internal class MetadataCollector(
             ConceptModel(declaration.simpleName.asString(), name, underlyingName)
         )
     }
-
-    private data class ConceptValueResolution(val isValid: Boolean, val value: KSType?)
 
     private fun TypeShapeDescriptor.withNullability(nullable: Boolean): TypeShapeDescriptor = when (kind) {
         TypeShapeKind.VALUE -> TypeShapeDescriptor.value(requireNotNull(typeName), nullable)
@@ -970,7 +827,7 @@ internal class MetadataCollector(
         val declaration = type.declaration as? KSClassDeclaration ?: return false
         val qualifiedName = declaration.qualifiedName?.asString() ?: return false
         if (isTerminal(qualifiedName)) return true
-        val conceptResolution = resolveConceptValue(declaration, identity, node)
+        val conceptResolution = conceptResolver.resolve(declaration, identity, node)
         if (!conceptResolution.isValid) return false
         conceptResolution.value?.let { underlying ->
             registerConcept(declaration, underlying)
@@ -1002,73 +859,10 @@ internal class MetadataCollector(
         return derivatives.sortedBy { candidate -> candidate.qualifiedName?.asString() }
     }
 
-    private fun KSClassDeclaration.isAssignableTo(baseName: String, seen: MutableSet<String> = mutableSetOf()): Boolean {
-        val ownName = qualifiedName?.asString() ?: return false
-        if (!seen.add(ownName)) return false
-        return superTypes.map { reference -> reference.resolve().declaration as? KSClassDeclaration }
-            .filterNotNull()
-            .any { superDeclaration ->
-                superDeclaration.qualifiedName?.asString() == baseName || superDeclaration.isAssignableTo(baseName, seen)
-            }
-    }
-
     private fun collectEnum(declaration: KSClassDeclaration): Boolean {
         val qualifiedName = requireNotNull(declaration.qualifiedName).asString()
         if (qualifiedName in collectedEnums) return true
-        val entries = declaration.declarations.filterIsInstance<KSClassDeclaration>()
-            .filter { candidate -> candidate.classKind == ClassKind.ENUM_ENTRY }
-            .toList()
-        val implementsArcEnum = declaration.superTypes.any { reference ->
-            reference.resolve().declaration.qualifiedName?.asString() == ARC_ENUM_TYPE
-        }
-        val constructorCanSupplyValue = declaration.primaryConstructor?.parameters?.singleOrNull()
-            ?.type?.resolve()?.declaration?.qualifiedName?.asString() in INTEGER_TYPE_NAMES
-        val constructorValues = if (implementsArcEnum && constructorCanSupplyValue) {
-            declaration.containingFile?.filePath?.let(::File)?.takeIf(File::isFile)?.readText()
-                ?.let { source -> parseEnumConstructorValues(source, declaration.simpleName.asString()) }
-                .orEmpty()
-        } else {
-            emptyMap()
-        }
-        var valid = true
-        val members = entries.mapIndexed { ordinal, entry ->
-            val name = entry.simpleName.asString()
-            val annotatedValue = entry.intAnnotationArgument(ARC_ENUM_VALUE_ANNOTATION)
-            val constructorValue = constructorValues[name]
-            val value = if (!implementsArcEnum) {
-                ordinal
-            } else if (annotatedValue != null && constructorValue != null && annotatedValue != constructorValue) {
-                logger.error(
-                    ArcDiagnostic.ENUM_VALUE,
-                    "Enum '$qualifiedName.$name' has ambiguous Arc values: constructor $constructorValue and " +
-                        "@ArcEnumValue $annotatedValue.",
-                    entry
-                )
-                valid = false
-                annotatedValue
-            } else {
-                annotatedValue ?: constructorValue ?: run {
-                    logger.error(
-                        ArcDiagnostic.ENUM_VALUE,
-                        "Enum '$qualifiedName.$name' implements ArcEnum, but its value cannot be proven from a " +
-                            "single integer-literal constructor argument; add @ArcEnumValue with the wire value.",
-                        entry
-                    )
-                    valid = false
-                    0
-                }
-            }
-            EnumMemberModel(name, value)
-        }
-        if (!valid) return false
-        collectedEnums[qualifiedName] = EnumModel(
-            name = declaration.simpleName.asString(),
-            fullyQualifiedName = qualifiedName,
-            location = qualifiedName.substringBeforeLast('.', "").split('.').filter(String::isNotBlank),
-            members = members,
-            isFlags = declaration.hasAnnotation(FLAGS_ANNOTATION),
-            summary = DocumentationSummaryParser.parse(declaration.docString).summary
-        )
+        collectedEnums[qualifiedName] = EnumModelReader(logger).read(declaration) ?: return false
         return true
     }
 
@@ -1079,17 +873,5 @@ internal class MetadataCollector(
         ?.arguments?.firstOrNull { argument -> argument.name?.asString() == "id" || argument.name == null }
         ?.value as? String
 
-    private fun KSAnnotated.intAnnotationArgument(qualifiedName: String): Int? = annotations
-        .firstOrNull { annotation ->
-            annotation.annotationType.resolve().declaration.qualifiedName?.asString() == qualifiedName
-        }
-        ?.arguments?.firstOrNull { argument -> argument.name?.asString() == "value" || argument.name == null }
-        ?.value
-        ?.let { value -> (value as? Number)?.toInt() }
-
     private fun isTerminal(qualifiedName: String): Boolean = qualifiedName in TERMINAL_TYPE_NAMES
-
-    private fun KSAnnotated.hasAnnotation(qualifiedName: String): Boolean = annotations.any { annotation ->
-        annotation.annotationType.resolve().declaration.qualifiedName?.asString() == qualifiedName
-    }
 }
