@@ -37,65 +37,6 @@ internal data class ProxyGenerationOptions(
     val packageMappings: Map<String, String> = emptyMap()
 )
 
-private enum class ArtifactKind { COMMAND, TYPE, INTERFACE, ENUM, QUERY }
-
-private data class ArtifactTarget(
-    val sourceName: String,
-    val typeScriptName: String,
-    val directory: List<String>,
-    val kind: ArtifactKind,
-    val useProxyFileSuffix: Boolean
-) {
-    val fileStem: String = typeScriptName + if (useProxyFileSuffix) ".proxy" else ""
-    val relativePath: String = (directory + "$fileStem.ts").joinToString("/")
-}
-
-private data class TypeScriptValueImport(
-    val packageName: String,
-    val name: String,
-    val typeOnly: Boolean = false
-)
-
-private enum class TypeScriptImportKind { TYPE, VALUE }
-
-private data class TypeScriptImport(val target: ArtifactTarget, val kind: TypeScriptImportKind)
-
-private data class TypeScriptType(
-    val name: String,
-    val constructor: String,
-    val target: ArtifactTarget? = null,
-    val valueImport: TypeScriptValueImport? = null,
-    val nestedTypes: List<TypeScriptType> = emptyList()
-)
-
-private data class ValidationTarget(
-    val propertyName: String,
-    val rules: List<ValidationRuleDescriptor>,
-    val skipWhenUndefined: Boolean = false,
-    val sharedEdge: Boolean = false
-) {
-    val hasRules: Boolean = rules.isNotEmpty() || sharedEdge
-}
-
-private data class QueryRenderModel(
-    val query: QueryDescriptor,
-    val target: ArtifactTarget,
-    val route: String,
-    val parameters: List<ParameterDescriptor>,
-    val validationTargets: List<ValidationTarget>,
-    val model: TypeScriptType,
-    val referencedTypes: List<TypeScriptType>,
-    val imports: List<TypeScriptImport>,
-    val sortableProperties: List<String>,
-    val className: String,
-    val modelType: String,
-    val parameterType: String,
-    val method: String?,
-    val supportsSorting: Boolean,
-    val supportsPaging: Boolean,
-    val hasSortableProperties: Boolean
-)
-
 internal class TypeScriptProxyGenerator(
     private val artifacts: MergedArcArtifacts,
     private val options: ProxyGenerationOptions,
@@ -125,28 +66,25 @@ internal class TypeScriptProxyGenerator(
     private val conceptsBySource = artifacts.concepts.associateBy { concept -> concept.fullyQualifiedName }
     private val targets = buildTargets()
     private val targetBySource = targets.associateBy(ArtifactTarget::sourceName)
+    private val outputTree = TypeScriptOutputTree(options.outputDirectory)
+    private val resolver = TypeScriptTypeResolver(artifacts, options, conceptsBySource, targetBySource)
 
     fun generate(): List<File> {
         require(options.segmentsToSkip >= 0) { "Proxy segmentsToSkip cannot be negative." }
-        validateOutputTree()
+        outputTree.validate()
         validateMappings()
         validateArtifacts()
         validateSharedGeneration()
         val generated = renderArtifacts()
 
-        val expectedFiles = generated.keys.map { File(options.outputDirectory, it).canonicalFile }.toSet()
-        val written = generated.toSortedMap().map { (relativePath, sourceAndBody) ->
-            val file = File(options.outputDirectory, relativePath)
-            writeGenerated(file, sourceAndBody.first, sourceAndBody.second)
-            file
-        }
+        val written = outputTree.write(generated)
         val removed = if (options.removeStaleGeneratedFiles && options.outputDirectory.isDirectory) {
-            removeStale(expectedFiles)
+            outputTree.removeStale(generated.map(GeneratedFile::relativePath))
         } else {
             emptySet()
         }
-        val indexes = updateIndexFiles(generated.keys, removed)
-        removeEmptyDirectories()
+        val indexes = outputTree.updateIndexFiles(generated.map(GeneratedFile::relativePath).toSet(), removed)
+        outputTree.removeEmptyDirectories()
         return written + indexes
     }
 
@@ -198,11 +136,11 @@ internal class TypeScriptProxyGenerator(
             if (sourceName in conceptsBySource || sourceName in commandTypeNames) {
                 throw GradleException("Arc proxy mapping '$sourceName' targets a concept or command; map a concept's underlying type or a command's properties/response instead.")
             }
-            mappedType(sourceName, mapping.typeScriptType, mapping.npmPackage)
+            resolver.mappedType(sourceName, mapping.typeScriptType, mapping.npmPackage)
         }
         options.packageMappings.forEach { (prefix, npmPackage) ->
             if (!JVM_TYPE_NAME.matches(prefix)) throw GradleException("Invalid Arc proxy package prefix '$prefix'.")
-            mappedType("$prefix.Model", "Model", npmPackage)
+            resolver.mappedType("$prefix.Model", "Model", npmPackage)
         }
     }
 
@@ -224,7 +162,7 @@ internal class TypeScriptProxyGenerator(
                 )
             }
             val referencedTypes = command.properties.map { resolvePropertyType(it, current) } +
-                listOfNotNull(command.responseTypeName?.let { resolveType(it, current) })
+                listOfNotNull(command.responseTypeName?.let { resolver.resolveType(it, current) })
             validateImportedTypeNames(
                 current,
                 referencedTypes,
@@ -244,7 +182,7 @@ internal class TypeScriptProxyGenerator(
                     parameter.elementTypeName
                 )
             }
-            val referencedTypes = listOf(resolveType(query.returnTypeName, target)) +
+            val referencedTypes = listOf(resolver.resolveType(query.returnTypeName, target)) +
                 query.parameters.filter { parameter -> parameter.source == QueryParameterSource.CLIENT }
                     .map { resolveParameterType(it, target) }
             validateImportedTypeNames(target, referencedTypes, referencedTypes)
@@ -289,8 +227,8 @@ internal class TypeScriptProxyGenerator(
         }
     }
 
-    private fun renderArtifacts(): LinkedHashMap<String, Pair<String, String>> {
-        val generated = linkedMapOf<String, Pair<String, String>>()
+    private fun renderArtifacts(): List<GeneratedFile> {
+        val generated = mutableListOf<GeneratedFile>()
         val commandNamespaces = EndpointRouteHelper.groupByNamespace(
             artifacts.commands,
             CommandDescriptor::location,
@@ -309,7 +247,7 @@ internal class TypeScriptProxyGenerator(
                 options.endpointOptions,
                 (commandNamespaces[namespace]?.size ?: 0) > 1
             )
-            generated[target.relativePath] = command.typeName to renderCommand(command, target, route)
+            generated += GeneratedFile(target.relativePath, command.typeName, renderCommand(command, target, route))
         }
         artifacts.queries.forEach { query ->
             val target = queryTarget(query)
@@ -319,20 +257,23 @@ internal class TypeScriptProxyGenerator(
                 options.endpointOptions,
                 (queryNamespaces[namespace]?.size ?: 0) > 1
             )
-            generated[target.relativePath] = query.declaringTypeName to renderQuery(query, target, route)
+            generated += GeneratedFile(target.relativePath, query.declaringTypeName, renderQuery(query, target, route))
         }
         emittedTypes.forEach { type ->
             val target = targetBySource.getValue(type.fullyQualifiedName)
-            generated[target.relativePath] = type.fullyQualifiedName to renderType(type, target)
+            generated += GeneratedFile(target.relativePath, type.fullyQualifiedName, renderType(type, target))
         }
         emittedInterfaces.forEach { interfaceDescriptor ->
             val target = targetBySource.getValue(interfaceDescriptor.fullyQualifiedName)
-            generated[target.relativePath] = interfaceDescriptor.fullyQualifiedName to
+            generated += GeneratedFile(
+                target.relativePath,
+                interfaceDescriptor.fullyQualifiedName,
                 renderInterface(interfaceDescriptor, target)
+            )
         }
         emittedEnums.forEach { enum ->
             val target = targetBySource.getValue(enum.fullyQualifiedName)
-            generated[target.relativePath] = enum.fullyQualifiedName to renderEnum(enum)
+            generated += GeneratedFile(target.relativePath, enum.fullyQualifiedName, renderEnum(enum))
         }
         return generated
     }
@@ -479,7 +420,7 @@ internal class TypeScriptProxyGenerator(
 
     private fun renderCommand(command: CommandDescriptor, target: ArtifactTarget, route: String): String {
         val propertyTypes = command.properties.map { resolvePropertyType(it, target) }
-        val response = command.responseTypeName?.let { resolveType(it, target) }
+        val response = command.responseTypeName?.let { resolver.resolveType(it, target) }
         val referencedTypes = propertyTypes + listOfNotNull(response)
         val imports = customImports(referencedTypes, referencedTypes)
         val interfaceName = "I${command.name}"
@@ -688,7 +629,7 @@ internal class TypeScriptProxyGenerator(
         val parameters = query.parameters.filter { parameter -> parameter.source == QueryParameterSource.CLIENT }
             .sortedBy(ParameterDescriptor::name)
         val validationTargets = queryValidationTargets(parameters)
-        val model = resolveType(query.returnTypeName, target)
+        val model = resolver.resolveType(query.returnTypeName, target)
         val parameterTypes = parameters.map { resolveParameterType(it, target) }
         val referencedTypes = listOf(model) + parameterTypes
         val imports = customImports(referencedTypes, referencedTypes)
@@ -1111,66 +1052,14 @@ internal class TypeScriptProxyGenerator(
 
     private fun resolvePropertyType(property: PropertyDescriptor, current: ArtifactTarget): TypeScriptType =
         if (property.shape.kind == TypeShapeKind.MAP) {
-            resolveMapShape(property.shape, property.name)
+            resolver.resolveMapShape(property.shape, property.name)
         } else {
-            resolveType(if (property.isEnumerable) requireElementType(property.name, property.elementTypeName) else property.typeName, current)
+            resolver.resolveType(if (property.isEnumerable) requireElementType(property.name, property.elementTypeName) else property.typeName, current)
         }
 
     private fun propertyTypeName(property: PropertyDescriptor, current: ArtifactTarget): String =
         resolvePropertyType(property, current).name + (if (property.isEnumerable) "[]" else "") +
             if (shared.contains(current.sourceName) && property.isNullable) " | null" else ""
-
-    private fun resolveMapShape(
-        shape: TypeShapeDescriptor,
-        propertyName: String,
-        path: String = propertyName,
-        root: Boolean = true
-    ): TypeScriptType {
-        if (!root && shape.nullable) {
-            throw GradleException("Map property '$propertyName' entry path '$path' cannot be nullable.")
-        }
-        return when (shape.kind) {
-            TypeShapeKind.VALUE -> resolveMapValueLeaf(shape, propertyName, path)
-            TypeShapeKind.SEQUENCE -> {
-                val element = resolveMapShape(requireNotNull(shape.elementShape), propertyName, "$path[]", false)
-                TypeScriptType("${element.name}[]", element.constructor, nestedTypes = listOf(element))
-            }
-            TypeShapeKind.MAP -> {
-                requireStringMapKey(shape, propertyName, path)
-                val value = resolveMapShape(requireNotNull(shape.valueShape), propertyName, "$path.value", false)
-                TypeScriptType("Record<string, ${value.name}>", "Object", nestedTypes = listOf(value))
-            }
-        }
-    }
-
-    private fun requireStringMapKey(shape: TypeShapeDescriptor, propertyName: String, path: String) {
-        val key = requireNotNull(shape.keyShape)
-        val validKey = shape.keyCodec == MapKeyCodec.STRING && !key.nullable &&
-            key.kind == TypeShapeKind.VALUE && key.typeName in MAP_STRING_TYPE_NAMES
-        if (!validKey) {
-            throw GradleException("Map property '$propertyName' entry path '$path.key' must use nonnullable String keys.")
-        }
-    }
-
-    private fun resolveMapValueLeaf(shape: TypeShapeDescriptor, propertyName: String, path: String): TypeScriptType {
-        val typeName = requireNotNull(shape.typeName)
-        if (typeName !in MAP_SAFE_PRIMITIVE_TYPE_NAMES) {
-            throw GradleException(
-                "Map property '$propertyName' entry path '$path' has unsupported value leaf '$typeName'."
-            )
-        }
-        return mapScalarOverride(typeName, propertyName, path) ?: primitiveTypes[typeName] ?: throw GradleException(
-            "Map property '$propertyName' entry path '$path' has no TypeScript primitive mapping for '$typeName'."
-        )
-    }
-
-    private fun mapScalarOverride(typeName: String, propertyName: String, path: String): TypeScriptType? {
-        val mapping = options.typeMappings[typeName] ?: return null
-        if (mapping.npmPackage != null || mapping.typeScriptType !in setOf("string", "number", "boolean")) {
-            throw GradleException("Map property '$propertyName' entry path '$path' cannot hydrate an external or non-scalar override for '$typeName'.")
-        }
-        return mappedType(typeName, mapping.typeScriptType, null)
-    }
 
     private fun TypeScriptType.recursiveTypes(): List<TypeScriptType> = listOf(this) + nestedTypes.flatMap {
         nested -> nested.recursiveTypes()
@@ -1180,13 +1069,13 @@ internal class TypeScriptProxyGenerator(
         if (!parameter.isEnumerable) "" else "[]" + if (parameter.isNullable && shared.reaches(parameter.shape)) " | null" else ""
 
     private fun resolveParameterType(parameter: ParameterDescriptor, current: ArtifactTarget): TypeScriptType {
-        val type = resolveType(if (parameter.isEnumerable) requireElementType(parameter.name, parameter.elementTypeName) else parameter.typeName, current)
+        val type = resolver.resolveType(if (parameter.isEnumerable) requireElementType(parameter.name, parameter.elementTypeName) else parameter.typeName, current)
         return if (parameter.isNullable && shared.reaches(parameter.shape) && !parameter.isEnumerable) type.copy(name = type.name + " | null") else type
     }
 
     private fun resolveDerivatives(property: PropertyDescriptor, current: ArtifactTarget): List<TypeScriptType> =
         property.derivatives.map { derivativeName ->
-            val derivative = resolveType(derivativeName, current)
+            val derivative = resolver.resolveType(derivativeName, current)
             if (derivative.target?.kind != ArtifactKind.TYPE) {
                 throw GradleException(
                     "Arc derivative '$derivativeName' on '${current.sourceName}.${property.name}' must be a generated concrete model type."
@@ -1196,7 +1085,7 @@ internal class TypeScriptProxyGenerator(
         }
 
     private fun resolveBaseType(baseTypeName: String, current: ArtifactTarget): TypeScriptType {
-        val baseType = resolveType(baseTypeName, current)
+        val baseType = resolver.resolveType(baseTypeName, current)
         if (baseType.target?.kind != ArtifactKind.TYPE) {
             throw GradleException("Arc base type '$baseTypeName' on '${current.sourceName}' must be a generated model type.")
         }
@@ -1206,82 +1095,12 @@ internal class TypeScriptProxyGenerator(
     private fun requireElementType(name: String, elementTypeName: String?): String =
         elementTypeName ?: throw GradleException("Enumerable '$name' does not declare an elementTypeName.")
 
-    private fun resolveType(rawTypeName: String, current: ArtifactTarget): TypeScriptType =
-        resolveType(rawTypeName, current, mutableSetOf())
-
-    private fun resolveType(
-        rawTypeName: String,
-        current: ArtifactTarget,
-        concepts: MutableSet<String>
-    ): TypeScriptType {
-        val typeName = rawTypeName.removeSuffix("?")
-        if (typeName.contains('<') || typeName.contains('>') || isMapType(typeName)) {
-            throw GradleException("Unsupported generic or map type '$rawTypeName' in '${current.sourceName}'.")
-        }
-        // Concepts unwrap first, then configuration, then the built-in map, matching the order Arc .NET's
-        // TypeExtensions.GetTargetType uses. Concepts and primitives never share a key, so moving the concept
-        // branch above the primitive lookup changes nothing on its own.
-        conceptsBySource[typeName]?.let { concept ->
-            if (!concepts.add(typeName)) {
-                throw GradleException("Cyclic Arc concept metadata for '$typeName' in '${current.sourceName}'.")
-            }
-            return resolveType(concept.underlyingTypeName, current, concepts)
-        }
-        // Ahead of the built-in map, which is what lets a mapping correct an existing type rather than only
-        // declare one the generator has never seen.
-        options.typeMappings[typeName]?.let { mapping ->
-            return mappedType(typeName, mapping.typeScriptType, mapping.npmPackage)
-        }
-        val primitiveType = primitiveTypes[typeName]
-        if (primitiveType != null) return primitiveType
-        ProxyTypeMappings.npmPackageFor(typeName, options.packageMappings)?.let { npmPackage ->
-            val simpleName = typeName.substringAfterLast('.')
-            return mappedType(typeName, simpleName, npmPackage)
-        }
-        val target = targetBySource[typeName]
-            ?: throw GradleException("Unsupported Arc proxy type '$rawTypeName' in '${current.sourceName}'.")
-        val constructor = when (target.kind) {
-            ArtifactKind.ENUM -> "Number"
-            ArtifactKind.INTERFACE -> "Object"
-            else -> target.typeScriptName
-        }
-        return TypeScriptType(target.typeScriptName, constructor, target)
-    }
-
-    private fun mappedType(sourceName: String, name: String, npmPackage: String?): TypeScriptType {
-        if (npmPackage == null) {
-            val constructor = MAPPED_GLOBAL_TYPES[name] ?: throw GradleException(
-                "Arc proxy mapping '$sourceName=$name' has no supported runtime constructor; " +
-                    "use string, number, boolean, object or Date, or supply an npm package and exported name."
-            )
-            return TypeScriptType(name, constructor)
-        }
-        if (!isSafeMapping(name, npmPackage)) {
-            throw GradleException("Unsafe Arc proxy mapping '$sourceName=$name=$npmPackage'; use an exported identifier and npm package path.")
-        }
-        val isEnum = artifacts.enums.any { it.fullyQualifiedName == sourceName }
-        val isInterface = artifacts.interfaces.any { it.fullyQualifiedName == sourceName }
-        val constructor = when {
-            isEnum -> "Number"
-            isInterface -> "Object"
-            else -> name
-        }
-        return TypeScriptType(name, constructor, valueImport = TypeScriptValueImport(npmPackage, name, isEnum || isInterface))
-    }
-
-    private fun isSafeMapping(name: String, npmPackage: String): Boolean =
-        TYPESCRIPT_IDENTIFIER.matches(name) && name !in RESERVED_MAPPING_NAMES &&
-            NPM_IMPORT_PATH.matches(npmPackage) && npmPackage.split('/').none { it == "." || it == ".." }
-
     private fun TypeScriptType.globalRuntimeConstructor(): String? {
         if (constructor !in GLOBAL_RUNTIME_CONSTRUCTORS || valueImport?.typeOnly == false) return null
         return constructor.takeIf {
             target == null || target.kind == ArtifactKind.INTERFACE || target.kind == ArtifactKind.ENUM
         }
     }
-
-    private fun isMapType(typeName: String): Boolean =
-        typeName == "kotlin.collections.Map" || typeName == "kotlin.collections.MutableMap" || typeName == "java.util.Map"
 
     /**
      * Emits one source documentation summary as a single-line JSDoc comment.
@@ -1315,18 +1134,6 @@ internal class TypeScriptProxyGenerator(
         append(" *--------------------------------------------------------------------------------------------*/\n\n")
     }
 
-    private fun validateOutputTree() {
-        val output = options.outputDirectory
-        if (output.exists() && Files.isSymbolicLink(output.toPath())) {
-            throw GradleException("Arc proxy output directory must not be a symbolic link: '${output.path}'.")
-        }
-        if (output.isDirectory) {
-            output.walkTopDown().firstOrNull { candidate -> Files.isSymbolicLink(candidate.toPath()) }?.let { link ->
-                throw GradleException("Arc proxy output must not contain symbolic links: '${link.path}'.")
-            }
-        }
-    }
-
     private fun validateTarget(target: ArtifactTarget) {
         target.directory.forEach { segment ->
             if (!SAFE_PATH_SEGMENT.matches(segment) || segment == "." || segment == "..") {
@@ -1345,210 +1152,8 @@ internal class TypeScriptProxyGenerator(
         }
     }
 
-    private fun writeGenerated(file: File, source: String, body: String) {
-        val normalizedBody = body.replace("\r\n", "\n").trimEnd() + "\n"
-        val hash = sha256(normalizedBody)
-        val content = "// @generated by Cratis. Source: $source. Hash: $hash\n$normalizedBody"
-        if (file.isFile) {
-            val existing = file.readText()
-            if (existing == content) return
-            if (!hasGeneratedMarker(existing)) {
-                throw GradleException("Refusing to overwrite hand-written TypeScript file '${file.path}'.")
-            }
-        }
-        file.parentFile.mkdirs()
-        Files.writeString(file.toPath(), content, StandardCharsets.UTF_8)
-    }
-
-    private fun removeStale(expectedFiles: Set<File>): Set<String> {
-        val removed = mutableSetOf<String>()
-        options.outputDirectory.walkBottomUp().forEach { file ->
-            if (isStaleGenerated(file, expectedFiles)) {
-                removed += file.relativeTo(options.outputDirectory).invariantSeparatorsPath
-                file.delete()
-            }
-        }
-        return removed
-    }
-
-    private fun isStaleGenerated(file: File, expectedFiles: Set<File>): Boolean {
-        if (!file.isFile || file.extension != "ts" || file.name == "index.ts") return false
-        return file.canonicalFile !in expectedFiles && hasGeneratedMarker(file.readText())
-    }
-
-    private fun updateIndexFiles(generatedPaths: Set<String>, removedFiles: Set<String>): List<File> {
-        val generatedByDirectory = generatedPaths.groupBy { it.substringBeforeLast('/', "") }
-            .mapValues { (_, paths) -> paths.map { it.substringAfterLast('/').removeSuffix(".ts") }.toSet() }
-        val removedByDirectory = removedFiles.groupBy { path ->
-            path.substringBeforeLast('/', "")
-        }.mapValues { (_, paths) -> paths.map { it.substringAfterLast('/').removeSuffix(".ts") }.toSet() }
-        val directories = (generatedByDirectory.keys + removedByDirectory.keys).toMutableSet()
-        if (options.outputDirectory.isDirectory) {
-            options.outputDirectory.walkTopDown().filter { it.isFile && it.name == "index.ts" }.forEach { index ->
-                directories += index.parentFile.relativeTo(options.outputDirectory).invariantSeparatorsPath
-                    .takeUnless { it == "." }.orEmpty()
-            }
-        }
-
-        return directories.sorted().mapNotNull { directory ->
-            updateIndexFile(
-                directory,
-                generatedByDirectory[directory].orEmpty(),
-                removedByDirectory[directory].orEmpty()
-            )
-        }
-    }
-
-    private class ExistingIndex(val text: String?, val generated: Boolean, val exports: List<String>, val manualLines: List<String>)
-
-    private fun readIndex(index: File): ExistingIndex {
-        val existing = index.takeIf(File::isFile)?.readText()?.replace("\r\n", "\n")
-        val generatedIndex = existing != null && hasGeneratedMarker(existing)
-        val lines = existing?.lines().orEmpty().let { if (generatedIndex) it.drop(1) else it }
-        val exports = mutableListOf<String>()
-        val manualLines = mutableListOf<String>()
-        lines.forEach { line ->
-            val match = INDEX_EXPORT.matchEntire(line)
-            if (match != null) {
-                exports += match.groupValues[1]
-            } else if (line.isNotBlank()) {
-                manualLines += line
-            }
-        }
-        return ExistingIndex(existing, generatedIndex, exports, manualLines)
-    }
-
-    private fun mergeIndexExports(exports: List<String>, generatedNames: Set<String>, removedNames: Set<String>): MutableList<String> {
-        val removed = removedNames.map(String::lowercase).toSet()
-        val finalExports = exports.filterNotTo(mutableListOf()) { export ->
-            export.trimStart('.', '/').lowercase() in removed
-        }
-        val existingNames = finalExports.map { it.trimStart('.', '/') }.toMutableSet()
-        generatedNames.sortedWith(String.CASE_INSENSITIVE_ORDER).forEach { name ->
-            if (existingNames.none { it.equals(name, ignoreCase = true) }) {
-                val insertion = finalExports.indexOfFirst {
-                    name.compareTo(it.trimStart('.', '/'), ignoreCase = true) < 0
-                }.takeIf { it >= 0 } ?: finalExports.size
-                finalExports.add(insertion, "./$name")
-                existingNames += name
-            }
-        }
-        return finalExports
-    }
-
-    private fun updateIndexFile(directory: String, generatedNames: Set<String>, removedNames: Set<String>): File? {
-        val targetDirectory = if (directory.isEmpty()) options.outputDirectory else File(options.outputDirectory, directory)
-        val index = File(targetDirectory, "index.ts")
-        val current = readIndex(index)
-        val finalExports = mergeIndexExports(current.exports, generatedNames, removedNames)
-
-        if (generatedNames.isEmpty() && finalExports.isEmpty()) {
-            if (current.generated || (current.manualLines.isEmpty() && removedNames.isNotEmpty())) index.delete()
-            return null
-        }
-        if (generatedNames.isEmpty() && !current.generated && removedNames.isEmpty()) return index.takeIf(File::isFile)
-
-        val body = (current.manualLines + finalExports.map { "export * from '$it';" }).joinToString("\n", postfix = "\n")
-        val normalized = body.replace("\r\n", "\n").trimEnd() + "\n"
-        if (current.text != normalized) Files.writeString(index.toPath(), normalized, StandardCharsets.UTF_8)
-        return index
-    }
-
-    private fun removeEmptyDirectories() {
-        if (!options.outputDirectory.isDirectory) return
-        options.outputDirectory.walkBottomUp().forEach { directory ->
-            if (directory.isDirectory && directory != options.outputDirectory && directory.list()?.isEmpty() == true) {
-                directory.delete()
-            }
-        }
-    }
-
-    private fun hasGeneratedMarker(content: String): Boolean =
-        GENERATED_MARKER.matches(content.lineSequence().firstOrNull().orEmpty())
-
-    private fun sha256(content: String): String = MessageDigest.getInstance("SHA-256")
-        .digest(content.toByteArray(StandardCharsets.UTF_8))
-        .joinToString("") { "%02X".format(it) }
-
     private fun roles(values: List<String>): String = values.joinToString(prefix = "[", postfix = "]") { "'${escape(it)}'" }
     private fun escape(value: String): String = value.replace("\\", "\\\\").replace("'", "\\'")
     private fun lowerCamel(value: String): String = requireNotNull(ArcCamelCase.convert(value))
     private fun upperCamel(value: String): String = value.replaceFirstChar(Char::uppercaseChar)
-
-    private companion object {
-        const val FUNDAMENTALS_PACKAGE = "@cratis/fundamentals"
-        val FUNDAMENTALS_IMPORT_ORDER = mapOf("field" to 0, "derivedType" to 1)
-        val GENERATED_MARKER = Regex(
-            "^// @generated by Cratis\\. Source: .+\\. (?:Time: .+\\. )?Hash: [A-Fa-f0-9]{64}$"
-        )
-        val SAFE_PATH_SEGMENT = Regex("^[A-Za-z0-9_$-]+$")
-        val TYPESCRIPT_IDENTIFIER = Regex("^[A-Za-z_$][A-Za-z0-9_$]*$")
-        val INDEX_EXPORT = Regex("^\\s*export\\s+\\*\\s+from\\s+['\"](.+)['\"]\\s*;?\\s*$")
-        val ROUTE_PARAMETER = Regex("\\{([^}:]+)(?::[^}]+)?}")
-        val GLOBAL_RUNTIME_CONSTRUCTORS = setOf("Boolean", "Date", "Number", "Object", "String")
-        val MAPPED_GLOBAL_TYPES = mapOf("string" to "String", "number" to "Number", "boolean" to "Boolean", "object" to "Object", "Date" to "Date")
-        val NPM_IMPORT_PATH = Regex("^(?:@[a-z0-9_.-]+/)?[a-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*$")
-        val JVM_TYPE_NAME = Regex("^[A-Za-z_$][A-Za-z0-9_$]*(?:\\.[A-Za-z_$][A-Za-z0-9_$]*)*$")
-        val RESERVED_MAPPING_NAMES = setOf(
-            "string", "number", "boolean", "object", "any", "unknown", "never", "undefined", "constructor",
-            "break", "case", "catch", "class", "const", "continue", "debugger", "default", "delete", "do", "else",
-            "enum", "export", "extends", "false", "finally", "for", "function", "if", "import", "in", "instanceof",
-            "new", "null", "return", "super", "switch", "this", "throw", "true", "try", "typeof", "var", "void",
-            "while", "with", "yield", "await", "implements", "interface", "let", "package", "private", "protected",
-            "public", "static", "abstract", "as", "asserts", "async", "declare", "from", "get", "infer", "is",
-            "keyof", "module", "namespace", "of", "readonly", "require", "set", "symbol", "type", "unique"
-        )
-        val MAP_STRING_TYPE_NAMES = setOf("kotlin.String", "java.lang.String", "String")
-        val MAP_SAFE_PRIMITIVE_TYPE_NAMES = setOf(
-            "kotlin.Boolean", "kotlin.Byte", "kotlin.Char", "kotlin.Int", "kotlin.Short", "kotlin.String",
-            "java.lang.Boolean", "java.lang.Byte", "java.lang.Character", "java.lang.Integer", "java.lang.Short",
-            "java.lang.String", "boolean", "byte", "char", "int", "short", "String", "Boolean"
-        )
-
-        val primitiveTypes: Map<String, TypeScriptType> = buildMap {
-            listOf(
-                "kotlin.String", "java.lang.String", "String", "kotlin.Char", "java.lang.Character", "char", "Char"
-            ).forEach { put(it, TypeScriptType("string", "String")) }
-            listOf("java.util.UUID", "UUID").forEach {
-                put(it, TypeScriptType("Guid", "Guid", valueImport = TypeScriptValueImport(FUNDAMENTALS_PACKAGE, "Guid")))
-            }
-            listOf("kotlin.Boolean", "java.lang.Boolean", "boolean", "Boolean").forEach {
-                put(it, TypeScriptType("boolean", "Boolean"))
-            }
-            listOf(
-                "kotlin.Byte", "kotlin.Short", "kotlin.Int", "kotlin.Long", "kotlin.Float", "kotlin.Double",
-                "kotlin.UByte", "kotlin.UShort", "kotlin.UInt", "kotlin.ULong",
-                "java.lang.Byte", "java.lang.Short", "java.lang.Integer", "java.lang.Long", "java.lang.Float",
-                "java.lang.Double", "byte", "short", "int", "long", "float", "double", "Number",
-                "java.math.BigDecimal", "java.math.BigInteger", BigInteger::class.java.name
-            ).forEach { put(it, TypeScriptType("number", "Number")) }
-            listOf("java.time.LocalDate", "LocalDate").forEach {
-                put(
-                    it,
-                    TypeScriptType(
-                        "DateOnly",
-                        "DateOnly",
-                        valueImport = TypeScriptValueImport(FUNDAMENTALS_PACKAGE, "DateOnly")
-                    )
-                )
-            }
-            listOf(
-                "java.time.LocalDateTime", "java.time.Instant", "java.time.OffsetDateTime", "java.time.ZonedDateTime",
-                "LocalDateTime", "Instant", "OffsetDateTime", "ZonedDateTime"
-            ).forEach { put(it, TypeScriptType("Date", "Date")) }
-            listOf("java.time.LocalTime", "LocalTime").forEach {
-                put(
-                    it,
-                    TypeScriptType(
-                        "TimeOnly",
-                        "TimeOnly",
-                        valueImport = TypeScriptValueImport(FUNDAMENTALS_PACKAGE, "TimeOnly")
-                    )
-                )
-            }
-            listOf(
-                "java.time.OffsetTime", "java.time.Duration", "java.time.Period", "OffsetTime", "Duration", "Period"
-            ).forEach { put(it, TypeScriptType("string", "String")) }
-        }
-    }
 }
