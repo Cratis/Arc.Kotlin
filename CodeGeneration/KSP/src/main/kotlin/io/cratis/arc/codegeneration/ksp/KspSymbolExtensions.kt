@@ -8,7 +8,9 @@ import com.google.devtools.ksp.symbol.KSAnnotated
 import com.google.devtools.ksp.symbol.KSAnnotation
 import com.google.devtools.ksp.symbol.KSDeclaration
 import com.google.devtools.ksp.symbol.KSType
+import com.google.devtools.ksp.symbol.KSNode
 import com.google.devtools.ksp.symbol.Nullability
+import com.google.devtools.ksp.validate
 
 // Shared KSP symbol helpers used by the Arc symbol processing collaborators.
 
@@ -104,3 +106,10 @@ internal fun isCompletionStage(type: KSType, resolver: Resolver): Boolean {
         ?: return false
     return declaration.asStarProjectedType().isAssignableFrom(type)
 }
+
+/**
+ * Validates a symbol the way the deprecated single-predicate [KSNode.validate] overload did, using the new
+ * overload that makes the choice explicit: the default always-true predicate and no new validation features.
+ * KSP 2.3.12 deprecated the single-predicate form and this repository compiles with warnings as errors.
+ */
+internal fun KSAnnotated.validateForProcessing(): Boolean = validate({ _, _ -> true }, enableNewFeatures = false)

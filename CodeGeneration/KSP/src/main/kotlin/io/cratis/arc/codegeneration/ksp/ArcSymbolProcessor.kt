@@ -70,7 +70,6 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
     private val readModelNames = sortedSetOf<String>()
     private val exportedTypeNames = sortedSetOf<String>()
     private val derivedTypeNames = sortedSetOf<String>()
-    private val responseHandlerNames = sortedSetOf<String>()
     private val importedHandlers = environment.options[ResponseHandlerMetadata.OPTION]?.let { option ->
         try {
             ResponseHandlerMetadata.read(option)
@@ -81,6 +80,7 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
             emptyList()
         }
     }.orEmpty()
+    private val responseHandlers = ResponseHandlerRegistry(logger, graphLogger, importedHandlers)
     private val fluentNames = sortedSetOf<String>()
     private val fluentIndexOption = environment.options[FluentValidationMetadata.OPTION]
     private val fluentRootCompilation = environment.options["arc.fluentValidationRoot"] == "true"
@@ -92,7 +92,6 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
         }
     }.orEmpty()
     private var fluentSnapshot = FluentValidationDiscovery.Snapshot(emptyList(), emptyList(), emptyList())
-    private val exportedHandlers = sortedMapOf<String, List<String>>()
     private val emittedCommands = mutableSetOf<String>()
     private val emittedQueries = mutableSetOf<String>()
     private val inspectedCommandLikeTypes = mutableSetOf<String>()
@@ -103,8 +102,6 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
     private val ignoreValidationTopLevelProperties = sortedSetOf<String>()
     private val queryNames = mutableSetOf<String>()
     private val explicitQueryRoutes = mutableSetOf<String>()
-    private val declarativeHandledResponseTypes = sortedSetOf<String>()
-    private val handledTypeContributions = mutableMapOf<String, List<String>>()
     private val commands = mutableListOf<CommandModel>()
     private val queries = mutableListOf<QueryModel>()
     private val exportRoots = sortedSetOf<String>()
@@ -114,6 +111,33 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
     private var hasDeferredInputs = false
 
     override fun process(resolver: Resolver): List<KSAnnotated> {
+        beginRound(resolver)
+        val deferred = mutableListOf<KSAnnotated>()
+        try {
+            reportInvalidConfiguration()
+            IgnoreValidationPolicy.validateTargets(resolver, graphLogger, ignoreValidationOwners, ignoreValidationTopLevelProperties)
+            discoverFluentValidation(resolver, deferred)
+            deferred += responseHandlers.discover(resolver)
+            hasDeferredInputs = hasDeferredInputs || responseHandlers.hasDeferredInputs
+            commandLikeTypeInspector.inspect(resolver)
+            processArtifactRoots(resolver, deferred)
+            collectFluentModels(resolver, deferred)
+            deferred += IdentityDetailsDiscovery(graphLogger) { declaration ->
+                val name = requireNotNull(declaration.qualifiedName).asString()
+                metadataCollector.collectDeclaration(declaration, name).also { collected ->
+                    if (collected) exportRoots += name
+                }
+            }.discover(latestRoundFiles.asSequence().flatMap { it.declarations })
+            SharedWireEdgeValidator(resolver, graphLogger, metadataCollector, fluentSnapshot.all).validate()
+            reportUnreadableFluentMembers(resolver)
+            hasDeferredInputs = hasDeferredInputs || deferred.isNotEmpty()
+            return deferred.distinct()
+        } finally {
+            metadataCollector.releaseSymbols()
+        }
+    }
+
+    private fun beginRound(resolver: Resolver) {
         // KSP 2.3.9/2.3.11 call finish/onError before clearing terminal-round caches. Discard all previous sites
         // at entry, including on error rounds. Only this round's real diagnostic nodes and dependency files survive.
         graphLogger.beginRound()
@@ -126,59 +150,67 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
         metadataCollector = MetadataCollector(graphLogger, binaryRecords = binaryRecords)
         hasDeferredInputs = false
         latestRoundFiles = resolver.getAllFiles().toList()
-        val deferred = mutableListOf<KSAnnotated>()
-        try {
-            reportInvalidConfiguration()
-            IgnoreValidationPolicy.validateTargets(resolver, graphLogger, ignoreValidationOwners, ignoreValidationTopLevelProperties)
-            fluentTrace?.invoke("[ARC-FLUENT-ROUND] ${++fluentRound}")
-            val fluent = FluentValidationDiscovery(graphLogger, fluentTrace).discover(resolver, fluentNames, importedFluent, fluentIndexOption != null)
-            deferred += fluent.deferred
-            fluentSnapshot = fluent.copy(deferred = emptyList())
-            val fluentRules = fluentSnapshot.all.flatMap { declaration -> declaration.members.map { member ->
-                "${declaration.model}.${member.name}" to member.rules.map { ValidationRuleModel(it.ruleName, it.arguments, it.message) }
-            } }.groupBy({ it.first }, { it.second }).mapValues { (_, rules) -> rules.flatten() }
-            metadataCollector = MetadataCollector(graphLogger, fluentRules, binaryRecords)
-            deferred += discoverDeclarativeHandledResponseTypes(resolver)
-            commandLikeTypeInspector.inspect(resolver)
-            val commandSymbols = discoverRoots(resolver, COMMAND_ANNOTATION, commandNames)
-            val readModelSymbols = discoverRoots(resolver, READ_MODEL_ANNOTATION, readModelNames)
-            val exportedTypeSymbols = discoverRoots(resolver, EXPORTED_TYPE_ANNOTATION, exportedTypeNames)
-            derivedTypeNames += resolver.getSymbolsWithAnnotation("io.cratis.arc.polymorphism.DerivedType")
-                .filterIsInstance<KSClassDeclaration>().mapNotNull { it.qualifiedName?.asString() }
-            metadataCollector.useResolver(resolver, derivedTypeNames)
-            deferred += (commandSymbols + readModelSymbols + exportedTypeSymbols).filterNot(KSAnnotated::validateForProcessing)
-            commandSymbols.filter(KSAnnotated::validateForProcessing).forEach { processCommand(it, resolver) }
-            readModelSymbols.filter(KSAnnotated::validateForProcessing).forEach { processReadModel(it, resolver) }
-            exportedTypeSymbols.filter(KSAnnotated::validateForProcessing).forEach { processExportedType(it) }
-            fluentSnapshot.local.map { it.model }.distinct().forEach { name ->
-                val model = resolver.getClassDeclarationByName(resolver.getKSNameFromString(name))
-                if (model == null) hasDeferredInputs = true
-                else if (!model.validate({ _, _ -> true }, enableNewFeatures = false)) deferred += model
-                else if (metadataCollector.collectDeclaration(model, name)) {
-                    if (metadataCollector.propertiesFor(name) == null) graphLogger.error(ArcDiagnostic.FLUENT_DECLARATION,
-                        "Fluent model '$name' has no concrete model-property metadata; use a plain model or a server-only ModelValidator for scalar/concept targets.", model)
-                    else exportRoots += name
-                }
+    }
+
+    private fun discoverFluentValidation(resolver: Resolver, deferred: MutableList<KSAnnotated>) {
+        fluentTrace?.invoke("[ARC-FLUENT-ROUND] ${++fluentRound}")
+        val fluent = FluentValidationDiscovery(graphLogger, fluentTrace).discover(resolver, fluentNames, importedFluent, fluentIndexOption != null)
+        deferred += fluent.deferred
+        fluentSnapshot = fluent.copy(deferred = emptyList())
+        val fluentRules = fluentSnapshot.all.flatMap { declaration -> declaration.members.map { member ->
+            "${declaration.model}.${member.name}" to member.rules.map { ValidationRuleModel(it.ruleName, it.arguments, it.message) }
+        } }.groupBy({ it.first }, { it.second }).mapValues { (_, rules) -> rules.flatten() }
+        metadataCollector = MetadataCollector(graphLogger, fluentRules, binaryRecords)
+    }
+
+    private fun processArtifactRoots(resolver: Resolver, deferred: MutableList<KSAnnotated>) {
+        val commandSymbols = discoverRoots(resolver, COMMAND_ANNOTATION, commandNames)
+        val readModelSymbols = discoverRoots(resolver, READ_MODEL_ANNOTATION, readModelNames)
+        val exportedTypeSymbols = discoverRoots(resolver, EXPORTED_TYPE_ANNOTATION, exportedTypeNames)
+        derivedTypeNames += resolver.getSymbolsWithAnnotation("io.cratis.arc.polymorphism.DerivedType")
+            .filterIsInstance<KSClassDeclaration>().mapNotNull { it.qualifiedName?.asString() }
+        metadataCollector.useResolver(resolver, derivedTypeNames)
+        deferred += (commandSymbols + readModelSymbols + exportedTypeSymbols).filterNot(KSAnnotated::validateForProcessing)
+        commandSymbols.filter(KSAnnotated::validateForProcessing).forEach { processCommand(it, resolver) }
+        readModelSymbols.filter(KSAnnotated::validateForProcessing).forEach { processReadModel(it, resolver) }
+        exportedTypeSymbols.filter(KSAnnotated::validateForProcessing).forEach { processExportedType(it) }
+    }
+
+    private fun collectFluentModels(resolver: Resolver, deferred: MutableList<KSAnnotated>) {
+        fluentSnapshot.local.map { it.model }.distinct().forEach { name ->
+            val model = resolver.getClassDeclarationByName(resolver.getKSNameFromString(name))
+            if (model == null) {
+                hasDeferredInputs = true
+            } else if (!model.validateForProcessing()) {
+                deferred += model
+            } else if (metadataCollector.collectDeclaration(model, name)) {
+                registerFluentModel(model, name)
             }
-            deferred += IdentityDetailsDiscovery(graphLogger) { declaration ->
-                val name = requireNotNull(declaration.qualifiedName).asString()
-                metadataCollector.collectDeclaration(declaration, name).also { collected ->
-                    if (collected) exportRoots += name
-                }
-            }.discover(latestRoundFiles.asSequence().flatMap { it.declarations })
-            SharedWireEdgeValidator(resolver, graphLogger, metadataCollector, fluentSnapshot.all).validate()
-            fluentSnapshot.all.forEach { declaration ->
-                val properties = metadataCollector.propertiesFor(declaration.model)
-                if (properties != null) declaration.members.filter { member -> properties.none { it.name == member.name } }.forEach { member ->
-                    graphLogger.error(ArcDiagnostic.FLUENT_RULE,
-                        "Fluent validator '${declaration.validator}', member '${member.name}' is not a readable generated wire member; remove the ignored or unsupported selector.",
-                        resolver.getClassDeclarationByName(resolver.getKSNameFromString(declaration.validator)))
-                }
+        }
+    }
+
+    private fun registerFluentModel(model: KSClassDeclaration, name: String) {
+        if (metadataCollector.propertiesFor(name) == null) {
+            graphLogger.error(
+                ArcDiagnostic.FLUENT_DECLARATION,
+                "Fluent model '$name' has no concrete model-property metadata; use a plain model or a server-only ModelValidator for scalar/concept targets.",
+                model
+            )
+        } else {
+            exportRoots += name
+        }
+    }
+
+    private fun reportUnreadableFluentMembers(resolver: Resolver) {
+        fluentSnapshot.all.forEach { declaration ->
+            val properties = metadataCollector.propertiesFor(declaration.model) ?: return@forEach
+            declaration.members.filter { member -> properties.none { it.name == member.name } }.forEach { member ->
+                graphLogger.error(
+                    ArcDiagnostic.FLUENT_RULE,
+                    "Fluent validator '${declaration.validator}', member '${member.name}' is not a readable generated wire member; remove the ignored or unsupported selector.",
+                    resolver.getClassDeclarationByName(resolver.getKSNameFromString(declaration.validator))
+                )
             }
-            hasDeferredInputs = hasDeferredInputs || deferred.isNotEmpty()
-            return deferred.distinct()
-        } finally {
-            metadataCollector.releaseSymbols()
         }
     }
 
@@ -196,28 +228,38 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
     override fun finish() {
         graphLogger.flush()
         val configuredName = moduleName
-        if (!logger.hasErrors && !graphLogger.hasErrors && !hasDeferredInputs && !moduleGenerated &&
-            configuredName != null) {
-            if (fluentSnapshot.local.isNotEmpty()) {
-                codeGenerator.createNewFileByPath(Dependencies(true, *latestRoundFiles.toTypedArray()),
-                    "${FluentValidationMetadata.PREFIX}$configuredName.json", "").bufferedWriter(Charsets.UTF_8).use {
-                    it.write(FluentValidationMetadata.document(configuredName, fluentSnapshot.local))
-                }
-            }
-            if (exportedHandlers.isNotEmpty()) {
-                codeGenerator.createNewFileByPath(
-                    Dependencies(true, *latestRoundFiles.toTypedArray()),
-                    "${ResponseHandlerMetadata.PREFIX}$configuredName.json", ""
-                ).bufferedWriter(Charsets.UTF_8).use {
-                    it.write(ResponseHandlerMetadata.document(configuredName, exportedHandlers))
-                }
-            }
-            if (commands.isNotEmpty() || queries.isNotEmpty() || exportRoots.isNotEmpty() || fluentRootCompilation && fluentSnapshot.all.isNotEmpty()) {
-                generateModule(configuredName)
-            }
+        if (configuredName != null && canGenerateModule()) {
+            writeFluentValidationIndex(configuredName)
+            writeResponseHandlerIndex(configuredName)
+            if (hasArtifactsToGenerate()) generateModule(configuredName)
             moduleGenerated = true
         }
         latestRoundFiles = emptyList()
+    }
+
+    private fun canGenerateModule(): Boolean =
+        !logger.hasErrors && !graphLogger.hasErrors && !hasDeferredInputs && !moduleGenerated
+
+    private fun hasArtifactsToGenerate(): Boolean =
+        commands.isNotEmpty() || queries.isNotEmpty() || exportRoots.isNotEmpty() ||
+            fluentRootCompilation && fluentSnapshot.all.isNotEmpty()
+
+    private fun writeFluentValidationIndex(configuredName: String) {
+        if (fluentSnapshot.local.isEmpty()) return
+        codeGenerator.createNewFileByPath(Dependencies(true, *latestRoundFiles.toTypedArray()),
+            "${FluentValidationMetadata.PREFIX}$configuredName.json", "").bufferedWriter(Charsets.UTF_8).use {
+            it.write(FluentValidationMetadata.document(configuredName, fluentSnapshot.local))
+        }
+    }
+
+    private fun writeResponseHandlerIndex(configuredName: String) {
+        if (responseHandlers.exportedHandlers.isEmpty()) return
+        codeGenerator.createNewFileByPath(
+            Dependencies(true, *latestRoundFiles.toTypedArray()),
+            "${ResponseHandlerMetadata.PREFIX}$configuredName.json", ""
+        ).bufferedWriter(Charsets.UTF_8).use {
+            it.write(ResponseHandlerMetadata.document(configuredName, responseHandlers.exportedHandlers))
+        }
     }
 
     override fun onError() {
@@ -323,136 +365,7 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
     }
 
     private fun responseServices() =
-        CommandResponseServices(logger, graphLogger, metadataCollector, declarativeHandledResponseTypes)
-
-    private fun discoverDeclarativeHandledResponseTypes(resolver: Resolver): List<KSAnnotated> {
-        // Only stable names cross rounds. Revalidate binary annotations and SPI through this resolver.
-        handledTypeContributions.clear()
-        exportedHandlers.clear()
-        importedHandlers.forEach { imported -> revalidateImportedHandler(resolver, imported) }
-        val discovered = resolver.getSymbolsWithAnnotation(HANDLES_COMMAND_RESPONSE_VALUES_ANNOTATION, inDepth = true)
-            .toList()
-        responseHandlerNames += discovered.filterIsInstance<KSClassDeclaration>()
-            .filter { it.containingFile != null }.mapNotNull { it.qualifiedName?.asString() }
-        val symbols = responseHandlerNames.mapNotNull { name ->
-            resolver.getClassDeclarationByName(resolver.getKSNameFromString(name)).also {
-                if (it == null) hasDeferredInputs = true
-            }
-        } + discovered.filter { it !is KSClassDeclaration || it.qualifiedName == null }
-        val deferred = symbols.filterNot(KSAnnotated::validateForProcessing).toMutableList()
-        symbols.filter(KSAnnotated::validateForProcessing)
-            .filterIsInstance<KSClassDeclaration>()
-            .sortedBy { declaration -> declaration.qualifiedName?.asString().orEmpty() }
-            .forEach { declaration -> registerResponseHandler(declaration, deferred) }
-        declarativeHandledResponseTypes.clear()
-        declarativeHandledResponseTypes += handledTypeContributions.values.flatten()
-        return deferred
-    }
-
-    private fun handledResponseValueTypes(declaration: KSClassDeclaration): List<KSType> =
-        declaration.annotationsNamed(HANDLES_COMMAND_RESPONSE_VALUES_ANNOTATION)
-            .flatMap { annotation -> annotation.argumentValues("value").asSequence() }
-            .mapNotNull { value -> value as? KSType }
-            .toList()
-
-    private fun revalidateImportedHandler(resolver: Resolver, imported: ResponseHandlerMetadata.Declaration) {
-        val declaration = resolver.getClassDeclarationByName(resolver.getKSNameFromString(imported.handler))
-        fun invalid(reason: String) {
-            graphLogger.error(ArcDiagnostic.COMMAND_HANDLER,
-                "Dependency handler '${imported.handler}' in ${imported.resource} $reason; rebuild the producer " +
-                    "and dependency handler index.")
-        }
-        if (declaration == null) {
-            invalid("cannot be resolved on the compilation classpath")
-            return
-        }
-        val values = handledResponseValueTypes(declaration)
-        if (!declaration.validateForProcessing() || values.any(KSType::isError)) {
-            hasDeferredInputs = true
-            invalid("has unresolved annotation or SPI types")
-            return
-        }
-        if (!importedHandlerAgrees(declaration, values, imported)) {
-            invalid("does not agree with its public top-level annotation and supported handler SPI")
-            return
-        }
-        handledTypeContributions[imported.handler] = imported.values
-    }
-
-    private fun importedHandlerAgrees(
-        declaration: KSClassDeclaration,
-        values: List<KSType>,
-        imported: ResponseHandlerMetadata.Declaration
-    ): Boolean = declaration.isPublic() && declaration.parentDeclaration == null &&
-        isSupportedResponseValueHandler(declaration) && values.all(::isExportableResponseType) &&
-        values.mapNotNull { it.declaration.qualifiedName?.asString() }.distinct().sorted() == imported.values
-
-    private fun registerResponseHandler(declaration: KSClassDeclaration, deferred: MutableList<KSAnnotated>) {
-        val qualifiedName = declaration.qualifiedName?.asString()
-        if (qualifiedName == null) {
-            logger.error(
-                ArcDiagnostic.COMMAND_HANDLER,
-                "@$HANDLES_COMMAND_RESPONSE_VALUES_SIMPLE_NAME handlers must not be local.",
-                declaration
-            )
-            return
-        }
-        val handledTypeSymbols = handledResponseValueTypes(declaration)
-        if (handledTypeSymbols.any(KSType::isError)) {
-            deferred.add(declaration)
-            return
-        }
-        if (!isSupportedResponseValueHandler(declaration)) {
-            logger.error(
-                ArcDiagnostic.COMMAND_HANDLER,
-                "@$HANDLES_COMMAND_RESPONSE_VALUES_SIMPLE_NAME declaration '$qualifiedName' must implement " +
-                    "CommandResponseValueHandler, BlockingCommandResponseValueHandler, or " +
-                    "AsyncCommandResponseValueHandler.",
-                declaration
-            )
-            return
-        }
-
-        val handledTypes = handledTypeSymbols
-            .mapNotNull { type -> type.declaration.qualifiedName?.asString() }
-        if (handledTypes.isEmpty()) {
-            logger.error(
-                ArcDiagnostic.COMMAND_HANDLER,
-                "@$HANDLES_COMMAND_RESPONSE_VALUES_SIMPLE_NAME declaration '$qualifiedName' must declare " +
-                    "at least one handled response value type.",
-                declaration
-            )
-            return
-        }
-        val imported = importedHandlers.firstOrNull { it.handler == qualifiedName }
-        if (imported != null && imported.values != handledTypes.distinct().sorted()) {
-            graphLogger.error(ArcDiagnostic.COMMAND_HANDLER,
-                "Handler '$qualifiedName' conflicts with ${imported.resource}; remove the conflicting declaration.", declaration)
-            return
-        }
-        handledTypeContributions[qualifiedName] = handledTypes
-        if (isExportableHandler(declaration, qualifiedName, handledTypeSymbols)) {
-            exportedHandlers[qualifiedName] = handledTypes.distinct().sorted()
-        }
-    }
-
-    private fun isExportableHandler(
-        declaration: KSClassDeclaration,
-        qualifiedName: String,
-        handledTypeSymbols: List<KSType>
-    ): Boolean = declaration.containingFile != null && declaration.isPublic() && declaration.parentDeclaration == null &&
-        ResponseHandlerMetadata.exportableName(qualifiedName) && handledTypeSymbols.all(::isExportableResponseType)
-
-    private fun isExportableResponseType(value: KSType): Boolean {
-        val type = value.declaration as? KSClassDeclaration ?: return false
-        return type.isPublic() && type.parentDeclaration == null &&
-            type.qualifiedName?.asString()?.let(ResponseHandlerMetadata::exportableName) == true
-    }
-
-    private fun isSupportedResponseValueHandler(declaration: KSClassDeclaration): Boolean =
-        declaration.getAllSuperTypes()
-            .mapNotNull { superType -> superType.declaration.qualifiedName?.asString() }
-            .any(SUPPORTED_RESPONSE_VALUE_HANDLER_TYPES::contains)
+        CommandResponseServices(logger, graphLogger, metadataCollector, responseHandlers.declarativeHandledTypes)
 
     private fun buildQueryModels(readModel: KSClassDeclaration, resolver: Resolver): List<QueryModel> {
         val qualifiedName = readModel.qualifiedName?.asString() ?: return emptyList()
@@ -590,10 +503,3 @@ public class $className : io.cratis.arc.artifacts.ArcArtifactModule(
         ).bufferedWriter().use { writer -> writer.write(manifestJson) }
     }
 }
-
-/**
- * Validates a symbol the way the deprecated single-predicate [KSNode.validate] overload did, using the new
- * overload that makes the choice explicit: the default always-true predicate and no new validation features.
- * KSP 2.3.12 deprecated the single-predicate form and this repository compiles with warnings as errors.
- */
-private fun KSAnnotated.validateForProcessing(): Boolean = validate({ _, _ -> true }, enableNewFeatures = false)
