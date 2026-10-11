@@ -36,6 +36,8 @@ internal class MetadataCollector(
     private val binaryRecords: BinaryRecordMetadata = BinaryRecordMetadata(null)
 ) {
     private val validationExtractor = ValidationMetadataExtractor(logger)
+    private val wireValidator = WireAnnotationValidator(logger)
+    private val mapShapes = MapShapeDescriber(logger)
     private val collectedTypes = linkedMapOf<String, TypeModel>()
     private val collectedInterfaces = linkedMapOf<String, InterfaceModel>()
     private val collectedEnums = linkedMapOf<String, EnumModel>()
@@ -74,6 +76,8 @@ internal class MetadataCollector(
                     DerivedTypeRegistrationModel::derivedTypeName
                 )
             )
+
+    private fun javaTypes() = JavaSourceTypeDescriber(logger, resolver)
 
     fun useResolver(resolver: Resolver, derivedTypeNames: Set<String> = emptySet()) {
         this.resolver = resolver
@@ -153,15 +157,15 @@ internal class MetadataCollector(
             val sourceElement = parseJavaGenericType(component.typeName)
                 ?.takeIf { it.baseName in JAVA_COLLECTION_NAMES }?.arguments?.singleOrNull()
             if (sourceElement?.isNullable == true) {
-                unsupportedSequenceElement("$identity.${component.name}", memberNode)
+                mapShapes.unsupportedSequenceElement("$identity.${component.name}", memberNode)
                 return null
             }
             val shape = (if (sourceBaseName in JAVA_MAP_NAMES) {
-                describeJavaType(component.typeName, declaration, "$identity.${component.name}", memberNode)
+                javaTypes().describe(component.typeName, declaration, "$identity.${component.name}", memberNode)
             } else if (accessor != null && returnType != null) {
                 describe(returnType, "$identity.${component.name}", accessor, allowMaps = true)
             } else {
-                describeJavaType(component.typeName, declaration, "$identity.${component.name}", memberNode)
+                javaTypes().describe(component.typeName, declaration, "$identity.${component.name}", memberNode)
             }) ?: return null
             val annotated = listOfNotNull(declarations[component.name], accessor)
             val validation = extractValidation(
@@ -240,7 +244,7 @@ internal class MetadataCollector(
         for (property in ordered) {
             if (!property.isPublic() && declaration.origin != Origin.JAVA) continue
             val name = property.simpleName.asString()
-            if (!validateBodyWireAnnotations(property, constructorParameters[name], "$identity.$name")) return null
+            if (!wireValidator.validateBodyWireAnnotations(property, constructorParameters[name], "$identity.$name")) return null
             if (property.isWireIgnored()) continue
             val shape = describe(property.type.resolve(), "$identity.$name", property, allowMaps = true) ?: return null
             val annotated = listOfNotNull(property, property.getter, constructorParameters[name])
@@ -278,44 +282,6 @@ internal class MetadataCollector(
             .filter { it.simpleName.asString() !in constructorNames }.sortedBy { it.simpleName.asString() }
     }
 
-    private fun KSPropertyDeclaration.wireAnnotations(): List<KSAnnotation> =
-        listOfNotNull(this, getter, setter).flatMap { it.annotations.toList() }
-
-    private fun KSPropertyDeclaration.isWireIgnored(): Boolean = wireAnnotations().any { annotation ->
-        annotation.annotationType.resolve().declaration.qualifiedName?.asString() == JSON_IGNORE_ANNOTATION &&
-            annotation.arguments.firstOrNull { it.name?.asString() == "value" }?.value != false
-    }
-
-    /** The descriptor has a source name, not independent read/write names or access flags. */
-    private fun validateBodyWireAnnotations(
-        property: KSPropertyDeclaration,
-        constructorParameter: KSValueParameter?,
-        identity: String
-    ): Boolean {
-        if (property.origin != Origin.KOTLIN) return true
-        val annotations = property.wireAnnotations().filter {
-            it.annotationType.resolve().declaration.qualifiedName?.asString() == JSON_PROPERTY_ANNOTATION
-        }
-        for (annotation in annotations) {
-            val name = annotation.arguments.firstOrNull { it.name?.asString() == "value" }?.value as? String
-            val access = annotation.arguments.firstOrNull { it.name?.asString() == "access" }?.value?.toString()
-            val bodyProperty = constructorParameter?.let { it.isVal || it.isVar } != true
-            if (property.isWireIgnored() || (bodyProperty &&
-                    ((!name.isNullOrEmpty() && name != ArcCamelCase.convert(property.simpleName.asString())) ||
-                        (access != null && access.substringAfterLast('.') !in setOf("AUTO", "READ_ONLY", "READ_WRITE"))))
-            ) {
-                logger.error(
-                    ArcDiagnostic.PROXY_SHAPE,
-                    "Artifact/property '$identity' has body-property Jackson names or access that metadata cannot represent; " +
-                        "use the default Arc wire name and symmetric access, or a separate wire model.",
-                    property
-                )
-                return false
-            }
-        }
-        return true
-    }
-
     /** Output-only computed getters remain valid; a command's reachable input graph must be writable. */
     private fun validateCommandInput(declaration: KSClassDeclaration, visited: MutableSet<String>): Boolean {
         val name = declaration.qualifiedName?.asString() ?: return true
@@ -342,32 +308,7 @@ internal class MetadataCollector(
         property: KSPropertyDeclaration,
         visited: MutableSet<String>
     ): Boolean {
-        var valid = true
-        val readOnly = property.wireAnnotations().any { annotation ->
-            annotation.annotationType.resolve().declaration.qualifiedName?.asString() == JSON_PROPERTY_ANNOTATION &&
-                annotation.arguments.firstOrNull { it.name?.asString() == "access" }?.value
-                    ?.toString()?.substringAfterLast('.') == "READ_ONLY"
-        }
-        if (property.origin == Origin.KOTLIN && readOnly) {
-            logger.error(
-                ArcDiagnostic.PROXY_SHAPE,
-                "Artifact/property '$name.${property.simpleName.asString()}' is read-only command input; " +
-                    "use symmetric Jackson access, @JsonIgnore, or a separate output model.",
-                property
-            )
-            valid = false
-        }
-        if (property.origin == Origin.KOTLIN && !property.hasBackingField &&
-            Modifier.ABSTRACT !in property.modifiers && declaration.classKind != ClassKind.INTERFACE
-        ) {
-            logger.error(
-                ArcDiagnostic.PROXY_SHAPE,
-                "Artifact/property '$name.${property.simpleName.asString()}' is computed command input; " +
-                    "use a backed property, @JsonIgnore, or a separate output model.",
-                property
-            )
-            valid = false
-        }
+        var valid = wireValidator.validateWritableInput(declaration, name, property)
         if (!validateCommandInputType(property.type.resolve(), visited)) valid = false
         return valid
     }
@@ -388,7 +329,7 @@ internal class MetadataCollector(
             for (component in record) {
                 val type = properties[component.name]?.type?.resolve()?.takeUnless { it.isError }
                     ?: accessors[component.name]?.returnType?.resolve()?.takeUnless { it.isError }
-                    ?: describeJavaType(component.typeName, declaration, "$name.${component.name}",
+                    ?: javaTypes().describe(component.typeName, declaration, "$name.${component.name}",
                         propertyUseNode(declaration, component.name))?.valueType
                 if (type == null || !validateCommandInputType(type, visited)) valid = false
             }
@@ -500,20 +441,21 @@ internal class MetadataCollector(
             )
             return null
         }
-        val descriptor = describeMap(type, identity, "value", node) ?: return null
+        val descriptor = mapShapes.describeMap(type, ShapeSite(identity, "value", node)) ?: return null
         return TypeShape(typeName = descriptorTypeName(descriptor), descriptor = descriptor, valueType = type)
     }
 
     private fun describeCollectionShape(type: KSType, qualifiedName: String, identity: String, node: KSNode): TypeShape? {
-        val element = concreteTypeArgument(type, 1, identity, "element", node)?.singleOrNull() ?: return null
+        val element = mapShapes.concreteTypeArguments(type, 1, ShapeSite(identity, "element", node))?.singleOrNull()
+            ?: return null
         if (node is KSValueParameter && element.nullability == Nullability.NULLABLE) {
-            unsupportedMapShape(identity, "element", "nullable sequence elements are unsupported", node)
+            mapShapes.unsupported(ShapeSite(identity, "element", node), "nullable sequence elements are unsupported")
             return null
         }
         if (element.nullability == Nullability.NULLABLE || element.annotations.hasNullableTypeUse() ||
             type.arguments.single().type?.annotations?.hasNullableTypeUse() == true
         ) {
-            unsupportedSequenceElement(identity, node)
+            mapShapes.unsupportedSequenceElement(identity, node)
             return null
         }
         val elementDeclaration = element.declaration as? KSClassDeclaration
@@ -544,124 +486,6 @@ internal class MetadataCollector(
             underlyingTypeName = conceptValue?.declaration?.qualifiedName?.asString(),
             underlyingValueType = conceptValue
         )
-    }
-
-    private fun describeMap(type: KSType, identity: String, path: String, node: KSNode): TypeShapeDescriptor? {
-        val arguments = concreteTypeArgument(type, 2, identity, path, node) ?: return null
-        val key = arguments[0]
-        val keyName = key.declaration.qualifiedName?.asString()
-        if (key.nullability == Nullability.NULLABLE || keyName !in STRING_TYPE_NAMES || key.arguments.isNotEmpty()) {
-            return unsupportedMapShape(identity, "$path.key", "map keys must be nonnullable String", node)
-        }
-        val valueShape = describeMapValue(arguments[1], identity, path, node) ?: return null
-        return TypeShapeDescriptor.map(
-            TypeShapeDescriptor.value(requireNotNull(keyName), false),
-            valueShape,
-            MapKeyCodec.STRING,
-            type.nullability == Nullability.NULLABLE
-        )
-    }
-
-    private fun describeMapValue(type: KSType, identity: String, path: String, node: KSNode): TypeShapeDescriptor? {
-        if (type.isError || type.declaration is KSTypeParameter) {
-            return unsupportedMapShape(identity, path, "map values must use concrete types; type parameters are unsupported", node)
-        }
-        if (type.nullability == Nullability.NULLABLE) {
-            return unsupportedMapShape(identity, path, "nullable map values and sequence elements are unsupported", node)
-        }
-        val declaration = type.declaration as? KSClassDeclaration
-            ?: return unsupportedMapShape(identity, path, "map values must use resolvable class types", node)
-        val name = declaration.qualifiedName?.asString()
-            ?: return unsupportedMapShape(identity, path, "map values must use named class types", node)
-        if (name in MAP_TYPE_NAMES) return describeMap(type, identity, "$path.value", node)
-        if (name in COLLECTION_TYPE_NAMES || name == ARRAY_TYPE) {
-            val element = concreteTypeArgument(type, 1, identity, "$path[]", node)?.singleOrNull() ?: return null
-            val elementShape = describeMapValue(element, identity, "$path[]", node) ?: return null
-            return TypeShapeDescriptor.sequence(sequenceKind(name), elementShape, false)
-        }
-        if (type.arguments.isNotEmpty()) {
-            return unsupportedMapShape(identity, path, "generic, wildcard, and star-projected map value leaves are unsupported", node)
-        }
-        if (name !in MAP_SAFE_PRIMITIVE_TYPE_NAMES) {
-            return unsupportedMapShape(
-                identity,
-                path,
-                "map value leaf '$name' is not a runtime-safe JavaScript primitive; model, concept, enum, UUID, temporal, and derived leaves are unsupported",
-                node
-            )
-        }
-        return TypeShapeDescriptor.value(name, false)
-    }
-
-    private fun concreteTypeArgument(
-        type: KSType,
-        count: Int,
-        identity: String,
-        path: String,
-        node: KSNode
-    ): List<KSType>? {
-        // KSP models a source Java array parameter as Array<out E>, unlike an explicit
-        // wildcard generic or Kotlin Array<out E>. Only this parameter extraction is
-        // widened; existing property/return and map boundaries remain unchanged.
-        val javaArrayParameter = type.declaration.qualifiedName?.asString() == ARRAY_TYPE &&
-            node is KSValueParameter && node.origin == Origin.JAVA && node.type.origin == Origin.JAVA
-        if (type.arguments.size != count || type.arguments.any { argument ->
-                argument.type == null || (argument.variance != Variance.INVARIANT &&
-                    !(javaArrayParameter && argument.variance == Variance.COVARIANT &&
-                        argument.origin == Origin.SYNTHETIC && argument.type?.origin == Origin.SYNTHETIC))
-            }
-        ) {
-            return unsupportedMapShape(
-                identity,
-                path,
-                "raw and wildcard arguments are unsupported; star projections are unsupported; variant generic arguments are unsupported",
-                node
-            )?.let { emptyList() }
-        }
-        val arguments = type.arguments.map { argument -> requireNotNull(argument.type).resolve() }
-        if (arguments.any { argument -> argument.isError || argument.declaration is KSTypeParameter }) {
-            return unsupportedMapShape(identity, path, "unresolvable and type-parameter arguments are unsupported", node)
-                ?.let { emptyList() }
-        }
-        return arguments
-    }
-
-    private fun unsupportedMapShape(identity: String, path: String, detail: String, node: KSNode): TypeShapeDescriptor? {
-        logger.error(ArcDiagnostic.PROXY_SHAPE, "Artifact/property '$identity' value path '$path': $detail.", node)
-        return null
-    }
-
-    private fun unsupportedSequenceElement(identity: String, node: KSNode) {
-        logger.error(
-            ArcDiagnostic.PROXY_SHAPE,
-            "Artifact/property '$identity' value path 'value[]': nullable sequence elements are unsupported; " +
-                "declare nonnullable elements, for example List<T> or List<T>?.",
-            node
-        )
-    }
-
-    private fun Sequence<KSAnnotation>.hasNullableTypeUse(): Boolean = any { annotation ->
-        annotation.annotationType.resolve().declaration.simpleName.asString() in setOf("Nullable", "CheckForNull")
-    }
-
-    private fun sequenceKind(qualifiedName: String): SequenceKind = when {
-        qualifiedName == ARRAY_TYPE -> SequenceKind.ARRAY
-        qualifiedName.endsWith("List") -> SequenceKind.LIST
-        else -> SequenceKind.COLLECTION
-    }
-
-    private fun descriptorTypeName(shape: TypeShapeDescriptor): String = when (shape.kind) {
-        TypeShapeKind.VALUE -> requireNotNull(shape.typeName)
-        TypeShapeKind.SEQUENCE -> {
-            val container = when (requireNotNull(shape.sequenceKind)) {
-                SequenceKind.ARRAY -> ARRAY_TYPE
-                SequenceKind.LIST -> "kotlin.collections.List"
-                SequenceKind.COLLECTION -> "kotlin.collections.Collection"
-            }
-            "$container<${descriptorTypeName(requireNotNull(shape.elementShape))}>"
-        }
-        TypeShapeKind.MAP -> "kotlin.collections.Map<${descriptorTypeName(requireNotNull(shape.keyShape))}, " +
-            "${descriptorTypeName(requireNotNull(shape.valueShape))}>"
     }
 
     fun collect(shape: TypeShape, identity: String, node: KSNode): Boolean =
@@ -1111,210 +935,6 @@ internal class MetadataCollector(
 
     private data class ConceptValueResolution(val isValid: Boolean, val value: KSType?)
 
-    private fun describeJavaType(
-        sourceTypeName: String,
-        owner: KSClassDeclaration,
-        identity: String,
-        node: KSNode
-    ): TypeShape? {
-        val rawType = sourceTypeName.removeSuffix("[]")
-        val genericStart = rawType.indexOf('<')
-        val baseName = if (genericStart >= 0) rawType.substring(0, genericStart) else rawType
-        val argumentName = if (genericStart >= 0) rawType.substring(genericStart + 1, rawType.lastIndexOf('>')).trim() else null
-        val isEnumerable = sourceTypeName.endsWith("[]") || baseName in JAVA_COLLECTION_NAMES
-        if (baseName in JAVA_MAP_NAMES) {
-            val descriptor = describeJavaMapType(sourceTypeName, owner, identity, "value") ?: return null
-            val declaration = resolveJavaDeclaration("java.util.Map", owner)
-                ?: return unsupportedJavaMapShape(identity, "value", "java.util.Map cannot be resolved", owner)
-            return TypeShape(descriptorTypeName(descriptor), descriptor, declaration.asStarProjectedType())
-        }
-        if (isEnumerable && (argumentName == null && !sourceTypeName.endsWith("[]"))) {
-            logger.error("'$identity' must use a concrete collection element type.", owner)
-            return null
-        }
-        val valueUse = parseJavaTypeUse(argumentName ?: rawType)
-        if (isEnumerable && valueUse.isNullable) {
-            unsupportedSequenceElement(identity, node)
-            return null
-        }
-        val valueSourceName = valueUse.typeName
-        if ('<' in valueSourceName || '?' in valueSourceName || '*' in valueSourceName) {
-            logger.error("'$identity' uses an unsupported nested, wildcard, or generic shape.", owner)
-            return null
-        }
-        val declaration = resolveJavaDeclaration(valueSourceName, owner)
-        if (declaration == null) {
-            logger.error("'$identity' has unresolvable Java type '$sourceTypeName'.", owner)
-            return null
-        }
-        val valueType = declaration.asStarProjectedType()
-        val valueName = requireNotNull(declaration.qualifiedName).asString()
-        val collectionName = if (sourceTypeName.endsWith("[]")) ARRAY_TYPE else normalizeJavaCollectionName(baseName)
-        val descriptor = if (isEnumerable) {
-            TypeShapeDescriptor.sequence(sequenceKind(collectionName), TypeShapeDescriptor.value(valueName))
-        } else {
-            TypeShapeDescriptor.value(valueName)
-        }
-        return TypeShape(
-            typeName = if (isEnumerable) "$collectionName<$valueName>" else valueName,
-            descriptor = descriptor,
-            valueType = valueType
-        )
-    }
-
-    private data class JavaTypeUse(val typeName: String, val isNullable: Boolean)
-
-    private data class JavaGenericType(val baseName: String, val arguments: List<JavaTypeUse>)
-
-    private fun describeJavaMapType(
-        sourceTypeName: String,
-        owner: KSClassDeclaration,
-        identity: String,
-        path: String
-    ): TypeShapeDescriptor? {
-        val parsed = parseJavaGenericType(sourceTypeName)
-            ?: return unsupportedJavaMapShape(
-                identity,
-                path,
-                "raw, wildcard, and type-parameter map arguments are unsupported; star projections are unsupported",
-                owner
-            )
-        if (parsed.baseName !in JAVA_MAP_NAMES || parsed.arguments.size != 2) {
-            return unsupportedJavaMapShape(identity, path, "map values must declare exactly two concrete arguments", owner)
-        }
-        val key = parsed.arguments[0]
-        val keyName = JAVA_TYPE_ALIASES[key.typeName] ?: key.typeName
-        if (key.isNullable || keyName != "java.lang.String" && keyName != "String") {
-            return unsupportedJavaMapShape(identity, "$path.key", "map keys must be nonnullable String", owner)
-        }
-        val valueShape = describeJavaMapValue(parsed.arguments[1], owner, identity, path) ?: return null
-        return TypeShapeDescriptor.map(
-            TypeShapeDescriptor.value("java.lang.String"),
-            valueShape,
-            MapKeyCodec.STRING
-        )
-    }
-
-    private fun describeJavaMapValue(
-        typeUse: JavaTypeUse,
-        owner: KSClassDeclaration,
-        identity: String,
-        path: String
-    ): TypeShapeDescriptor? {
-        if (typeUse.isNullable) {
-            return unsupportedJavaMapShape(
-                identity,
-                path,
-                "nullable map values and sequence elements are unsupported",
-                owner
-            )
-        }
-        val sourceTypeName = typeUse.typeName
-        if ('?' in sourceTypeName || '*' in sourceTypeName) {
-            return unsupportedJavaMapShape(
-                identity,
-                path,
-                "raw and wildcard arguments are unsupported; star projections are unsupported",
-                owner
-            )
-        }
-        val parsed = parseJavaGenericType(sourceTypeName)
-        if (parsed != null) {
-            if (parsed.baseName in JAVA_MAP_NAMES) {
-                return describeJavaMapType(sourceTypeName, owner, identity, "$path.value")
-            }
-            if (parsed.baseName in JAVA_COLLECTION_NAMES) {
-                if (parsed.arguments.size != 1) {
-                    return unsupportedJavaMapShape(identity, "$path[]", "sequences require one concrete element type", owner)
-                }
-                val element = describeJavaMapValue(parsed.arguments.single(), owner, identity, "$path[]") ?: return null
-                return TypeShapeDescriptor.sequence(
-                    sequenceKind(normalizeJavaCollectionName(parsed.baseName)),
-                    element
-                )
-            }
-            return unsupportedJavaMapShape(identity, path, "generic map value leaves are unsupported", owner)
-        }
-        if (sourceTypeName.endsWith("[]")) {
-            val element = describeJavaMapValue(
-                parseJavaTypeUse(sourceTypeName.removeSuffix("[]")),
-                owner,
-                identity,
-                "$path[]"
-            ) ?: return null
-            return TypeShapeDescriptor.sequence(SequenceKind.ARRAY, element)
-        }
-        val declaration = resolveJavaDeclaration(sourceTypeName, owner)
-            ?: return unsupportedJavaMapShape(identity, path, "map value type '$sourceTypeName' cannot be resolved", owner)
-        val name = requireNotNull(declaration.qualifiedName).asString()
-        if (name !in MAP_SAFE_PRIMITIVE_TYPE_NAMES) {
-            return unsupportedJavaMapShape(
-                identity,
-                path,
-                "map value leaf '$name' is not a runtime-safe JavaScript primitive; model, concept, enum, UUID, temporal, and derived leaves are unsupported",
-                owner
-            )
-        }
-        return TypeShapeDescriptor.value(name)
-    }
-
-    private fun parseJavaGenericType(sourceTypeName: String): JavaGenericType? {
-        val typeUse = parseJavaTypeUse(sourceTypeName)
-        val opening = typeUse.typeName.indexOf('<')
-        if (opening < 0 || !typeUse.typeName.endsWith('>')) return null
-        val baseName = typeUse.typeName.substring(0, opening).trim()
-        val body = typeUse.typeName.substring(opening + 1, typeUse.typeName.length - 1)
-        val arguments = mutableListOf<JavaTypeUse>()
-        var depth = 0
-        var start = 0
-        body.forEachIndexed { index, character ->
-            when (character) {
-                '<' -> depth++
-                '>' -> depth--
-                ',' -> if (depth == 0) {
-                    arguments += parseJavaTypeUse(body.substring(start, index))
-                    start = index + 1
-                }
-            }
-        }
-        if (body.substring(start).isNotBlank()) arguments += parseJavaTypeUse(body.substring(start))
-        return JavaGenericType(baseName, arguments)
-    }
-
-    private fun parseJavaTypeUse(sourceTypeName: String): JavaTypeUse {
-        var remaining = sourceTypeName.trim()
-        var isNullable = false
-        while (remaining.startsWith('@')) {
-            val name = Regex("^@([A-Za-z_$][A-Za-z0-9_$.]*)").find(remaining) ?: break
-            val simpleName = name.groupValues[1].substringAfterLast('.')
-            isNullable = isNullable || simpleName == "Nullable" || simpleName == "CheckForNull"
-            var end = name.range.last + 1
-            while (end < remaining.length && remaining[end].isWhitespace()) end++
-            if (end < remaining.length && remaining[end] == '(') {
-                var depth = 1
-                end++
-                while (end < remaining.length && depth > 0) {
-                    when (remaining[end++]) {
-                        '(' -> depth++
-                        ')' -> depth--
-                    }
-                }
-            }
-            remaining = remaining.substring(end).trimStart()
-        }
-        return JavaTypeUse(remaining.trim(), isNullable)
-    }
-
-    private fun unsupportedJavaMapShape(
-        identity: String,
-        path: String,
-        detail: String,
-        owner: KSClassDeclaration
-    ): Nothing? {
-        logger.error(ArcDiagnostic.PROXY_SHAPE, "Artifact/property '$identity' value path '$path': $detail.", owner)
-        return null
-    }
-
     private fun TypeShapeDescriptor.withNullability(nullable: Boolean): TypeShapeDescriptor = when (kind) {
         TypeShapeKind.VALUE -> TypeShapeDescriptor.value(requireNotNull(typeName), nullable)
         TypeShapeKind.SEQUENCE -> TypeShapeDescriptor.sequence(
@@ -1344,26 +964,6 @@ internal class MetadataCollector(
             return false
         }
         return collectDeclaration(declaration, identity, node)
-    }
-
-    private fun resolveJavaDeclaration(typeName: String, owner: KSClassDeclaration): KSClassDeclaration? {
-        val currentResolver = resolver ?: return null
-        val normalized = JAVA_TYPE_ALIASES[typeName] ?: typeName
-        val candidates = if ('.' in normalized) {
-            listOf(normalized)
-        } else {
-            val packageName = owner.packageName.asString()
-            listOf("$packageName.$normalized", "java.lang.$normalized", "java.util.$normalized")
-        }
-        return candidates.firstNotNullOfOrNull { candidate ->
-            currentResolver.getClassDeclarationByName(currentResolver.getKSNameFromString(candidate))
-        }
-    }
-
-    private fun normalizeJavaCollectionName(name: String): String = when (name) {
-        "List", "java.util.List" -> "java.util.List"
-        "Collection", "java.util.Collection" -> "java.util.Collection"
-        else -> name
     }
 
     private fun collectType(type: KSType, identity: String, node: KSNode): Boolean {
@@ -1491,74 +1091,5 @@ internal class MetadataCollector(
 
     private fun KSAnnotated.hasAnnotation(qualifiedName: String): Boolean = annotations.any { annotation ->
         annotation.annotationType.resolve().declaration.qualifiedName?.asString() == qualifiedName
-    }
-
-    private companion object {
-        const val ARRAY_TYPE = "kotlin.Array"
-        const val CONCEPT_AS_TYPE = "io.cratis.arc.concepts.ConceptAs"
-        const val ARC_ENUM_TYPE = "io.cratis.arc.concepts.ArcEnum"
-        const val ARC_ENUM_VALUE_ANNOTATION = "io.cratis.arc.concepts.ArcEnumValue"
-        const val FLAGS_ANNOTATION = "io.cratis.arc.concepts.Flags"
-        const val COMMAND_KEY_ANNOTATION = "io.cratis.arc.artifacts.CommandKey"
-        const val COMMAND_ANNOTATION = "io.cratis.arc.artifacts.Command"
-        const val JSON_IGNORE_ANNOTATION = "com.fasterxml.jackson.annotation.JsonIgnore"
-        const val JSON_PROPERTY_ANNOTATION = "com.fasterxml.jackson.annotation.JsonProperty"
-        const val DERIVED_TYPE_ANNOTATION = "io.cratis.arc.polymorphism.DerivedType"
-        val COLLECTION_TYPE_NAMES = setOf(
-            "kotlin.collections.List",
-            "kotlin.collections.MutableList",
-            "kotlin.collections.Collection",
-            "kotlin.collections.MutableCollection",
-            "java.util.List",
-            "java.util.Collection"
-        )
-        val MAP_TYPE_NAMES = setOf("kotlin.collections.Map", "kotlin.collections.MutableMap", "java.util.Map")
-        val JAVA_COLLECTION_NAMES = setOf("List", "Collection", "java.util.List", "java.util.Collection")
-        val JAVA_MAP_NAMES = setOf("Map", "java.util.Map")
-        val JAVA_TYPE_ALIASES = mapOf(
-            "boolean" to "java.lang.Boolean",
-            "byte" to "java.lang.Byte",
-            "char" to "java.lang.Character",
-            "double" to "java.lang.Double",
-            "float" to "java.lang.Float",
-            "int" to "java.lang.Integer",
-            "long" to "java.lang.Long",
-            "short" to "java.lang.Short"
-        )
-        val KOTLIN_TO_JAVA_BOXED_TYPE_NAMES = mapOf(
-            "kotlin.Boolean" to "java.lang.Boolean",
-            "kotlin.Byte" to "java.lang.Byte",
-            "kotlin.Char" to "java.lang.Character",
-            "kotlin.Double" to "java.lang.Double",
-            "kotlin.Float" to "java.lang.Float",
-            "kotlin.Int" to "java.lang.Integer",
-            "kotlin.Long" to "java.lang.Long",
-            "kotlin.Short" to "java.lang.Short",
-            "kotlin.String" to "java.lang.String"
-        )
-        val ROOT_TYPE_NAMES = setOf(
-            "kotlin.Any",
-            "java.lang.Object",
-            "java.lang.Record",
-            "java.io.Serializable",
-            "java.lang.Cloneable"
-        )
-        val INTEGER_TYPE_NAMES = setOf("kotlin.Int", "java.lang.Integer", "int")
-        val STRING_TYPE_NAMES = setOf("kotlin.String", "java.lang.String")
-        val MAP_SAFE_PRIMITIVE_TYPE_NAMES = setOf(
-            "kotlin.Boolean", "kotlin.Byte", "kotlin.Char", "kotlin.Int", "kotlin.Short", "kotlin.String",
-            "java.lang.Boolean", "java.lang.Byte", "java.lang.Character", "java.lang.Integer", "java.lang.Short",
-            "java.lang.String", "boolean", "byte", "char", "int", "short"
-        )
-        val TERMINAL_TYPE_NAMES = setOf(
-            "kotlin.Boolean", "kotlin.Byte", "kotlin.Char", "kotlin.Double", "kotlin.Float", "kotlin.Int",
-            "kotlin.Long", "kotlin.Short", "kotlin.String", "java.lang.Boolean", "java.lang.Byte",
-            "java.lang.Character", "java.lang.Double", "java.lang.Float", "java.lang.Integer", "java.lang.Long",
-            "java.lang.Short", "java.lang.String", "boolean", "byte", "char", "double", "float", "int",
-            "long", "short", "java.math.BigDecimal", "java.math.BigInteger", "java.util.UUID", "java.util.Date",
-            "java.time.Duration", "java.time.Instant", "java.time.LocalDate", "java.time.LocalDateTime",
-            "java.time.LocalTime", "java.time.OffsetDateTime", "java.time.OffsetTime", "java.time.Period",
-            "java.time.Year", "java.time.YearMonth", "java.time.ZonedDateTime"
-        )
     }
 }
