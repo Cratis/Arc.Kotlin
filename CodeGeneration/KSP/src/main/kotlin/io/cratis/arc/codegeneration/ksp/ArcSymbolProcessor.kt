@@ -66,9 +66,6 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
             BinaryRecordMetadata(null)
         }
     private var metadataCollector = MetadataCollector(graphLogger, binaryRecords = binaryRecords)
-    private val methodReader = CommandMethodReader(logger)
-    private val authorizationReader = AuthorizationReader(logger)
-    private val providedValueWarner = ProvidedValueWarner(logger)
     private val commandNames = sortedSetOf<String>()
     private val readModelNames = sortedSetOf<String>()
     private val exportedTypeNames = sortedSetOf<String>()
@@ -99,6 +96,8 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
     private val emittedCommands = mutableSetOf<String>()
     private val emittedQueries = mutableSetOf<String>()
     private val inspectedCommandLikeTypes = mutableSetOf<String>()
+    private val shapeValidator = ArtifactShapeValidator(logger)
+    private val authorizationReader = AuthorizationReader(logger)
     private val commandLikeTypeInspector = CommandLikeTypeInspector(logger, inspectedCommandLikeTypes)
     private val ignoreValidationOwners = sortedSetOf<String>()
     private val ignoreValidationTopLevelProperties = sortedSetOf<String>()
@@ -234,7 +233,7 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
         }
         val qualifiedName = command.qualifiedName?.asString()
         if (qualifiedName != null) {
-            buildCommandModel(command, resolver)?.let { model ->
+            commandModelBuilder(resolver).build(command)?.let { model ->
                 if (metadataCollector.collectDeclaration(command, qualifiedName, command, model.properties)) {
                     // Concepts contribute scalar metadata, not a TypeModel with enriched properties.
                     commands.add(if (metadataCollector.isConcept(qualifiedName)) model else
@@ -254,7 +253,7 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
         }
         val qualifiedName = readModel.qualifiedName?.asString()
         if (qualifiedName != null) {
-            if (validateReadModelShape(readModel, qualifiedName)) {
+            if (shapeValidator.validateReadModelShape(readModel, qualifiedName)) {
                 queries += buildQueryModels(readModel, resolver)
                 metadataCollector.collectDeclaration(readModel, qualifiedName)
             }
@@ -282,47 +281,8 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
             )
             return
         }
-        if (!validateExportedTypeShape(declaration, qualifiedName)) return
+        if (!shapeValidator.validateExportedTypeShape(declaration, qualifiedName)) return
         if (metadataCollector.collectDeclaration(declaration, qualifiedName)) exportRoots += qualifiedName
-    }
-
-    private fun validateExportedTypeShape(declaration: KSClassDeclaration, qualifiedName: String): Boolean {
-        if (!declaration.isPublic()) {
-            logger.error(
-                ArcDiagnostic.EXPORTED_TYPE_TARGET,
-                "Exported type '$qualifiedName' must be public so generated clients can use it.",
-                declaration
-            )
-            return false
-        }
-        if (declaration.typeParameters.isNotEmpty()) {
-            logger.error(
-                ArcDiagnostic.EXPORTED_TYPE_TARGET,
-                "Exported type '$qualifiedName' must not declare type parameters; " +
-                    "a generic definition has no single shape to generate.",
-                declaration
-            )
-            return false
-        }
-        val kind = declaration.classKind
-        if (kind != ClassKind.CLASS && kind != ClassKind.ENUM_CLASS && kind != ClassKind.INTERFACE) {
-            logger.error(
-                ArcDiagnostic.EXPORTED_TYPE_TARGET,
-                "Exported type '$qualifiedName' must be a class, enum class or interface.",
-                declaration
-            )
-            return false
-        }
-        if (kind == ClassKind.CLASS && Modifier.ABSTRACT in declaration.modifiers) {
-            logger.error(
-                ArcDiagnostic.EXPORTED_TYPE_TARGET,
-                "Exported type '$qualifiedName' must not be abstract; " +
-                    "export the concrete derived types instead.",
-                declaration
-            )
-            return false
-        }
-        return true
     }
 
     private fun registerQuery(model: QueryModel, source: KSFunctionDeclaration): Boolean {
@@ -358,160 +318,8 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
         configurationReported = true
     }
 
-    private fun validateCommandClass(command: KSClassDeclaration, qualifiedName: String): Boolean {
-        if (command.parentDeclaration != null) {
-            logger.error("Command '$qualifiedName' must be a top-level class; nested commands are not supported.", command)
-            return false
-        }
-        if (command.classKind != ClassKind.CLASS) {
-            logger.error("Command '$qualifiedName' must be a concrete class.", command)
-            return false
-        }
-        if (!command.isPublic()) {
-            logger.error("Command '$qualifiedName' must be public so its generated handler can invoke it.", command)
-            return false
-        }
-        if (Modifier.ABSTRACT in command.modifiers) {
-            logger.error("Command '$qualifiedName' must not be abstract.", command)
-            return false
-        }
-        if (command.typeParameters.isNotEmpty()) {
-            logger.error("Command '$qualifiedName' must not declare type parameters.", command)
-            return false
-        }
-        return true
-    }
-
-    private fun findCommandHandler(command: KSClassDeclaration, qualifiedName: String): KSFunctionDeclaration? {
-        val namedHandlers = command.getDeclaredFunctions().filter { it.simpleName.asString() == HANDLER_NAME }.toList()
-        if (namedHandlers.isEmpty()) {
-            logger.error("Command '$qualifiedName' must declare exactly one public instance function named '$HANDLER_NAME'.", command)
-            return null
-        }
-        if (namedHandlers.size > 1) {
-            logger.error("Command '$qualifiedName' has overloaded '$HANDLER_NAME' functions; exactly one is supported.", command)
-            return null
-        }
-        val handler = namedHandlers.single()
-        if (!handler.isPublic()) {
-            logger.error("Handler '$qualifiedName.$HANDLER_NAME' must be public.", handler)
-            return null
-        }
-        if (handler.functionKind != FunctionKind.MEMBER || Modifier.JAVA_STATIC in handler.modifiers) {
-            logger.error("Handler '$qualifiedName.$HANDLER_NAME' must be a non-static instance function.", handler)
-            return null
-        }
-        if (Modifier.ABSTRACT in handler.modifiers) {
-            logger.error("Handler '$qualifiedName.$HANDLER_NAME' must not be abstract.", handler)
-            return null
-        }
-        if (handler.extensionReceiver != null) {
-            logger.error("Handler '$qualifiedName.$HANDLER_NAME' must not be an extension function.", handler)
-            return null
-        }
-        if (handler.typeParameters.isNotEmpty()) {
-            logger.error("Handler '$qualifiedName.$HANDLER_NAME' must not declare type parameters.", handler)
-            return null
-        }
-        return handler
-    }
-
-    private fun validateProvideMethod(method: KSFunctionDeclaration, qualifiedName: String): Boolean {
-        if (!method.isPublic()) {
-            logger.error("Provide method '$qualifiedName.$PROVIDE_NAME' must be public.", method)
-            return false
-        }
-        if (method.functionKind != FunctionKind.MEMBER || Modifier.JAVA_STATIC in method.modifiers) {
-            logger.error("Provide method '$qualifiedName.$PROVIDE_NAME' must be a non-static instance function.", method)
-            return false
-        }
-        if (Modifier.ABSTRACT in method.modifiers || method.extensionReceiver != null || method.typeParameters.isNotEmpty()) {
-            logger.error("Provide method '$qualifiedName.$PROVIDE_NAME' must be concrete, non-generic, and not an extension function.", method)
-            return false
-        }
-        return true
-    }
-
-    private fun buildCommandModel(command: KSClassDeclaration, resolver: Resolver): CommandModel? {
-        val qualifiedName = command.qualifiedName?.asString()
-        if (qualifiedName == null) {
-            logger.error(ArcDiagnostic.COMMAND_SHAPE, "@$COMMAND_SIMPLE_NAME classes must not be local.", command)
-            return null
-        }
-        if (!validateCommandClass(command, qualifiedName)) return null
-        val handler = findCommandHandler(command, qualifiedName) ?: return null
-
-        val handlerSite = CommandMethodSite(qualifiedName, handler, HANDLER_NAME)
-        val parameters = methodReader.parameters(handlerSite) ?: return null
-        val invocationKind = methodReader.invocationKind(handlerSite, resolver) ?: return null
-        val namedProvides = command.getDeclaredFunctions().filter { it.simpleName.asString() == PROVIDE_NAME }.toList()
-        if (namedProvides.size > 1) {
-            logger.error("Command '$qualifiedName' has overloaded '$PROVIDE_NAME' functions; at most one is supported.", command)
-            return null
-        }
-        val provideMethod = namedProvides.singleOrNull()
-        if (provideMethod != null && !validateProvideMethod(provideMethod, qualifiedName)) return null
-        val provide = provideMethod?.let { method ->
-            val provideSite = CommandMethodSite(qualifiedName, method, PROVIDE_NAME)
-            ProvideModel(
-                methodReader.parameters(provideSite) ?: return null,
-                methodReader.invocationKind(provideSite, resolver, allowNullableReturn = true) ?: return null
-            )
-        }
-        if (provideMethod != null) providedValueWarner.warn(qualifiedName, provideMethod, handler, resolver)
-        val properties = buildProperties(command, qualifiedName) ?: return null
-        val commandKeys = properties.filter(PropertyModel::isCommandKey)
-        if (commandKeys.size > 1) {
-            logger.error(
-                "Command '$qualifiedName' declares multiple @CommandKey properties: " +
-                    commandKeys.joinToString { property -> property.name } + ". Exactly one is supported.",
-                command
-            )
-            return null
-        }
-        val commandKey = commandKeys.singleOrNull()
-        val eventMetadata = CommandEventMetadataReader(logger, command, qualifiedName).read()
-        if (eventMetadata?.isValid == false) return null
-        val authorization = authorizationReader.read(command, handler, qualifiedName, "Command") ?: return null
-        val containingFile = command.containingFile
-        if (containingFile == null) {
-            logger.error(ArcDiagnostic.COMMAND_SHAPE, "Command '$qualifiedName' does not have a resolvable source file.", command)
-            return null
-        }
-
-        // Validate unconditional response restrictions without traversing a provisional CLIENT-only graph.
-        CommandResponseClassifier(responseServices(), qualifiedName, handler, collectClientGraph = false)
-            .determine(resolver) ?: return null
-        if (moduleName != null && emittedCommands.add(qualifiedName)) {
-            generateHandler(
-                CommandInvocationModel(
-                    qualifiedName, commandHandlerClassName(qualifiedName), parameters, provide,
-                    commandKey?.name, commandKey != null && isParsedJavaRecord(command), invocationKind
-                ),
-                containingFile
-            )
-        }
-        val response = CommandResponseClassifier(responseServices(), qualifiedName, handler).determine(resolver)
-            ?: return null
-        return CommandModel(
-            qualifiedName = qualifiedName,
-            simpleName = command.simpleName.asString(),
-            handlerClassName = commandHandlerClassName(qualifiedName),
-            parameters = parameters,
-            provide = provide,
-            properties = properties,
-            commandKeyPropertyName = commandKey?.name,
-            commandKeyUsesFunction = commandKey != null && isParsedJavaRecord(command),
-            authorization = authorization,
-            treatWarningsAsErrors = command.hasAnnotation(TREAT_WARNINGS_AS_ERRORS_ANNOTATION) ||
-                handler.hasAnnotation(TREAT_WARNINGS_AS_ERRORS_ANNOTATION),
-            responseTypeName = response.typeName,
-            responseIsEnumerable = response.isEnumerable,
-            responseValues = response.values,
-            invocationKind = invocationKind,
-            summary = DocumentationSummaryParser.parse(command.docString).summary,
-            eventMetadata = eventMetadata
-        )
+    private fun commandModelBuilder(resolver: Resolver) = CommandModelBuilder(responseServices(), resolver) { invocation, file ->
+        if (moduleName != null && emittedCommands.add(invocation.qualifiedName)) generateHandler(invocation, file)
     }
 
     private fun responseServices() =
@@ -645,39 +453,6 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
         declaration.getAllSuperTypes()
             .mapNotNull { superType -> superType.declaration.qualifiedName?.asString() }
             .any(SUPPORTED_RESPONSE_VALUE_HANDLER_TYPES::contains)
-
-    private fun isParsedJavaRecord(command: KSClassDeclaration): Boolean {
-        if (command.origin != Origin.JAVA) return false
-        val source = command.containingFile?.filePath?.let(::File)?.takeIf(File::isFile)?.readText() ?: return false
-        return parseJavaRecordProperties(source, command.simpleName.asString()) != null
-    }
-
-    private fun buildProperties(command: KSClassDeclaration, commandName: String): List<PropertyModel>? =
-        metadataCollector.describeProperties(command, commandName)
-
-    private fun validateReadModelShape(readModel: KSClassDeclaration, qualifiedName: String): Boolean {
-        if (readModel.parentDeclaration != null) {
-            logger.error("Read model '$qualifiedName' must be a top-level class; nested read models are not supported.", readModel)
-            return false
-        }
-        if (readModel.classKind != ClassKind.CLASS) {
-            logger.error("Read model '$qualifiedName' must be a concrete class.", readModel)
-            return false
-        }
-        if (!readModel.isPublic()) {
-            logger.error("Read model '$qualifiedName' must be public so generated performers can use it.", readModel)
-            return false
-        }
-        if (Modifier.ABSTRACT in readModel.modifiers) {
-            logger.error("Read model '$qualifiedName' must not be abstract.", readModel)
-            return false
-        }
-        if (readModel.typeParameters.isNotEmpty()) {
-            logger.error("Read model '$qualifiedName' must not declare type parameters.", readModel)
-            return false
-        }
-        return true
-    }
 
     private fun buildQueryModels(readModel: KSClassDeclaration, resolver: Resolver): List<QueryModel> {
         val qualifiedName = readModel.qualifiedName?.asString() ?: return emptyList()
