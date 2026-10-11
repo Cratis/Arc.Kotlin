@@ -44,38 +44,21 @@ internal class TypeScriptProxyGenerator(
 ) {
     constructor(artifacts: MergedArcArtifacts, options: ProxyGenerationOptions) : this(artifacts, options, false)
 
-    private val shared = SharedValidationGraph(artifacts)
-    private val commandTypeNames = artifacts.commands.map(CommandDescriptor::typeName).toSet()
-
-    /**
-     * A type answered by configuration is never also generated.
-     *
-     * Emitting it as well would put a local declaration and an external import of the same name in scope, so a
-     * configured mapping has to remove the type from output the way Arc .NET excludes types from a mapped assembly.
-     */
-    private fun isExternallyMapped(typeName: String): Boolean =
-        typeName in options.typeMappings ||
-            ProxyTypeMappings.npmPackageFor(typeName, options.packageMappings) != null
-
-    private val emittedTypes = artifacts.types
-        .filterNot { it.fullyQualifiedName in commandTypeNames }
-        .filterNot { isExternallyMapped(it.fullyQualifiedName) }
-    private val emittedInterfaces = artifacts.interfaces.filterNot { isExternallyMapped(it.fullyQualifiedName) }
-    private val emittedEnums = artifacts.enums.filterNot { isExternallyMapped(it.fullyQualifiedName) }
-    private val queryTargets = buildQueryTargets()
-    private val conceptsBySource = artifacts.concepts.associateBy { concept -> concept.fullyQualifiedName }
-    private val targets = buildTargets()
-    private val targetBySource = targets.associateBy(ArtifactTarget::sourceName)
+    private val model = TypeScriptGenerationModel(artifacts, options, useProxyFileSuffix)
+    private val shared = model.shared
+    private val emittedTypes = model.emittedTypes
+    private val emittedInterfaces = model.emittedInterfaces
+    private val emittedEnums = model.emittedEnums
+    private val targetBySource = model.targetBySource
     private val validators = TypeScriptValidatorRenderer(shared)
     private val outputTree = TypeScriptOutputTree(options.outputDirectory)
-    private val resolver = TypeScriptTypeResolver(artifacts, options, conceptsBySource, targetBySource)
+    private val resolver = TypeScriptTypeResolver(model)
+    private val artifactValidator = TypeScriptArtifactValidator(model, resolver)
 
     fun generate(): List<File> {
         require(options.segmentsToSkip >= 0) { "Proxy segmentsToSkip cannot be negative." }
         outputTree.validate()
-        validateMappings()
-        validateArtifacts()
-        validateSharedGeneration()
+        artifactValidator.validate()
         val generated = renderArtifacts()
 
         val written = outputTree.write(generated)
@@ -87,145 +70,6 @@ internal class TypeScriptProxyGenerator(
         val indexes = outputTree.updateIndexFiles(generated.map(GeneratedFile::relativePath).toSet(), removed)
         outputTree.removeEmptyDirectories()
         return written + indexes
-    }
-
-    private fun buildTargets(): List<ArtifactTarget> {
-        val result = mutableListOf<ArtifactTarget>()
-        artifacts.commands.forEach {
-            result += ArtifactTarget(
-                it.typeName, it.name, outputDirectory(it.location), ArtifactKind.COMMAND, useProxyFileSuffix
-            )
-        }
-        emittedTypes.forEach {
-            result += ArtifactTarget(
-                it.fullyQualifiedName, it.name, outputDirectory(it.location), ArtifactKind.TYPE, useProxyFileSuffix
-            )
-        }
-        emittedInterfaces.forEach {
-            result += ArtifactTarget(
-                it.fullyQualifiedName, it.name, outputDirectory(it.location), ArtifactKind.INTERFACE, useProxyFileSuffix
-            )
-        }
-        emittedEnums.forEach {
-            result += ArtifactTarget(
-                it.fullyQualifiedName, it.name, outputDirectory(it.location), ArtifactKind.ENUM, useProxyFileSuffix
-            )
-        }
-        artifacts.queries.forEach { result += queryTarget(it) }
-        return result
-    }
-
-    private fun buildQueryTargets(): Map<String, ArtifactTarget> = artifacts.queries.associate { query ->
-        query.fullyQualifiedName to ArtifactTarget(
-            query.fullyQualifiedName,
-            upperCamel(query.name),
-            outputDirectory(query.location),
-            ArtifactKind.QUERY,
-            useProxyFileSuffix
-        )
-    }
-
-    private fun queryTarget(query: QueryDescriptor): ArtifactTarget = queryTargets.getValue(query.fullyQualifiedName)
-
-    private fun outputDirectory(location: List<String>): List<String> = location.drop(options.segmentsToSkip)
-
-    private fun validateMappings() {
-        options.typeMappings.forEach { (sourceName, mapping) ->
-            if (!JVM_TYPE_NAME.matches(sourceName) || sourceName != mapping.typeName) {
-                throw GradleException("Invalid Arc proxy mapping source '$sourceName'; use a fully qualified JVM type name.")
-            }
-            if (sourceName in conceptsBySource || sourceName in commandTypeNames) {
-                throw GradleException("Arc proxy mapping '$sourceName' targets a concept or command; map a concept's underlying type or a command's properties/response instead.")
-            }
-            resolver.mappedType(sourceName, mapping.typeScriptType, mapping.npmPackage)
-        }
-        options.packageMappings.forEach { (prefix, npmPackage) ->
-            if (!JVM_TYPE_NAME.matches(prefix)) throw GradleException("Invalid Arc proxy package prefix '$prefix'.")
-            resolver.mappedType("$prefix.Model", "Model", npmPackage)
-        }
-    }
-
-    private fun validateArtifacts() {
-        targets.forEach(::validateTarget)
-        targets.groupBy(ArtifactTarget::relativePath).filterValues { it.size > 1 }.forEach { (path, collisions) ->
-            throw GradleException("Duplicate TypeScript output '$path' for ${collisions.joinToString { it.sourceName }}.")
-        }
-        artifacts.commands.forEach { command ->
-            val current = targetBySource.getValue(command.typeName)
-            command.properties.forEach { property ->
-                validateValidationMetadata(
-                    "${command.typeName}.${property.name}",
-                    property.validationRules,
-                    property.validateRecursively,
-                    property.isEnumerable,
-                    property.typeName,
-                    property.elementTypeName
-                )
-            }
-            val referencedTypes = command.properties.map { resolvePropertyType(it, current) } +
-                listOfNotNull(command.responseTypeName?.let { resolver.resolveType(it, current) })
-            validateImportedTypeNames(
-                current,
-                referencedTypes,
-                referencedTypes,
-                if (command.responseTypeName == null) setOf("Object") else emptySet()
-            )
-        }
-        artifacts.queries.forEach { query ->
-            val target = queryTarget(query)
-            query.parameters.filter { parameter -> parameter.source == QueryParameterSource.CLIENT }.forEach { parameter ->
-                validateValidationMetadata(
-                    "${query.fullyQualifiedName}.${parameter.name}",
-                    parameter.validationRules,
-                    parameter.validateRecursively,
-                    parameter.isEnumerable,
-                    parameter.typeName,
-                    parameter.elementTypeName
-                )
-            }
-            val referencedTypes = listOf(resolver.resolveType(query.returnTypeName, target)) +
-                query.parameters.filter { parameter -> parameter.source == QueryParameterSource.CLIENT }
-                    .map { resolveParameterType(it, target) }
-            validateImportedTypeNames(target, referencedTypes, referencedTypes)
-        }
-        emittedTypes.forEach { type ->
-            val current = targetBySource.getValue(type.fullyQualifiedName)
-            type.properties.forEach { property ->
-                validateValidationMetadata(
-                    "${type.fullyQualifiedName}.${property.name}",
-                    property.validationRules,
-                    property.validateRecursively,
-                    property.isEnumerable,
-                    property.typeName,
-                    property.elementTypeName
-                )
-            }
-            val referencedTypes = type.properties.map { resolvePropertyType(it, current) } +
-                type.properties.flatMap { resolveDerivatives(it, current) } +
-                listOfNotNull(type.baseTypeName?.let { resolveBaseType(it, current) })
-            validateImportedTypeNames(current, referencedTypes, referencedTypes)
-        }
-        emittedInterfaces.forEach { interfaceDescriptor ->
-            val current = targetBySource.getValue(interfaceDescriptor.fullyQualifiedName)
-            validateImportedTypeNames(
-                current,
-                interfaceDescriptor.properties.map { resolvePropertyType(it, current) }
-            )
-        }
-    }
-
-    private fun validateSharedGeneration() {
-        val sharedTargets = targets.filter { shared.contains(it.sourceName) || it.kind == ArtifactKind.QUERY &&
-            artifacts.queries.single { query -> query.fullyQualifiedName == it.sourceName }.parameters.any { parameter -> shared.reaches(parameter.shape) } }
-        sharedTargets.forEach { target ->
-            if (targets.any { it.sourceName != target.sourceName && it.typeScriptName == target.typeScriptName + "Validator" })
-                throw GradleException("[ARCVALIDATION_GRAPH] Generated validator '${target.typeScriptName}Validator' collides with another artifact; rename the artifact.")
-        }
-        if (!options.endpointOptions.enableQueryHttpMethod && artifacts.queries.any { query -> query.parameters.any { shared.reaches(it.shape) } })
-            throw GradleException("[ARCVALIDATION_GRAPH] Shared model query arguments require enabled RFC QUERY transport.")
-        artifacts.types.filter { shared.contains(it.fullyQualifiedName) }.forEach { type ->
-            if (isExternallyMapped(type.fullyQualifiedName)) throw GradleException("[ARCVALIDATION_GRAPH] Shared model '${type.fullyQualifiedName}' cannot be externally mapped; generate its validator locally.")
-        }
     }
 
     private fun renderArtifacts(): List<GeneratedFile> {
@@ -251,7 +95,7 @@ internal class TypeScriptProxyGenerator(
             generated += GeneratedFile(target.relativePath, command.typeName, renderCommand(command, target, route))
         }
         artifacts.queries.forEach { query ->
-            val target = queryTarget(query)
+            val target = model.queryTarget(query)
             val namespace = query.location.drop(options.endpointOptions.segmentsToSkipForRoute).joinToString(".")
             val route = EndpointRouteHelper.queryRoute(
                 query,
@@ -279,148 +123,8 @@ internal class TypeScriptProxyGenerator(
         return generated
     }
 
-    private fun validateValidationMetadata(
-        identity: String,
-        rules: List<ValidationRuleDescriptor>,
-        validateRecursively: Boolean,
-        isEnumerable: Boolean,
-        typeName: String,
-        elementTypeName: String?
-    ) {
-        rules.forEach { rule ->
-            val validArguments = when (rule.ruleName) {
-                "notNull", "notEmpty", "emailAddress", "phone", "url", "creditCard" -> rule.arguments.isEmpty()
-                "minLength", "maxLength", "greaterThan", "greaterThanOrEqual", "lessThan", "lessThanOrEqual" ->
-                    rule.arguments.size == 1 && rule.arguments.single() is Number
-                "length" -> rule.arguments.size == 2 && rule.arguments.all { argument -> argument is Number }
-                "matches" -> rule.arguments.size == 1 && rule.arguments.single() is String
-                else -> false
-            }
-            if (!validArguments) {
-                throw GradleException(
-                    "Arc validation rule '${rule.ruleName}' on '$identity' has unsupported arguments ${rule.arguments}."
-                )
-            }
-        }
-        if (validateRecursively) {
-            val nestedType = if (isEnumerable) elementTypeName else typeName
-            val isGeneratedModel = artifacts.types.any { type -> type.fullyQualifiedName == nestedType }
-            val isConcept = conceptsBySource.containsKey(nestedType)
-            if (nestedType == null || (!isGeneratedModel && !isConcept)) {
-                throw GradleException(
-                    "Recursive Arc validation on '$identity' requires a generated concrete model or concept type."
-                )
-            }
-        }
-    }
-
-    private fun validateImportedTypeNames(
-        current: ArtifactTarget,
-        types: List<TypeScriptType>,
-        runtimeTypes: List<TypeScriptType> = emptyList(),
-        additionalGlobalRuntimeConstructors: Set<String> = emptySet()
-    ) {
-        val imported = types.flatMap { type -> type.recursiveTypes() }.mapNotNull(TypeScriptType::target)
-            .filterNot { it.sourceName == current.sourceName }.distinct()
-        imported.groupBy(ArtifactTarget::typeScriptName).filterValues { it.size > 1 }.forEach { (name, collisions) ->
-            throw GradleException(
-                "Duplicate TypeScript name '$name' imported by '${current.sourceName}' from " +
-                    collisions.joinToString { it.sourceName } + "."
-            )
-        }
-        imported.singleOrNull { it.typeScriptName == current.typeScriptName }?.let {
-            throw GradleException(
-                "Duplicate TypeScript name '${current.typeScriptName}' in '${current.sourceName}' and '${it.sourceName}'."
-            )
-        }
-        val valueImports = types.flatMap { type -> type.recursiveTypes() }
-            .mapNotNull(TypeScriptType::valueImport).distinct()
-        validateFrameworkNames(current, imported, valueImports)
-        validateValueImportNames(current, imported, valueImports)
-        validateGlobalRuntimeConstructors(current, types, runtimeTypes, additionalGlobalRuntimeConstructors, valueImports)
-    }
-
-    private fun validateFrameworkNames(
-        current: ArtifactTarget,
-        imported: List<ArtifactTarget>,
-        valueImports: List<TypeScriptValueImport>
-    ) {
-        val sharedFrameworkNames = if (shared.contains(current.sourceName)) setOf("ArcSharedValidator", "ArcSharedResult", "ArcSharedSeverity", "${current.typeScriptName}Validator") else emptySet()
-        if (current.typeScriptName in sharedFrameworkNames || imported.any { it.typeScriptName in sharedFrameworkNames })
-            throw GradleException("[ARCVALIDATION_GRAPH] Shared validator scaffolding name collision in '${current.sourceName}'; rename the model.")
-        val frameworkNames = sharedFrameworkNames + when (current.kind) {
-            ArtifactKind.COMMAND -> setOf("Command", "CommandValidator", "PropertyDescriptor", "useCommand", "SetCommandValues", "ClearCommandValues", "I${current.typeScriptName}", "${current.typeScriptName}Validator")
-            ArtifactKind.QUERY -> setOf("QueryFor", "ObservableQueryFor", "QueryResultWithState", "QueryValidator", "ParameterDescriptor", "Sorting", "Paging", "SortingActions", "SortingActionsForQuery", "SortingActionsForObservableQuery", "QueryHttpMethod", "QueryWhen", "ObservableQueryWhen", "ChangeSet", "PerformQuery", "SetSorting", "SetPage", "SetPageSize", "useQuery", "useQueryWithPaging", "useSuspenseQuery", "useSuspenseQueryWithPaging", "useObservableQuery", "useObservableQueryWithPaging", "useSuspenseObservableQuery", "useSuspenseObservableQueryWithPaging", "useChangeStream", "${current.typeScriptName}Parameters", "${current.typeScriptName}Validator", "${current.typeScriptName}SortBy", "${current.typeScriptName}SortByWithoutQuery")
-            ArtifactKind.TYPE -> setOf("field", "derivedType")
-            else -> emptySet()
-        }
-        valueImports.firstOrNull { it.name in frameworkNames }?.let { reference ->
-            throw GradleException("External TypeScript import '${reference.name}' in '${current.sourceName}' collides with generated framework scaffolding.")
-        }
-    }
-
-    private fun validateValueImportNames(
-        current: ArtifactTarget,
-        imported: List<ArtifactTarget>,
-        valueImports: List<TypeScriptValueImport>
-    ) {
-        valueImports.groupBy(TypeScriptValueImport::name).filterValues { imports ->
-            imports.map(TypeScriptValueImport::packageName).distinct().size > 1
-        }.forEach { (name, collisions) ->
-            throw GradleException(
-                "Duplicate TypeScript value import '$name' in '${current.sourceName}' from " +
-                    collisions.joinToString { it.packageName } + "."
-            )
-        }
-        valueImports.forEach { valueImport ->
-            if (valueImport.name == current.typeScriptName) {
-                throw GradleException(
-                    "Duplicate TypeScript name '${current.typeScriptName}' in '${current.sourceName}' and " +
-                        "value import '${valueImport.packageName}'."
-                )
-            }
-            imported.firstOrNull { it.typeScriptName == valueImport.name }?.let { artifact ->
-                throw GradleException(
-                    "Duplicate TypeScript name '${valueImport.name}' imported by '${current.sourceName}' from " +
-                        "'${artifact.sourceName}' and '${valueImport.packageName}'."
-                )
-            }
-        }
-    }
-
-    private fun validateGlobalRuntimeConstructors(
-        current: ArtifactTarget,
-        types: List<TypeScriptType>,
-        runtimeTypes: List<TypeScriptType>,
-        additionalGlobalRuntimeConstructors: Set<String>,
-        valueImports: List<TypeScriptValueImport>
-    ) {
-        val globalRuntimeConstructors = runtimeTypes.mapNotNull { it.globalRuntimeConstructor() }.toSet() +
-            additionalGlobalRuntimeConstructors
-        val valueImportedTargets = customImports(types, runtimeTypes)
-            .filter { it.kind == TypeScriptImportKind.VALUE && it.target.sourceName != current.sourceName }
-            .map(TypeScriptImport::target)
-        globalRuntimeConstructors.sorted().forEach { constructor ->
-            if (current.typeScriptName == constructor) {
-                throw GradleException(
-                    "TypeScript global runtime constructor '$constructor' in '${current.sourceName}' is shadowed by " +
-                        "the generated artifact with the same name."
-                )
-            }
-            valueImports.firstOrNull { it.name == constructor }?.let { reference ->
-                throw GradleException("TypeScript global runtime constructor '$constructor' in '${current.sourceName}' is shadowed by the value import '${reference.packageName}'.")
-            }
-            valueImportedTargets.firstOrNull { it.typeScriptName == constructor }?.let { artifact ->
-                throw GradleException(
-                    "TypeScript global runtime constructor '$constructor' in '${current.sourceName}' is shadowed by " +
-                        "the value import '${artifact.sourceName}'."
-                )
-            }
-        }
-    }
-
     private fun renderCommand(command: CommandDescriptor, target: ArtifactTarget, route: String): String {
-        val propertyTypes = command.properties.map { resolvePropertyType(it, target) }
+        val propertyTypes = command.properties.map { resolver.resolvePropertyType(it, target) }
         val response = command.responseTypeName?.let { resolver.resolveType(it, target) }
         val referencedTypes = propertyTypes + listOfNotNull(response)
         val imports = customImports(referencedTypes, referencedTypes)
@@ -451,7 +155,7 @@ internal class TypeScriptProxyGenerator(
             append("export interface $interfaceName {\n")
             command.properties.forEach { property ->
                 appendDocumentation(property.summary, "    ")
-                append("    ${lowerCamel(property.name)}?: ${propertyTypeName(property, target)};\n")
+                append("    ${lowerCamel(property.name)}?: ${resolver.propertyTypeName(property, target)};\n")
             }
             append("}\n\n")
             if (sharedValidation) {
@@ -478,13 +182,13 @@ internal class TypeScriptProxyGenerator(
             append("    readonly roles: string[] = ${roles(command.authorization.roles)};\n")
             append("    readonly propertyDescriptors: PropertyDescriptor[] = [\n")
             command.properties.forEach { property ->
-                val type = resolvePropertyType(property, target)
+                val type = resolver.resolvePropertyType(property, target)
                 append("        new PropertyDescriptor('${lowerCamel(property.name)}', ${type.constructor}, ${property.isNullable}),\n")
             }
             append("    ];\n\n")
             command.properties.forEach { property ->
                 val nullable = if (property.isNullable) "?" else "!"
-                append("    private _${lowerCamel(property.name)}$nullable: ${propertyTypeName(property, target)};\n")
+                append("    private _${lowerCamel(property.name)}$nullable: ${resolver.propertyTypeName(property, target)};\n")
             }
             append("\n    constructor() {\n")
             append("        super(${response?.constructor ?: "Object"}, ${command.responseIsEnumerable});\n")
@@ -494,7 +198,7 @@ internal class TypeScriptProxyGenerator(
             append("        ];\n    }\n\n")
             command.properties.forEach { property ->
                 val name = lowerCamel(property.name)
-                val type = propertyTypeName(property, target)
+                val type = resolver.propertyTypeName(property, target)
                 val optional = if (property.isNullable) " | undefined" else ""
                 appendDocumentation(property.summary, "    ")
                 append("    get $name(): $type$optional {\n        return this._$name;\n    }\n\n")
@@ -557,9 +261,9 @@ internal class TypeScriptProxyGenerator(
     }
 
     private fun renderType(type: TypeDescriptor, target: ArtifactTarget): String {
-        val propertyTypes = type.properties.associateWith { property -> resolvePropertyType(property, target) }
-        val derivativeTypes = type.properties.associateWith { property -> resolveDerivatives(property, target) }
-        val baseType = type.baseTypeName?.let { resolveBaseType(it, target) }
+        val propertyTypes = type.properties.associateWith { property -> resolver.resolvePropertyType(property, target) }
+        val derivativeTypes = type.properties.associateWith { property -> resolver.resolveDerivatives(property, target) }
+        val baseType = type.baseTypeName?.let { resolver.resolveBaseType(it, target) }
         val referencedTypes = propertyTypes.values + derivativeTypes.values.flatten() + listOfNotNull(baseType)
         val imports = customImports(referencedTypes, referencedTypes)
         return buildString {
@@ -588,7 +292,7 @@ internal class TypeScriptProxyGenerator(
                 appendDocumentation(property.summary, "    ")
                 append("    @field(${fieldArguments.joinToString(", ")})\n")
                 val marker = if (property.isNullable) "?" else "!"
-                append("    ${lowerCamel(property.name)}$marker: ${propertyTypeName(property, target)};\n")
+                append("    ${lowerCamel(property.name)}$marker: ${resolver.propertyTypeName(property, target)};\n")
             }
             append("}\n")
             if (shared.contains(type.fullyQualifiedName)) {
@@ -605,7 +309,7 @@ internal class TypeScriptProxyGenerator(
     }
 
     private fun renderInterface(interfaceDescriptor: InterfaceDescriptor, target: ArtifactTarget): String {
-        val referencedTypes = interfaceDescriptor.properties.map { resolvePropertyType(it, target) }
+        val referencedTypes = interfaceDescriptor.properties.map { resolver.resolvePropertyType(it, target) }
         val imports = customImports(referencedTypes)
         return buildString {
             appendGeneratedHeader()
@@ -619,7 +323,7 @@ internal class TypeScriptProxyGenerator(
             interfaceDescriptor.properties.forEach { property ->
                 val optional = if (property.isNullable) "?" else ""
                 appendDocumentation(property.summary, "    ")
-                append("    ${lowerCamel(property.name)}$optional: ${propertyTypeName(property, target)};\n")
+                append("    ${lowerCamel(property.name)}$optional: ${resolver.propertyTypeName(property, target)};\n")
             }
             append("}\n")
         }
@@ -644,7 +348,7 @@ internal class TypeScriptProxyGenerator(
             .sortedBy(ParameterDescriptor::name)
         val validationTargets = queryValidationTargets(parameters)
         val model = resolver.resolveType(query.returnTypeName, target)
-        val parameterTypes = parameters.map { resolveParameterType(it, target) }
+        val parameterTypes = parameters.map { resolver.resolveParameterType(it, target) }
         val referencedTypes = listOf(model) + parameterTypes
         val imports = customImports(referencedTypes, referencedTypes)
         val sortableProperties = returnedSortProperties(query)
@@ -733,9 +437,9 @@ internal class TypeScriptProxyGenerator(
         m.parameters.forEach { parameter ->
             if (observable) append("    \n")
             val optional = if (parameter.isNullable || parameter.hasDefault) "?" else ""
-            val array = parameterArraySuffix(parameter)
+            val array = resolver.parameterArraySuffix(parameter)
             appendDocumentation(parameter.summary, "    ")
-            append("    ${lowerCamel(parameter.name)}$optional: ${resolveParameterType(parameter, m.target).name}$array;\n")
+            append("    ${lowerCamel(parameter.name)}$optional: ${resolver.resolveParameterType(parameter, m.target).name}$array;\n")
         }
         append("}\n")
     }
@@ -767,13 +471,13 @@ internal class TypeScriptProxyGenerator(
         append("        ];\n    }\n\n")
         append("    readonly parameterDescriptors: ParameterDescriptor[] = [\n")
         m.parameters.forEach { parameter ->
-            append("        new ParameterDescriptor('${lowerCamel(parameter.name)}', ${resolveParameterType(parameter, m.target).constructor}, ${parameter.isEnumerable}),\n")
+            append("        new ParameterDescriptor('${lowerCamel(parameter.name)}', ${resolver.resolveParameterType(parameter, m.target).constructor}, ${parameter.isEnumerable}),\n")
         }
         append("    ];\n\n")
         m.parameters.forEach { parameter ->
             val optional = if (parameter.hasDefault) "?" else "!"
-            val array = parameterArraySuffix(parameter)
-            append("    ${lowerCamel(parameter.name)}$optional: ${resolveParameterType(parameter, m.target).name}$array;\n")
+            val array = resolver.parameterArraySuffix(parameter)
+            append("    ${lowerCamel(parameter.name)}$optional: ${resolver.resolveParameterType(parameter, m.target).name}$array;\n")
         }
         if (!m.query.isEnumerable) append("\n")
     }
@@ -854,21 +558,6 @@ internal class TypeScriptProxyGenerator(
         }
     }
 
-    private fun customImports(
-        types: Collection<TypeScriptType>,
-        runtimeTypes: Collection<TypeScriptType> = emptyList()
-    ): List<TypeScriptImport> {
-        val valueTargets = runtimeTypes.mapNotNull { type ->
-            type.target?.takeIf { target -> type.constructor == target.typeScriptName }
-        }.toSet()
-        return types.flatMap { type -> type.recursiveTypes() }.mapNotNull(TypeScriptType::target).distinct().map { target ->
-            TypeScriptImport(
-                target,
-                if (target in valueTargets) TypeScriptImportKind.VALUE else TypeScriptImportKind.TYPE
-            )
-        }
-    }
-
     private fun StringBuilder.appendCustomImports(imports: Collection<TypeScriptImport>, current: ArtifactTarget) {
         if (current.kind == ArtifactKind.QUERY) {
             val shapes = artifacts.queries.single { it.fullyQualifiedName == current.sourceName }.parameters
@@ -893,58 +582,6 @@ internal class TypeScriptProxyGenerator(
         val upward = "../".repeat(from.size - common)
         val downward = (target.directory.drop(common) + target.fileStem).joinToString("/")
         return if (upward.isEmpty()) "./$downward" else "$upward$downward"
-    }
-
-    private fun resolvePropertyType(property: PropertyDescriptor, current: ArtifactTarget): TypeScriptType =
-        if (property.shape.kind == TypeShapeKind.MAP) {
-            resolver.resolveMapShape(property.shape, property.name)
-        } else {
-            resolver.resolveType(if (property.isEnumerable) requireElementType(property.name, property.elementTypeName) else property.typeName, current)
-        }
-
-    private fun propertyTypeName(property: PropertyDescriptor, current: ArtifactTarget): String =
-        resolvePropertyType(property, current).name + (if (property.isEnumerable) "[]" else "") +
-            if (shared.contains(current.sourceName) && property.isNullable) " | null" else ""
-
-    private fun TypeScriptType.recursiveTypes(): List<TypeScriptType> = listOf(this) + nestedTypes.flatMap {
-        nested -> nested.recursiveTypes()
-    }
-
-    private fun parameterArraySuffix(parameter: ParameterDescriptor): String =
-        if (!parameter.isEnumerable) "" else "[]" + if (parameter.isNullable && shared.reaches(parameter.shape)) " | null" else ""
-
-    private fun resolveParameterType(parameter: ParameterDescriptor, current: ArtifactTarget): TypeScriptType {
-        val type = resolver.resolveType(if (parameter.isEnumerable) requireElementType(parameter.name, parameter.elementTypeName) else parameter.typeName, current)
-        return if (parameter.isNullable && shared.reaches(parameter.shape) && !parameter.isEnumerable) type.copy(name = type.name + " | null") else type
-    }
-
-    private fun resolveDerivatives(property: PropertyDescriptor, current: ArtifactTarget): List<TypeScriptType> =
-        property.derivatives.map { derivativeName ->
-            val derivative = resolver.resolveType(derivativeName, current)
-            if (derivative.target?.kind != ArtifactKind.TYPE) {
-                throw GradleException(
-                    "Arc derivative '$derivativeName' on '${current.sourceName}.${property.name}' must be a generated concrete model type."
-                )
-            }
-            derivative
-        }
-
-    private fun resolveBaseType(baseTypeName: String, current: ArtifactTarget): TypeScriptType {
-        val baseType = resolver.resolveType(baseTypeName, current)
-        if (baseType.target?.kind != ArtifactKind.TYPE) {
-            throw GradleException("Arc base type '$baseTypeName' on '${current.sourceName}' must be a generated model type.")
-        }
-        return baseType
-    }
-
-    private fun requireElementType(name: String, elementTypeName: String?): String =
-        elementTypeName ?: throw GradleException("Enumerable '$name' does not declare an elementTypeName.")
-
-    private fun TypeScriptType.globalRuntimeConstructor(): String? {
-        if (constructor !in GLOBAL_RUNTIME_CONSTRUCTORS || valueImport?.typeOnly == false) return null
-        return constructor.takeIf {
-            target == null || target.kind == ArtifactKind.INTERFACE || target.kind == ArtifactKind.ENUM
-        }
     }
 
     /**
@@ -978,23 +615,4 @@ internal class TypeScriptProxyGenerator(
         append(" *  **DO NOT EDIT** - This file is an automatically generated file.\n")
         append(" *--------------------------------------------------------------------------------------------*/\n\n")
     }
-
-    private fun validateTarget(target: ArtifactTarget) {
-        target.directory.forEach { segment ->
-            if (!SAFE_PATH_SEGMENT.matches(segment) || segment == "." || segment == "..") {
-                throw GradleException("Unsafe Arc proxy path segment '$segment' from '${target.sourceName}'.")
-            }
-        }
-        if (!TYPESCRIPT_IDENTIFIER.matches(target.typeScriptName)) {
-            throw GradleException(
-                "Unsafe Arc proxy TypeScript name '${target.typeScriptName}' from '${target.sourceName}'."
-            )
-        }
-        val root = options.outputDirectory.canonicalFile.toPath()
-        val destination = File(options.outputDirectory, target.relativePath).canonicalFile.toPath()
-        if (!destination.startsWith(root)) {
-            throw GradleException("Arc proxy output '${target.relativePath}' escapes '${options.outputDirectory.path}'.")
-        }
-    }
-
 }

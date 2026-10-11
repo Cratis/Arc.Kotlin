@@ -5,17 +5,19 @@ package io.cratis.arc.gradle
 
 import io.cratis.arc.metadata.ConceptDescriptor
 import io.cratis.arc.metadata.MapKeyCodec
+import io.cratis.arc.metadata.ParameterDescriptor
+import io.cratis.arc.metadata.PropertyDescriptor
 import io.cratis.arc.metadata.TypeShapeDescriptor
 import io.cratis.arc.metadata.TypeShapeKind
 import org.gradle.api.GradleException
 
 /** Resolves JVM type names, concepts, mapped types and map shapes to their TypeScript representation. */
-internal class TypeScriptTypeResolver(
-    private val artifacts: MergedArcArtifacts,
-    private val options: ProxyGenerationOptions,
-    private val conceptsBySource: Map<String, ConceptDescriptor>,
-    private val targetBySource: Map<String, ArtifactTarget>
-) {
+internal class TypeScriptTypeResolver(private val model: TypeScriptGenerationModel) {
+    private val artifacts = model.artifacts
+    private val options = model.options
+    private val conceptsBySource = model.conceptsBySource
+    private val targetBySource = model.targetBySource
+
     fun resolveMapShape(shape: TypeShapeDescriptor, propertyName: String): TypeScriptType =
         resolveMapShape(shape, MapEntry(propertyName, propertyName), true)
 
@@ -143,7 +145,50 @@ internal class TypeScriptTypeResolver(
         TYPESCRIPT_IDENTIFIER.matches(name) && name !in RESERVED_MAPPING_NAMES &&
             NPM_IMPORT_PATH.matches(npmPackage) && npmPackage.split('/').none { it == "." || it == ".." }
 
-
     private fun isMapType(typeName: String): Boolean =
         typeName == "kotlin.collections.Map" || typeName == "kotlin.collections.MutableMap" || typeName == "java.util.Map"
+
+    fun resolvePropertyType(property: PropertyDescriptor, current: ArtifactTarget): TypeScriptType =
+        if (property.shape.kind == TypeShapeKind.MAP) {
+            resolveMapShape(property.shape, property.name)
+        } else {
+            resolveType(if (property.isEnumerable) requireElementType(property.name, property.elementTypeName) else property.typeName, current)
+        }
+
+    fun propertyTypeName(property: PropertyDescriptor, current: ArtifactTarget): String =
+        resolvePropertyType(property, current).name + (if (property.isEnumerable) "[]" else "") +
+            if (model.shared.contains(current.sourceName) && property.isNullable) " | null" else ""
+
+    private fun isNullableShared(parameter: ParameterDescriptor): Boolean =
+        parameter.isNullable && model.shared.reaches(parameter.shape)
+
+    fun parameterArraySuffix(parameter: ParameterDescriptor): String =
+        if (!parameter.isEnumerable) "" else "[]" + if (isNullableShared(parameter)) " | null" else ""
+
+    fun resolveParameterType(parameter: ParameterDescriptor, current: ArtifactTarget): TypeScriptType {
+        val type = resolveType(if (parameter.isEnumerable) requireElementType(parameter.name, parameter.elementTypeName) else parameter.typeName, current)
+        return if (isNullableShared(parameter) && !parameter.isEnumerable) type.copy(name = type.name + " | null") else type
+    }
+
+    fun resolveDerivatives(property: PropertyDescriptor, current: ArtifactTarget): List<TypeScriptType> =
+        property.derivatives.map { derivativeName ->
+            val derivative = resolveType(derivativeName, current)
+            if (derivative.target?.kind != ArtifactKind.TYPE) {
+                throw GradleException(
+                    "Arc derivative '$derivativeName' on '${current.sourceName}.${property.name}' must be a generated concrete model type."
+                )
+            }
+            derivative
+        }
+
+    fun resolveBaseType(baseTypeName: String, current: ArtifactTarget): TypeScriptType {
+        val baseType = resolveType(baseTypeName, current)
+        if (baseType.target?.kind != ArtifactKind.TYPE) {
+            throw GradleException("Arc base type '$baseTypeName' on '${current.sourceName}' must be a generated model type.")
+        }
+        return baseType
+    }
+
+    private fun requireElementType(name: String, elementTypeName: String?): String =
+        elementTypeName ?: throw GradleException("Enumerable '$name' does not declare an elementTypeName.")
 }
