@@ -3,7 +3,6 @@
 
 package io.cratis.arc.gradle
 
-import io.cratis.arc.json.ArcCamelCase
 import io.cratis.arc.metadata.QueryDescriptor
 
 /** Which generated query base class a hook set is rendered for. */
@@ -253,5 +252,3 @@ private fun StringBuilder.appendSortBy(names: SortHelperNames, noProperties: Boo
     }
     if (noProperties) append("\n")
 }
-
-private fun lowerCamel(value: String): String = requireNotNull(ArcCamelCase.convert(value))
