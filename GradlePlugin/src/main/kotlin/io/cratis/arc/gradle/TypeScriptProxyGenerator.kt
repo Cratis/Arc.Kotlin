@@ -37,46 +37,6 @@ internal data class ProxyGenerationOptions(
     val packageMappings: Map<String, String> = emptyMap()
 )
 
-private enum class ArtifactKind { COMMAND, TYPE, INTERFACE, ENUM, QUERY }
-
-private data class ArtifactTarget(
-    val sourceName: String,
-    val typeScriptName: String,
-    val directory: List<String>,
-    val kind: ArtifactKind,
-    val useProxyFileSuffix: Boolean
-) {
-    val fileStem: String = typeScriptName + if (useProxyFileSuffix) ".proxy" else ""
-    val relativePath: String = (directory + "$fileStem.ts").joinToString("/")
-}
-
-private data class TypeScriptValueImport(
-    val packageName: String,
-    val name: String,
-    val typeOnly: Boolean = false
-)
-
-private enum class TypeScriptImportKind { TYPE, VALUE }
-
-private data class TypeScriptImport(val target: ArtifactTarget, val kind: TypeScriptImportKind)
-
-private data class TypeScriptType(
-    val name: String,
-    val constructor: String,
-    val target: ArtifactTarget? = null,
-    val valueImport: TypeScriptValueImport? = null,
-    val nestedTypes: List<TypeScriptType> = emptyList()
-)
-
-private data class ValidationTarget(
-    val propertyName: String,
-    val rules: List<ValidationRuleDescriptor>,
-    val skipWhenUndefined: Boolean = false,
-    val sharedEdge: Boolean = false
-) {
-    val hasRules: Boolean = rules.isNotEmpty() || sharedEdge
-}
-
 internal class TypeScriptProxyGenerator(
     private val artifacts: MergedArcArtifacts,
     private val options: ProxyGenerationOptions,
@@ -84,46 +44,36 @@ internal class TypeScriptProxyGenerator(
 ) {
     constructor(artifacts: MergedArcArtifacts, options: ProxyGenerationOptions) : this(artifacts, options, false)
 
-    private val shared = SharedValidationGraph(artifacts)
-    private val commandTypeNames = artifacts.commands.map(CommandDescriptor::typeName).toSet()
-
-    /**
-     * A type answered by configuration is never also generated.
-     *
-     * Emitting it as well would put a local declaration and an external import of the same name in scope, so a
-     * configured mapping has to remove the type from output the way Arc .NET excludes types from a mapped assembly.
-     */
-    private fun isExternallyMapped(typeName: String): Boolean =
-        typeName in options.typeMappings ||
-            ProxyTypeMappings.npmPackageFor(typeName, options.packageMappings) != null
-
-    private val emittedTypes = artifacts.types
-        .filterNot { it.fullyQualifiedName in commandTypeNames }
-        .filterNot { isExternallyMapped(it.fullyQualifiedName) }
-    private val emittedInterfaces = artifacts.interfaces.filterNot { isExternallyMapped(it.fullyQualifiedName) }
-    private val emittedEnums = artifacts.enums.filterNot { isExternallyMapped(it.fullyQualifiedName) }
-    private val queryTargets = buildQueryTargets()
-    private val conceptsBySource = artifacts.concepts.associateBy { concept -> concept.fullyQualifiedName }
-    private val targets = buildTargets()
-    private val targetBySource = targets.associateBy(ArtifactTarget::sourceName)
+    private val model = TypeScriptGenerationModel(artifacts, options, useProxyFileSuffix)
+    private val shared = model.shared
+    private val emittedTypes = model.emittedTypes
+    private val emittedInterfaces = model.emittedInterfaces
+    private val emittedEnums = model.emittedEnums
+    private val targetBySource = model.targetBySource
+    private val validators = TypeScriptValidatorRenderer(shared)
+    private val outputTree = TypeScriptOutputTree(options.outputDirectory)
+    private val resolver = TypeScriptTypeResolver(model)
+    private val artifactValidator = TypeScriptArtifactValidator(model, resolver)
 
     fun generate(): List<File> {
         require(options.segmentsToSkip >= 0) { "Proxy segmentsToSkip cannot be negative." }
-        validateOutputTree()
-        validateMappings()
-        validateArtifacts()
-        val sharedTargets = targets.filter { shared.contains(it.sourceName) || it.kind == ArtifactKind.QUERY &&
-            artifacts.queries.single { query -> query.fullyQualifiedName == it.sourceName }.parameters.any { parameter -> shared.reaches(parameter.shape) } }
-        sharedTargets.forEach { target ->
-            if (targets.any { it.sourceName != target.sourceName && it.typeScriptName == target.typeScriptName + "Validator" })
-                throw GradleException("[ARCVALIDATION_GRAPH] Generated validator '${target.typeScriptName}Validator' collides with another artifact; rename the artifact.")
+        outputTree.validate()
+        artifactValidator.validate()
+        val generated = renderArtifacts()
+
+        val written = outputTree.write(generated)
+        val removed = if (options.removeStaleGeneratedFiles && options.outputDirectory.isDirectory) {
+            outputTree.removeStale(generated.map(GeneratedFile::relativePath))
+        } else {
+            emptySet()
         }
-        if (!options.endpointOptions.enableQueryHttpMethod && artifacts.queries.any { query -> query.parameters.any { shared.reaches(it.shape) } })
-            throw GradleException("[ARCVALIDATION_GRAPH] Shared model query arguments require enabled RFC QUERY transport.")
-        artifacts.types.filter { shared.contains(it.fullyQualifiedName) }.forEach { type ->
-            if (isExternallyMapped(type.fullyQualifiedName)) throw GradleException("[ARCVALIDATION_GRAPH] Shared model '${type.fullyQualifiedName}' cannot be externally mapped; generate its validator locally.")
-        }
-        val generated = linkedMapOf<String, Pair<String, String>>()
+        val indexes = outputTree.updateIndexFiles(generated.map(GeneratedFile::relativePath).toSet(), removed)
+        outputTree.removeEmptyDirectories()
+        return written + indexes
+    }
+
+    private fun renderArtifacts(): List<GeneratedFile> {
+        val generated = mutableListOf<GeneratedFile>()
         val commandNamespaces = EndpointRouteHelper.groupByNamespace(
             artifacts.commands,
             CommandDescriptor::location,
@@ -134,7 +84,6 @@ internal class TypeScriptProxyGenerator(
             QueryDescriptor::location,
             options.endpointOptions.segmentsToSkipForRoute
         )
-
         artifacts.commands.forEach { command ->
             val target = targetBySource.getValue(command.typeName)
             val namespace = command.location.drop(options.endpointOptions.segmentsToSkipForRoute).joinToString(".")
@@ -143,432 +92,182 @@ internal class TypeScriptProxyGenerator(
                 options.endpointOptions,
                 (commandNamespaces[namespace]?.size ?: 0) > 1
             )
-            generated[target.relativePath] = command.typeName to renderCommand(command, target, route)
+            generated += GeneratedFile(target.relativePath, command.typeName, renderCommand(command, target, route))
         }
         artifacts.queries.forEach { query ->
-            val target = queryTarget(query)
+            val target = model.queryTarget(query)
             val namespace = query.location.drop(options.endpointOptions.segmentsToSkipForRoute).joinToString(".")
             val route = EndpointRouteHelper.queryRoute(
                 query,
                 options.endpointOptions,
                 (queryNamespaces[namespace]?.size ?: 0) > 1
             )
-            generated[target.relativePath] = query.declaringTypeName to renderQuery(query, target, route)
+            generated += GeneratedFile(target.relativePath, query.declaringTypeName, renderQuery(query, target, route))
         }
         emittedTypes.forEach { type ->
             val target = targetBySource.getValue(type.fullyQualifiedName)
-            generated[target.relativePath] = type.fullyQualifiedName to renderType(type, target)
+            generated += GeneratedFile(target.relativePath, type.fullyQualifiedName, renderType(type, target))
         }
         emittedInterfaces.forEach { interfaceDescriptor ->
             val target = targetBySource.getValue(interfaceDescriptor.fullyQualifiedName)
-            generated[target.relativePath] = interfaceDescriptor.fullyQualifiedName to
+            generated += GeneratedFile(
+                target.relativePath,
+                interfaceDescriptor.fullyQualifiedName,
                 renderInterface(interfaceDescriptor, target)
+            )
         }
         emittedEnums.forEach { enum ->
             val target = targetBySource.getValue(enum.fullyQualifiedName)
-            generated[target.relativePath] = enum.fullyQualifiedName to renderEnum(enum)
+            generated += GeneratedFile(target.relativePath, enum.fullyQualifiedName, renderEnum(enum))
         }
-
-        val expectedFiles = generated.keys.map { File(options.outputDirectory, it).canonicalFile }.toSet()
-        val written = generated.toSortedMap().map { (relativePath, sourceAndBody) ->
-            val file = File(options.outputDirectory, relativePath)
-            writeGenerated(file, sourceAndBody.first, sourceAndBody.second)
-            file
-        }
-        val removed = if (options.removeStaleGeneratedFiles && options.outputDirectory.isDirectory) {
-            removeStale(expectedFiles)
-        } else {
-            emptySet()
-        }
-        val indexes = updateIndexFiles(generated.keys, removed)
-        removeEmptyDirectories()
-        return written + indexes
-    }
-
-    private fun buildTargets(): List<ArtifactTarget> {
-        val result = mutableListOf<ArtifactTarget>()
-        artifacts.commands.forEach {
-            result += ArtifactTarget(
-                it.typeName, it.name, outputDirectory(it.location), ArtifactKind.COMMAND, useProxyFileSuffix
-            )
-        }
-        emittedTypes.forEach {
-            result += ArtifactTarget(
-                it.fullyQualifiedName, it.name, outputDirectory(it.location), ArtifactKind.TYPE, useProxyFileSuffix
-            )
-        }
-        emittedInterfaces.forEach {
-            result += ArtifactTarget(
-                it.fullyQualifiedName, it.name, outputDirectory(it.location), ArtifactKind.INTERFACE, useProxyFileSuffix
-            )
-        }
-        emittedEnums.forEach {
-            result += ArtifactTarget(
-                it.fullyQualifiedName, it.name, outputDirectory(it.location), ArtifactKind.ENUM, useProxyFileSuffix
-            )
-        }
-        artifacts.queries.forEach { result += queryTarget(it) }
-        return result
-    }
-
-    private fun buildQueryTargets(): Map<String, ArtifactTarget> = artifacts.queries.associate { query ->
-        query.fullyQualifiedName to ArtifactTarget(
-            query.fullyQualifiedName,
-            upperCamel(query.name),
-            outputDirectory(query.location),
-            ArtifactKind.QUERY,
-            useProxyFileSuffix
-        )
-    }
-
-    private fun queryTarget(query: QueryDescriptor): ArtifactTarget = queryTargets.getValue(query.fullyQualifiedName)
-
-    private fun outputDirectory(location: List<String>): List<String> = location.drop(options.segmentsToSkip)
-
-    private fun validateMappings() {
-        options.typeMappings.forEach { (sourceName, mapping) ->
-            if (!JVM_TYPE_NAME.matches(sourceName) || sourceName != mapping.typeName) {
-                throw GradleException("Invalid Arc proxy mapping source '$sourceName'; use a fully qualified JVM type name.")
-            }
-            if (sourceName in conceptsBySource || sourceName in commandTypeNames) {
-                throw GradleException("Arc proxy mapping '$sourceName' targets a concept or command; map a concept's underlying type or a command's properties/response instead.")
-            }
-            mappedType(sourceName, mapping.typeScriptType, mapping.npmPackage)
-        }
-        options.packageMappings.forEach { (prefix, npmPackage) ->
-            if (!JVM_TYPE_NAME.matches(prefix)) throw GradleException("Invalid Arc proxy package prefix '$prefix'.")
-            mappedType("$prefix.Model", "Model", npmPackage)
-        }
-    }
-
-    private fun validateArtifacts() {
-        targets.forEach(::validateTarget)
-        targets.groupBy(ArtifactTarget::relativePath).filterValues { it.size > 1 }.forEach { (path, collisions) ->
-            throw GradleException("Duplicate TypeScript output '$path' for ${collisions.joinToString { it.sourceName }}.")
-        }
-        artifacts.commands.forEach { command ->
-            val current = targetBySource.getValue(command.typeName)
-            command.properties.forEach { property ->
-                validateValidationMetadata(
-                    "${command.typeName}.${property.name}",
-                    property.validationRules,
-                    property.validateRecursively,
-                    property.isEnumerable,
-                    property.typeName,
-                    property.elementTypeName
-                )
-            }
-            val referencedTypes = command.properties.map { resolvePropertyType(it, current) } +
-                listOfNotNull(command.responseTypeName?.let { resolveType(it, current) })
-            validateImportedTypeNames(
-                current,
-                referencedTypes,
-                referencedTypes,
-                if (command.responseTypeName == null) setOf("Object") else emptySet()
-            )
-        }
-        artifacts.queries.forEach { query ->
-            val target = queryTarget(query)
-            query.parameters.filter { parameter -> parameter.source == QueryParameterSource.CLIENT }.forEach { parameter ->
-                validateValidationMetadata(
-                    "${query.fullyQualifiedName}.${parameter.name}",
-                    parameter.validationRules,
-                    parameter.validateRecursively,
-                    parameter.isEnumerable,
-                    parameter.typeName,
-                    parameter.elementTypeName
-                )
-            }
-            val referencedTypes = listOf(resolveType(query.returnTypeName, target)) +
-                query.parameters.filter { parameter -> parameter.source == QueryParameterSource.CLIENT }
-                    .map { resolveParameterType(it, target) }
-            validateImportedTypeNames(target, referencedTypes, referencedTypes)
-        }
-        emittedTypes.forEach { type ->
-            val current = targetBySource.getValue(type.fullyQualifiedName)
-            type.properties.forEach { property ->
-                validateValidationMetadata(
-                    "${type.fullyQualifiedName}.${property.name}",
-                    property.validationRules,
-                    property.validateRecursively,
-                    property.isEnumerable,
-                    property.typeName,
-                    property.elementTypeName
-                )
-            }
-            val referencedTypes = type.properties.map { resolvePropertyType(it, current) } +
-                type.properties.flatMap { resolveDerivatives(it, current) } +
-                listOfNotNull(type.baseTypeName?.let { resolveBaseType(it, current) })
-            validateImportedTypeNames(current, referencedTypes, referencedTypes)
-        }
-        emittedInterfaces.forEach { interfaceDescriptor ->
-            val current = targetBySource.getValue(interfaceDescriptor.fullyQualifiedName)
-            validateImportedTypeNames(
-                current,
-                interfaceDescriptor.properties.map { resolvePropertyType(it, current) }
-            )
-        }
-    }
-
-    private fun validateValidationMetadata(
-        identity: String,
-        rules: List<ValidationRuleDescriptor>,
-        validateRecursively: Boolean,
-        isEnumerable: Boolean,
-        typeName: String,
-        elementTypeName: String?
-    ) {
-        rules.forEach { rule ->
-            val validArguments = when (rule.ruleName) {
-                "notNull", "notEmpty", "emailAddress", "phone", "url", "creditCard" -> rule.arguments.isEmpty()
-                "minLength", "maxLength", "greaterThan", "greaterThanOrEqual", "lessThan", "lessThanOrEqual" ->
-                    rule.arguments.size == 1 && rule.arguments.single() is Number
-                "length" -> rule.arguments.size == 2 && rule.arguments.all { argument -> argument is Number }
-                "matches" -> rule.arguments.size == 1 && rule.arguments.single() is String
-                else -> false
-            }
-            if (!validArguments) {
-                throw GradleException(
-                    "Arc validation rule '${rule.ruleName}' on '$identity' has unsupported arguments ${rule.arguments}."
-                )
-            }
-        }
-        if (validateRecursively) {
-            val nestedType = if (isEnumerable) elementTypeName else typeName
-            val isGeneratedModel = artifacts.types.any { type -> type.fullyQualifiedName == nestedType }
-            val isConcept = conceptsBySource.containsKey(nestedType)
-            if (nestedType == null || (!isGeneratedModel && !isConcept)) {
-                throw GradleException(
-                    "Recursive Arc validation on '$identity' requires a generated concrete model or concept type."
-                )
-            }
-        }
-    }
-
-    private fun validateImportedTypeNames(
-        current: ArtifactTarget,
-        types: List<TypeScriptType>,
-        runtimeTypes: List<TypeScriptType> = emptyList(),
-        additionalGlobalRuntimeConstructors: Set<String> = emptySet()
-    ) {
-        val imported = types.flatMap { type -> type.recursiveTypes() }.mapNotNull(TypeScriptType::target)
-            .filterNot { it.sourceName == current.sourceName }.distinct()
-        imported.groupBy(ArtifactTarget::typeScriptName).filterValues { it.size > 1 }.forEach { (name, collisions) ->
-            throw GradleException(
-                "Duplicate TypeScript name '$name' imported by '${current.sourceName}' from " +
-                    collisions.joinToString { it.sourceName } + "."
-            )
-        }
-        imported.singleOrNull { it.typeScriptName == current.typeScriptName }?.let {
-            throw GradleException(
-                "Duplicate TypeScript name '${current.typeScriptName}' in '${current.sourceName}' and '${it.sourceName}'."
-            )
-        }
-        val valueImports = types.flatMap { type -> type.recursiveTypes() }
-            .mapNotNull(TypeScriptType::valueImport).distinct()
-        val sharedFrameworkNames = if (shared.contains(current.sourceName)) setOf("ArcSharedValidator", "ArcSharedResult", "ArcSharedSeverity", "${current.typeScriptName}Validator") else emptySet()
-        if (current.typeScriptName in sharedFrameworkNames || imported.any { it.typeScriptName in sharedFrameworkNames })
-            throw GradleException("[ARCVALIDATION_GRAPH] Shared validator scaffolding name collision in '${current.sourceName}'; rename the model.")
-        val frameworkNames = sharedFrameworkNames + when (current.kind) {
-            ArtifactKind.COMMAND -> setOf("Command", "CommandValidator", "PropertyDescriptor", "useCommand", "SetCommandValues", "ClearCommandValues", "I${current.typeScriptName}", "${current.typeScriptName}Validator")
-            ArtifactKind.QUERY -> setOf("QueryFor", "ObservableQueryFor", "QueryResultWithState", "QueryValidator", "ParameterDescriptor", "Sorting", "Paging", "SortingActions", "SortingActionsForQuery", "SortingActionsForObservableQuery", "QueryHttpMethod", "QueryWhen", "ObservableQueryWhen", "ChangeSet", "PerformQuery", "SetSorting", "SetPage", "SetPageSize", "useQuery", "useQueryWithPaging", "useSuspenseQuery", "useSuspenseQueryWithPaging", "useObservableQuery", "useObservableQueryWithPaging", "useSuspenseObservableQuery", "useSuspenseObservableQueryWithPaging", "useChangeStream", "${current.typeScriptName}Parameters", "${current.typeScriptName}Validator", "${current.typeScriptName}SortBy", "${current.typeScriptName}SortByWithoutQuery")
-            ArtifactKind.TYPE -> setOf("field", "derivedType")
-            else -> emptySet()
-        }
-        valueImports.firstOrNull { it.name in frameworkNames }?.let { reference ->
-            throw GradleException("External TypeScript import '${reference.name}' in '${current.sourceName}' collides with generated framework scaffolding.")
-        }
-        valueImports.groupBy(TypeScriptValueImport::name).filterValues { imports ->
-            imports.map(TypeScriptValueImport::packageName).distinct().size > 1
-        }.forEach { (name, collisions) ->
-            throw GradleException(
-                "Duplicate TypeScript value import '$name' in '${current.sourceName}' from " +
-                    collisions.joinToString { it.packageName } + "."
-            )
-        }
-        valueImports.forEach { valueImport ->
-            if (valueImport.name == current.typeScriptName) {
-                throw GradleException(
-                    "Duplicate TypeScript name '${current.typeScriptName}' in '${current.sourceName}' and " +
-                        "value import '${valueImport.packageName}'."
-                )
-            }
-            imported.firstOrNull { it.typeScriptName == valueImport.name }?.let { artifact ->
-                throw GradleException(
-                    "Duplicate TypeScript name '${valueImport.name}' imported by '${current.sourceName}' from " +
-                        "'${artifact.sourceName}' and '${valueImport.packageName}'."
-                )
-            }
-        }
-
-        val globalRuntimeConstructors = runtimeTypes.mapNotNull { it.globalRuntimeConstructor() }.toSet() +
-            additionalGlobalRuntimeConstructors
-        val valueImportedTargets = customImports(types, runtimeTypes)
-            .filter { it.kind == TypeScriptImportKind.VALUE && it.target.sourceName != current.sourceName }
-            .map(TypeScriptImport::target)
-        globalRuntimeConstructors.sorted().forEach { constructor ->
-            if (current.typeScriptName == constructor) {
-                throw GradleException(
-                    "TypeScript global runtime constructor '$constructor' in '${current.sourceName}' is shadowed by " +
-                        "the generated artifact with the same name."
-                )
-            }
-            valueImports.firstOrNull { it.name == constructor }?.let { reference ->
-                throw GradleException("TypeScript global runtime constructor '$constructor' in '${current.sourceName}' is shadowed by the value import '${reference.packageName}'.")
-            }
-            valueImportedTargets.firstOrNull { it.typeScriptName == constructor }?.let { artifact ->
-                throw GradleException(
-                    "TypeScript global runtime constructor '$constructor' in '${current.sourceName}' is shadowed by " +
-                        "the value import '${artifact.sourceName}'."
-                )
-            }
-        }
+        return generated
     }
 
     private fun renderCommand(command: CommandDescriptor, target: ArtifactTarget, route: String): String {
-        val propertyTypes = command.properties.map { resolvePropertyType(it, target) }
-        val response = command.responseTypeName?.let { resolveType(it, target) }
+        val propertyTypes = command.properties.map { resolver.resolvePropertyType(it, target) }
+        val response = command.responseTypeName?.let { resolver.resolveType(it, target) }
         val referencedTypes = propertyTypes + listOfNotNull(response)
-        val imports = customImports(referencedTypes, referencedTypes)
-        val interfaceName = "I${command.name}"
         val validationTargets = command.properties.map { property ->
             ValidationTarget(lowerCamel(property.name), property.validationRules.clientRepresentable().filterNot { rule -> shared.rules(command.typeName, property.name).any { sameRule(rule, it) } })
         }.filter(ValidationTarget::hasRules).sortedBy(ValidationTarget::propertyName)
-        val sharedValidation = shared.contains(command.typeName)
-        val hasValidation = validationTargets.isNotEmpty() || sharedValidation
-        val requestParameters = routeParameters(route, command.properties)
-        val requiresStringMapGuard = command.properties.any { property -> property.shape.containsMap() }
+        val context = CommandRenderContext(
+            command, target, "I${command.name}", response, validationTargets, shared.contains(command.typeName)
+        )
         return buildString {
             appendGeneratedHeader()
-            append("/* eslint-disable sort-imports */\n")
-            append("/* eslint-disable @typescript-eslint/no-empty-interface */\n")
-            append("// eslint-disable-next-line header/header\n")
-            append("import { Command${if (hasValidation) ", CommandValidator" else ""} } from '@cratis/arc/commands';\n")
-            append("import { useCommand, type SetCommandValues, type ClearCommandValues } from '@cratis/arc.react/commands';\n")
-            append("import { PropertyDescriptor } from '@cratis/arc/reflection';\n")
-            appendPackageImports(referencedTypes)
-            appendCustomImports(imports, target)
-            if (sharedValidation) appendSharedImports(target, command.properties.filterNot { it.ignoreValidation }.map { it.shape })
-            append("\n")
-            if (requiresStringMapGuard) {
-                appendStringMapGuard()
-            }
-            appendDocumentation(command.summary)
-            append("export interface $interfaceName {\n")
-            command.properties.forEach { property ->
-                appendDocumentation(property.summary, "    ")
-                append("    ${lowerCamel(property.name)}?: ${propertyTypeName(property, target)};\n")
-            }
-            append("}\n\n")
-            if (sharedValidation) appendSharedValidator("${command.name}Validator", "CommandValidator", interfaceName, command.typeName,
-                command.properties, validationTargets, target)
-            else appendValidator("${command.name}Validator", "CommandValidator", interfaceName, validationTargets)
-            val responseGeneric = response?.let {
-                ", ${it.name}${if (command.responseIsEnumerable) "[]" else ""}"
-            }.orEmpty()
-            appendDocumentation(command.summary)
-            append("export class ${command.name} extends Command<$interfaceName$responseGeneric> implements $interfaceName {\n")
-            append("    readonly route: string = '${escape(route)}';\n")
-            if (hasValidation) {
-                append("    readonly validation: CommandValidator = new ${command.name}Validator();\n")
-            }
-            append("    readonly treatWarningsAsErrors: boolean = ${command.treatWarningsAsErrors};\n")
-            append("    readonly roles: string[] = ${roles(command.authorization.roles)};\n")
-            append("    readonly propertyDescriptors: PropertyDescriptor[] = [\n")
-            command.properties.forEach { property ->
-                val type = resolvePropertyType(property, target)
-                append("        new PropertyDescriptor('${lowerCamel(property.name)}', ${type.constructor}, ${property.isNullable}),\n")
-            }
-            append("    ];\n\n")
-            command.properties.forEach { property ->
-                val nullable = if (property.isNullable) "?" else "!"
-                append("    private _${lowerCamel(property.name)}$nullable: ${propertyTypeName(property, target)};\n")
-            }
-            append("\n    constructor() {\n")
-            append("        super(${response?.constructor ?: "Object"}, ${command.responseIsEnumerable});\n")
-            append("    }\n\n")
-            append("    get requestParameters(): string[] {\n        return [\n")
-            requestParameters.forEach { append("            '$it',\n") }
-            append("        ];\n    }\n\n")
-            command.properties.forEach { property ->
-                val name = lowerCamel(property.name)
-                val type = propertyTypeName(property, target)
-                val optional = if (property.isNullable) " | undefined" else ""
-                appendDocumentation(property.summary, "    ")
-                append("    get $name(): $type$optional {\n        return this._$name;\n    }\n\n")
-                append("    set $name(value: $type$optional) {\n")
-                if (property.shape.containsMap()) {
-                    append("        this._$name = sanitizeArcStringMap(value, '$name');\n")
-                } else {
-                    append("        this._$name = value;\n")
-                }
-                append("        this.propertyChanged('$name');\n    }\n")
-            }
-            append("\n    static use(initialValues?: $interfaceName): [${command.name}, SetCommandValues<$interfaceName>, ClearCommandValues] {\n")
-            append("        // eslint-disable-next-line @typescript-eslint/ban-ts-comment\n        // @ts-ignore\n")
-            append("        return useCommand<${command.name}, $interfaceName>(${command.name}, initialValues);\n    }\n}\n")
+            appendCommandImports(context, referencedTypes)
+            appendCommandInterface(context)
+            appendCommandValidator(context)
+            appendCommandClass(context, route)
         }
     }
 
-    private fun StringBuilder.appendStringMapGuard() {
-        append("const reservedArcStringMapKeys = new Set(['__proto__', 'prototype', 'constructor']);\n\n")
-        append("function sanitizeArcStringMap<T>(value: T, path: string, seen = new WeakMap<object, unknown>()): T {\n")
-        append("    if (value === null || typeof value !== 'object') return value;\n")
-        append("    const previous = seen.get(value);\n")
-        append("    if (previous !== undefined) return previous as T;\n")
-        append("    if (Array.isArray(value)) {\n")
-        append("        if (Object.getPrototypeOf(value) !== Array.prototype) {\n")
-        append("            throw new TypeError(`String map sequence at '\${path}' must use Array.prototype.`);\n")
-        append("        }\n")
-        append("        for (const key of Object.getOwnPropertyNames(value)) {\n")
-        append("            if (reservedArcStringMapKeys.has(key)) {\n")
-        append("                throw new TypeError(`String map sequence at '\${path}' contains reserved key '\${key}'.`);\n")
-        append("            }\n")
-        append("        }\n")
-        append("        const normalized: unknown[] = [];\n")
-        append("        seen.set(value, normalized);\n")
-        append("        value.forEach((entry, index) => normalized.push(sanitizeArcStringMap(entry, `\${path}[\${index}]`, seen)));\n")
-        append("        return normalized as T;\n")
-        append("    }\n")
-        append("    const prototype = Object.getPrototypeOf(value);\n")
-        append("    if (prototype !== Object.prototype && prototype !== null) {\n")
-        append("        throw new TypeError(`String map at '\${path}' must use Object.prototype or a null prototype.`);\n")
-        append("    }\n")
-        append("    for (const key of Object.getOwnPropertyNames(value)) {\n")
-        append("        if (reservedArcStringMapKeys.has(key)) {\n")
-        append("            throw new TypeError(`String map at '\${path}' contains reserved key '\${key}'.`);\n")
-        append("        }\n")
-        append("    }\n")
-        append("    const normalized: Record<string, unknown> = {};\n")
-        append("    seen.set(value, normalized);\n")
-        append("    for (const key of Object.keys(value)) {\n")
-        append("        normalized[key] = sanitizeArcStringMap((value as Record<string, unknown>)[key], `\${path}.\${key}`, seen);\n")
-        append("    }\n")
-        append("    return normalized as T;\n")
+    /** The command being rendered and the facts every section of its proxy depends on. */
+    private class CommandRenderContext(
+        val command: CommandDescriptor,
+        val target: ArtifactTarget,
+        val interfaceName: String,
+        val response: TypeScriptType?,
+        val validationTargets: List<ValidationTarget>,
+        val sharedValidation: Boolean
+    ) {
+        val hasValidation: Boolean get() = validationTargets.isNotEmpty() || sharedValidation
+    }
+
+    private fun StringBuilder.appendCommandImports(context: CommandRenderContext, referencedTypes: List<TypeScriptType>) {
+        val command = context.command
+        val imports = customImports(referencedTypes, referencedTypes)
+        append("/* eslint-disable sort-imports */\n")
+        append("/* eslint-disable @typescript-eslint/no-empty-interface */\n")
+        append("// eslint-disable-next-line header/header\n")
+        append("import { Command${if (context.hasValidation) ", CommandValidator" else ""} } from '@cratis/arc/commands';\n")
+        append("import { useCommand, type SetCommandValues, type ClearCommandValues } from '@cratis/arc.react/commands';\n")
+        append("import { PropertyDescriptor } from '@cratis/arc/reflection';\n")
+        appendPackageImports(referencedTypes)
+        appendCustomImports(imports, context.target)
+        if (context.sharedValidation) {
+            appendSharedImports(context.target, command.properties.filterNot { it.ignoreValidation }.map { it.shape })
+        }
+        append("\n")
+        if (command.properties.any { property -> property.shape.containsMap() }) appendStringMapGuard()
+    }
+
+    private fun StringBuilder.appendCommandInterface(context: CommandRenderContext) {
+        appendDocumentation(context.command.summary)
+        append("export interface ${context.interfaceName} {\n")
+        context.command.properties.forEach { property ->
+            appendDocumentation(property.summary, "    ")
+            append("    ${lowerCamel(property.name)}?: ${resolver.propertyTypeName(property, context.target)};\n")
+        }
         append("}\n\n")
     }
 
-    private fun TypeShapeDescriptor.containsMap(): Boolean = when (kind) {
-        TypeShapeKind.VALUE -> false
-        TypeShapeKind.SEQUENCE -> requireNotNull(elementShape).containsMap()
-        TypeShapeKind.MAP -> true
+    private fun StringBuilder.appendCommandValidator(context: CommandRenderContext) {
+        val command = context.command
+        if (context.sharedValidation) {
+            validators.appendSharedValidator(
+                this,
+                SharedValidatorSpec(
+                    "${command.name}Validator", "CommandValidator", context.interfaceName, command.typeName,
+                    command.properties, context.validationTargets, context.target
+                )
+            )
+        } else {
+            validators.appendValidator(
+                this, "${command.name}Validator", "CommandValidator", context.interfaceName, context.validationTargets
+            )
+        }
+    }
+
+    private fun StringBuilder.appendCommandClass(context: CommandRenderContext, route: String) {
+        val command = context.command
+        val interfaceName = context.interfaceName
+        val responseGeneric = context.response?.let {
+            ", ${it.name}${if (command.responseIsEnumerable) "[]" else ""}"
+        }.orEmpty()
+        appendDocumentation(command.summary)
+        append("export class ${command.name} extends Command<$interfaceName$responseGeneric> implements $interfaceName {\n")
+        appendCommandFields(context, route)
+        append("\n    constructor() {\n")
+        append("        super(${context.response?.constructor ?: "Object"}, ${command.responseIsEnumerable});\n")
+        append("    }\n\n")
+        append("    get requestParameters(): string[] {\n        return [\n")
+        routeParameters(route, command.properties).forEach { append("            '$it',\n") }
+        append("        ];\n    }\n\n")
+        appendCommandAccessors(context)
+        append("\n    static use(initialValues?: $interfaceName): [${command.name}, SetCommandValues<$interfaceName>, ClearCommandValues] {\n")
+        append("        // eslint-disable-next-line @typescript-eslint/ban-ts-comment\n        // @ts-ignore\n")
+        append("        return useCommand<${command.name}, $interfaceName>(${command.name}, initialValues);\n    }\n}\n")
+    }
+
+    private fun StringBuilder.appendCommandFields(context: CommandRenderContext, route: String) {
+        val command = context.command
+        append("    readonly route: string = '${escape(route)}';\n")
+        if (context.hasValidation) {
+            append("    readonly validation: CommandValidator = new ${command.name}Validator();\n")
+        }
+        append("    readonly treatWarningsAsErrors: boolean = ${command.treatWarningsAsErrors};\n")
+        append("    readonly roles: string[] = ${roles(command.authorization.roles)};\n")
+        append("    readonly propertyDescriptors: PropertyDescriptor[] = [\n")
+        command.properties.forEach { property ->
+            val type = resolver.resolvePropertyType(property, context.target)
+            append("        new PropertyDescriptor('${lowerCamel(property.name)}', ${type.constructor}, ${property.isNullable}),\n")
+        }
+        append("    ];\n\n")
+        command.properties.forEach { property ->
+            val nullable = if (property.isNullable) "?" else "!"
+            append("    private _${lowerCamel(property.name)}$nullable: ${resolver.propertyTypeName(property, context.target)};\n")
+        }
+    }
+
+    private fun StringBuilder.appendCommandAccessors(context: CommandRenderContext) {
+        context.command.properties.forEach { property ->
+            val name = lowerCamel(property.name)
+            val type = resolver.propertyTypeName(property, context.target)
+            val optional = if (property.isNullable) " | undefined" else ""
+            appendDocumentation(property.summary, "    ")
+            append("    get $name(): $type$optional {\n        return this._$name;\n    }\n\n")
+            append("    set $name(value: $type$optional) {\n")
+            if (property.shape.containsMap()) {
+                append("        this._$name = sanitizeArcStringMap(value, '$name');\n")
+            } else {
+                append("        this._$name = value;\n")
+            }
+            append("        this.propertyChanged('$name');\n    }\n")
+        }
     }
 
     private fun renderType(type: TypeDescriptor, target: ArtifactTarget): String {
-        val propertyTypes = type.properties.associateWith { property -> resolvePropertyType(property, target) }
-        val derivativeTypes = type.properties.associateWith { property -> resolveDerivatives(property, target) }
-        val baseType = type.baseTypeName?.let { resolveBaseType(it, target) }
+        val propertyTypes = type.properties.associateWith { property -> resolver.resolvePropertyType(property, target) }
+        val derivativeTypes = type.properties.associateWith { property -> resolver.resolveDerivatives(property, target) }
+        val baseType = type.baseTypeName?.let { resolver.resolveBaseType(it, target) }
         val referencedTypes = propertyTypes.values + derivativeTypes.values.flatten() + listOfNotNull(baseType)
         val imports = customImports(referencedTypes, referencedTypes)
         return buildString {
             appendGeneratedHeader()
             append("/* eslint-disable sort-imports */\n")
             append("// eslint-disable-next-line header/header\n")
-            val fundamentals = buildList {
-                if (type.properties.isNotEmpty()) add(TypeScriptValueImport(FUNDAMENTALS_PACKAGE, "field"))
-                if (type.derivedTypeId != null) add(TypeScriptValueImport(FUNDAMENTALS_PACKAGE, "derivedType"))
-            }
-            appendPackageImports(referencedTypes, fundamentals)
+            appendPackageImports(referencedTypes, typeFundamentalsImports(type))
             appendCustomImports(imports, target)
             if (shared.contains(type.fullyQualifiedName)) appendSharedImports(target, type.properties.filterNot { it.ignoreValidation }.map { it.shape })
             append("\n")
@@ -576,29 +275,46 @@ internal class TypeScriptProxyGenerator(
             type.derivedTypeId?.let { append("@derivedType('${escape(it)}')\n") }
             append("export class ${type.name}${baseType?.let { " extends ${it.name}" }.orEmpty()} {\n")
             type.properties.forEach { property ->
-                val resolved = propertyTypes.getValue(property)
-                val derivatives = derivativeTypes.getValue(property)
-                val fieldArguments = buildList {
-                    add(resolved.constructor)
-                    if (property.isEnumerable || derivatives.isNotEmpty()) add(property.isEnumerable.toString())
-                    if (derivatives.isNotEmpty()) add("[${derivatives.joinToString(", ") { it.constructor }}]")
-                }
-                appendDocumentation(property.summary, "    ")
-                append("    @field(${fieldArguments.joinToString(", ")})\n")
-                val marker = if (property.isNullable) "?" else "!"
-                append("    ${lowerCamel(property.name)}$marker: ${propertyTypeName(property, target)};\n")
+                appendTypeField(property, propertyTypes.getValue(property), derivativeTypes.getValue(property), target)
             }
             append("}\n")
             if (shared.contains(type.fullyQualifiedName)) {
                 append("\n")
-                appendSharedValidator("${type.name}Validator", "ArcSharedValidator", type.name, type.fullyQualifiedName,
-                    type.properties, emptyList(), target)
+                validators.appendSharedValidator(
+                    this,
+                    SharedValidatorSpec(
+                        "${type.name}Validator", "ArcSharedValidator", type.name, type.fullyQualifiedName,
+                        type.properties, emptyList(), target
+                    )
+                )
             }
         }
     }
 
+    private fun typeFundamentalsImports(type: TypeDescriptor): List<TypeScriptValueImport> = buildList {
+        if (type.properties.isNotEmpty()) add(TypeScriptValueImport(FUNDAMENTALS_PACKAGE, "field"))
+        if (type.derivedTypeId != null) add(TypeScriptValueImport(FUNDAMENTALS_PACKAGE, "derivedType"))
+    }
+
+    private fun StringBuilder.appendTypeField(
+        property: PropertyDescriptor,
+        resolved: TypeScriptType,
+        derivatives: List<TypeScriptType>,
+        target: ArtifactTarget
+    ) {
+        val fieldArguments = buildList {
+            add(resolved.constructor)
+            if (property.isEnumerable || derivatives.isNotEmpty()) add(property.isEnumerable.toString())
+            if (derivatives.isNotEmpty()) add("[${derivatives.joinToString(", ") { it.constructor }}]")
+        }
+        appendDocumentation(property.summary, "    ")
+        append("    @field(${fieldArguments.joinToString(", ")})\n")
+        val marker = if (property.isNullable) "?" else "!"
+        append("    ${lowerCamel(property.name)}$marker: ${resolver.propertyTypeName(property, target)};\n")
+    }
+
     private fun renderInterface(interfaceDescriptor: InterfaceDescriptor, target: ArtifactTarget): String {
-        val referencedTypes = interfaceDescriptor.properties.map { resolvePropertyType(it, target) }
+        val referencedTypes = interfaceDescriptor.properties.map { resolver.resolvePropertyType(it, target) }
         val imports = customImports(referencedTypes)
         return buildString {
             appendGeneratedHeader()
@@ -612,7 +328,7 @@ internal class TypeScriptProxyGenerator(
             interfaceDescriptor.properties.forEach { property ->
                 val optional = if (property.isNullable) "?" else ""
                 appendDocumentation(property.summary, "    ")
-                append("    ${lowerCamel(property.name)}$optional: ${propertyTypeName(property, target)};\n")
+                append("    ${lowerCamel(property.name)}$optional: ${resolver.propertyTypeName(property, target)};\n")
             }
             append("}\n")
         }
@@ -633,232 +349,152 @@ internal class TypeScriptProxyGenerator(
     }.filter(ValidationTarget::hasRules)
 
     private fun renderQuery(query: QueryDescriptor, target: ArtifactTarget, route: String): String {
-        if (query.transport == QueryTransportType.OBSERVABLE) {
-            return renderObservableQuery(query, target, route)
-        }
         val parameters = query.parameters.filter { parameter -> parameter.source == QueryParameterSource.CLIENT }
             .sortedBy(ParameterDescriptor::name)
         val validationTargets = queryValidationTargets(parameters)
-        val model = resolveType(query.returnTypeName, target)
-        val parameterTypes = parameters.map { resolveParameterType(it, target) }
+        val model = resolver.resolveType(query.returnTypeName, target)
+        val parameterTypes = parameters.map { resolver.resolveParameterType(it, target) }
         val referencedTypes = listOf(model) + parameterTypes
         val imports = customImports(referencedTypes, referencedTypes)
         val sortableProperties = returnedSortProperties(query)
         val className = target.typeScriptName
-        val modelType = model.name + if (query.isEnumerable) "[]" else ""
-        val parameterType = if (parameters.isEmpty()) "" else ", ${className}Parameters"
         val method = query.queryHttpMethod.takeIf {
             options.endpointOptions.enableQueryHttpMethod && it.name != "AUTO"
         }?.let { upperCamel(it.name.lowercase()) }
         val supportsSorting = query.isEnumerable && query.supportsSorting
-        val supportsPaging = query.isEnumerable && query.supportsPaging
-        val hasSortableProperties = supportsSorting && sortableProperties.isNotEmpty()
-        return buildString {
-            appendGeneratedHeader()
-            append("/* eslint-disable sort-imports */\n")
-            append("// eslint-disable-next-line header/header\n")
-            val validationImport = if (validationTargets.isNotEmpty()) ", QueryValidator" else ""
-            if (query.isEnumerable) {
-                val sorting = if (supportsSorting) ", Sorting" else ""
-                val sortingActions = if (hasSortableProperties) ", SortingActions, SortingActionsForQuery" else ""
-                val paging = if (supportsPaging) ", Paging" else ""
-                val httpMethod = if (method != null) ", QueryHttpMethod" else ""
-                append("import { QueryFor, QueryResultWithState$validationImport$sorting$sortingActions$paging$httpMethod } from '@cratis/arc/queries';\n")
-                val hooks = if (supportsPaging) {
-                    "useQuery, useQueryWithPaging, useSuspenseQuery, useSuspenseQueryWithPaging"
-                } else {
-                    "useQuery, useSuspenseQuery"
-                }
-                val sortingType = if (supportsSorting) ", type SetSorting" else ""
-                val pagingTypes = if (supportsPaging) ", type SetPage, type SetPageSize" else ""
-                append("import { $hooks, type PerformQuery$sortingType$pagingTypes, QueryWhen } from '@cratis/arc.react/queries';\n")
+        val renderModel = QueryRenderModel(
+            query = query,
+            target = target,
+            route = route,
+            parameters = parameters,
+            validationTargets = validationTargets,
+            model = model,
+            referencedTypes = referencedTypes,
+            imports = imports,
+            sortableProperties = sortableProperties,
+            className = className,
+            modelType = model.name + if (query.isEnumerable) "[]" else "",
+            parameterType = if (parameters.isEmpty()) "" else ", ${className}Parameters",
+            method = method,
+            supportsSorting = supportsSorting,
+            supportsPaging = query.isEnumerable && query.supportsPaging,
+            hasSortableProperties = supportsSorting && sortableProperties.isNotEmpty()
+        )
+        return renderQueryFile(renderModel, observable = query.transport == QueryTransportType.OBSERVABLE)
+    }
+
+    private fun renderQueryFile(m: QueryRenderModel, observable: Boolean): String = buildString {
+        appendGeneratedHeader()
+        append("/* eslint-disable sort-imports */\n")
+        append("// eslint-disable-next-line header/header\n")
+        appendQueryImportSection(m, observable)
+        if (m.supportsSorting) {
+            if (observable) {
+                appendObservableSortHelpers(m.className, m.model.name, m.sortableProperties)
             } else {
-                val httpMethod = if (method != null) ", QueryHttpMethod" else ""
-                append("import { QueryFor, QueryResultWithState$validationImport$httpMethod } from '@cratis/arc/queries';\n")
-                append("import { useQuery, useSuspenseQuery, type PerformQuery, type SetSorting, QueryWhen } from '@cratis/arc.react/queries';\n")
+                appendSortHelpers(m.className, m.model.name, m.sortableProperties)
             }
-            append("import { ParameterDescriptor } from '@cratis/arc/reflection';\n")
-            appendPackageImports(referencedTypes)
-            appendCustomImports(imports, target)
-            if (supportsSorting) appendSortHelpers(className, model.name, sortableProperties)
-            if (parameters.isNotEmpty()) {
-                val parameterSpacing = if (query.isEnumerable) "\n" else "\n\n"
-                append(parameterSpacing)
-                appendDocumentation(query.summary)
-                append("export interface ${className}Parameters {\n")
-                parameters.forEach { parameter ->
-                    val optional = if (parameter.isNullable || parameter.hasDefault) "?" else ""
-                    val array = parameterArraySuffix(parameter)
-                    appendDocumentation(parameter.summary, "    ")
-                    append("    ${lowerCamel(parameter.name)}$optional: ${resolveParameterType(parameter, target).name}$array;\n")
-                }
-                append("}\n")
-            }
-            if (validationTargets.isNotEmpty()) append("\n")
-            appendQueryValidator(query, target, validationTargets)
-            val classSpacing = when {
-                query.isEnumerable && parameters.isEmpty() && validationTargets.isEmpty() -> "\n"
-                !query.isEnumerable && parameters.isEmpty() && validationTargets.isEmpty() -> "\n\n\n"
-                else -> "\n\n"
-            }
-            append(classSpacing)
-            appendDocumentation(query.summary)
-            append("export class $className extends QueryFor<$modelType$parameterType> {\n")
-            append("    readonly route: string = '${escape(route)}';\n")
-            append("    readonly queryName: string = '${escape(query.fullyQualifiedName)}';\n")
-            if (validationTargets.isNotEmpty()) {
-                append("    readonly validation: QueryValidator = new ${className}Validator();\n")
-            }
-            append("    readonly treatWarningsAsErrors: boolean = ${query.treatWarningsAsErrors};\n")
-            append("    readonly roles: string[] = ${roles(query.authorization.roles)};\n")
-            append("    readonly defaultValue: $modelType = ${if (query.isEnumerable) "[]" else "{} as any"};\n")
-            if (supportsSorting) {
-                append("    private readonly _sortBy: ${className}SortBy;\n")
-                append("    private static readonly _sortBy: ${className}SortByWithoutQuery = new ${className}SortByWithoutQuery();\n")
-            }
-            append("\n    constructor() {\n        super(${model.constructor}, ${query.isEnumerable});\n")
-            if (supportsSorting) append("        this._sortBy = new ${className}SortBy(this);\n")
-            if (method != null) append("        this.setHttpMethod(QueryHttpMethod.$method);\n")
-            append("    }\n\n")
-            append("    get requiredRequestParameters(): string[] {\n        return [\n")
-            parameters.filter { parameter -> !parameter.isNullable && !parameter.hasDefault }.forEach {
-                append("            '${lowerCamel(it.name)}',\n")
-            }
-            append("        ];\n    }\n\n")
-            append("    readonly parameterDescriptors: ParameterDescriptor[] = [\n")
-            parameters.forEach { parameter ->
-                append("        new ParameterDescriptor('${lowerCamel(parameter.name)}', ${resolveParameterType(parameter, target).constructor}, ${parameter.isEnumerable}),\n")
-            }
-            append("    ];\n\n")
-            parameters.forEach { parameter ->
-                val optional = if (parameter.hasDefault) "?" else "!"
-                val array = parameterArraySuffix(parameter)
-                append("    ${lowerCamel(parameter.name)}$optional: ${resolveParameterType(parameter, target).name}$array;\n")
-            }
-            if (!query.isEnumerable) append("\n")
-            if (supportsSorting) {
-                append("\n    get sortBy(): ${className}SortBy {\n        return this._sortBy;\n    }\n")
-                append("\n    static get sortBy(): ${className}SortByWithoutQuery {\n        return this._sortBy;\n    }\n")
-            }
-            appendQueryHooks(query, className, model.name, parameters.isNotEmpty())
-            append("}\n")
+        }
+        appendQueryParametersInterface(m, observable)
+        if (m.validationTargets.isNotEmpty()) append("\n")
+        validators.appendQueryValidator(this, m.query, m.target, m.validationTargets)
+        append(spacingBeforeQueryClass(m))
+        appendQueryClass(m, observable)
+    }
+
+    private fun StringBuilder.appendQueryImportSection(m: QueryRenderModel, observable: Boolean) {
+        val flags = QueryImportFlags(
+            isEnumerable = m.query.isEnumerable,
+            hasValidation = m.validationTargets.isNotEmpty(),
+            hasHttpMethod = m.method != null,
+            supportsSorting = m.supportsSorting,
+            supportsPaging = m.supportsPaging,
+            hasSortableProperties = m.hasSortableProperties
+        )
+        if (observable) appendObservableQueryImports(flags) else appendQueryImports(flags)
+        append("import { ParameterDescriptor } from '@cratis/arc/reflection';\n")
+        appendPackageImports(m.referencedTypes)
+        appendCustomImports(m.imports, m.target)
+    }
+
+    private fun spacingBeforeQueryClass(m: QueryRenderModel): String {
+        val bare = m.parameters.isEmpty() && m.validationTargets.isEmpty()
+        return when {
+            m.query.isEnumerable && bare -> "\n"
+            !m.query.isEnumerable && bare -> "\n\n\n"
+            else -> "\n\n"
         }
     }
 
-    private fun renderObservableQuery(query: QueryDescriptor, target: ArtifactTarget, route: String): String {
-        val parameters = query.parameters.filter { parameter -> parameter.source == QueryParameterSource.CLIENT }
-            .sortedBy(ParameterDescriptor::name)
-        val validationTargets = queryValidationTargets(parameters)
-        val model = resolveType(query.returnTypeName, target)
-        val parameterTypes = parameters.map { resolveParameterType(it, target) }
-        val referencedTypes = listOf(model) + parameterTypes
-        val imports = customImports(referencedTypes, referencedTypes)
-        val sortableProperties = returnedSortProperties(query)
-        val className = target.typeScriptName
-        val modelType = model.name + if (query.isEnumerable) "[]" else ""
-        val parameterType = if (parameters.isEmpty()) "" else ", ${className}Parameters"
-        val method = query.queryHttpMethod.takeIf {
-            options.endpointOptions.enableQueryHttpMethod && it.name != "AUTO"
-        }?.let { upperCamel(it.name.lowercase()) }
-        val supportsSorting = query.isEnumerable && query.supportsSorting
-        val supportsPaging = query.isEnumerable && query.supportsPaging
-        val hasSortableProperties = supportsSorting && sortableProperties.isNotEmpty()
-        return buildString {
-            appendGeneratedHeader()
-            append("/* eslint-disable sort-imports */\n")
-            append("// eslint-disable-next-line header/header\n")
-            val validationImport = if (validationTargets.isNotEmpty()) ", QueryValidator" else ""
-            if (query.isEnumerable) {
-                val sorting = if (supportsSorting) ", Sorting" else ""
-                val sortingActions = if (hasSortableProperties) {
-                    ", SortingActions, SortingActionsForObservableQuery"
-                } else {
-                    ""
-                }
-                val paging = if (supportsPaging) ", Paging" else ""
-                val httpMethod = if (method != null) ", QueryHttpMethod" else ""
-                append("import { ObservableQueryFor, QueryResultWithState$validationImport$sorting$sortingActions$paging, type ChangeSet$httpMethod } from '@cratis/arc/queries';\n")
-                val hooks = if (supportsPaging) {
-                    "useObservableQuery, useObservableQueryWithPaging, useSuspenseObservableQuery, " +
-                        "useSuspenseObservableQueryWithPaging"
-                } else {
-                    "useObservableQuery, useSuspenseObservableQuery"
-                }
-                val sortingType = if (supportsSorting) ", type SetSorting" else ""
-                val pagingTypes = if (supportsPaging) ", type SetPage, type SetPageSize" else ""
-                append("import { $hooks, useChangeStream$sortingType$pagingTypes, ObservableQueryWhen } from '@cratis/arc.react/queries';\n")
-            } else {
-                val httpMethod = if (method != null) ", QueryHttpMethod" else ""
-                append("import { ObservableQueryFor, QueryResultWithState$validationImport$httpMethod } from '@cratis/arc/queries';\n")
-                append("import { useObservableQuery, useSuspenseObservableQuery, ObservableQueryWhen } from '@cratis/arc.react/queries';\n")
-            }
-            append("import { ParameterDescriptor } from '@cratis/arc/reflection';\n")
-            appendPackageImports(referencedTypes)
-            appendCustomImports(imports, target)
-            if (supportsSorting) appendObservableSortHelpers(className, model.name, sortableProperties)
-            if (parameters.isNotEmpty()) {
-                val parameterSpacing = if (query.isEnumerable) "\n" else "\n\n"
-                append(parameterSpacing)
-                appendDocumentation(query.summary)
-                append("export interface ${className}Parameters {\n")
-                parameters.forEach { parameter ->
-                    append("    \n")
-                    val optional = if (parameter.isNullable || parameter.hasDefault) "?" else ""
-                    val array = parameterArraySuffix(parameter)
-                    appendDocumentation(parameter.summary, "    ")
-                    append("    ${lowerCamel(parameter.name)}$optional: ${resolveParameterType(parameter, target).name}$array;\n")
-                }
-                append("}\n")
-            }
-            if (validationTargets.isNotEmpty()) append("\n")
-            appendQueryValidator(query, target, validationTargets)
-            val classSpacing = when {
-                query.isEnumerable && parameters.isEmpty() && validationTargets.isEmpty() -> "\n"
-                !query.isEnumerable && parameters.isEmpty() && validationTargets.isEmpty() -> "\n\n\n"
-                else -> "\n\n"
-            }
-            append(classSpacing)
-            appendDocumentation(query.summary)
-            append("export class $className extends ObservableQueryFor<$modelType$parameterType> {\n")
-            append("    readonly route: string = '${escape(route)}';\n")
-            append("    readonly queryName: string = '${escape(query.fullyQualifiedName)}';\n")
-            if (validationTargets.isNotEmpty()) {
-                append("    readonly validation: QueryValidator = new ${className}Validator();\n")
-            }
-            append("    readonly treatWarningsAsErrors: boolean = ${query.treatWarningsAsErrors};\n")
-            append("    readonly roles: string[] = ${roles(query.authorization.roles)};\n")
-            append("    readonly defaultValue: $modelType = ${if (query.isEnumerable) "[]" else "{} as any"};\n")
-            if (supportsSorting) {
-                append("    private readonly _sortBy: ${className}SortBy;\n")
-                append("    private static readonly _sortBy: ${className}SortByWithoutQuery = new ${className}SortByWithoutQuery();\n")
-            }
-            append("\n    constructor() {\n        super(${model.constructor}, ${query.isEnumerable});\n")
-            if (supportsSorting) append("        this._sortBy = new ${className}SortBy(this);\n")
-            if (method != null) append("        this.setHttpMethod(QueryHttpMethod.$method);\n")
-            append("    }\n\n")
-            append("    get requiredRequestParameters(): string[] {\n        return [\n")
-            parameters.filter { parameter -> !parameter.isNullable && !parameter.hasDefault }.forEach {
-                append("            '${lowerCamel(it.name)}',\n")
-            }
-            append("        ];\n    }\n\n")
-            append("    readonly parameterDescriptors: ParameterDescriptor[] = [\n")
-            parameters.forEach { parameter ->
-                append("        new ParameterDescriptor('${lowerCamel(parameter.name)}', ${resolveParameterType(parameter, target).constructor}, ${parameter.isEnumerable}),\n")
-            }
-            append("    ];\n\n")
-            parameters.forEach { parameter ->
-                val optional = if (parameter.hasDefault) "?" else "!"
-                val array = parameterArraySuffix(parameter)
-                append("    ${lowerCamel(parameter.name)}$optional: ${resolveParameterType(parameter, target).name}$array;\n")
-            }
-            if (!query.isEnumerable) append("\n")
-            if (supportsSorting) {
-                append("\n    get sortBy(): ${className}SortBy {\n        return this._sortBy;\n    }\n")
-                append("\n    static get sortBy(): ${className}SortByWithoutQuery {\n        return this._sortBy;\n    }\n")
-            }
-            appendObservableQueryHooks(query, className, model.name, parameters.isNotEmpty())
-            append("}\n")
+    private fun StringBuilder.appendQueryClass(m: QueryRenderModel, observable: Boolean) {
+        appendDocumentation(m.query.summary)
+        val baseClass = if (observable) "ObservableQueryFor" else "QueryFor"
+        append("export class ${m.className} extends $baseClass<${m.modelType}${m.parameterType}> {\n")
+        appendQueryClassFields(m)
+        appendQueryParameterMembers(m)
+        if (m.supportsSorting) {
+            append("\n    get sortBy(): ${m.className}SortBy {\n        return this._sortBy;\n    }\n")
+            append("\n    static get sortBy(): ${m.className}SortByWithoutQuery {\n        return this._sortBy;\n    }\n")
         }
+        if (observable) {
+            appendObservableQueryHooks(m.query, m.className, m.model.name, m.parameters.isNotEmpty())
+        } else {
+            appendQueryHooks(m.query, m.className, m.model.name, m.parameters.isNotEmpty())
+        }
+        append("}\n")
+    }
+
+    private fun StringBuilder.appendQueryParametersInterface(m: QueryRenderModel, observable: Boolean) {
+        if (m.parameters.isEmpty()) return
+        append(if (m.query.isEnumerable) "\n" else "\n\n")
+        appendDocumentation(m.query.summary)
+        append("export interface ${m.className}Parameters {\n")
+        m.parameters.forEach { parameter ->
+            if (observable) append("    \n")
+            val optional = if (parameter.isNullable || parameter.hasDefault) "?" else ""
+            val array = resolver.parameterArraySuffix(parameter)
+            appendDocumentation(parameter.summary, "    ")
+            append("    ${lowerCamel(parameter.name)}$optional: ${resolver.resolveParameterType(parameter, m.target).name}$array;\n")
+        }
+        append("}\n")
+    }
+
+    private fun StringBuilder.appendQueryClassFields(m: QueryRenderModel) {
+        append("    readonly route: string = '${escape(m.route)}';\n")
+        append("    readonly queryName: string = '${escape(m.query.fullyQualifiedName)}';\n")
+        if (m.validationTargets.isNotEmpty()) {
+            append("    readonly validation: QueryValidator = new ${m.className}Validator();\n")
+        }
+        append("    readonly treatWarningsAsErrors: boolean = ${m.query.treatWarningsAsErrors};\n")
+        append("    readonly roles: string[] = ${roles(m.query.authorization.roles)};\n")
+        append("    readonly defaultValue: ${m.modelType} = ${if (m.query.isEnumerable) "[]" else "{} as any"};\n")
+        if (m.supportsSorting) {
+            append("    private readonly _sortBy: ${m.className}SortBy;\n")
+            append("    private static readonly _sortBy: ${m.className}SortByWithoutQuery = new ${m.className}SortByWithoutQuery();\n")
+        }
+        append("\n    constructor() {\n        super(${m.model.constructor}, ${m.query.isEnumerable});\n")
+        if (m.supportsSorting) append("        this._sortBy = new ${m.className}SortBy(this);\n")
+        if (m.method != null) append("        this.setHttpMethod(QueryHttpMethod.${m.method});\n")
+        append("    }\n\n")
+    }
+
+    private fun StringBuilder.appendQueryParameterMembers(m: QueryRenderModel) {
+        append("    get requiredRequestParameters(): string[] {\n        return [\n")
+        m.parameters.filter { parameter -> !parameter.isNullable && !parameter.hasDefault }.forEach {
+            append("            '${lowerCamel(it.name)}',\n")
+        }
+        append("        ];\n    }\n\n")
+        append("    readonly parameterDescriptors: ParameterDescriptor[] = [\n")
+        m.parameters.forEach { parameter ->
+            append("        new ParameterDescriptor('${lowerCamel(parameter.name)}', ${resolver.resolveParameterType(parameter, m.target).constructor}, ${parameter.isEnumerable}),\n")
+        }
+        append("    ];\n\n")
+        m.parameters.forEach { parameter ->
+            val optional = if (parameter.hasDefault) "?" else "!"
+            val array = resolver.parameterArraySuffix(parameter)
+            append("    ${lowerCamel(parameter.name)}$optional: ${resolver.resolveParameterType(parameter, m.target).name}$array;\n")
+        }
+        if (!m.query.isEnumerable) append("\n")
     }
 
     private fun StringBuilder.appendSharedImports(target: ArtifactTarget, shapes: List<TypeShapeDescriptor>) {
@@ -869,185 +505,16 @@ internal class TypeScriptProxyGenerator(
         }
     }
 
-    private fun sameRule(left: ValidationRuleDescriptor, right: ValidationRuleDescriptor): Boolean =
-        left.ruleName == right.ruleName && left.message == right.message && left.arguments.size == right.arguments.size &&
-            left.arguments.zip(right.arguments).all { (a, b) ->
-                if (a is Number && b is Number) a.toString().toBigDecimal().compareTo(b.toString().toBigDecimal()) == 0 else a == b
-            }
-
-    private fun sharedAlias(name: String): String = "ArcNested" + MessageDigest.getInstance("SHA-256")
-        .digest(name.toByteArray()).take(6).joinToString("") { "%02x".format(it) }
-
-    /** Emit each declaration independently to preserve runtime declaration order and feedback multiplicity. */
-    private fun StringBuilder.appendSharedValidator(
-        className: String, base: String, targetType: String, model: String?, properties: List<PropertyDescriptor>,
-        legacy: List<ValidationTarget>, target: ArtifactTarget, query: Boolean = false
-    ) {
-        val declarations = model?.let { shared.declarations[it] }.orEmpty()
-        append("export class $className extends $base<$targetType> {\n")
-        declarations.forEachIndexed { index, _ -> append("    private readonly arcRules$index = new ArcSharedValidator<$targetType>();\n") }
-        append("    constructor() {\n        super();\n")
-        legacy.forEach { member -> member.rules.forEach { rule -> appendRule("this", member.propertyName, rule) } }
-        declarations.forEachIndexed { index, declaration -> declaration.members.forEach { member ->
-            member.rules.forEach { appendRule("this.arcRules$index", member.name, it) }
-        } }
-        append("    }\n\n")
-        append("    validate(value: $targetType, arcPath = '', arcSeen = new WeakSet<object>()): ArcSharedResult[] {\n")
-        append("        if (value == null) return [];\n")
-        if (!query) append("        if (arcSeen.has(value)) return [];\n        arcSeen.add(value);\n")
-        append("        const results: ArcSharedResult[] = super.validate(value).filter(result => !(")
-        val optional = legacy.filter { it.skipWhenUndefined }
-        append(if (optional.isEmpty()) "false" else optional.joinToString(" || ") {
-            "value.${it.propertyName} === undefined && result.members.includes('${it.propertyName}')"
-        })
-        append("));\n")
-        declarations.forEachIndexed { index, declaration ->
-            val numeric = declaration.members.filter { member -> member.rules.any { it.ruleName in setOf("greaterThan", "greaterThanOrEqual", "lessThan", "lessThanOrEqual") } }
-            val condition = numeric.joinToString(" || ") { member ->
-                val access = "value.${member.name}"
-                "($access != null && (!Number.isFinite($access) || Math.abs($access) > Number.MAX_SAFE_INTEGER || ($access !== 0 && Math.abs($access) < 2.2250738585072014e-308)))"
-            }
-            if (condition.isNotEmpty()) append("        if ($condition) {\n            results.push(new ArcSharedResult(ArcSharedSeverity.Error, 'The value could not be validated.', [], null, 'validatorFailed'));\n        } else {\n")
-            append("        results.push(...this.arcRules$index.validate(value));\n")
-            if (condition.isNotEmpty()) append("        }\n")
-        }
-        append("        const qualified = results.map(result => new ArcSharedResult(result.severity, result.message,\n")
-        append("            result.members.length === 0 ? (arcPath ? [arcPath] : []) : result.members.map(member => arcPath ? (member.startsWith('[') ? arcPath + member : arcPath + '.' + member) : member), result.state, result.reason, result.reasonDetail));\n")
-        properties.sortedBy { it.name }.forEach { property ->
-            if (!property.ignoreValidation && shared.reaches(property.shape)) {
-                val access = "value.${lowerCamel(property.name)}"
-                val path = "(arcPath ? arcPath + '.${escape(property.name)}' : '${escape(property.name)}')"
-                val seen = if (query) "arcSeen${sharedAlias(property.name)}" else "arcSeen"
-                if (query) append("        const $seen = new WeakSet<object>();\n")
-                appendSharedEdge(property.shape, access, path, seen, target)
-            }
-        }
-        append("        return qualified;\n    }\n}\n\n")
-    }
-
-    private fun StringBuilder.appendRule(receiver: String, member: String, rule: ValidationRuleDescriptor) {
-        append("        $receiver.ruleFor(c => c.$member).${rule.ruleName}(${renderValidationArguments(rule)})")
-        rule.message?.let { append(".withMessage(${typescriptString(it)})") }
-        append(";\n")
-    }
-
-    private fun StringBuilder.appendSharedEdge(shape: TypeShapeDescriptor, access: String, path: String, seen: String, target: ArtifactTarget) {
-        when (shape.kind) {
-            TypeShapeKind.VALUE -> {
-                val name = requireNotNull(shape.typeName)
-                if (name == target.sourceName) throw GradleException("[ARCVALIDATION_GRAPH] Recursive shared edge '$name'.")
-                append("        if ($access != null) qualified.push(...new ${sharedAlias(name)}().validate($access, $path, $seen));\n")
-            }
-            TypeShapeKind.SEQUENCE -> {
-                val leaf = requireNotNull(shape.elementShape)
-                val name = requireNotNull(leaf.typeName)
-                append("        $access?.forEach((entry, index) => {\n")
-                append("            qualified.push(...new ${sharedAlias(name)}().validate(entry, $path + '[' + index + ']', $seen));\n        });\n")
-            }
-            TypeShapeKind.MAP -> throw GradleException("[ARCVALIDATION_GRAPH] Shared model maps are unsupported.")
-        }
-    }
-
-    private fun StringBuilder.appendQueryValidator(query: QueryDescriptor, target: ArtifactTarget, targets: List<ValidationTarget>) {
-        val className = "${target.typeScriptName}Validator"
-        val targetType = "${target.typeScriptName}Parameters"
-        val parameters = query.parameters.filter { it.source == QueryParameterSource.CLIENT }
-        if (parameters.any { shared.reaches(it.shape) }) {
-            appendSharedValidator(className, "QueryValidator", targetType, null,
-                parameters.map { PropertyDescriptor(it.name, it.shape) }, targets, target, query = true)
-        } else appendValidator(className, "QueryValidator", targetType, targets)
-    }
-
-    private fun StringBuilder.appendValidator(
-        className: String,
-        validatorType: String,
-        targetType: String,
-        targets: List<ValidationTarget>
-    ) {
-        if (targets.isEmpty()) return
-        append("export class $className extends $validatorType<$targetType> {\n")
-        append("    constructor() {\n")
-        append("        super();\n")
-        targets.forEach { target ->
-            target.rules.forEach { rule ->
-                append("        this.ruleFor(c => c.${target.propertyName}).${rule.ruleName}(")
-                append(renderValidationArguments(rule))
-                append(")")
-                rule.message?.let { message -> append(".withMessage(${typescriptString(message)})") }
-                append(";\n")
-            }
-        }
-        append("    }\n")
-        val optionalTargets = targets.filter(ValidationTarget::skipWhenUndefined)
-        if (optionalTargets.isNotEmpty()) {
-            append("\n    validate(query: $targetType) {\n")
-            append("        return super.validate(query).filter(result => !(\n")
-            optionalTargets.forEachIndexed { index, target ->
-                val prefix = if (index == 0) "            " else "            || "
-                append("$prefix(query.${target.propertyName} === undefined && result.members.some(member => ")
-                append("member === '${target.propertyName}' || member.startsWith('${target.propertyName}.')))\n")
-            }
-            append("        ));\n")
-            append("    }\n")
-        }
-        append("}\n\n")
-    }
-
-    private fun List<ValidationRuleDescriptor>.clientRepresentable(): List<ValidationRuleDescriptor> =
-        filterNot { rule ->
-            // .NET currently extracts CreditCardAttribute, but @cratis/arc 22.7.0 exposes no creditCard RuleBuilder
-            // extension or runtime rule. Keep server enforcement and metadata without generating uncompilable proxies.
-            rule.ruleName == "creditCard"
-        }
-
-    private fun renderValidationArguments(rule: ValidationRuleDescriptor): String =
-        rule.arguments.mapIndexed { index, argument ->
-            if (rule.ruleName == "matches" && index == 0) {
-                regularExpression(argument as? String ?: throw GradleException("Regular expression argument must be a string."))
-            } else {
-                when (argument) {
-                    is String -> typescriptString(argument)
-                    is Number, is Boolean -> argument.toString()
-                    else -> throw GradleException(
-                        "Unsupported argument '$argument' for Arc validation rule '${rule.ruleName}'."
-                    )
-                }
-            }
-        }.joinToString(", ")
-
-    private fun regularExpression(pattern: String): String {
-        if (pattern.isEmpty()) return "/(?:)/"
-        val literal = StringBuilder(pattern.length + 2)
-        val escaped = pattern.fold(false) { previousWasEscape, character ->
-            if (character == '\\' && !previousWasEscape) {
-                literal.append('\\')
-                true
-            } else {
-                when (character) {
-                    '/' -> literal.append(if (previousWasEscape) "/" else "\\/")
-                    '\r' -> literal.append(if (previousWasEscape) "r" else "\\r")
-                    '\n' -> literal.append(if (previousWasEscape) "n" else "\\n")
-                    '\u2028' -> literal.append(if (previousWasEscape) "u2028" else "\\u2028")
-                    '\u2029' -> literal.append(if (previousWasEscape) "u2029" else "\\u2029")
-                    else -> literal.append(character)
-                }
-                false
-            }
-        }
-        if (escaped) literal.append('\\')
-        return "/$literal/"
-    }
-
-    private fun typescriptString(value: String): String = "'" + value
-        .replace("\\", "\\\\")
-        .replace("'", "\\'")
-        .replace("\r", "\\r")
-        .replace("\n", "\\n") + "'"
-
     /** Select only declared return-row fields; request arguments are not sortable row members. */
     private fun returnedSortProperties(query: QueryDescriptor): List<String> {
         if (!query.isEnumerable || !query.supportsSorting) return emptyList()
         val names = sortedSetOf<String>()
+        collectReturnModelNames(query, names)
+        rejectUnsafeSortName(query, names)
+        return names.toList()
+    }
+
+    private fun collectReturnModelNames(query: QueryDescriptor, names: MutableSet<String>) {
         val visited = mutableSetOf<String>()
         var typeName: String? = query.returnTypeName
         while (typeName != null) {
@@ -1057,259 +524,21 @@ internal class TypeScriptProxyGenerator(
             val model = artifacts.types.firstOrNull { it.fullyQualifiedName == typeName }
             if (model == null) {
                 // Interface inheritance is not represented by the manifest; do not invent missing members.
-                artifacts.interfaces.firstOrNull { it.fullyQualifiedName == typeName }?.properties?.forEach {
-                    names += lowerCamel(it.name)
-                }
+                names += interfaceSortProperties(typeName)
                 break
             }
             model.properties.forEach { names += lowerCamel(it.name) }
             typeName = model.baseTypeName
         }
+    }
+
+    private fun interfaceSortProperties(typeName: String): List<String> =
+        artifacts.interfaces.firstOrNull { it.fullyQualifiedName == typeName }?.properties.orEmpty()
+            .map { lowerCamel(it.name) }
+
+    private fun rejectUnsafeSortName(query: QueryDescriptor, names: Collection<String>) {
         names.firstOrNull { it == "constructor" || !TYPESCRIPT_IDENTIFIER.matches(it) }?.let { name ->
             throw GradleException("Cannot generate Arc sorting helper '${query.fullyQualifiedName}.$name'; rename that return-model member or expose a different result contract.")
-        }
-        return names.toList()
-    }
-
-    private fun StringBuilder.appendObservableSortHelpers(
-        className: String,
-        model: String,
-        properties: List<String>
-    ) = appendSortHelpers(className, model, properties, "SortingActionsForObservableQuery")
-
-    private fun StringBuilder.appendObservableQueryHooks(
-        query: QueryDescriptor,
-        className: String,
-        model: String,
-        hasParameters: Boolean
-    ) {
-        val argsType = if (hasParameters) "${className}Parameters" else null
-        val argsDeclaration = argsType?.let { "args?: $it" }
-        val argsValue = if (hasParameters) "args" else "undefined"
-        val genericParameter = argsType?.let { ", $it" }.orEmpty()
-        if (query.isEnumerable) {
-            val sortingArgument = "sorting?: Sorting".takeIf { query.supportsSorting }
-            val firstArguments = listOfNotNull(argsDeclaration, sortingArgument).joinToString(", ")
-            val useTypes = listOf("QueryResultWithState<$model[]>") +
-                listOfNotNull("SetSorting".takeIf { query.supportsSorting })
-            append("\n    static use($firstArguments): [${useTypes.joinToString(", ")}] {\n")
-            if (query.supportsSorting) {
-                append("        return useObservableQuery<$model[], $className$genericParameter>($className, $argsValue, sorting);\n    }\n")
-            } else {
-                append("        const [result] = useObservableQuery<$model[], $className$genericParameter>($className, $argsValue);\n")
-                append("        return [result];\n    }\n")
-            }
-            if (query.supportsPaging) {
-                val pagingArguments = listOf("pageSize: number") + listOfNotNull(argsDeclaration, sortingArgument)
-                val pagingTypes = useTypes + listOf("SetPage", "SetPageSize")
-                val sortingValue = if (query.supportsSorting) "sorting" else "undefined"
-                append("\n    static useWithPaging(${pagingArguments.joinToString(", ")}): [${pagingTypes.joinToString(", ")}] {\n")
-                if (query.supportsSorting) {
-                    append("        return useObservableQueryWithPaging<$model[], $className>($className, new Paging(0, pageSize), $argsValue, $sortingValue);\n    }\n")
-                } else {
-                    append("        const [result, , setPage, setPageSize] = useObservableQueryWithPaging<$model[], $className>($className, new Paging(0, pageSize), $argsValue, $sortingValue);\n")
-                    append("        return [result, setPage, setPageSize];\n    }\n")
-                }
-            }
-            append("\n    static useSuspense($firstArguments): [${useTypes.joinToString(", ")}] {\n")
-            if (query.supportsSorting) {
-                append("        return useSuspenseObservableQuery<$model[], $className$genericParameter>($className, $argsValue, sorting);\n    }\n")
-            } else {
-                append("        const [result] = useSuspenseObservableQuery<$model[], $className$genericParameter>($className, $argsValue);\n")
-                append("        return [result];\n    }\n")
-            }
-            if (query.supportsPaging) {
-                val pagingArguments = listOf("pageSize: number") + listOfNotNull(argsDeclaration, sortingArgument)
-                val pagingTypes = useTypes + listOf("SetPage", "SetPageSize")
-                val sortingValue = if (query.supportsSorting) "sorting" else "undefined"
-                append("\n    static useSuspenseWithPaging(${pagingArguments.joinToString(", ")}): [${pagingTypes.joinToString(", ")}] {\n")
-                if (query.supportsSorting) {
-                    append("        return useSuspenseObservableQueryWithPaging<$model[], $className>($className, new Paging(0, pageSize), $argsValue, $sortingValue);\n    }\n")
-                } else {
-                    append("        const [result, , setPage, setPageSize] = useSuspenseObservableQueryWithPaging<$model[], $className>($className, new Paging(0, pageSize), $argsValue, $sortingValue);\n")
-                    append("        return [result, setPage, setPageSize];\n    }\n")
-                }
-            }
-            val changeStreamArguments = listOfNotNull(
-                argsDeclaration,
-                "getKey?: (item: $model) => unknown",
-                sortingArgument
-            ).joinToString(", ")
-            val sortingValue = if (query.supportsSorting) "sorting" else "undefined"
-            append("\n    static useChangeStream($changeStreamArguments): ChangeSet<$model> {\n")
-            append("        return useChangeStream<$model, $className$genericParameter>($className, $argsValue, getKey, $sortingValue);\n    }\n")
-            append("\n    static when(condition: boolean): ObservableQueryWhen<$className, $model[]$genericParameter> {\n")
-            append("        return new ObservableQueryWhen<$className, $model[]$genericParameter>($className, condition);\n    }\n")
-        } else {
-            val declaration = argsDeclaration.orEmpty()
-            append("\n    static use($declaration): [QueryResultWithState<$model>] {\n")
-            append("        const [result] = useObservableQuery<$model, $className$genericParameter>($className${if (hasParameters) ", args" else ""});\n")
-            append("        return [result];\n    }\n")
-            append("\n    static useSuspense($declaration): [QueryResultWithState<$model>] {\n")
-            append("        const [result] = useSuspenseObservableQuery<$model, $className$genericParameter>($className${if (hasParameters) ", args" else ""});\n")
-            append("        return [result];\n    }\n")
-            append("\n    static when(condition: boolean): ObservableQueryWhen<$className, $model$genericParameter> {\n")
-            append("        return new ObservableQueryWhen<$className, $model$genericParameter>($className, condition);\n    }\n")
-        }
-    }
-
-    private fun StringBuilder.appendSortHelpers(
-        className: String,
-        model: String,
-        properties: List<String>,
-        actions: String = "SortingActionsForQuery"
-    ) {
-        // `_name` and `name` are both valid row fields. Private storage must not collide with either
-        // public accessor, nor with another private slot (including collisions inherited from a base).
-        val reserved = properties.map(::lowerCamel).toMutableSet()
-        val storage = properties.associate { property ->
-            val name = lowerCamel(property)
-            var slot = "_$name"
-            while (!reserved.add(slot)) slot = "_$slot"
-            name to slot
-        }
-        append("\nclass ${className}SortBy {\n")
-        storage.values.forEach { append("    private $it: $actions<$model[]>;\n") }
-        append("\n    constructor(query: $className) {\n")
-        storage.forEach { (name, slot) ->
-            append("        this.$slot = new $actions<$model[]>('$name', query);\n")
-        }
-        append("    }\n")
-        if (properties.isNotEmpty()) append("\n")
-        storage.forEach { (name, slot) ->
-            append("    get $name(): $actions<$model[]> {\n        return this.$slot;\n    }\n")
-        }
-        if (properties.isEmpty()) append("\n")
-        append("}\n\nclass ${className}SortByWithoutQuery {\n")
-        storage.forEach { (name, slot) ->
-            append("    private $slot: SortingActions  = new SortingActions('$name');\n")
-        }
-        append("\n")
-        storage.forEach { (name, slot) ->
-            append("    get $name(): SortingActions {\n        return this.$slot;\n    }\n")
-        }
-        append("}\n")
-        if (properties.isEmpty()) append("\n")
-    }
-
-    private fun StringBuilder.appendQueryHooks(
-        query: QueryDescriptor,
-        className: String,
-        model: String,
-        hasParameters: Boolean
-    ) {
-        val argsType = if (hasParameters) "${className}Parameters" else null
-        val argsDeclaration = argsType?.let { "args?: $it" }
-        val argsValue = if (hasParameters) "args" else "undefined"
-        val genericParameter = argsType?.let { ", $it" }.orEmpty()
-        val performType = "PerformQuery${argsType?.let { "<$it>" }.orEmpty()}"
-        if (query.isEnumerable) {
-            val sortingArgument = "sorting?: Sorting".takeIf { query.supportsSorting }
-            val firstArguments = listOfNotNull(argsDeclaration, sortingArgument).joinToString(", ")
-            val useTypes = listOf("QueryResultWithState<$model[]>", performType) +
-                listOfNotNull("SetSorting".takeIf { query.supportsSorting })
-            append("\n    static use($firstArguments): [${useTypes.joinToString(", ")}] {\n")
-            if (query.supportsSorting) {
-                append("        return useQuery<$model[], $className$genericParameter>($className, $argsValue, sorting);\n    }\n")
-            } else {
-                append("        const [result, perform] = useQuery<$model[], $className$genericParameter>($className, $argsValue);\n")
-                append("        return [result, perform];\n    }\n")
-            }
-            if (query.supportsPaging) {
-                val pagingArguments = listOf("pageSize: number") + listOfNotNull(argsDeclaration, sortingArgument)
-                val pagingTypes = listOf("QueryResultWithState<$model[]>", "PerformQuery") +
-                    listOfNotNull("SetSorting".takeIf { query.supportsSorting }) +
-                    listOf("SetPage", "SetPageSize")
-                val sortingValue = if (query.supportsSorting) "sorting" else "undefined"
-                append("\n    static useWithPaging(${pagingArguments.joinToString(", ")}): [${pagingTypes.joinToString(", ")}] {\n")
-                if (query.supportsSorting) {
-                    append("        return useQueryWithPaging<$model[], $className>($className, new Paging(0, pageSize), $argsValue, $sortingValue);\n    }\n")
-                } else {
-                    append("        const [result, perform, , setPage, setPageSize] = useQueryWithPaging<$model[], $className>($className, new Paging(0, pageSize), $argsValue, $sortingValue);\n")
-                    append("        return [result, perform, setPage, setPageSize];\n    }\n")
-                }
-            }
-            append("\n    static useSuspense($firstArguments): [${useTypes.joinToString(", ")}] {\n")
-            if (query.supportsSorting) {
-                append("        return useSuspenseQuery<$model[], $className$genericParameter>($className, $argsValue, sorting);\n    }\n")
-            } else {
-                append("        const [result, perform] = useSuspenseQuery<$model[], $className$genericParameter>($className, $argsValue);\n")
-                append("        return [result, perform];\n    }\n")
-            }
-            if (query.supportsPaging) {
-                val pagingArguments = listOf("pageSize: number") + listOfNotNull(argsDeclaration, sortingArgument)
-                val pagingTypes = listOf("QueryResultWithState<$model[]>", "PerformQuery") +
-                    listOfNotNull("SetSorting".takeIf { query.supportsSorting }) +
-                    listOf("SetPage", "SetPageSize")
-                val sortingValue = if (query.supportsSorting) "sorting" else "undefined"
-                append("\n    static useSuspenseWithPaging(${pagingArguments.joinToString(", ")}): [${pagingTypes.joinToString(", ")}] {\n")
-                if (query.supportsSorting) {
-                    append("        return useSuspenseQueryWithPaging<$model[], $className>($className, new Paging(0, pageSize), $argsValue, $sortingValue);\n    }\n")
-                } else {
-                    append("        const [result, perform, , setPage, setPageSize] = useSuspenseQueryWithPaging<$model[], $className>($className, new Paging(0, pageSize), $argsValue, $sortingValue);\n")
-                    append("        return [result, perform, setPage, setPageSize];\n    }\n")
-                }
-            }
-            append("\n    static when(condition: boolean): QueryWhen<$className, $model[]$genericParameter> {\n")
-            append("        return new QueryWhen<$className, $model[]$genericParameter>($className, condition);\n    }\n")
-        } else {
-            val declaration = argsDeclaration.orEmpty()
-            append("\n    static use($declaration): [QueryResultWithState<$model>, $performType, SetSorting] {\n")
-            append("        return useQuery<$model, $className$genericParameter>($className${if (hasParameters) ", args" else ""});\n    }\n")
-            append("\n    static useSuspense($declaration): [QueryResultWithState<$model>, $performType, SetSorting] {\n")
-            append("        return useSuspenseQuery<$model, $className$genericParameter>($className${if (hasParameters) ", args" else ""});\n    }\n")
-            append("\n    static when(condition: boolean): QueryWhen<$className, $model$genericParameter> {\n")
-            append("        return new QueryWhen<$className, $model$genericParameter>($className, condition);\n    }\n")
-        }
-    }
-
-    private fun routeParameters(route: String, properties: List<PropertyDescriptor>): List<String> {
-        val propertyNames = properties.map { lowerCamel(it.name) }.toSet()
-        return ROUTE_PARAMETER.findAll(route)
-            .map { it.groupValues[1] }
-            .filter { it in propertyNames }
-            .distinct()
-            .toList()
-    }
-
-    private fun StringBuilder.appendPackageImports(
-        types: Collection<TypeScriptType>,
-        additionalImports: Collection<TypeScriptValueImport> = emptyList()
-    ) {
-        val imports = (types.flatMap { type -> type.recursiveTypes() }.mapNotNull(TypeScriptType::valueImport) +
-            additionalImports).distinct()
-        val importsByPackage = imports.groupBy(TypeScriptValueImport::packageName)
-        importsByPackage.keys.sortedWith(
-            compareBy<String, String>(String.CASE_INSENSITIVE_ORDER) { it }.thenBy { it }
-        ).forEach { packageName ->
-            val names = importsByPackage.getValue(packageName).sortedWith(
-                compareBy<TypeScriptValueImport> { valueImport ->
-                    if (valueImport.packageName == FUNDAMENTALS_PACKAGE) {
-                        FUNDAMENTALS_IMPORT_ORDER[valueImport.name] ?: FUNDAMENTALS_IMPORT_ORDER.size
-                    } else {
-                        0
-                    }
-                }.thenBy(String.CASE_INSENSITIVE_ORDER, TypeScriptValueImport::name)
-                    .thenBy(TypeScriptValueImport::name)
-            ).groupBy(TypeScriptValueImport::name).map { (name, references) ->
-                if (references.all(TypeScriptValueImport::typeOnly)) "type $name" else name
-            }
-            append("import { ${names.joinToString(", ")} } from '$packageName';\n")
-        }
-    }
-
-    private fun customImports(
-        types: Collection<TypeScriptType>,
-        runtimeTypes: Collection<TypeScriptType> = emptyList()
-    ): List<TypeScriptImport> {
-        val valueTargets = runtimeTypes.mapNotNull { type ->
-            type.target?.takeIf { target -> type.constructor == target.typeScriptName }
-        }.toSet()
-        return types.flatMap { type -> type.recursiveTypes() }.mapNotNull(TypeScriptType::target).distinct().map { target ->
-            TypeScriptImport(
-                target,
-                if (target in valueTargets) TypeScriptImportKind.VALUE else TypeScriptImportKind.TYPE
-            )
         }
     }
 
@@ -1332,430 +561,4 @@ internal class TypeScriptProxyGenerator(
         }
     }
 
-    private fun relativeImport(from: List<String>, target: ArtifactTarget): String {
-        val common = from.zip(target.directory).takeWhile { (source, destination) -> source == destination }.size
-        val upward = "../".repeat(from.size - common)
-        val downward = (target.directory.drop(common) + target.fileStem).joinToString("/")
-        return if (upward.isEmpty()) "./$downward" else "$upward$downward"
-    }
-
-    private fun resolvePropertyType(property: PropertyDescriptor, current: ArtifactTarget): TypeScriptType =
-        if (property.shape.kind == TypeShapeKind.MAP) {
-            resolveMapShape(property.shape, property.name)
-        } else {
-            resolveType(if (property.isEnumerable) requireElementType(property.name, property.elementTypeName) else property.typeName, current)
-        }
-
-    private fun propertyTypeName(property: PropertyDescriptor, current: ArtifactTarget): String =
-        resolvePropertyType(property, current).name + (if (property.isEnumerable) "[]" else "") +
-            if (shared.contains(current.sourceName) && property.isNullable) " | null" else ""
-
-    private fun resolveMapShape(
-        shape: TypeShapeDescriptor,
-        propertyName: String,
-        path: String = propertyName,
-        root: Boolean = true
-    ): TypeScriptType {
-        if (!root && shape.nullable) {
-            throw GradleException("Map property '$propertyName' entry path '$path' cannot be nullable.")
-        }
-        return when (shape.kind) {
-            TypeShapeKind.VALUE -> {
-                val typeName = requireNotNull(shape.typeName)
-                if (typeName !in MAP_SAFE_PRIMITIVE_TYPE_NAMES) {
-                    throw GradleException(
-                        "Map property '$propertyName' entry path '$path' has unsupported value leaf '$typeName'."
-                    )
-                }
-                val override = options.typeMappings[typeName]?.let { mapping ->
-                    if (mapping.npmPackage != null || mapping.typeScriptType !in setOf("string", "number", "boolean")) {
-                        throw GradleException("Map property '$propertyName' entry path '$path' cannot hydrate an external or non-scalar override for '$typeName'.")
-                    }
-                    mappedType(typeName, mapping.typeScriptType, null)
-                }
-                override ?: primitiveTypes[typeName] ?: throw GradleException(
-                    "Map property '$propertyName' entry path '$path' has no TypeScript primitive mapping for '$typeName'."
-                )
-            }
-            TypeShapeKind.SEQUENCE -> {
-                val element = resolveMapShape(requireNotNull(shape.elementShape), propertyName, "$path[]", false)
-                TypeScriptType("${element.name}[]", element.constructor, nestedTypes = listOf(element))
-            }
-            TypeShapeKind.MAP -> {
-                val key = requireNotNull(shape.keyShape)
-                if (shape.keyCodec != MapKeyCodec.STRING || key.nullable || key.kind != TypeShapeKind.VALUE ||
-                    key.typeName !in MAP_STRING_TYPE_NAMES
-                ) {
-                    throw GradleException("Map property '$propertyName' entry path '$path.key' must use nonnullable String keys.")
-                }
-                val value = resolveMapShape(requireNotNull(shape.valueShape), propertyName, "$path.value", false)
-                TypeScriptType("Record<string, ${value.name}>", "Object", nestedTypes = listOf(value))
-            }
-        }
-    }
-
-    private fun TypeScriptType.recursiveTypes(): List<TypeScriptType> = listOf(this) + nestedTypes.flatMap {
-        nested -> nested.recursiveTypes()
-    }
-
-    private fun parameterArraySuffix(parameter: ParameterDescriptor): String =
-        if (!parameter.isEnumerable) "" else "[]" + if (parameter.isNullable && shared.reaches(parameter.shape)) " | null" else ""
-
-    private fun resolveParameterType(parameter: ParameterDescriptor, current: ArtifactTarget): TypeScriptType {
-        val type = resolveType(if (parameter.isEnumerable) requireElementType(parameter.name, parameter.elementTypeName) else parameter.typeName, current)
-        return if (parameter.isNullable && shared.reaches(parameter.shape) && !parameter.isEnumerable) type.copy(name = type.name + " | null") else type
-    }
-
-    private fun resolveDerivatives(property: PropertyDescriptor, current: ArtifactTarget): List<TypeScriptType> =
-        property.derivatives.map { derivativeName ->
-            val derivative = resolveType(derivativeName, current)
-            if (derivative.target?.kind != ArtifactKind.TYPE) {
-                throw GradleException(
-                    "Arc derivative '$derivativeName' on '${current.sourceName}.${property.name}' must be a generated concrete model type."
-                )
-            }
-            derivative
-        }
-
-    private fun resolveBaseType(baseTypeName: String, current: ArtifactTarget): TypeScriptType {
-        val baseType = resolveType(baseTypeName, current)
-        if (baseType.target?.kind != ArtifactKind.TYPE) {
-            throw GradleException("Arc base type '$baseTypeName' on '${current.sourceName}' must be a generated model type.")
-        }
-        return baseType
-    }
-
-    private fun requireElementType(name: String, elementTypeName: String?): String =
-        elementTypeName ?: throw GradleException("Enumerable '$name' does not declare an elementTypeName.")
-
-    private fun resolveType(rawTypeName: String, current: ArtifactTarget): TypeScriptType =
-        resolveType(rawTypeName, current, mutableSetOf())
-
-    private fun resolveType(
-        rawTypeName: String,
-        current: ArtifactTarget,
-        concepts: MutableSet<String>
-    ): TypeScriptType {
-        val typeName = rawTypeName.removeSuffix("?")
-        if (typeName.contains('<') || typeName.contains('>') || isMapType(typeName)) {
-            throw GradleException("Unsupported generic or map type '$rawTypeName' in '${current.sourceName}'.")
-        }
-        // Concepts unwrap first, then configuration, then the built-in map, matching the order Arc .NET's
-        // TypeExtensions.GetTargetType uses. Concepts and primitives never share a key, so moving the concept
-        // branch above the primitive lookup changes nothing on its own.
-        conceptsBySource[typeName]?.let { concept ->
-            if (!concepts.add(typeName)) {
-                throw GradleException("Cyclic Arc concept metadata for '$typeName' in '${current.sourceName}'.")
-            }
-            return resolveType(concept.underlyingTypeName, current, concepts)
-        }
-        // Ahead of the built-in map, which is what lets a mapping correct an existing type rather than only
-        // declare one the generator has never seen.
-        options.typeMappings[typeName]?.let { mapping ->
-            return mappedType(typeName, mapping.typeScriptType, mapping.npmPackage)
-        }
-        val primitiveType = primitiveTypes[typeName]
-        if (primitiveType != null) return primitiveType
-        ProxyTypeMappings.npmPackageFor(typeName, options.packageMappings)?.let { npmPackage ->
-            val simpleName = typeName.substringAfterLast('.')
-            return mappedType(typeName, simpleName, npmPackage)
-        }
-        val target = targetBySource[typeName]
-            ?: throw GradleException("Unsupported Arc proxy type '$rawTypeName' in '${current.sourceName}'.")
-        val constructor = when (target.kind) {
-            ArtifactKind.ENUM -> "Number"
-            ArtifactKind.INTERFACE -> "Object"
-            else -> target.typeScriptName
-        }
-        return TypeScriptType(target.typeScriptName, constructor, target)
-    }
-
-    private fun mappedType(sourceName: String, name: String, npmPackage: String?): TypeScriptType {
-        if (npmPackage == null) {
-            val constructor = MAPPED_GLOBAL_TYPES[name] ?: throw GradleException(
-                "Arc proxy mapping '$sourceName=$name' has no supported runtime constructor; " +
-                    "use string, number, boolean, object or Date, or supply an npm package and exported name."
-            )
-            return TypeScriptType(name, constructor)
-        }
-        if (!TYPESCRIPT_IDENTIFIER.matches(name) || name in RESERVED_MAPPING_NAMES || !NPM_IMPORT_PATH.matches(npmPackage) ||
-            npmPackage.split('/').any { it == "." || it == ".." }
-        ) {
-            throw GradleException("Unsafe Arc proxy mapping '$sourceName=$name=$npmPackage'; use an exported identifier and npm package path.")
-        }
-        val isEnum = artifacts.enums.any { it.fullyQualifiedName == sourceName }
-        val isInterface = artifacts.interfaces.any { it.fullyQualifiedName == sourceName }
-        val constructor = when {
-            isEnum -> "Number"
-            isInterface -> "Object"
-            else -> name
-        }
-        return TypeScriptType(name, constructor, valueImport = TypeScriptValueImport(npmPackage, name, isEnum || isInterface))
-    }
-
-    private fun TypeScriptType.globalRuntimeConstructor(): String? {
-        if (constructor !in GLOBAL_RUNTIME_CONSTRUCTORS || valueImport?.typeOnly == false) return null
-        return constructor.takeIf {
-            target == null || target.kind == ArtifactKind.INTERFACE || target.kind == ArtifactKind.ENUM
-        }
-    }
-
-    private fun isMapType(typeName: String): Boolean =
-        typeName == "kotlin.collections.Map" || typeName == "kotlin.collections.MutableMap" || typeName == "java.util.Map"
-
-    /**
-     * Emits one source documentation summary as a single-line JSDoc comment.
-     *
-     * The summary is guaranteed by [io.cratis.arc.metadata.DocumentationSummaries] to be one line, so the comment
-     * cannot span lines; [escapeDocumentation] neutralizes the two sequences a JSDoc reader would otherwise act on.
-     */
-    private fun StringBuilder.appendDocumentation(summary: String?, indent: String = "") {
-        if (summary == null) return
-        append(indent)
-        append("/** ")
-        append(escapeDocumentation(summary))
-        append(" */\n")
-    }
-
-    private fun escapeDocumentation(summary: String): String = buildString(summary.length + 8) {
-        summary.forEachIndexed { index, character ->
-            when {
-                // A comment terminator inside the text would end the comment and spill code into the file.
-                character == '/' && index > 0 && summary[index - 1] == '*' -> append(" /")
-                // An at sign in tag position would be read as a JSDoc block tag rather than as prose.
-                character == '@' && (index == 0 || summary[index - 1].isWhitespace()) -> append("\\@")
-                else -> append(character)
-            }
-        }
-    }
-
-    private fun StringBuilder.appendGeneratedHeader() {
-        append("/*---------------------------------------------------------------------------------------------\n")
-        append(" *  **DO NOT EDIT** - This file is an automatically generated file.\n")
-        append(" *--------------------------------------------------------------------------------------------*/\n\n")
-    }
-
-    private fun validateOutputTree() {
-        val output = options.outputDirectory
-        if (output.exists() && Files.isSymbolicLink(output.toPath())) {
-            throw GradleException("Arc proxy output directory must not be a symbolic link: '${output.path}'.")
-        }
-        if (output.isDirectory) {
-            output.walkTopDown().firstOrNull { candidate -> Files.isSymbolicLink(candidate.toPath()) }?.let { link ->
-                throw GradleException("Arc proxy output must not contain symbolic links: '${link.path}'.")
-            }
-        }
-    }
-
-    private fun validateTarget(target: ArtifactTarget) {
-        target.directory.forEach { segment ->
-            if (!SAFE_PATH_SEGMENT.matches(segment) || segment == "." || segment == "..") {
-                throw GradleException("Unsafe Arc proxy path segment '$segment' from '${target.sourceName}'.")
-            }
-        }
-        if (!TYPESCRIPT_IDENTIFIER.matches(target.typeScriptName)) {
-            throw GradleException(
-                "Unsafe Arc proxy TypeScript name '${target.typeScriptName}' from '${target.sourceName}'."
-            )
-        }
-        val root = options.outputDirectory.canonicalFile.toPath()
-        val destination = File(options.outputDirectory, target.relativePath).canonicalFile.toPath()
-        if (!destination.startsWith(root)) {
-            throw GradleException("Arc proxy output '${target.relativePath}' escapes '${options.outputDirectory.path}'.")
-        }
-    }
-
-    private fun writeGenerated(file: File, source: String, body: String) {
-        val normalizedBody = body.replace("\r\n", "\n").trimEnd() + "\n"
-        val hash = sha256(normalizedBody)
-        val content = "// @generated by Cratis. Source: $source. Hash: $hash\n$normalizedBody"
-        if (file.isFile) {
-            val existing = file.readText()
-            if (existing == content) return
-            if (!hasGeneratedMarker(existing)) {
-                throw GradleException("Refusing to overwrite hand-written TypeScript file '${file.path}'.")
-            }
-        }
-        file.parentFile.mkdirs()
-        Files.writeString(file.toPath(), content, StandardCharsets.UTF_8)
-    }
-
-    private fun removeStale(expectedFiles: Set<File>): Set<String> {
-        val removed = mutableSetOf<String>()
-        options.outputDirectory.walkBottomUp().forEach { file ->
-            if (
-                file.isFile && file.extension == "ts" && file.name != "index.ts" &&
-                file.canonicalFile !in expectedFiles && hasGeneratedMarker(file.readText())
-            ) {
-                removed += file.relativeTo(options.outputDirectory).invariantSeparatorsPath
-                file.delete()
-            }
-        }
-        return removed
-    }
-
-    private fun updateIndexFiles(generatedPaths: Set<String>, removedFiles: Set<String>): List<File> {
-        val generatedByDirectory = generatedPaths.groupBy { it.substringBeforeLast('/', "") }
-            .mapValues { (_, paths) -> paths.map { it.substringAfterLast('/').removeSuffix(".ts") }.toSet() }
-        val removedByDirectory = removedFiles.groupBy { path ->
-            path.substringBeforeLast('/', "")
-        }.mapValues { (_, paths) -> paths.map { it.substringAfterLast('/').removeSuffix(".ts") }.toSet() }
-        val directories = (generatedByDirectory.keys + removedByDirectory.keys).toMutableSet()
-        if (options.outputDirectory.isDirectory) {
-            options.outputDirectory.walkTopDown().filter { it.isFile && it.name == "index.ts" }.forEach { index ->
-                directories += index.parentFile.relativeTo(options.outputDirectory).invariantSeparatorsPath
-                    .takeUnless { it == "." }.orEmpty()
-            }
-        }
-
-        return directories.sorted().mapNotNull { directory ->
-            updateIndexFile(
-                directory,
-                generatedByDirectory[directory].orEmpty(),
-                removedByDirectory[directory].orEmpty()
-            )
-        }
-    }
-
-    private fun updateIndexFile(directory: String, generatedNames: Set<String>, removedNames: Set<String>): File? {
-        val targetDirectory = if (directory.isEmpty()) options.outputDirectory else File(options.outputDirectory, directory)
-        val index = File(targetDirectory, "index.ts")
-        val existing = index.takeIf(File::isFile)?.readText()?.replace("\r\n", "\n")
-        val generatedIndex = existing != null && hasGeneratedMarker(existing)
-        val lines = existing?.lines().orEmpty().let { if (generatedIndex) it.drop(1) else it }
-        val exports = mutableListOf<String>()
-        val manualLines = mutableListOf<String>()
-        lines.forEach { line ->
-            val match = INDEX_EXPORT.matchEntire(line)
-            if (match != null) {
-                exports += match.groupValues[1]
-            } else if (line.isNotBlank()) {
-                manualLines += line
-            }
-        }
-
-        val removed = removedNames.map(String::lowercase).toSet()
-        val finalExports = exports.filterNotTo(mutableListOf()) { export ->
-            export.trimStart('.', '/').lowercase() in removed
-        }
-        val existingNames = finalExports.map { it.trimStart('.', '/') }.toMutableSet()
-        generatedNames.sortedWith(String.CASE_INSENSITIVE_ORDER).forEach { name ->
-            if (existingNames.none { it.equals(name, ignoreCase = true) }) {
-                val insertion = finalExports.indexOfFirst {
-                    name.compareTo(it.trimStart('.', '/'), ignoreCase = true) < 0
-                }.takeIf { it >= 0 } ?: finalExports.size
-                finalExports.add(insertion, "./$name")
-                existingNames += name
-            }
-        }
-
-        if (generatedNames.isEmpty() && finalExports.isEmpty()) {
-            if (generatedIndex || (manualLines.isEmpty() && removedNames.isNotEmpty())) index.delete()
-            return null
-        }
-        if (generatedNames.isEmpty() && !generatedIndex && removedNames.isEmpty()) return index.takeIf(File::isFile)
-
-        val body = (manualLines + finalExports.map { "export * from '$it';" }).joinToString("\n", postfix = "\n")
-        val normalized = body.replace("\r\n", "\n").trimEnd() + "\n"
-        if (existing != normalized) Files.writeString(index.toPath(), normalized, StandardCharsets.UTF_8)
-        return index
-    }
-
-    private fun removeEmptyDirectories() {
-        if (!options.outputDirectory.isDirectory) return
-        options.outputDirectory.walkBottomUp().forEach { directory ->
-            if (directory.isDirectory && directory != options.outputDirectory && directory.list()?.isEmpty() == true) {
-                directory.delete()
-            }
-        }
-    }
-
-    private fun hasGeneratedMarker(content: String): Boolean =
-        GENERATED_MARKER.matches(content.lineSequence().firstOrNull().orEmpty())
-
-    private fun sha256(content: String): String = MessageDigest.getInstance("SHA-256")
-        .digest(content.toByteArray(StandardCharsets.UTF_8))
-        .joinToString("") { "%02X".format(it) }
-
-    private fun roles(values: List<String>): String = values.joinToString(prefix = "[", postfix = "]") { "'${escape(it)}'" }
-    private fun escape(value: String): String = value.replace("\\", "\\\\").replace("'", "\\'")
-    private fun lowerCamel(value: String): String = requireNotNull(ArcCamelCase.convert(value))
-    private fun upperCamel(value: String): String = value.replaceFirstChar(Char::uppercaseChar)
-
-    private companion object {
-        const val FUNDAMENTALS_PACKAGE = "@cratis/fundamentals"
-        val FUNDAMENTALS_IMPORT_ORDER = mapOf("field" to 0, "derivedType" to 1)
-        val GENERATED_MARKER = Regex(
-            "^// @generated by Cratis\\. Source: .+\\. (?:Time: .+\\. )?Hash: [A-Fa-f0-9]{64}$"
-        )
-        val SAFE_PATH_SEGMENT = Regex("^[A-Za-z0-9_$-]+$")
-        val TYPESCRIPT_IDENTIFIER = Regex("^[A-Za-z_$][A-Za-z0-9_$]*$")
-        val INDEX_EXPORT = Regex("^\\s*export\\s+\\*\\s+from\\s+['\"](.+)['\"]\\s*;?\\s*$")
-        val ROUTE_PARAMETER = Regex("\\{([^}:]+)(?::[^}]+)?}")
-        val GLOBAL_RUNTIME_CONSTRUCTORS = setOf("Boolean", "Date", "Number", "Object", "String")
-        val MAPPED_GLOBAL_TYPES = mapOf("string" to "String", "number" to "Number", "boolean" to "Boolean", "object" to "Object", "Date" to "Date")
-        val NPM_IMPORT_PATH = Regex("^(?:@[a-z0-9_.-]+/)?[a-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*$")
-        val JVM_TYPE_NAME = Regex("^[A-Za-z_$][A-Za-z0-9_$]*(?:\\.[A-Za-z_$][A-Za-z0-9_$]*)*$")
-        val RESERVED_MAPPING_NAMES = setOf(
-            "string", "number", "boolean", "object", "any", "unknown", "never", "undefined", "constructor",
-            "break", "case", "catch", "class", "const", "continue", "debugger", "default", "delete", "do", "else",
-            "enum", "export", "extends", "false", "finally", "for", "function", "if", "import", "in", "instanceof",
-            "new", "null", "return", "super", "switch", "this", "throw", "true", "try", "typeof", "var", "void",
-            "while", "with", "yield", "await", "implements", "interface", "let", "package", "private", "protected",
-            "public", "static", "abstract", "as", "asserts", "async", "declare", "from", "get", "infer", "is",
-            "keyof", "module", "namespace", "of", "readonly", "require", "set", "symbol", "type", "unique"
-        )
-        val MAP_STRING_TYPE_NAMES = setOf("kotlin.String", "java.lang.String", "String")
-        val MAP_SAFE_PRIMITIVE_TYPE_NAMES = setOf(
-            "kotlin.Boolean", "kotlin.Byte", "kotlin.Char", "kotlin.Int", "kotlin.Short", "kotlin.String",
-            "java.lang.Boolean", "java.lang.Byte", "java.lang.Character", "java.lang.Integer", "java.lang.Short",
-            "java.lang.String", "boolean", "byte", "char", "int", "short", "String", "Boolean"
-        )
-
-        val primitiveTypes: Map<String, TypeScriptType> = buildMap {
-            listOf(
-                "kotlin.String", "java.lang.String", "String", "kotlin.Char", "java.lang.Character", "char", "Char"
-            ).forEach { put(it, TypeScriptType("string", "String")) }
-            listOf("java.util.UUID", "UUID").forEach {
-                put(it, TypeScriptType("Guid", "Guid", valueImport = TypeScriptValueImport(FUNDAMENTALS_PACKAGE, "Guid")))
-            }
-            listOf("kotlin.Boolean", "java.lang.Boolean", "boolean", "Boolean").forEach {
-                put(it, TypeScriptType("boolean", "Boolean"))
-            }
-            listOf(
-                "kotlin.Byte", "kotlin.Short", "kotlin.Int", "kotlin.Long", "kotlin.Float", "kotlin.Double",
-                "kotlin.UByte", "kotlin.UShort", "kotlin.UInt", "kotlin.ULong",
-                "java.lang.Byte", "java.lang.Short", "java.lang.Integer", "java.lang.Long", "java.lang.Float",
-                "java.lang.Double", "byte", "short", "int", "long", "float", "double", "Number",
-                "java.math.BigDecimal", "java.math.BigInteger", BigInteger::class.java.name
-            ).forEach { put(it, TypeScriptType("number", "Number")) }
-            listOf("java.time.LocalDate", "LocalDate").forEach {
-                put(
-                    it,
-                    TypeScriptType(
-                        "DateOnly",
-                        "DateOnly",
-                        valueImport = TypeScriptValueImport(FUNDAMENTALS_PACKAGE, "DateOnly")
-                    )
-                )
-            }
-            listOf(
-                "java.time.LocalDateTime", "java.time.Instant", "java.time.OffsetDateTime", "java.time.ZonedDateTime",
-                "LocalDateTime", "Instant", "OffsetDateTime", "ZonedDateTime"
-            ).forEach { put(it, TypeScriptType("Date", "Date")) }
-            listOf("java.time.LocalTime", "LocalTime").forEach {
-                put(
-                    it,
-                    TypeScriptType(
-                        "TimeOnly",
-                        "TimeOnly",
-                        valueImport = TypeScriptValueImport(FUNDAMENTALS_PACKAGE, "TimeOnly")
-                    )
-                )
-            }
-            listOf(
-                "java.time.OffsetTime", "java.time.Duration", "java.time.Period", "OffsetTime", "Duration", "Period"
-            ).forEach { put(it, TypeScriptType("string", "String")) }
-        }
-    }
 }

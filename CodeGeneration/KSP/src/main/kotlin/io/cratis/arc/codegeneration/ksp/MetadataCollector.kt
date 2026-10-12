@@ -34,8 +34,10 @@ internal class MetadataCollector(
     private val logger: ArcDiagnosticReporter,
     private val fluentRules: Map<String, List<ValidationRuleModel>> = emptyMap(),
     private val binaryRecords: BinaryRecordMetadata = BinaryRecordMetadata(null)
-) {
+) : ModelShapeSource {
     private val validationExtractor = ValidationMetadataExtractor(logger)
+    private val conceptResolver = ConceptResolver(logger)
+    private val shapeDescriber = TypeShapeDescriber(logger, conceptResolver, ::registerConcept)
     private val collectedTypes = linkedMapOf<String, TypeModel>()
     private val collectedInterfaces = linkedMapOf<String, InterfaceModel>()
     private val collectedEnums = linkedMapOf<String, EnumModel>()
@@ -75,6 +77,8 @@ internal class MetadataCollector(
                 )
             )
 
+    private fun javaTypes() = JavaSourceTypeDescriber(logger, resolver)
+
     fun useResolver(resolver: Resolver, derivedTypeNames: Set<String> = emptySet()) {
         this.resolver = resolver
         collectedTypes.clear()
@@ -107,504 +111,13 @@ internal class MetadataCollector(
     fun describeProperties(declaration: KSClassDeclaration, identity: String): List<PropertyModel>? {
         IgnoreValidationPolicy.validateWireOwner(declaration, logger)
         // Validate roots before the Java record/interface fast paths as well as Kotlin property collection.
-        if (declaration.hasAnnotation(COMMAND_ANNOTATION) && !validateCommandInput(declaration, mutableSetOf())) return null
-        val documentation = DocumentationSummaryParser.parse(declaration.docString)
-        // A Kotlin class documents its properties with `@property`; a Java record or class uses `@param`.
-        val declaredMemberTags = if (declaration.origin == Origin.JAVA) {
-            documentation.paramTags
-        } else {
-            documentation.propertyTags
-        }
-        val declarations = declaration.getDeclaredProperties().associateBy { property -> property.simpleName.asString() }
-        val constructorParameters = declaration.primaryConstructor?.parameters.orEmpty()
-            .mapNotNull { parameter -> parameter.name?.asString()?.let { name -> name to parameter } }
-            .toMap()
-        if (declaration.origin == Origin.JAVA) {
-            val source = declaration.containingFile?.filePath?.let(::File)?.takeIf(File::isFile)?.readText()
-            val record = source?.let { parseJavaRecordProperties(it, declaration.simpleName.asString()) }
-            if (record != null) {
-                val accessors = declaration.getDeclaredFunctions()
-                    .filter { function -> function.parameters.isEmpty() }
-                    .associateBy { function -> function.simpleName.asString() }
-                val properties = mutableListOf<PropertyModel>()
-                for (component in record) {
-                    val accessor = accessors[component.name]
-                    val returnType = accessor?.returnType?.resolve()
-                    val sourceBaseName = component.typeName.substringBefore('<').trim()
-                    val memberNode = propertyUseNode(declaration, component.name)
-                    // KSP can expose a platform accessor even when the record source explicitly annotates its element.
-                    val sourceElement = parseJavaGenericType(component.typeName)
-                        ?.takeIf { it.baseName in JAVA_COLLECTION_NAMES }?.arguments?.singleOrNull()
-                    if (sourceElement?.isNullable == true) {
-                        unsupportedSequenceElement("$identity.${component.name}", memberNode)
-                        return null
-                    }
-                    val shape = (if (sourceBaseName in JAVA_MAP_NAMES) {
-                        describeJavaType(component.typeName, declaration, "$identity.${component.name}", memberNode)
-                    } else if (accessor != null && returnType != null) {
-                        describe(returnType, "$identity.${component.name}", accessor, allowMaps = true)
-                    } else {
-                        describeJavaType(component.typeName, declaration, "$identity.${component.name}", memberNode)
-                    }) ?: return null
-                    val annotated = listOfNotNull(declarations[component.name], accessor)
-                    val validation = extractValidation(
-                        annotated,
-                        shape,
-                        "$identity.${component.name}",
-                        accessor ?: declaration,
-                        component.validationAnnotations
-                    ) ?: return null
-                    properties.add(
-                        PropertyModel(
-                            name = component.name,
-                            typeName = shape.typeName,
-                            isNullable = component.isNullable || shape.isNullable,
-                            isCommandKey = component.isCommandKey,
-                            isEnumerable = shape.isEnumerable,
-                            elementTypeName = shape.elementTypeName,
-                            shape = shape.descriptor.withNullability(component.isNullable || shape.isNullable),
-                            validationRules = validation.rules,
-                            validateRecursively = validation.validateRecursively,
-                            ignoreValidation = validation.ignoreValidation,
-                            summary = memberSummary(accessor?.docString, declaredMemberTags, component.name)
-                        )
-                    )
-                }
-                return properties
-            }
-        }
-        if (declaration.origin == Origin.JAVA_LIB && declaration.superTypes.any {
-                it.resolve().declaration.qualifiedName?.asString() == "java.lang.Record" }) {
-            val binaryName = listOf(declaration.packageName.asString(), generateSequence(declaration) { it.parentDeclaration as? KSClassDeclaration }
-                .toList().asReversed().joinToString("$") { it.simpleName.asString() }).filter(String::isNotBlank).joinToString(".")
-            val binaryFields = try { binaryRecords.fields(binaryName) } catch (exception: Exception) {
-                logger.error(ArcDiagnostic.IGNORE_VALIDATION,
-                    "Cannot inspect binary record '$identity': ${exception.message}; supply its exact compile classpath with '${BinaryRecordMetadata.OPTION}'.", declaration)
-                return null
-            }
-            val functions = declaration.getDeclaredFunctions().filter { it.parameters.isEmpty() }.associateBy { it.simpleName.asString() }
-            val components = declaration.getConstructors().map { it.parameters }.filter { parameters ->
-                parameters.all { it.name?.asString() in functions }
-            }.maxByOrNull { it.size }.orEmpty()
-            return components.map { component ->
-                val name = requireNotNull(component.name).asString()
-                val accessor = functions.getValue(name)
-                val shape = describe(requireNotNull(accessor.returnType).resolve(), "$identity.$name", accessor, allowMaps = true) ?: return null
-                val componentField = declarations[name] ?: resolver?.let { it.getPropertyDeclarationByName(it.getKSNameFromString("$identity.$name")) }
-                val fieldAnnotations = binaryFields?.get(name)
-                // Class-file metadata contains both sites. Do not treat field constraints as a
-                // fallback for accessor annotations: the same constraint type may have different bounds.
-                val sites = if (fieldAnnotations == null) listOfNotNull(componentField, accessor) else emptyList()
-                val validation = extractValidation(sites, shape, "$identity.$name", accessor, fieldAnnotations.orEmpty()) ?: return null
-                if (componentField == null && fieldAnnotations == null && !validation.ignoreValidation) {
-                    logger.error(ArcDiagnostic.IGNORE_VALIDATION,
-                        "Binary record component '$identity.$name' has no visible field annotation metadata; supply its exact compile classpath with '${BinaryRecordMetadata.OPTION}' or compile the model from source.", accessor)
-                    return null
-                }
-                PropertyModel(name, shape.typeName, shape.isNullable, false, shape.isEnumerable, shape.elementTypeName,
-                    shape.descriptor, validation.rules, validation.validateRecursively, ignoreValidation = validation.ignoreValidation)
-            }
-        }
-        if (declaration.origin == Origin.JAVA && declaration.classKind == ClassKind.INTERFACE) {
-            return describeJavaInterfaceProperties(declaration, identity, declaredMemberTags)
-        }
-        val ordered = orderedDeclaredProperties(declaration)
-
-        val properties = mutableListOf<PropertyModel>()
-        for (property in ordered) {
-            if (!property.isPublic() && declaration.origin != Origin.JAVA) continue
-            val name = property.simpleName.asString()
-            if (!validateBodyWireAnnotations(property, constructorParameters[name], "$identity.$name")) return null
-            if (property.isWireIgnored()) continue
-            val shape = describe(property.type.resolve(), "$identity.$name", property, allowMaps = true) ?: return null
-            val annotated = listOfNotNull(property, property.getter, constructorParameters[name])
-            val validation = extractValidation(annotated, shape, "$identity.$name", property) ?: return null
-            properties.add(
-                PropertyModel(
-                    name = name,
-                    typeName = shape.typeName,
-                    isNullable = shape.isNullable,
-                    isCommandKey = property.hasAnnotation(COMMAND_KEY_ANNOTATION) ||
-                        property.getter?.hasAnnotation(COMMAND_KEY_ANNOTATION) == true ||
-                        constructorParameters[name]?.hasAnnotation(COMMAND_KEY_ANNOTATION) == true,
-                    isEnumerable = shape.isEnumerable,
-                    elementTypeName = shape.elementTypeName,
-                    shape = shape.descriptor,
-                    validationRules = validation.rules,
-                    validateRecursively = validation.validateRecursively,
-                    ignoreValidation = validation.ignoreValidation,
-                    summary = memberSummary(property.docString, declaredMemberTags, name)
-                )
-            )
-        }
-        return properties
+        if (declaration.hasAnnotation(COMMAND_ANNOTATION) && !CommandInputValidator(logger, resolver, ::derivativesFor).validate(declaration)) return null
+        return ModelPropertyDescriber(logger, binaryRecords, resolver, this).describe(declaration, identity)
     }
 
-    /** Constructor order is contractual; only the remaining declared state is name-sorted. */
-    private fun orderedDeclaredProperties(declaration: KSClassDeclaration): List<KSPropertyDeclaration> {
-        val properties = declaration.getDeclaredProperties().associateBy { it.simpleName.asString() }
-        if (declaration.origin == Origin.JAVA) return properties.values.sortedBy { it.simpleName.asString() }
-        if (declaration.classKind == ClassKind.INTERFACE) return properties.values.toList()
-        val constructorNames = declaration.primaryConstructor?.parameters.orEmpty()
-            .filter { it.isVal || it.isVar }.mapNotNull { it.name?.asString() }
-        return constructorNames.mapNotNull(properties::get) + properties.values
-            .filter { it.simpleName.asString() !in constructorNames }.sortedBy { it.simpleName.asString() }
-    }
+    override fun describe(type: KSType, identity: String, node: KSNode, allowMaps: Boolean): TypeShape? =
+        shapeDescriber.describe(type, identity, node, allowMaps)
 
-    private fun KSPropertyDeclaration.wireAnnotations(): List<KSAnnotation> =
-        listOfNotNull(this, getter, setter).flatMap { it.annotations.toList() }
-
-    private fun KSPropertyDeclaration.isWireIgnored(): Boolean = wireAnnotations().any { annotation ->
-        annotation.annotationType.resolve().declaration.qualifiedName?.asString() == JSON_IGNORE_ANNOTATION &&
-            annotation.arguments.firstOrNull { it.name?.asString() == "value" }?.value != false
-    }
-
-    /** The descriptor has a source name, not independent read/write names or access flags. */
-    private fun validateBodyWireAnnotations(
-        property: KSPropertyDeclaration,
-        constructorParameter: KSValueParameter?,
-        identity: String
-    ): Boolean {
-        if (property.origin != Origin.KOTLIN) return true
-        val annotations = property.wireAnnotations().filter {
-            it.annotationType.resolve().declaration.qualifiedName?.asString() == JSON_PROPERTY_ANNOTATION
-        }
-        for (annotation in annotations) {
-            val name = annotation.arguments.firstOrNull { it.name?.asString() == "value" }?.value as? String
-            val access = annotation.arguments.firstOrNull { it.name?.asString() == "access" }?.value?.toString()
-            val bodyProperty = constructorParameter?.let { it.isVal || it.isVar } != true
-            if (property.isWireIgnored() || (bodyProperty &&
-                    ((!name.isNullOrEmpty() && name != ArcCamelCase.convert(property.simpleName.asString())) ||
-                        (access != null && access.substringAfterLast('.') !in setOf("AUTO", "READ_ONLY", "READ_WRITE"))))
-            ) {
-                logger.error(
-                    ArcDiagnostic.PROXY_SHAPE,
-                    "Artifact/property '$identity' has body-property Jackson names or access that metadata cannot represent; " +
-                        "use the default Arc wire name and symmetric access, or a separate wire model.",
-                    property
-                )
-                return false
-            }
-        }
-        return true
-    }
-
-    /** Output-only computed getters remain valid; a command's reachable input graph must be writable. */
-    private fun validateCommandInput(declaration: KSClassDeclaration, visited: MutableSet<String>): Boolean {
-        val name = declaration.qualifiedName?.asString() ?: return true
-        if (!visited.add(name) || isTerminal(name) || name in ROOT_TYPE_NAMES || name in MAP_TYPE_NAMES ||
-            declaration.classKind == ClassKind.ENUM_CLASS ||
-            declaration.isAssignableTo(CONCEPT_AS_TYPE)
-        ) return true
-        var valid = true
-        for (property in orderedDeclaredProperties(declaration)) {
-            if ((!property.isPublic() && declaration.origin != Origin.JAVA) || property.isWireIgnored()) continue
-            val readOnly = property.wireAnnotations().any { annotation ->
-                annotation.annotationType.resolve().declaration.qualifiedName?.asString() == JSON_PROPERTY_ANNOTATION &&
-                    annotation.arguments.firstOrNull { it.name?.asString() == "access" }?.value
-                        ?.toString()?.substringAfterLast('.') == "READ_ONLY"
-            }
-            if (property.origin == Origin.KOTLIN && readOnly) {
-                logger.error(
-                    ArcDiagnostic.PROXY_SHAPE,
-                    "Artifact/property '$name.${property.simpleName.asString()}' is read-only command input; " +
-                        "use symmetric Jackson access, @JsonIgnore, or a separate output model.",
-                    property
-                )
-                valid = false
-            }
-            if (property.origin == Origin.KOTLIN && !property.hasBackingField &&
-                Modifier.ABSTRACT !in property.modifiers && declaration.classKind != ClassKind.INTERFACE
-            ) {
-                logger.error(
-                    ArcDiagnostic.PROXY_SHAPE,
-                    "Artifact/property '$name.${property.simpleName.asString()}' is computed command input; " +
-                        "use a backed property, @JsonIgnore, or a separate output model.",
-                    property
-                )
-                valid = false
-            }
-            if (!validateCommandInputType(property.type.resolve(), visited)) valid = false
-        }
-        if (declaration.origin == Origin.JAVA) {
-            // Resolved members retain imported type identities. Parse source types only when KSP exposes no usable member.
-            val source = declaration.containingFile?.filePath?.let(::File)?.takeIf(File::isFile)?.readText()
-            val record = source?.let { parseJavaRecordProperties(it, declaration.simpleName.asString()) }
-            if (record != null) {
-                val properties = declaration.getDeclaredProperties().associateBy { it.simpleName.asString() }
-                val accessors = declaration.getDeclaredFunctions().filter { it.parameters.isEmpty() }
-                    .associateBy { it.simpleName.asString() }
-                for (component in record) {
-                    val type = properties[component.name]?.type?.resolve()?.takeUnless { it.isError }
-                        ?: accessors[component.name]?.returnType?.resolve()?.takeUnless { it.isError }
-                        ?: describeJavaType(component.typeName, declaration, "$name.${component.name}",
-                            propertyUseNode(declaration, component.name))?.valueType
-                    if (type == null || !validateCommandInputType(type, visited)) valid = false
-                }
-            } else if (declaration.classKind == ClassKind.INTERFACE) {
-                for (function in declaration.getDeclaredFunctions().filter { it.parameters.isEmpty() }) {
-                    val type = function.returnType?.resolve() ?: continue
-                    if (!validateCommandInputType(type, visited)) valid = false
-                }
-            }
-        }
-        for (parent in declaration.superTypes.mapNotNull { it.resolve().declaration as? KSClassDeclaration } +
-            derivativesFor(declaration).asSequence()) {
-            if (!validateCommandInput(parent, visited)) valid = false
-        }
-        return valid
-    }
-
-    private fun validateCommandInputType(type: KSType, visited: MutableSet<String>): Boolean {
-        val valueType = if (type.declaration.qualifiedName?.asString() in COLLECTION_TYPE_NAMES + ARRAY_TYPE) {
-            type.arguments.singleOrNull()?.type?.resolve()
-        } else type
-        val child = valueType?.declaration as? KSClassDeclaration ?: return true
-        return validateCommandInput(child, visited)
-    }
-
-    /** Prefers the member's own documentation and falls back to the declaring type's member tag. */
-    private fun memberSummary(
-        own: String?,
-        declaredMemberTags: Map<String, String>,
-        name: String
-    ): String? = DocumentationSummaryParser.parse(own).summary ?: declaredMemberTags[name]
-
-    private fun describeJavaInterfaceProperties(
-        declaration: KSClassDeclaration,
-        identity: String,
-        declaredMemberTags: Map<String, String>
-    ): List<PropertyModel>? {
-        val properties = mutableListOf<PropertyModel>()
-        for (function in declaration.getDeclaredFunctions().filter { candidate -> candidate.parameters.isEmpty() }) {
-            val returnType = function.returnType?.resolve() ?: continue
-            val returnName = returnType.declaration.qualifiedName?.asString()
-            if (returnName == "kotlin.Unit" || returnName == "java.lang.Void") continue
-            val sourceName = function.simpleName.asString()
-            val name = when {
-                sourceName.startsWith("get") && sourceName.length > 3 -> sourceName.substring(3).replaceFirstChar(Char::lowercase)
-                sourceName.startsWith("is") && sourceName.length > 2 -> sourceName.substring(2).replaceFirstChar(Char::lowercase)
-                else -> sourceName
-            }
-            val shape = describe(returnType, "$identity.$name", function, allowMaps = true) ?: return null
-            val validation = extractValidation(listOf(function), shape, "$identity.$name", function) ?: return null
-            properties.add(
-                PropertyModel(
-                    name = name,
-                    typeName = shape.typeName,
-                    isNullable = shape.isNullable,
-                    isCommandKey = false,
-                    isEnumerable = shape.isEnumerable,
-                    elementTypeName = shape.elementTypeName,
-                    shape = shape.descriptor,
-                    validationRules = validation.rules,
-                    validateRecursively = validation.validateRecursively,
-                    ignoreValidation = validation.ignoreValidation,
-                    summary = memberSummary(function.docString, declaredMemberTags, name)
-                )
-            )
-        }
-        return properties.sortedBy(PropertyModel::name)
-    }
-
-    fun describe(type: KSType, identity: String, node: KSNode, allowMaps: Boolean = false): TypeShape? {
-        if (type.isError || type.declaration is KSTypeParameter) {
-            logger.error("'$identity' has an unresolvable or generic type.", node)
-            return null
-        }
-        val declaration = type.declaration as? KSClassDeclaration
-        val qualifiedName = declaration?.qualifiedName?.asString()
-        if (declaration == null || qualifiedName == null) {
-            logger.error("'$identity' must use a resolvable class type.", node)
-            return null
-        }
-        if (qualifiedName in MAP_TYPE_NAMES) {
-            if (!allowMaps) {
-                logger.error(
-                    ArcDiagnostic.PROXY_SHAPE,
-                    "Artifact/property '$identity' value path 'value' uses map type '$qualifiedName'; maps are supported only for command, model, interface, and read-model properties.",
-                    node
-                )
-                return null
-            }
-            val descriptor = describeMap(type, identity, "value", node) ?: return null
-            return TypeShape(typeName = descriptorTypeName(descriptor), descriptor = descriptor, valueType = type)
-        }
-        if (qualifiedName in COLLECTION_TYPE_NAMES || qualifiedName == ARRAY_TYPE) {
-            val element = concreteTypeArgument(type, 1, identity, "element", node)?.singleOrNull() ?: return null
-            if (node is KSValueParameter && element.nullability == Nullability.NULLABLE) {
-                unsupportedMapShape(identity, "element", "nullable sequence elements are unsupported", node)
-                return null
-            }
-            if (element.nullability == Nullability.NULLABLE || element.annotations.hasNullableTypeUse() ||
-                type.arguments.single().type?.annotations?.hasNullableTypeUse() == true
-            ) {
-                unsupportedSequenceElement(identity, node)
-                return null
-            }
-            val elementDeclaration = element.declaration as? KSClassDeclaration
-            val elementName = elementDeclaration?.qualifiedName?.asString()
-            if (elementName == null) {
-                logger.error("'$identity' has an unnamed collection element type.", node)
-                return null
-            }
-            if (elementName in MAP_TYPE_NAMES || elementName in COLLECTION_TYPE_NAMES || elementName == ARRAY_TYPE ||
-                element.arguments.isNotEmpty()
-            ) {
-                logger.error("'$identity' uses an unsupported nested or generic collection element shape.", node)
-                return null
-            }
-            val conceptResolution = resolveConceptValue(elementDeclaration, "$identity element", node)
-            if (!conceptResolution.isValid) return null
-            val conceptValue = conceptResolution.value
-            conceptValue?.let { underlying -> registerConcept(elementDeclaration, underlying) }
-            val descriptor = TypeShapeDescriptor.sequence(
-                sequenceKind(qualifiedName),
-                TypeShapeDescriptor.value(elementName, element.nullability == Nullability.NULLABLE),
-                type.nullability == Nullability.NULLABLE
-            )
-            return TypeShape(
-                typeName = "$qualifiedName<$elementName>",
-                descriptor = descriptor,
-                valueType = element,
-                underlyingTypeName = conceptValue?.declaration?.qualifiedName?.asString(),
-                underlyingValueType = conceptValue
-            )
-        }
-        if (type.arguments.isNotEmpty()) {
-            logger.error("'$identity' uses unsupported generic type '$qualifiedName'.", node)
-            return null
-        }
-        val conceptResolution = resolveConceptValue(declaration, identity, node)
-        if (!conceptResolution.isValid) return null
-        val conceptValue = conceptResolution.value
-        conceptValue?.let { underlying -> registerConcept(declaration, underlying) }
-        return TypeShape(
-            typeName = qualifiedName,
-            descriptor = TypeShapeDescriptor.value(qualifiedName, type.nullability == Nullability.NULLABLE),
-            valueType = type,
-            underlyingTypeName = conceptValue?.declaration?.qualifiedName?.asString(),
-            underlyingValueType = conceptValue
-        )
-    }
-
-    private fun describeMap(type: KSType, identity: String, path: String, node: KSNode): TypeShapeDescriptor? {
-        val arguments = concreteTypeArgument(type, 2, identity, path, node) ?: return null
-        val key = arguments[0]
-        val keyName = key.declaration.qualifiedName?.asString()
-        if (key.nullability == Nullability.NULLABLE || keyName !in STRING_TYPE_NAMES || key.arguments.isNotEmpty()) {
-            return unsupportedMapShape(identity, "$path.key", "map keys must be nonnullable String", node)
-        }
-        val valueShape = describeMapValue(arguments[1], identity, path, node) ?: return null
-        return TypeShapeDescriptor.map(
-            TypeShapeDescriptor.value(requireNotNull(keyName), false),
-            valueShape,
-            MapKeyCodec.STRING,
-            type.nullability == Nullability.NULLABLE
-        )
-    }
-
-    private fun describeMapValue(type: KSType, identity: String, path: String, node: KSNode): TypeShapeDescriptor? {
-        if (type.isError || type.declaration is KSTypeParameter) {
-            return unsupportedMapShape(identity, path, "map values must use concrete types; type parameters are unsupported", node)
-        }
-        if (type.nullability == Nullability.NULLABLE) {
-            return unsupportedMapShape(identity, path, "nullable map values and sequence elements are unsupported", node)
-        }
-        val declaration = type.declaration as? KSClassDeclaration
-            ?: return unsupportedMapShape(identity, path, "map values must use resolvable class types", node)
-        val name = declaration.qualifiedName?.asString()
-            ?: return unsupportedMapShape(identity, path, "map values must use named class types", node)
-        if (name in MAP_TYPE_NAMES) return describeMap(type, identity, "$path.value", node)
-        if (name in COLLECTION_TYPE_NAMES || name == ARRAY_TYPE) {
-            val element = concreteTypeArgument(type, 1, identity, "$path[]", node)?.singleOrNull() ?: return null
-            val elementShape = describeMapValue(element, identity, "$path[]", node) ?: return null
-            return TypeShapeDescriptor.sequence(sequenceKind(name), elementShape, false)
-        }
-        if (type.arguments.isNotEmpty()) {
-            return unsupportedMapShape(identity, path, "generic, wildcard, and star-projected map value leaves are unsupported", node)
-        }
-        if (name !in MAP_SAFE_PRIMITIVE_TYPE_NAMES) {
-            return unsupportedMapShape(
-                identity,
-                path,
-                "map value leaf '$name' is not a runtime-safe JavaScript primitive; model, concept, enum, UUID, temporal, and derived leaves are unsupported",
-                node
-            )
-        }
-        return TypeShapeDescriptor.value(name, false)
-    }
-
-    private fun concreteTypeArgument(
-        type: KSType,
-        count: Int,
-        identity: String,
-        path: String,
-        node: KSNode
-    ): List<KSType>? {
-        // KSP models a source Java array parameter as Array<out E>, unlike an explicit
-        // wildcard generic or Kotlin Array<out E>. Only this parameter extraction is
-        // widened; existing property/return and map boundaries remain unchanged.
-        val javaArrayParameter = type.declaration.qualifiedName?.asString() == ARRAY_TYPE &&
-            node is KSValueParameter && node.origin == Origin.JAVA && node.type.origin == Origin.JAVA
-        if (type.arguments.size != count || type.arguments.any { argument ->
-                argument.type == null || (argument.variance != Variance.INVARIANT &&
-                    !(javaArrayParameter && argument.variance == Variance.COVARIANT &&
-                        argument.origin == Origin.SYNTHETIC && argument.type?.origin == Origin.SYNTHETIC))
-            }
-        ) {
-            return unsupportedMapShape(
-                identity,
-                path,
-                "raw and wildcard arguments are unsupported; star projections are unsupported; variant generic arguments are unsupported",
-                node
-            )?.let { emptyList() }
-        }
-        val arguments = type.arguments.map { argument -> requireNotNull(argument.type).resolve() }
-        if (arguments.any { argument -> argument.isError || argument.declaration is KSTypeParameter }) {
-            return unsupportedMapShape(identity, path, "unresolvable and type-parameter arguments are unsupported", node)
-                ?.let { emptyList() }
-        }
-        return arguments
-    }
-
-    private fun unsupportedMapShape(identity: String, path: String, detail: String, node: KSNode): TypeShapeDescriptor? {
-        logger.error(ArcDiagnostic.PROXY_SHAPE, "Artifact/property '$identity' value path '$path': $detail.", node)
-        return null
-    }
-
-    private fun unsupportedSequenceElement(identity: String, node: KSNode) {
-        logger.error(
-            ArcDiagnostic.PROXY_SHAPE,
-            "Artifact/property '$identity' value path 'value[]': nullable sequence elements are unsupported; " +
-                "declare nonnullable elements, for example List<T> or List<T>?.",
-            node
-        )
-    }
-
-    private fun Sequence<KSAnnotation>.hasNullableTypeUse(): Boolean = any { annotation ->
-        annotation.annotationType.resolve().declaration.simpleName.asString() in setOf("Nullable", "CheckForNull")
-    }
-
-    private fun sequenceKind(qualifiedName: String): SequenceKind = when {
-        qualifiedName == ARRAY_TYPE -> SequenceKind.ARRAY
-        qualifiedName.endsWith("List") -> SequenceKind.LIST
-        else -> SequenceKind.COLLECTION
-    }
-
-    private fun descriptorTypeName(shape: TypeShapeDescriptor): String = when (shape.kind) {
-        TypeShapeKind.VALUE -> requireNotNull(shape.typeName)
-        TypeShapeKind.SEQUENCE -> {
-            val container = when (requireNotNull(shape.sequenceKind)) {
-                SequenceKind.ARRAY -> ARRAY_TYPE
-                SequenceKind.LIST -> "kotlin.collections.List"
-                SequenceKind.COLLECTION -> "kotlin.collections.Collection"
-            }
-            "$container<${descriptorTypeName(requireNotNull(shape.elementShape))}>"
-        }
-        TypeShapeKind.MAP -> "kotlin.collections.Map<${descriptorTypeName(requireNotNull(shape.keyShape))}, " +
-            "${descriptorTypeName(requireNotNull(shape.valueShape))}>"
-    }
 
     fun collect(shape: TypeShape, identity: String, node: KSNode): Boolean =
         shape.descriptor.kind == TypeShapeKind.MAP || collectType(shape.valueType, identity, node)
@@ -633,16 +146,8 @@ internal class MetadataCollector(
         node: KSNode,
         knownProperties: List<PropertyModel>?
     ): Boolean {
-        val qualifiedName = declaration.qualifiedName?.asString()
-        if (qualifiedName == null || declaration.parentDeclaration != null) {
-            logger.error("'$identity' uses an unsupported local or nested model type.", node)
-            return false
-        }
-        if (declaration.typeParameters.isNotEmpty()) {
-            logger.error("'$identity' uses unsupported generic model '$qualifiedName'.", node)
-            return false
-        }
-        val conceptResolution = resolveConceptValue(declaration, identity, node)
+        val qualifiedName = validatedModelName(declaration, identity, node) ?: return false
+        val conceptResolution = conceptResolver.resolve(declaration, identity, node)
         if (!conceptResolution.isValid) return false
         conceptResolution.value?.let { underlying ->
             registerConcept(declaration, underlying)
@@ -654,6 +159,85 @@ internal class MetadataCollector(
             logger.error("'$identity' uses unsupported model declaration '$qualifiedName'.", node)
             return false
         }
+        return collectModel(declaration, qualifiedName, identity, node, knownProperties)
+    }
+
+    private fun validatedModelName(declaration: KSClassDeclaration, identity: String, node: KSNode): String? {
+        val qualifiedName = declaration.qualifiedName?.asString()
+        if (qualifiedName == null || declaration.parentDeclaration != null) {
+            logger.error("'$identity' uses an unsupported local or nested model type.", node)
+            return null
+        }
+        if (declaration.typeParameters.isNotEmpty()) {
+            logger.error("'$identity' uses unsupported generic model '$qualifiedName'.", node)
+            return null
+        }
+        return qualifiedName
+    }
+
+    private fun collectModel(
+        declaration: KSClassDeclaration,
+        qualifiedName: String,
+        identity: String,
+        node: KSNode,
+        knownProperties: List<PropertyModel>?
+    ): Boolean {
+        val header = modelHeader(declaration, qualifiedName, identity, node) ?: return false
+        val describedProperties = knownProperties ?: describeProperties(declaration, qualifiedName) ?: return false
+        val properties = withInterfaceDerivatives(describedProperties)
+        registerModel(declaration, qualifiedName, properties, header)
+        val valid = collectModelGraph(declaration, qualifiedName, properties, header)
+
+        if (!valid) {
+            collectedTypes.remove(qualifiedName)
+            collectedInterfaces.remove(qualifiedName)
+        }
+        return valid
+    }
+
+    private fun collectModelGraph(
+        declaration: KSClassDeclaration,
+        qualifiedName: String,
+        properties: List<PropertyModel>,
+        header: ModelHeader
+    ): Boolean {
+        var valid = collectSuperDeclarations(declaration, qualifiedName, header)
+        if (!collectPropertyGraph(declaration, qualifiedName, properties)) valid = false
+        if (!collectDerivatives(declaration, qualifiedName)) valid = false
+        return valid
+    }
+
+    private fun collectSuperDeclarations(declaration: KSClassDeclaration, qualifiedName: String, header: ModelHeader): Boolean {
+        var valid = true
+        for (superDeclaration in header.superDeclarations) {
+            val superName = superDeclaration.qualifiedName?.asString() ?: continue
+            if (!collectDeclaration(superDeclaration, "$qualifiedName base $superName", declaration)) valid = false
+        }
+        return valid
+    }
+
+    private fun collectDerivatives(declaration: KSClassDeclaration, qualifiedName: String): Boolean {
+        var valid = true
+        for (derivative in derivativesFor(declaration)) {
+            val derivativeName = derivative.qualifiedName?.asString() ?: continue
+            collectedDerivedTypes.add(DerivedTypeRegistrationModel(qualifiedName, derivativeName))
+            if (!collectDeclaration(derivative, "$qualifiedName derivative $derivativeName", derivative)) valid = false
+        }
+        return valid
+    }
+
+    private class ModelHeader(
+        val superDeclarations: List<KSClassDeclaration>,
+        val baseTypeName: String?,
+        val derivedTypeId: String?
+    )
+
+    private fun modelHeader(
+        declaration: KSClassDeclaration,
+        qualifiedName: String,
+        identity: String,
+        node: KSNode
+    ): ModelHeader? {
         val superDeclarations = declaration.superTypes.map { reference -> reference.resolve() }
             .filterNot(KSType::isError)
             .mapNotNull { type -> type.declaration as? KSClassDeclaration }
@@ -661,7 +245,7 @@ internal class MetadataCollector(
             .toList()
         if (superDeclarations.any { candidate -> candidate.typeParameters.isNotEmpty() }) {
             logger.error("'$identity' uses an unsupported generic base type from '$qualifiedName'.", node)
-            return false
+            return null
         }
         val baseTypeName = superDeclarations.firstOrNull { candidate -> candidate.classKind == ClassKind.CLASS }
             ?.qualifiedName?.asString()
@@ -672,7 +256,7 @@ internal class MetadataCollector(
                 "Derived type '$qualifiedName' must declare a nonblank @DerivedType id.",
                 declaration
             )
-            return false
+            return null
         }
         if (declaration.classKind == ClassKind.INTERFACE && derivedTypeId != null) {
             logger.error(
@@ -680,12 +264,13 @@ internal class MetadataCollector(
                 "Interface '$qualifiedName' cannot carry @DerivedType; annotate concrete implementations.",
                 declaration
             )
-            return false
+            return null
         }
+        return ModelHeader(superDeclarations, baseTypeName, derivedTypeId)
+    }
 
-        val describedProperties = knownProperties ?: describeProperties(declaration, qualifiedName)
-        if (describedProperties == null) return false
-        val properties = describedProperties.map { property ->
+    private fun withInterfaceDerivatives(describedProperties: List<PropertyModel>): List<PropertyModel> =
+        describedProperties.map { property ->
             val propertyDeclaration = if (property.shape.kind == TypeShapeKind.MAP) null else
                 resolveNamedDeclaration(property.elementTypeName ?: property.typeName)
             val derivatives = propertyDeclaration
@@ -695,6 +280,13 @@ internal class MetadataCollector(
                 .mapNotNull { candidate -> candidate.qualifiedName?.asString() }
             property.copy(derivatives = derivatives)
         }
+
+    private fun registerModel(
+        declaration: KSClassDeclaration,
+        qualifiedName: String,
+        properties: List<PropertyModel>,
+        header: ModelHeader
+    ) {
         val location = qualifiedName.substringBeforeLast('.', "").split('.').filter(String::isNotBlank)
         val summary = DocumentationSummaryParser.parse(declaration.docString).summary
         if (declaration.classKind == ClassKind.INTERFACE) {
@@ -711,57 +303,80 @@ internal class MetadataCollector(
                 fullyQualifiedName = qualifiedName,
                 location = location,
                 properties = properties,
-                baseTypeName = baseTypeName,
-                derivedTypeId = derivedTypeId,
+                baseTypeName = header.baseTypeName,
+                derivedTypeId = header.derivedTypeId,
                 summary = summary
             )
         }
+    }
 
+    private fun collectPropertyGraph(
+        declaration: KSClassDeclaration,
+        qualifiedName: String,
+        properties: List<PropertyModel>
+    ): Boolean {
         var valid = true
-        for (superDeclaration in superDeclarations) {
-            val superName = superDeclaration.qualifiedName?.asString() ?: continue
-            if (!collectDeclaration(superDeclaration, "$qualifiedName base $superName", declaration)) valid = false
+        val sites = PropertySites(declaration)
+        for (property in properties) {
+            if (!collectProperty(declaration, qualifiedName, property, sites)) valid = false
         }
+        return valid
+    }
 
-        val declarations = declaration.getDeclaredProperties().associateBy { property -> property.simpleName.asString() }
-        val accessors = if (declaration.origin == Origin.JAVA) {
+    private fun collectProperty(
+        declaration: KSClassDeclaration,
+        qualifiedName: String,
+        property: PropertyModel,
+        sites: PropertySites
+    ): Boolean {
+        var valid = true
+        val site = sites.siteOf(property.name)
+        if (!validatePropertyUse(qualifiedName, property, site.node ?: declaration)) valid = false
+        if (!collectPropertyType(declaration, "$qualifiedName.${property.name}", property, site)) valid = false
+        for (derivativeName in property.derivatives) {
+            if (!collectNamedType(derivativeName, "$qualifiedName.${property.name} derivative", declaration)) valid = false
+        }
+        return valid
+    }
+
+    /** The KSP type and node a collected property was declared by, when KSP exposes them. */
+    private class PropertySite(val type: KSType?, val node: KSNode?)
+
+    private class PropertySites(declaration: KSClassDeclaration) {
+        private val declarations = declaration.getDeclaredProperties().associateBy { property -> property.simpleName.asString() }
+        private val accessors = if (declaration.origin == Origin.JAVA) {
             declaration.getDeclaredFunctions().filter { function -> function.parameters.isEmpty() }
                 .associateBy { function -> function.simpleName.asString() }
         } else {
             emptyMap()
         }
-        for (property in properties) {
-            val propertyDeclaration = declarations[property.name]
-            val accessor = accessors[property.name]
-                ?: accessors["get${property.name.replaceFirstChar(Char::uppercase)}"]
-                ?: accessors["is${property.name.replaceFirstChar(Char::uppercase)}"]
-            val propertyType = propertyDeclaration?.type?.resolve() ?: accessor?.returnType?.resolve()
-            val propertyNode = propertyDeclaration ?: accessor
-            if (!validatePropertyUse(qualifiedName, property, propertyNode ?: declaration)) valid = false
-            if (property.shape.kind == TypeShapeKind.MAP) {
-                // Runtime-safe map leaves never contribute model declarations to the closed graph.
-            } else if (propertyType == null || propertyNode == null) {
-                val reachableName = property.elementTypeName ?: property.typeName
-                if (!collectNamedType(reachableName, "$qualifiedName.${property.name}", declaration)) valid = false
-            } else {
-                val shape = describe(propertyType, "$qualifiedName.${property.name}", propertyNode, allowMaps = true)
-                if (shape == null || !collect(shape, "$qualifiedName.${property.name}", propertyNode)) valid = false
-            }
-            for (derivativeName in property.derivatives) {
-                if (!collectNamedType(derivativeName, "$qualifiedName.${property.name} derivative", declaration)) valid = false
-            }
-        }
-        for (derivative in derivativesFor(declaration)) {
-            val derivativeName = derivative.qualifiedName?.asString() ?: continue
-            collectedDerivedTypes.add(DerivedTypeRegistrationModel(qualifiedName, derivativeName))
-            if (!collectDeclaration(derivative, "$qualifiedName derivative $derivativeName", derivative)) valid = false
-        }
 
-        if (!valid) {
-            collectedTypes.remove(qualifiedName)
-            collectedInterfaces.remove(qualifiedName)
+        fun siteOf(propertyName: String): PropertySite {
+            val propertyDeclaration = declarations[propertyName]
+            val capitalized = propertyName.replaceFirstChar(Char::uppercase)
+            val accessor = accessors[propertyName] ?: accessors["get$capitalized"] ?: accessors["is$capitalized"]
+            return PropertySite(
+                propertyDeclaration?.type?.resolve() ?: accessor?.returnType?.resolve(),
+                propertyDeclaration ?: accessor
+            )
         }
-        return valid
+    }
+
+    private fun collectPropertyType(
+        declaration: KSClassDeclaration,
+        identity: String,
+        property: PropertyModel,
+        site: PropertySite
+    ): Boolean {
+        // Runtime-safe map leaves never contribute model declarations to the closed graph.
+        if (property.shape.kind == TypeShapeKind.MAP) return true
+        val propertyType = site.type
+        val propertyNode = site.node
+        if (propertyType == null || propertyNode == null) {
+            return collectNamedType(property.elementTypeName ?: property.typeName, identity, declaration)
+        }
+        val shape = describe(propertyType, identity, propertyNode, allowMaps = true)
+        return shape != null && collect(shape, identity, propertyNode)
     }
 
     private data class ConcretePropertyUse(val ownerName: String, val propertyName: String, val baseName: String)
@@ -802,33 +417,20 @@ internal class MetadataCollector(
         return false
     }
 
-    private fun propertyUseNode(owner: KSClassDeclaration, propertyName: String): KSNode {
-        owner.getDeclaredProperties().firstOrNull { property -> property.simpleName.asString() == propertyName }
-            ?.let { return it }
-        if (owner.origin == Origin.JAVA) {
-            val capitalized = propertyName.replaceFirstChar(Char::uppercase)
-            val names = setOf(propertyName, "get$capitalized", "is$capitalized")
-            owner.getDeclaredFunctions().firstOrNull { function ->
-                function.parameters.isEmpty() && function.simpleName.asString() in names
-            }?.let { return it }
-        }
-        // Some Java record components have source metadata but no KSP property or accessor node.
-        return owner
-    }
-
-    fun extractValidation(
+    override fun extractValidation(
         annotated: Iterable<KSAnnotated>,
         shape: TypeShape,
         identity: String,
         node: KSNode,
-        sourceAnnotations: List<SourceValidationAnnotation> = emptyList()
+        sourceAnnotations: List<SourceValidationAnnotation>
     ): ValidationMetadata? {
         if (IgnoreValidationPolicy.isIgnored(annotated, node, resolver, logger) ||
             sourceAnnotations.any { it.qualifiedName == IgnoreValidationPolicy.ANNOTATION }) {
             // Declaration parsing/fingerprints remain unchanged; only effective member rules are cut.
             return ValidationMetadata(emptyList(), false, true)
         }
-        val conceptRules = extractConceptValidationRules(shape, identity, node) ?: return null
+        val conceptRules = ConceptValidationRules(logger, validationExtractor, resolver, conceptResolver)
+            .extract(shape, identity, node) ?: return null
         return validationExtractor.extract(
             annotated,
             shape,
@@ -839,149 +441,6 @@ internal class MetadataCollector(
             fluentRules[identity].orEmpty()
         )
     }
-
-    private fun extractConceptValidationRules(
-        shape: TypeShape,
-        identity: String,
-        node: KSNode
-    ): List<ValidationRuleModel>? {
-        val underlying = shape.underlyingValueType ?: return emptyList()
-        val declaration = shape.valueType.declaration as? KSClassDeclaration ?: return emptyList()
-        val underlyingName = requireNotNull(underlying.declaration.qualifiedName).asString()
-        val effectiveShape = TypeShape(
-            typeName = underlyingName,
-            descriptor = TypeShapeDescriptor.value(underlyingName),
-            valueType = underlying
-        )
-        return collectConceptValidationRules(declaration, effectiveShape, identity, node, mutableSetOf())
-    }
-
-    private fun collectConceptValidationRules(
-        declaration: KSClassDeclaration,
-        effectiveShape: TypeShape,
-        identity: String,
-        node: KSNode,
-        visited: MutableSet<String>
-    ): List<ValidationRuleModel>? {
-        val declarationName = declaration.qualifiedName?.asString() ?: return emptyList()
-        if (!visited.add(declarationName)) return emptyList()
-        val rules = validationRulesForConceptDeclaration(declaration, effectiveShape, identity, node)?.toMutableList()
-            ?: return null
-        val conceptSuperDeclarations = declaration.superTypes.map { reference -> reference.resolve().declaration }
-            .filterIsInstance<KSClassDeclaration>()
-            .filter { candidate ->
-                candidate.qualifiedName?.asString() != CONCEPT_AS_TYPE && candidate.isAssignableTo(CONCEPT_AS_TYPE)
-            }
-            .sortedBy { candidate -> candidate.qualifiedName?.asString() }
-            .toList()
-        for (superDeclaration in conceptSuperDeclarations) {
-            rules += collectConceptValidationRules(superDeclaration, effectiveShape, identity, node, visited) ?: return null
-        }
-        val carriedConcept = findConceptValue(declaration, emptyMap(), mutableSetOf())
-            ?.declaration as? KSClassDeclaration
-        if (carriedConcept != null && carriedConcept.isAssignableTo(CONCEPT_AS_TYPE)) {
-            rules += collectConceptValidationRules(carriedConcept, effectiveShape, identity, node, visited) ?: return null
-        }
-        return rules
-    }
-
-    private fun validationRulesForConceptDeclaration(
-        declaration: KSClassDeclaration,
-        effectiveShape: TypeShape,
-        identity: String,
-        node: KSNode
-    ): List<ValidationRuleModel>? {
-        val constructorParameter = declaration.primaryConstructor?.parameters?.singleOrNull()
-        val constructorName = constructorParameter?.name?.asString()
-        val properties = declaration.getDeclaredProperties().filter { property ->
-            constructorName == null || property.simpleName.asString() == constructorName
-        }.toList()
-        val accessors = declaration.getDeclaredFunctions().filter { function ->
-            function.parameters.isEmpty() && function.simpleName.asString() in setOf(
-                "value",
-                "getValue",
-                constructorName.orEmpty(),
-                constructorName?.let { name -> "get${name.replaceFirstChar(Char::uppercase)}" }.orEmpty()
-            )
-        }.toList()
-        val sourceAnnotations = if (declaration.origin == Origin.JAVA) {
-            declaration.containingFile?.filePath?.let(::File)?.takeIf(File::isFile)?.readText()
-                ?.let { source -> parseJavaRecordProperties(source, declaration.simpleName.asString()) }
-                ?.singleOrNull()
-                ?.validationAnnotations
-                .orEmpty()
-        } else {
-            emptyList()
-        }
-        if (sourceAnnotations.any { it.qualifiedName == IgnoreValidationPolicy.ANNOTATION } || properties.any {
-                IgnoreValidationPolicy.isIgnored(listOfNotNull(it, it.getter), it, resolver, logger)
-            }) return emptyList()
-        return validationExtractor.extract(
-            listOfNotNull(constructorParameter) + properties + accessors,
-            effectiveShape,
-            "$identity concept value",
-            node,
-            sourceAnnotations
-        )?.rules
-    }
-
-    private fun resolveConceptValue(
-        declaration: KSClassDeclaration,
-        identity: String,
-        node: KSNode
-    ): ConceptValueResolution {
-        if (!declaration.isAssignableTo(CONCEPT_AS_TYPE)) return ConceptValueResolution(true, null)
-        val value = findConceptValue(declaration, emptyMap(), mutableSetOf())
-        val valueDeclaration = value?.declaration as? KSClassDeclaration
-        val valueName = valueDeclaration?.qualifiedName?.asString()
-        if (value == null || value.isError || value.declaration is KSTypeParameter || valueName == null) {
-            logger.error(
-                ArcDiagnostic.PROXY_SHAPE,
-                "Concept '$identity' implements ConceptAs<T>, but its underlying generic type cannot be resolved.",
-                node
-            )
-            return ConceptValueResolution(false, null)
-        }
-        if (value.arguments.isNotEmpty() || valueName in MAP_TYPE_NAMES || valueName in COLLECTION_TYPE_NAMES || valueName == ARRAY_TYPE) {
-            logger.error(
-                ArcDiagnostic.PROXY_SHAPE,
-                "Concept artifact/property '$identity' value path 'conceptValue' has unsupported non-scalar underlying type '$valueName'.",
-                node
-            )
-            return ConceptValueResolution(false, null)
-        }
-        if (valueDeclaration.isAssignableTo(CONCEPT_AS_TYPE)) {
-            return resolveConceptValue(valueDeclaration, identity, node)
-        }
-        return ConceptValueResolution(true, value)
-    }
-
-    private fun findConceptValue(
-        declaration: KSClassDeclaration,
-        substitutions: Map<String, KSType>,
-        seen: MutableSet<String>
-    ): KSType? {
-        val declarationName = declaration.qualifiedName?.asString() ?: return null
-        if (!seen.add(declarationName)) return null
-        for (reference in declaration.superTypes) {
-            val superType = reference.resolve()
-            val superDeclaration = superType.declaration as? KSClassDeclaration ?: continue
-            val superName = superDeclaration.qualifiedName?.asString()
-            if (superName == CONCEPT_AS_TYPE) {
-                val argument = superType.arguments.singleOrNull()?.type?.resolve() ?: return null
-                return substitute(argument, substitutions)
-            }
-            val superSubstitutions = superDeclaration.typeParameters.mapIndexedNotNull { index, parameter ->
-                val argument = superType.arguments.getOrNull(index)?.type?.resolve() ?: return@mapIndexedNotNull null
-                parameter.name.asString() to substitute(argument, substitutions)
-            }.toMap()
-            findConceptValue(superDeclaration, superSubstitutions, seen)?.let { return it }
-        }
-        return null
-    }
-
-    private fun substitute(type: KSType, substitutions: Map<String, KSType>): KSType =
-        (type.declaration as? KSTypeParameter)?.name?.asString()?.let(substitutions::get) ?: type
 
     private fun registerConcept(declaration: KSClassDeclaration, underlying: KSType) {
         val name = requireNotNull(declaration.qualifiedName).asString()
@@ -994,227 +453,6 @@ internal class MetadataCollector(
         collectedConcepts.putIfAbsent(
             name,
             ConceptModel(declaration.simpleName.asString(), name, underlyingName)
-        )
-    }
-
-    private data class ConceptValueResolution(val isValid: Boolean, val value: KSType?)
-
-    private fun describeJavaType(
-        sourceTypeName: String,
-        owner: KSClassDeclaration,
-        identity: String,
-        node: KSNode
-    ): TypeShape? {
-        val rawType = sourceTypeName.removeSuffix("[]")
-        val genericStart = rawType.indexOf('<')
-        val baseName = if (genericStart >= 0) rawType.substring(0, genericStart) else rawType
-        val argumentName = if (genericStart >= 0) rawType.substring(genericStart + 1, rawType.lastIndexOf('>')).trim() else null
-        val isEnumerable = sourceTypeName.endsWith("[]") || baseName in JAVA_COLLECTION_NAMES
-        if (baseName in JAVA_MAP_NAMES) {
-            val descriptor = describeJavaMapType(sourceTypeName, owner, identity, "value") ?: return null
-            val declaration = resolveJavaDeclaration("java.util.Map", owner)
-                ?: return unsupportedJavaMapShape(identity, "value", "java.util.Map cannot be resolved", owner)
-            return TypeShape(descriptorTypeName(descriptor), descriptor, declaration.asStarProjectedType())
-        }
-        if (isEnumerable && (argumentName == null && !sourceTypeName.endsWith("[]"))) {
-            logger.error("'$identity' must use a concrete collection element type.", owner)
-            return null
-        }
-        val valueUse = parseJavaTypeUse(argumentName ?: rawType)
-        if (isEnumerable && valueUse.isNullable) {
-            unsupportedSequenceElement(identity, node)
-            return null
-        }
-        val valueSourceName = valueUse.typeName
-        if ('<' in valueSourceName || '?' in valueSourceName || '*' in valueSourceName) {
-            logger.error("'$identity' uses an unsupported nested, wildcard, or generic shape.", owner)
-            return null
-        }
-        val declaration = resolveJavaDeclaration(valueSourceName, owner)
-        if (declaration == null) {
-            logger.error("'$identity' has unresolvable Java type '$sourceTypeName'.", owner)
-            return null
-        }
-        val valueType = declaration.asStarProjectedType()
-        val valueName = requireNotNull(declaration.qualifiedName).asString()
-        val collectionName = if (sourceTypeName.endsWith("[]")) ARRAY_TYPE else normalizeJavaCollectionName(baseName)
-        val descriptor = if (isEnumerable) {
-            TypeShapeDescriptor.sequence(sequenceKind(collectionName), TypeShapeDescriptor.value(valueName))
-        } else {
-            TypeShapeDescriptor.value(valueName)
-        }
-        return TypeShape(
-            typeName = if (isEnumerable) "$collectionName<$valueName>" else valueName,
-            descriptor = descriptor,
-            valueType = valueType
-        )
-    }
-
-    private data class JavaTypeUse(val typeName: String, val isNullable: Boolean)
-
-    private data class JavaGenericType(val baseName: String, val arguments: List<JavaTypeUse>)
-
-    private fun describeJavaMapType(
-        sourceTypeName: String,
-        owner: KSClassDeclaration,
-        identity: String,
-        path: String
-    ): TypeShapeDescriptor? {
-        val parsed = parseJavaGenericType(sourceTypeName)
-            ?: return unsupportedJavaMapShape(
-                identity,
-                path,
-                "raw, wildcard, and type-parameter map arguments are unsupported; star projections are unsupported",
-                owner
-            )
-        if (parsed.baseName !in JAVA_MAP_NAMES || parsed.arguments.size != 2) {
-            return unsupportedJavaMapShape(identity, path, "map values must declare exactly two concrete arguments", owner)
-        }
-        val key = parsed.arguments[0]
-        val keyName = JAVA_TYPE_ALIASES[key.typeName] ?: key.typeName
-        if (key.isNullable || keyName != "java.lang.String" && keyName != "String") {
-            return unsupportedJavaMapShape(identity, "$path.key", "map keys must be nonnullable String", owner)
-        }
-        val valueShape = describeJavaMapValue(parsed.arguments[1], owner, identity, path) ?: return null
-        return TypeShapeDescriptor.map(
-            TypeShapeDescriptor.value("java.lang.String"),
-            valueShape,
-            MapKeyCodec.STRING
-        )
-    }
-
-    private fun describeJavaMapValue(
-        typeUse: JavaTypeUse,
-        owner: KSClassDeclaration,
-        identity: String,
-        path: String
-    ): TypeShapeDescriptor? {
-        if (typeUse.isNullable) {
-            return unsupportedJavaMapShape(
-                identity,
-                path,
-                "nullable map values and sequence elements are unsupported",
-                owner
-            )
-        }
-        val sourceTypeName = typeUse.typeName
-        if ('?' in sourceTypeName || '*' in sourceTypeName) {
-            return unsupportedJavaMapShape(
-                identity,
-                path,
-                "raw and wildcard arguments are unsupported; star projections are unsupported",
-                owner
-            )
-        }
-        val parsed = parseJavaGenericType(sourceTypeName)
-        if (parsed != null) {
-            if (parsed.baseName in JAVA_MAP_NAMES) {
-                return describeJavaMapType(sourceTypeName, owner, identity, "$path.value")
-            }
-            if (parsed.baseName in JAVA_COLLECTION_NAMES) {
-                if (parsed.arguments.size != 1) {
-                    return unsupportedJavaMapShape(identity, "$path[]", "sequences require one concrete element type", owner)
-                }
-                val element = describeJavaMapValue(parsed.arguments.single(), owner, identity, "$path[]") ?: return null
-                return TypeShapeDescriptor.sequence(
-                    sequenceKind(normalizeJavaCollectionName(parsed.baseName)),
-                    element
-                )
-            }
-            return unsupportedJavaMapShape(identity, path, "generic map value leaves are unsupported", owner)
-        }
-        if (sourceTypeName.endsWith("[]")) {
-            val element = describeJavaMapValue(
-                parseJavaTypeUse(sourceTypeName.removeSuffix("[]")),
-                owner,
-                identity,
-                "$path[]"
-            ) ?: return null
-            return TypeShapeDescriptor.sequence(SequenceKind.ARRAY, element)
-        }
-        val declaration = resolveJavaDeclaration(sourceTypeName, owner)
-            ?: return unsupportedJavaMapShape(identity, path, "map value type '$sourceTypeName' cannot be resolved", owner)
-        val name = requireNotNull(declaration.qualifiedName).asString()
-        if (name !in MAP_SAFE_PRIMITIVE_TYPE_NAMES) {
-            return unsupportedJavaMapShape(
-                identity,
-                path,
-                "map value leaf '$name' is not a runtime-safe JavaScript primitive; model, concept, enum, UUID, temporal, and derived leaves are unsupported",
-                owner
-            )
-        }
-        return TypeShapeDescriptor.value(name)
-    }
-
-    private fun parseJavaGenericType(sourceTypeName: String): JavaGenericType? {
-        val typeUse = parseJavaTypeUse(sourceTypeName)
-        val opening = typeUse.typeName.indexOf('<')
-        if (opening < 0 || !typeUse.typeName.endsWith('>')) return null
-        val baseName = typeUse.typeName.substring(0, opening).trim()
-        val body = typeUse.typeName.substring(opening + 1, typeUse.typeName.length - 1)
-        val arguments = mutableListOf<JavaTypeUse>()
-        var depth = 0
-        var start = 0
-        body.forEachIndexed { index, character ->
-            when (character) {
-                '<' -> depth++
-                '>' -> depth--
-                ',' -> if (depth == 0) {
-                    arguments += parseJavaTypeUse(body.substring(start, index))
-                    start = index + 1
-                }
-            }
-        }
-        if (body.substring(start).isNotBlank()) arguments += parseJavaTypeUse(body.substring(start))
-        return JavaGenericType(baseName, arguments)
-    }
-
-    private fun parseJavaTypeUse(sourceTypeName: String): JavaTypeUse {
-        var remaining = sourceTypeName.trim()
-        var isNullable = false
-        while (remaining.startsWith('@')) {
-            val name = Regex("^@([A-Za-z_$][A-Za-z0-9_$.]*)").find(remaining) ?: break
-            val simpleName = name.groupValues[1].substringAfterLast('.')
-            isNullable = isNullable || simpleName == "Nullable" || simpleName == "CheckForNull"
-            var end = name.range.last + 1
-            while (end < remaining.length && remaining[end].isWhitespace()) end++
-            if (end < remaining.length && remaining[end] == '(') {
-                var depth = 1
-                end++
-                while (end < remaining.length && depth > 0) {
-                    when (remaining[end++]) {
-                        '(' -> depth++
-                        ')' -> depth--
-                    }
-                }
-            }
-            remaining = remaining.substring(end).trimStart()
-        }
-        return JavaTypeUse(remaining.trim(), isNullable)
-    }
-
-    private fun unsupportedJavaMapShape(
-        identity: String,
-        path: String,
-        detail: String,
-        owner: KSClassDeclaration
-    ): Nothing? {
-        logger.error(ArcDiagnostic.PROXY_SHAPE, "Artifact/property '$identity' value path '$path': $detail.", owner)
-        return null
-    }
-
-    private fun TypeShapeDescriptor.withNullability(nullable: Boolean): TypeShapeDescriptor = when (kind) {
-        TypeShapeKind.VALUE -> TypeShapeDescriptor.value(requireNotNull(typeName), nullable)
-        TypeShapeKind.SEQUENCE -> TypeShapeDescriptor.sequence(
-            requireNotNull(sequenceKind),
-            requireNotNull(elementShape),
-            nullable
-        )
-        TypeShapeKind.MAP -> TypeShapeDescriptor.map(
-            requireNotNull(keyShape),
-            requireNotNull(valueShape),
-            requireNotNull(keyCodec),
-            nullable
         )
     }
 
@@ -1234,31 +472,11 @@ internal class MetadataCollector(
         return collectDeclaration(declaration, identity, node)
     }
 
-    private fun resolveJavaDeclaration(typeName: String, owner: KSClassDeclaration): KSClassDeclaration? {
-        val currentResolver = resolver ?: return null
-        val normalized = JAVA_TYPE_ALIASES[typeName] ?: typeName
-        val candidates = if ('.' in normalized) {
-            listOf(normalized)
-        } else {
-            val packageName = owner.packageName.asString()
-            listOf("$packageName.$normalized", "java.lang.$normalized", "java.util.$normalized")
-        }
-        return candidates.firstNotNullOfOrNull { candidate ->
-            currentResolver.getClassDeclarationByName(currentResolver.getKSNameFromString(candidate))
-        }
-    }
-
-    private fun normalizeJavaCollectionName(name: String): String = when (name) {
-        "List", "java.util.List" -> "java.util.List"
-        "Collection", "java.util.Collection" -> "java.util.Collection"
-        else -> name
-    }
-
     private fun collectType(type: KSType, identity: String, node: KSNode): Boolean {
         val declaration = type.declaration as? KSClassDeclaration ?: return false
         val qualifiedName = declaration.qualifiedName?.asString() ?: return false
         if (isTerminal(qualifiedName)) return true
-        val conceptResolution = resolveConceptValue(declaration, identity, node)
+        val conceptResolution = conceptResolver.resolve(declaration, identity, node)
         if (!conceptResolution.isValid) return false
         conceptResolution.value?.let { underlying ->
             registerConcept(declaration, underlying)
@@ -1290,73 +508,10 @@ internal class MetadataCollector(
         return derivatives.sortedBy { candidate -> candidate.qualifiedName?.asString() }
     }
 
-    private fun KSClassDeclaration.isAssignableTo(baseName: String, seen: MutableSet<String> = mutableSetOf()): Boolean {
-        val ownName = qualifiedName?.asString() ?: return false
-        if (!seen.add(ownName)) return false
-        return superTypes.map { reference -> reference.resolve().declaration as? KSClassDeclaration }
-            .filterNotNull()
-            .any { superDeclaration ->
-                superDeclaration.qualifiedName?.asString() == baseName || superDeclaration.isAssignableTo(baseName, seen)
-            }
-    }
-
     private fun collectEnum(declaration: KSClassDeclaration): Boolean {
         val qualifiedName = requireNotNull(declaration.qualifiedName).asString()
         if (qualifiedName in collectedEnums) return true
-        val entries = declaration.declarations.filterIsInstance<KSClassDeclaration>()
-            .filter { candidate -> candidate.classKind == ClassKind.ENUM_ENTRY }
-            .toList()
-        val implementsArcEnum = declaration.superTypes.any { reference ->
-            reference.resolve().declaration.qualifiedName?.asString() == ARC_ENUM_TYPE
-        }
-        val constructorCanSupplyValue = declaration.primaryConstructor?.parameters?.singleOrNull()
-            ?.type?.resolve()?.declaration?.qualifiedName?.asString() in INTEGER_TYPE_NAMES
-        val constructorValues = if (implementsArcEnum && constructorCanSupplyValue) {
-            declaration.containingFile?.filePath?.let(::File)?.takeIf(File::isFile)?.readText()
-                ?.let { source -> parseEnumConstructorValues(source, declaration.simpleName.asString()) }
-                .orEmpty()
-        } else {
-            emptyMap()
-        }
-        var valid = true
-        val members = entries.mapIndexed { ordinal, entry ->
-            val name = entry.simpleName.asString()
-            val annotatedValue = entry.intAnnotationArgument(ARC_ENUM_VALUE_ANNOTATION)
-            val constructorValue = constructorValues[name]
-            val value = if (!implementsArcEnum) {
-                ordinal
-            } else if (annotatedValue != null && constructorValue != null && annotatedValue != constructorValue) {
-                logger.error(
-                    ArcDiagnostic.ENUM_VALUE,
-                    "Enum '$qualifiedName.$name' has ambiguous Arc values: constructor $constructorValue and " +
-                        "@ArcEnumValue $annotatedValue.",
-                    entry
-                )
-                valid = false
-                annotatedValue
-            } else {
-                annotatedValue ?: constructorValue ?: run {
-                    logger.error(
-                        ArcDiagnostic.ENUM_VALUE,
-                        "Enum '$qualifiedName.$name' implements ArcEnum, but its value cannot be proven from a " +
-                            "single integer-literal constructor argument; add @ArcEnumValue with the wire value.",
-                        entry
-                    )
-                    valid = false
-                    0
-                }
-            }
-            EnumMemberModel(name, value)
-        }
-        if (!valid) return false
-        collectedEnums[qualifiedName] = EnumModel(
-            name = declaration.simpleName.asString(),
-            fullyQualifiedName = qualifiedName,
-            location = qualifiedName.substringBeforeLast('.', "").split('.').filter(String::isNotBlank),
-            members = members,
-            isFlags = declaration.hasAnnotation(FLAGS_ANNOTATION),
-            summary = DocumentationSummaryParser.parse(declaration.docString).summary
-        )
+        collectedEnums[qualifiedName] = EnumModelReader(logger).read(declaration) ?: return false
         return true
     }
 
@@ -1367,86 +522,4 @@ internal class MetadataCollector(
         ?.arguments?.firstOrNull { argument -> argument.name?.asString() == "id" || argument.name == null }
         ?.value as? String
 
-    private fun KSAnnotated.intAnnotationArgument(qualifiedName: String): Int? = annotations
-        .firstOrNull { annotation ->
-            annotation.annotationType.resolve().declaration.qualifiedName?.asString() == qualifiedName
-        }
-        ?.arguments?.firstOrNull { argument -> argument.name?.asString() == "value" || argument.name == null }
-        ?.value
-        ?.let { value -> (value as? Number)?.toInt() }
-
-    private fun isTerminal(qualifiedName: String): Boolean = qualifiedName in TERMINAL_TYPE_NAMES
-
-    private fun KSAnnotated.hasAnnotation(qualifiedName: String): Boolean = annotations.any { annotation ->
-        annotation.annotationType.resolve().declaration.qualifiedName?.asString() == qualifiedName
-    }
-
-    private companion object {
-        const val ARRAY_TYPE = "kotlin.Array"
-        const val CONCEPT_AS_TYPE = "io.cratis.arc.concepts.ConceptAs"
-        const val ARC_ENUM_TYPE = "io.cratis.arc.concepts.ArcEnum"
-        const val ARC_ENUM_VALUE_ANNOTATION = "io.cratis.arc.concepts.ArcEnumValue"
-        const val FLAGS_ANNOTATION = "io.cratis.arc.concepts.Flags"
-        const val COMMAND_KEY_ANNOTATION = "io.cratis.arc.artifacts.CommandKey"
-        const val COMMAND_ANNOTATION = "io.cratis.arc.artifacts.Command"
-        const val JSON_IGNORE_ANNOTATION = "com.fasterxml.jackson.annotation.JsonIgnore"
-        const val JSON_PROPERTY_ANNOTATION = "com.fasterxml.jackson.annotation.JsonProperty"
-        const val DERIVED_TYPE_ANNOTATION = "io.cratis.arc.polymorphism.DerivedType"
-        val COLLECTION_TYPE_NAMES = setOf(
-            "kotlin.collections.List",
-            "kotlin.collections.MutableList",
-            "kotlin.collections.Collection",
-            "kotlin.collections.MutableCollection",
-            "java.util.List",
-            "java.util.Collection"
-        )
-        val MAP_TYPE_NAMES = setOf("kotlin.collections.Map", "kotlin.collections.MutableMap", "java.util.Map")
-        val JAVA_COLLECTION_NAMES = setOf("List", "Collection", "java.util.List", "java.util.Collection")
-        val JAVA_MAP_NAMES = setOf("Map", "java.util.Map")
-        val JAVA_TYPE_ALIASES = mapOf(
-            "boolean" to "java.lang.Boolean",
-            "byte" to "java.lang.Byte",
-            "char" to "java.lang.Character",
-            "double" to "java.lang.Double",
-            "float" to "java.lang.Float",
-            "int" to "java.lang.Integer",
-            "long" to "java.lang.Long",
-            "short" to "java.lang.Short"
-        )
-        val KOTLIN_TO_JAVA_BOXED_TYPE_NAMES = mapOf(
-            "kotlin.Boolean" to "java.lang.Boolean",
-            "kotlin.Byte" to "java.lang.Byte",
-            "kotlin.Char" to "java.lang.Character",
-            "kotlin.Double" to "java.lang.Double",
-            "kotlin.Float" to "java.lang.Float",
-            "kotlin.Int" to "java.lang.Integer",
-            "kotlin.Long" to "java.lang.Long",
-            "kotlin.Short" to "java.lang.Short",
-            "kotlin.String" to "java.lang.String"
-        )
-        val ROOT_TYPE_NAMES = setOf(
-            "kotlin.Any",
-            "java.lang.Object",
-            "java.lang.Record",
-            "java.io.Serializable",
-            "java.lang.Cloneable"
-        )
-        val INTEGER_TYPE_NAMES = setOf("kotlin.Int", "java.lang.Integer", "int")
-        val STRING_TYPE_NAMES = setOf("kotlin.String", "java.lang.String")
-        val MAP_SAFE_PRIMITIVE_TYPE_NAMES = setOf(
-            "kotlin.Boolean", "kotlin.Byte", "kotlin.Char", "kotlin.Int", "kotlin.Short", "kotlin.String",
-            "java.lang.Boolean", "java.lang.Byte", "java.lang.Character", "java.lang.Integer", "java.lang.Short",
-            "java.lang.String", "boolean", "byte", "char", "int", "short"
-        )
-        val TERMINAL_TYPE_NAMES = setOf(
-            "kotlin.Boolean", "kotlin.Byte", "kotlin.Char", "kotlin.Double", "kotlin.Float", "kotlin.Int",
-            "kotlin.Long", "kotlin.Short", "kotlin.String", "java.lang.Boolean", "java.lang.Byte",
-            "java.lang.Character", "java.lang.Double", "java.lang.Float", "java.lang.Integer", "java.lang.Long",
-            "java.lang.Short", "java.lang.String", "boolean", "byte", "char", "double", "float", "int",
-            "long", "short", "java.math.BigDecimal", "java.math.BigInteger", "java.util.UUID", "java.util.Date",
-            "java.time.Duration", "java.time.Instant", "java.time.LocalDate", "java.time.LocalDateTime",
-            "java.time.LocalTime", "java.time.OffsetDateTime", "java.time.OffsetTime", "java.time.Period",
-            "java.time.Year", "java.time.YearMonth", "java.time.ZonedDateTime"
-        )
-    }
 }
