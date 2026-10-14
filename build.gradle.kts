@@ -12,8 +12,8 @@ import org.jetbrains.kotlin.gradle.dsl.KotlinJvmProjectExtension
 import org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile
 
 plugins {
-    kotlin("jvm") version "2.4.20" apply false
-    kotlin("plugin.spring") version "2.4.20" apply false
+    kotlin("jvm") version "2.4.21" apply false
+    kotlin("plugin.spring") version "2.4.21" apply false
     id("com.google.devtools.ksp") version "2.3.12" apply false
     id("org.springframework.boot") version "4.1.1" apply false
     id("io.spring.dependency-management") version "1.1.7" apply false

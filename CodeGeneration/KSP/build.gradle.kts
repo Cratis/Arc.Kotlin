@@ -14,7 +14,7 @@ dependencies {
     implementation(project(":Source"))
     implementation("com.google.devtools.ksp:symbol-processing-api:$kspVersion")
     // Whole-body syntax parsing and class-file annotation inspection, exact compiler baseline. Never an application dependency.
-    implementation("org.jetbrains.kotlin:kotlin-compiler-embeddable:2.4.20")
+    implementation("org.jetbrains.kotlin:kotlin-compiler-embeddable:2.4.21")
     testImplementation("dev.zacsweers.kctfork:ksp:0.14.0")
     testImplementation("jakarta.validation:jakarta.validation-api:3.1.1")
     testImplementation("org.hibernate.validator:hibernate-validator:9.1.4.Final")

@@ -23,7 +23,7 @@ kotlin {
 }
 
 dependencies {
-    api("org.jetbrains.kotlin:kotlin-reflect:2.4.20")
+    api("org.jetbrains.kotlin:kotlin-reflect:2.4.21")
     api("jakarta.validation:jakarta.validation-api:$jakartaValidationVersion")
     api("tools.jackson.core:jackson-databind:$jacksonVersion")
     api("tools.jackson.module:jackson-module-kotlin:$jacksonVersion")
