@@ -4,9 +4,10 @@ applyTo: "**/*"
 
 ## Release-intent label — required on every pull request
 
-`.github/workflows/verify-semver-label.yml` calls the organization-wide reusable workflow
-`Cratis/Workflows/.github/workflows/verify-release-intent.yml` on `opened`, `reopened`, `synchronize`,
-`labeled`, and `unlabeled` for pull requests targeting `main`. It requires **exactly one** label from:
+`.github/workflows/verify-pull-request-policy.yml` calls the organization-wide reusable workflow
+`Cratis/Workflows/.github/workflows/verify-pull-request-policy.yml` with `release-intent: true` on
+`opened`, `edited`, `reopened`, `synchronize`, `labeled`, `unlabeled` and `ready_for_review` for pull
+requests targeting `main`. It requires **exactly one** label from:
 
 | Label | Meaning |
 | --- | --- |
