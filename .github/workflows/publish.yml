@@ -10,9 +10,13 @@ name: Publish
 # namespaces its group behind a literal prefix for exactly that reason; see the note there.
 # The literal prefix here is the other half of that pair: it puts this group in a namespace no
 # called workflow can compute, so neither side alone can bring #50 back.
+#
+# `queue: max` keeps up to 100 pending runs first-in first-out, so a merge that lands while a release
+# publishes is never replaced by a later one and keeps its release. GitHub rejects `queue: max`
+# combined with `cancel-in-progress`, and leaving it out never cancels a run in flight.
 concurrency:
   group: publish-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false
+  queue: max
 
 on:
   workflow_dispatch:
