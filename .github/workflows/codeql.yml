@@ -5,12 +5,11 @@
 # (github/codeql#22381). Remove the `tools` pin once the default bundle of codeql-action is 2.27.1 or newer.
 name: CodeQL
 
+# Every change reaches main through a pull request that CodeQL has already analyzed, so a run on each push to
+# main repeated that analysis. The weekly schedule keeps main's code scanning baseline current instead.
 on:
   workflow_dispatch:
   pull_request:
-    branches:
-      - main
-  push:
     branches:
       - main
   schedule:
