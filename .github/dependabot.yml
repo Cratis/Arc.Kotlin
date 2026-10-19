@@ -5,8 +5,11 @@ version: 2
 updates:
   - package-ecosystem: gradle
     directory: "/"
+    # Weekly rather than daily: the groups below already batch non-major updates, and a daily run opened a
+    # pull request (and a full CI run) for nearly every upstream patch.
     schedule:
-      interval: daily
+      interval: weekly
+      day: monday
       time: "06:00"
       timezone: "Etc/UTC"
     labels:
@@ -74,7 +77,8 @@ updates:
   - package-ecosystem: npm
     directory: "/ContractTests/TypeScript"
     schedule:
-      interval: daily
+      interval: weekly
+      day: monday
       time: "06:15"
       timezone: "Etc/UTC"
     labels:
