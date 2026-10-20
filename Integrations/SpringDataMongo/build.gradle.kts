@@ -33,9 +33,9 @@ mavenPublishing {
     coordinates("io.cratis", "arc-spring-data-mongodb", version.toString())
 
     pom {
-        name.set("Arc Spring Data MongoDB Integration")
-        description.set("Spring Data MongoDB query, read-model, and command transaction integration for Arc")
-        url.set("https://github.com/Cratis/Arc.Kotlin")
+        name.set("Cratis Arc Spring Data MongoDB Integration")
+        description.set("Spring Data MongoDB query, read-model, and command transaction integration for Cratis Arc")
+        url.set("https://www.cratis.io/arc/backend/kotlin/")
         licenses {
             license {
                 name.set("MIT License")

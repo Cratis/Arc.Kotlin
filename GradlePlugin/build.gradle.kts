@@ -72,9 +72,9 @@ mavenPublishing {
     coordinates("io.cratis", "arc-gradle-plugin", version.toString())
 
     pom {
-        name.set("Arc Gradle Plugin")
-        description.set("Gradle plugin for Arc Kotlin and Java compilation, KSP manifests, dependencies, and TypeScript proxies")
-        url.set("https://github.com/Cratis/Arc.Kotlin")
+        name.set("Cratis Arc Gradle Plugin")
+        description.set("Gradle plugin for Cratis Arc Kotlin and Java compilation, KSP manifests, dependencies, and TypeScript proxies")
+        url.set("https://www.cratis.io/arc/backend/kotlin/")
         licenses {
             license {
                 name.set("MIT License")

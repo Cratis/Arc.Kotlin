@@ -37,9 +37,9 @@ mavenPublishing {
     coordinates("io.cratis", "arc-observability-spring-boot-starter", version.toString())
 
     pom {
-        name.set("Arc Observability Spring Boot Starter")
-        description.set("Micrometer observations and optional OpenTelemetry correlation for Arc pipelines")
-        url.set("https://github.com/Cratis/Arc.Kotlin")
+        name.set("Cratis Arc Observability Spring Boot Starter")
+        description.set("Micrometer observations and optional OpenTelemetry correlation for Cratis Arc pipelines")
+        url.set("https://www.cratis.io/arc/backend/kotlin/")
         licenses {
             license {
                 name.set("MIT License")
