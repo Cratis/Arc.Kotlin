@@ -25,8 +25,8 @@ mavenPublishing {
 
     pom {
         name.set("Cratis")
-        description.set("The one dependency for a Cratis application: Arc, its Spring Boot wiring, and the Chronicle event-sourcing integration")
-        url.set("https://github.com/Cratis/Arc.Kotlin")
+        description.set("The one dependency for a Cratis application: Cratis Arc, its Spring Boot wiring, and the Cratis Chronicle event-sourcing integration")
+        url.set("https://www.cratis.io/arc/backend/kotlin/")
         licenses {
             license {
                 name.set("MIT License")

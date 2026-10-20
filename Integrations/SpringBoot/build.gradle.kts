@@ -39,9 +39,9 @@ mavenPublishing {
     coordinates("io.cratis", "arc-spring-boot-starter", version.toString())
 
     pom {
-        name.set("Arc Spring Boot Starter")
-        description.set("Spring Boot auto-configuration for Arc on Kotlin and Java")
-        url.set("https://github.com/Cratis/Arc.Kotlin")
+        name.set("Cratis Arc Spring Boot Starter")
+        description.set("Spring Boot auto-configuration for Cratis Arc on Kotlin and Java")
+        url.set("https://www.cratis.io/arc/backend/kotlin/")
         licenses {
             license {
                 name.set("MIT License")

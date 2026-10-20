@@ -41,9 +41,9 @@ mavenPublishing {
     coordinates("io.cratis", "arc", version.toString())
 
     pom {
-        name.set("Arc for Kotlin and Java")
-        description.set("Arc runtime for Kotlin and Java applications on Spring Boot")
-        url.set("https://github.com/Cratis/Arc.Kotlin")
+        name.set("Cratis Arc for Kotlin and Java")
+        description.set("Cratis Arc runtime for Kotlin and Java applications on Spring Boot")
+        url.set("https://www.cratis.io/arc/backend/kotlin/")
         licenses {
             license {
                 name.set("MIT License")

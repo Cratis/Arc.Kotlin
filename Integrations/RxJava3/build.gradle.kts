@@ -24,9 +24,9 @@ mavenPublishing {
     coordinates("io.cratis", "arc-rxjava3", version.toString())
 
     pom {
-        name.set("Arc RxJava 3 Integration")
-        description.set("Optional RxJava 3 bridge for Arc observable queries")
-        url.set("https://github.com/Cratis/Arc.Kotlin")
+        name.set("Cratis Arc RxJava 3 Integration")
+        description.set("Optional RxJava 3 bridge for Cratis Arc observable queries")
+        url.set("https://www.cratis.io/arc/backend/kotlin/")
         licenses {
             license {
                 name.set("MIT License")

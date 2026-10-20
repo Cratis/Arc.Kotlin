@@ -22,9 +22,9 @@ mavenPublishing {
     coordinates("io.cratis", "arc-testing", version.toString())
 
     pom {
-        name.set("Arc Testing")
-        description.set("Testing support for Arc applications and extensions")
-        url.set("https://github.com/Cratis/Arc.Kotlin")
+        name.set("Cratis Arc Testing")
+        description.set("Testing support for Cratis Arc applications and extensions")
+        url.set("https://www.cratis.io/arc/backend/kotlin/")
         licenses {
             license {
                 name.set("MIT License")

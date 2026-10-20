@@ -32,9 +32,9 @@ mavenPublishing {
     coordinates("io.cratis", "arc-openapi-spring-boot-starter", version.toString())
 
     pom {
-        name.set("Arc OpenAPI Spring Boot Starter")
-        description.set("OpenAPI 3.1 document generation for Arc Spring Boot applications")
-        url.set("https://github.com/Cratis/Arc.Kotlin")
+        name.set("Cratis Arc OpenAPI Spring Boot Starter")
+        description.set("OpenAPI 3.1 document generation for Cratis Arc Spring Boot applications")
+        url.set("https://www.cratis.io/arc/backend/kotlin/")
         licenses {
             license {
                 name.set("MIT License")

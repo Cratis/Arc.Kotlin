@@ -31,9 +31,9 @@ mavenPublishing {
     coordinates("io.cratis", "arc-spring-data-jpa", version.toString())
 
     pom {
-        name.set("Arc Spring Data JPA Integration")
-        description.set("Spring Data JPA query, read-model, and command transaction integration for Arc")
-        url.set("https://github.com/Cratis/Arc.Kotlin")
+        name.set("Cratis Arc Spring Data JPA Integration")
+        description.set("Spring Data JPA query, read-model, and command transaction integration for Cratis Arc")
+        url.set("https://www.cratis.io/arc/backend/kotlin/")
         licenses {
             license {
                 name.set("MIT License")

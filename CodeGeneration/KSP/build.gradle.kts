@@ -51,9 +51,9 @@ mavenPublishing {
     coordinates("io.cratis", "arc-ksp", version.toString())
 
     pom {
-        name.set("Arc KSP Code Generation")
-        description.set("Kotlin Symbol Processing code generation for Arc")
-        url.set("https://github.com/Cratis/Arc.Kotlin")
+        name.set("Cratis Arc KSP Code Generation")
+        description.set("Kotlin Symbol Processing code generation for Cratis Arc")
+        url.set("https://www.cratis.io/arc/backend/kotlin/")
         licenses {
             license {
                 name.set("MIT License")
