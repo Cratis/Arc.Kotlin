@@ -6,7 +6,7 @@ applyTo: "**/*"
 
 Run the gates in the [general.md](./general.md) quality-gate table that your change can affect, and
 `./Documentation/verify-markdown.sh` whenever anything under `Documentation/` changed. Push, then
-watch CI: `Kotlin Build`, `Verify Semver Label`, `Verify No Work Records`, and CodeQL all run on pull
+watch CI: `Kotlin Build`, `Verify Semver Label`, and `Verify No Work Records` all run on pull
 requests. The work is not done until CI is green, or the only failures are confirmed pre-existing and
 unrelated.
 
