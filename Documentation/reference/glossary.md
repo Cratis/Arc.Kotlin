@@ -39,8 +39,9 @@ description: One precise line per Arc.Kotlin term, cross-referenced to the guide
 - **`ARCKSP` diagnostic** — a stable compile-time error or warning code KSP reports, for example
   `ARCKSP0101` (unsupported command declaration). Cataloged in
   [KSP diagnostics](diagnostics.md).
-- **Concept (`ConceptAs<T>`)** — a Kotlin class or Java record implementing `ConceptAs<T>` that wraps
-  a single scalar value. Serializes as its underlying value, not as a wrapper object, across
+- **Concept (`ConceptAs<T>`)** — a Kotlin class or Java record implementing
+  `io.cratis.fundamentals.concepts.ConceptAs<T>` from `io.cratis:fundamentals` that wraps a single scalar value.
+  `io.cratis.arc.concepts.ConceptAs` is a deprecated compatibility interface. Serializes as its underlying value, not as a wrapper object, across
   commands, queries, models, validation, TypeScript, OpenAPI, and Chronicle command keys.
 
 ## Validation

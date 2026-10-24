@@ -23,8 +23,8 @@ Orientation for reading it — all paths relative to that repository's root:
 | Shared client runtime | the npm packages `@cratis/arc`, `@cratis/arc.react`, and `@cratis/fundamentals` |
 
 Two facts that repeatedly cause wrong claims: `ConceptAs<T>` is **not** defined in Arc .NET — it comes
-from the external `Cratis.Fundamentals` package, whereas Arc.Kotlin defines its own
-`io.cratis.arc.concepts.ConceptAs<T>` in `Source`. And Arc .NET contains **no** parity document,
+from the external `Cratis.Fundamentals` package, and Arc.Kotlin uses
+`io.cratis.fundamentals.concepts.ConceptAs<T>` from `io.cratis:fundamentals`. And Arc .NET contains **no** parity document,
 parity test, or parity gate of its own; the entire parity contract lives in this repository. A
 design note under `Arc/.ai-work/` is a local work artifact, not a specification — never cite it as
 authority.

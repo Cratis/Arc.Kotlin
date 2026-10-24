@@ -1,5 +1,5 @@
 ```java
-import io.cratis.arc.concepts.ConceptAs;
+import io.cratis.fundamentals.concepts.ConceptAs;
 import io.cratis.arc.results.ValidationResult;
 import io.cratis.arc.validation.ConceptValidator;
 import java.util.List;

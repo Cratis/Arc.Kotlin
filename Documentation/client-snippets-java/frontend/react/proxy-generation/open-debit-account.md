@@ -1,5 +1,5 @@
 ```java
-import io.cratis.arc.concepts.ConceptAs;
+import io.cratis.fundamentals.concepts.ConceptAs;
 import java.math.BigDecimal;
 import java.util.UUID;
 
