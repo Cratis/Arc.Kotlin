@@ -10,7 +10,7 @@ import io.cratis.arc.commands.ConcurrentCommandHandlerRegistry;
 import io.cratis.arc.commands.DefaultCommandPipeline;
 import io.cratis.arc.commands.DefaultCommandValidationFilter;
 import io.cratis.arc.commands.ServiceResolver;
-import io.cratis.arc.concepts.ConceptAs;
+import io.cratis.fundamentals.concepts.ConceptAs;
 import io.cratis.arc.java.BlockingCommandHandler;
 import io.cratis.arc.java.BlockingCommandHandlerAdapter;
 import io.cratis.arc.java.JavaAsyncScope;

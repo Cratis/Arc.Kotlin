@@ -5,7 +5,7 @@ package io.cratis.arc.conformance;
 
 import io.cratis.arc.authorization.ArcPrincipal;
 import io.cratis.arc.commands.ServiceResolver;
-import io.cratis.arc.concepts.ConceptAs;
+import io.cratis.fundamentals.concepts.ConceptAs;
 import io.cratis.arc.json.ArcObjectMapper;
 import io.cratis.arc.java.AsyncObservableQueryOpenResult;
 import io.cratis.arc.java.AsyncObservableQueryPipeline;

@@ -3,7 +3,7 @@
 
 package io.cratis.arc.queries
 
-import io.cratis.arc.concepts.ConceptAs
+import io.cratis.fundamentals.concepts.ConceptAs
 
 /** Exact fully qualified name used to address a generated query performer. */
 public class FullyQualifiedQueryName(public val value: String) :

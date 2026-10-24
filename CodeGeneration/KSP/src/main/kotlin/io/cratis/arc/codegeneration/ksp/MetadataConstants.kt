@@ -5,7 +5,8 @@ package io.cratis.arc.codegeneration.ksp
 
 // Type names, annotation names and lookup tables used when collecting model metadata.
 
-internal const val CONCEPT_AS_TYPE = "io.cratis.arc.concepts.ConceptAs"
+internal const val CONCEPT_AS_TYPE = "io.cratis.fundamentals.concepts.ConceptAs"
+internal const val LEGACY_CONCEPT_AS_TYPE = "io.cratis.arc.concepts.ConceptAs"
 internal const val ARC_ENUM_TYPE = "io.cratis.arc.concepts.ArcEnum"
 internal const val ARC_ENUM_VALUE_ANNOTATION = "io.cratis.arc.concepts.ArcEnumValue"
 internal const val FLAGS_ANNOTATION = "io.cratis.arc.concepts.Flags"

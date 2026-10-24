@@ -3,7 +3,7 @@
 
 package io.cratis.arc.validation
 
-import io.cratis.arc.concepts.ConceptAs
+import io.cratis.fundamentals.concepts.ConceptAs
 import io.cratis.arc.results.ValidationResult
 
 /** Reusable host-neutral validator for one strongly typed concept. */

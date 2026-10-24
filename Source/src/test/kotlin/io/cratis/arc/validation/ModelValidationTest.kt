@@ -8,7 +8,7 @@ import io.cratis.arc.commands.CommandContext
 import io.cratis.arc.commands.CommandValidator
 import io.cratis.arc.commands.DefaultCommandValidationFilter
 import io.cratis.arc.commands.ServiceResolver
-import io.cratis.arc.concepts.ConceptAs
+import io.cratis.fundamentals.concepts.ConceptAs
 import io.cratis.arc.queries.DefaultQueryValidationFilter
 import io.cratis.arc.queries.FullyQualifiedQueryName
 import io.cratis.arc.queries.QueryContext

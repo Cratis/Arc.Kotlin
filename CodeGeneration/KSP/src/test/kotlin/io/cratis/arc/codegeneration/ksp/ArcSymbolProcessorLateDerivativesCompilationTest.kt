@@ -67,7 +67,7 @@ internal class ArcSymbolProcessorLateDerivativesCompilationTest {
             package late.concepts
 
             import io.cratis.arc.artifacts.Command
-            import io.cratis.arc.concepts.ConceptAs
+            import io.cratis.fundamentals.concepts.ConceptAs
 
             @Command
             public class Reset(public val raw: String) : ConceptAs<String> {

@@ -3,7 +3,7 @@
 
 package io.cratis.arc.tenancy
 
-import io.cratis.arc.concepts.ConceptAs
+import io.cratis.fundamentals.concepts.ConceptAs
 
 /** Strongly typed tenant identifier. */
 public data class TenantId(private val rawValue: String) : ConceptAs<String> {

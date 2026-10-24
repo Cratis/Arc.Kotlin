@@ -3,7 +3,7 @@
 
 package io.cratis.arc.tenancy
 
-import io.cratis.arc.concepts.ConceptAs
+import io.cratis.fundamentals.concepts.ConceptAs
 
 /** Strongly typed display name for a development tenant. */
 public data class TenantName(private val rawValue: String) : ConceptAs<String> {

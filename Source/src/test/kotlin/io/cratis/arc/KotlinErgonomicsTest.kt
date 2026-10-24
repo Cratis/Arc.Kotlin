@@ -12,8 +12,8 @@ import io.cratis.arc.commands.key
 import io.cratis.arc.commands.require
 import io.cratis.arc.commands.resolve
 import io.cratis.arc.concepts.ArcEnum
-import io.cratis.arc.concepts.ConceptAs
-import io.cratis.arc.concepts.value
+import io.cratis.fundamentals.concepts.ConceptAs
+import io.cratis.fundamentals.concepts.value
 import io.cratis.arc.concepts.wireValue
 import io.cratis.arc.polymorphism.DerivedTypeRegistry
 import io.cratis.arc.polymorphism.baseTypes

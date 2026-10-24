@@ -12,7 +12,7 @@ import io.cratis.arc.commands.ConcurrentCommandHandlerRegistry
 import io.cratis.arc.commands.DefaultCommandPipeline
 import io.cratis.arc.commands.DefaultCommandValidationFilter
 import io.cratis.arc.commands.ServiceResolver
-import io.cratis.arc.concepts.ConceptAs
+import io.cratis.fundamentals.concepts.ConceptAs
 import io.cratis.arc.metadata.CommandDescriptor
 import io.cratis.arc.metadata.QueryDescriptor
 import io.cratis.arc.queries.ConcurrentQueryPerformerRegistry

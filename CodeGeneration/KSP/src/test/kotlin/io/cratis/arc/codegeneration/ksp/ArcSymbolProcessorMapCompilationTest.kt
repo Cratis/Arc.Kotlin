@@ -216,7 +216,7 @@ internal class ArcSymbolProcessorMapCompilationTest {
 
             import io.cratis.arc.artifacts.Command
             import io.cratis.arc.artifacts.ReadModel
-            import io.cratis.arc.concepts.ConceptAs
+            import io.cratis.fundamentals.concepts.ConceptAs
             import io.cratis.arc.artifacts.FromServices
             import io.cratis.arc.queries.QueryHttpMethod
             import kotlinx.coroutines.flow.Flow

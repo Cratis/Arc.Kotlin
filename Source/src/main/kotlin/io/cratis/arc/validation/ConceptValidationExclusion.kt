@@ -3,7 +3,7 @@
 
 package io.cratis.arc.validation
 
-import io.cratis.arc.concepts.ConceptAs
+import io.cratis.fundamentals.concepts.ConceptAs
 import java.lang.reflect.Modifier
 import kotlin.reflect.KVisibility
 import kotlin.reflect.full.memberProperties

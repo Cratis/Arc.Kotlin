@@ -55,7 +55,7 @@ internal class ConceptValidationRules(
         declaration.superTypes.map { reference -> reference.resolve().declaration }
             .filterIsInstance<KSClassDeclaration>()
             .filter { candidate ->
-                candidate.qualifiedName?.asString() != CONCEPT_AS_TYPE && candidate.isAssignableTo(CONCEPT_AS_TYPE)
+                candidate.qualifiedName?.asString() !in setOf(CONCEPT_AS_TYPE, LEGACY_CONCEPT_AS_TYPE) && candidate.isAssignableTo(CONCEPT_AS_TYPE)
             }
             .sortedBy { candidate -> candidate.qualifiedName?.asString() }
             .toList()

@@ -19,7 +19,7 @@ import tools.jackson.databind.exc.InvalidTypeIdException
 import tools.jackson.databind.exc.UnrecognizedPropertyException
 import tools.jackson.databind.json.JsonMapper
 import tools.jackson.databind.module.SimpleModule
-import io.cratis.arc.concepts.ConceptAs
+import io.cratis.fundamentals.concepts.ConceptAs
 import io.cratis.arc.polymorphism.ConcurrentDerivedTypeRegistry
 import io.cratis.arc.polymorphism.DerivedType
 import io.cratis.arc.polymorphism.DerivedTypeRegistry

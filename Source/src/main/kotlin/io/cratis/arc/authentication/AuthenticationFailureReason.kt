@@ -3,7 +3,7 @@
 
 package io.cratis.arc.authentication
 
-import io.cratis.arc.concepts.ConceptAs
+import io.cratis.fundamentals.concepts.ConceptAs
 
 /** Host-neutral reason supplied by an authentication handler. */
 public data class AuthenticationFailureReason(private val rawValue: String) : ConceptAs<String> {

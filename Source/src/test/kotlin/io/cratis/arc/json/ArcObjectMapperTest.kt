@@ -8,7 +8,7 @@ import com.fasterxml.jackson.annotation.JsonProperty
 import tools.jackson.databind.DatabindException
 import tools.jackson.databind.JsonNode
 import io.cratis.arc.concepts.ArcEnum
-import io.cratis.arc.concepts.ConceptAs
+import io.cratis.fundamentals.concepts.ConceptAs
 import io.cratis.arc.polymorphism.ConcurrentDerivedTypeRegistry
 import io.cratis.arc.polymorphism.DerivedType
 import java.math.BigDecimal

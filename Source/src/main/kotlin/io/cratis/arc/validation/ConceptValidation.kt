@@ -3,7 +3,7 @@
 
 package io.cratis.arc.validation
 
-import io.cratis.arc.concepts.ConceptAs
+import io.cratis.fundamentals.concepts.ConceptAs
 import io.cratis.arc.java.BlockingPipelineGuard
 import io.cratis.arc.results.ValidationResult
 import io.cratis.arc.results.ValidationResultReasons

@@ -152,7 +152,7 @@ public class CommandScenario<TCommand : Any> private constructor(
      * Pins [readModel] as the command-side read model of exact [type] for command key [key] only.
      *
      * Any other command key resolves to absence, so the test also proves that the command carries the expected key.
-     * Keys are compared after unwrapping [io.cratis.arc.concepts.ConceptAs] wrappers, so a scalar pin matches a
+     * Keys are compared after unwrapping [io.cratis.fundamentals.concepts.ConceptAs] wrappers, so a scalar pin matches a
      * concept-typed command key.
      */
     public fun <T : Any> withReadModelForKey(

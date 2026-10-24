@@ -4,7 +4,7 @@
 package io.cratis.arc.testing
 
 import io.cratis.arc.commands.CommandContext
-import io.cratis.arc.concepts.ConceptAs
+import io.cratis.fundamentals.concepts.ConceptAs
 import io.cratis.arc.queries.BlockingReadModelForCommandResolver
 import io.cratis.arc.queries.ReadModelForCommandOwnership
 

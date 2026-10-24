@@ -82,7 +82,7 @@ internal class ArcFluentValidationCompilationTest {
         val compiled = compile(listOf(SourceFile.kotlin("Concepts.kt", """
             package fixture
             import io.cratis.arc.validation.IgnoreValidation
-            import io.cratis.arc.concepts.ConceptAs
+            import io.cratis.fundamentals.concepts.ConceptAs
             class Code(@field:jakarta.validation.constraints.NotBlank val raw: String) : ConceptAs<String> {
                 override fun value(): String = raw
             }
@@ -388,7 +388,7 @@ internal class ArcFluentValidationCompilationTest {
         val compiled = compile(listOf(SourceFile.kotlin("UnsupportedTargets.kt", """
             package fixture
             import io.cratis.arc.validation.FluentModelValidator
-            class Code(val value: String) : io.cratis.arc.concepts.ConceptAs<String> { override fun value(): String = value }
+            class Code(val value: String) : io.cratis.fundamentals.concepts.ConceptAs<String> { override fun value(): String = value }
             class CodeRules : FluentModelValidator<Code>(Code::class.java) { init { ruleFor("value").notEmpty() } }
             @JvmInline value class Token(val value: String)
             class TokenOwner(val token: Token)
