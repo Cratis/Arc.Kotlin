@@ -6,7 +6,7 @@ package io.cratis.arc.contracts.mongodb;
 import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientSettings;
 import com.mongodb.client.MongoClients;
-import io.cratis.arc.concepts.ConceptAs;
+import io.cratis.fundamentals.concepts.ConceptAs;
 import org.bson.BsonDocument;
 import org.bson.BsonType;
 import org.bson.UuidRepresentation;

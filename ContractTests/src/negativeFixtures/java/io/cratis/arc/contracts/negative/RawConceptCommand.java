@@ -4,7 +4,7 @@
 package io.cratis.arc.contracts.negative;
 
 import io.cratis.arc.artifacts.Command;
-import io.cratis.arc.concepts.ConceptAs;
+import io.cratis.fundamentals.concepts.ConceptAs;
 
 /** Invalid Java command that exposes a concept with a raw, unresolvable generic value. */
 @Command

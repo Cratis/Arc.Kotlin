@@ -3,7 +3,7 @@
 
 package io.cratis.arc.samples.kotlin.chronicle
 
-import io.cratis.arc.concepts.ConceptAs as ArcConceptAs
+import io.cratis.fundamentals.concepts.ConceptAs as ArcConceptAs
 import io.cratis.chronicle.concepts.ConceptAs as ChronicleConceptAs
 import java.util.UUID
 

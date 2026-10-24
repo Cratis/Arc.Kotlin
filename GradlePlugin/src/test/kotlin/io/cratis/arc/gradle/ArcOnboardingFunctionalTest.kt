@@ -45,7 +45,7 @@ class ArcOnboardingFunctionalTest {
                         metadataSources { mavenPom(); artifact() }
                     }
                 }
-                filter { includeGroup("io.cratis"); includeGroup("io.cratis.arc") }
+                filter { includeModule("io.cratis", "arc"); includeModule("io.cratis", "arc-ksp"); includeModule("io.cratis", "arc-spring-boot-starter"); includeModule("io.cratis", "arc-gradle-plugin"); includeGroup("io.cratis.arc") }
             }
         """.trimIndent()
         write(consumer, "settings.gradle.kts", settings.replaceFirst("repositories {", "repositories {\n$localRepository"))

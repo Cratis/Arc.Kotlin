@@ -6,7 +6,7 @@ package io.cratis.arc.springboot
 import io.cratis.arc.authorization.ArcPrincipal
 import io.cratis.arc.commands.ServiceResolver
 import io.cratis.arc.concepts.ArcEnum
-import io.cratis.arc.concepts.ConceptAs
+import io.cratis.fundamentals.concepts.ConceptAs
 import io.cratis.arc.json.ArcObjectMapper
 import io.cratis.arc.metadata.ParameterDescriptor
 import io.cratis.arc.metadata.QueryDescriptor

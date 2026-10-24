@@ -4,7 +4,7 @@
 package io.cratis.arc.testing
 
 import io.cratis.arc.authorization.ArcPrincipal
-import io.cratis.arc.concepts.ConceptAs
+import io.cratis.fundamentals.concepts.ConceptAs
 import io.cratis.arc.queries.BlockingObservableQueryEmissionGuard
 import io.cratis.arc.queries.ObservableQueryEmissionVerdict
 import org.junit.jupiter.api.Assertions.assertEquals

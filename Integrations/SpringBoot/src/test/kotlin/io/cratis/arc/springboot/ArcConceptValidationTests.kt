@@ -12,7 +12,7 @@ import io.cratis.arc.commands.CommandPipeline
 import io.cratis.arc.commands.CommandValidator
 import io.cratis.arc.commands.DefaultCommandValidationFilter
 import io.cratis.arc.commands.ServiceResolver
-import io.cratis.arc.concepts.ConceptAs
+import io.cratis.fundamentals.concepts.ConceptAs
 import io.cratis.arc.metadata.AuthorizationMetadata
 import io.cratis.arc.metadata.CommandDescriptor
 import io.cratis.arc.metadata.QueryDescriptor

@@ -144,7 +144,7 @@ internal class ArcConceptValidationHostingTests {
                 transport = if (observable) QueryTransportType.OBSERVABLE else QueryTransportType.REQUEST_RESPONSE)
             override suspend fun perform(context: QueryContext): Any {
                 invocations.incrementAndGet()
-                val concept = context.request.arguments.getValue("code") as io.cratis.arc.concepts.ConceptAs<*>
+                val concept = context.request.arguments.getValue("code") as io.cratis.fundamentals.concepts.ConceptAs<*>
                 val value = requireNotNull(concept.value())
                 return if (observable) flowOf(value) else value
             }

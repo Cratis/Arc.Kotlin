@@ -127,7 +127,7 @@ public final class JavaFixtureArcArtifactModule extends ArcArtifactModule {
     public record ExplodingCommand(String value) { }
 
     /** Java ConceptAs fixture with a public single-value constructor. */
-    public record QueryId(UUID value) implements io.cratis.arc.concepts.ConceptAs<UUID> { }
+    public record QueryId(UUID value) implements io.cratis.fundamentals.concepts.ConceptAs<UUID> { }
 
     /** Enum fixture for name and numeric conversion. */
     public enum QueryState {

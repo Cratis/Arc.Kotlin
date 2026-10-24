@@ -3,7 +3,7 @@
 
 package io.cratis.arc.contracts.fixtures;
 
-import io.cratis.arc.concepts.ConceptAs;
+import io.cratis.fundamentals.concepts.ConceptAs;
 
 /** Java record enum concept. */
 public record JavaStateCode(JavaFixtureState value) implements ConceptAs<JavaFixtureState> {

@@ -3,7 +3,7 @@
 
 package io.cratis.arc.samples.javachronicle;
 
-import io.cratis.arc.concepts.ConceptAs;
+import io.cratis.fundamentals.concepts.ConceptAs;
 import java.util.UUID;
 
 /** A UUID-backed command key: a {@code Guid} in the generated proxy, a string event source id in Chronicle. */
