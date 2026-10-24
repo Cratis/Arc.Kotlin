@@ -3,7 +3,7 @@
 
 package io.cratis.arc.contracts.fixtures;
 
-import io.cratis.arc.concepts.ConceptAs;
+import io.cratis.fundamentals.concepts.ConceptAs;
 import java.time.LocalDate;
 
 /** Java record date concept. */

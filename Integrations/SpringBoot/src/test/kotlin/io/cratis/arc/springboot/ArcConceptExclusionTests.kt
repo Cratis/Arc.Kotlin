@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+@file:Suppress("DEPRECATION") // Exercise the original Arc concept-validator contract.
+
 package io.cratis.arc.springboot
 
 import io.cratis.arc.authorization.ArcPrincipal

@@ -34,7 +34,7 @@ import tools.jackson.databind.type.ResolvedRecursiveType
 import tools.jackson.databind.util.AccessPattern
 import tools.jackson.databind.util.TokenBuffer
 import io.cratis.arc.concepts.ArcEnum
-import io.cratis.arc.concepts.ConceptAs
+import io.cratis.fundamentals.concepts.ConceptAs
 import io.cratis.arc.metadata.MapKeyCodec
 import io.cratis.arc.metadata.QueryParameterSource
 import io.cratis.arc.metadata.SequenceKind

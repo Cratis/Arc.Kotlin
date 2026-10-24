@@ -10,7 +10,7 @@ import io.cratis.arc.ExceptionDetailRedactor
 import io.cratis.arc.authorization.ArcPrincipal
 import io.cratis.arc.commands.ServiceResolver
 import io.cratis.arc.concepts.ArcEnum
-import io.cratis.arc.concepts.ConceptAs
+import io.cratis.fundamentals.concepts.ConceptAs
 import io.cratis.arc.correlation.CorrelationIdResolver
 import io.cratis.arc.http.ArcHttpStatusMapper
 import io.cratis.arc.metadata.ParameterDescriptor

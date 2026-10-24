@@ -8,7 +8,7 @@ import io.cratis.arc.authorization.ArcPrincipal;
 import io.cratis.arc.commands.CommandContext;
 import io.cratis.arc.commands.CommandKeyProvider;
 import io.cratis.arc.commands.ServiceResolver;
-import io.cratis.arc.concepts.ConceptAs;
+import io.cratis.fundamentals.concepts.ConceptAs;
 import io.cratis.arc.springdata.jpa.JpaPersistenceUnit;
 import io.cratis.arc.springdata.jpa.JpaPersistenceUnitResolver;
 import io.cratis.arc.springdata.jpa.JpaReadModelForCommandResolver;

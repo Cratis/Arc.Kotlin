@@ -1,6 +1,6 @@
 ```java
 @Component
-public final class AuthorNameValidator implements ConceptValidator<AuthorName> {
+public final class AuthorNameValidator implements FundamentalsConceptValidator<AuthorName> {
     @Override
     public Class<AuthorName> getConceptType() {
         return AuthorName.class;

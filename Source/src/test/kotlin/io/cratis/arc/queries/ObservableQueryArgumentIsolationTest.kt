@@ -5,7 +5,7 @@ package io.cratis.arc.queries
 
 import io.cratis.arc.authorization.ArcPrincipal
 import io.cratis.arc.commands.ServiceResolver
-import io.cratis.arc.concepts.ConceptAs
+import io.cratis.fundamentals.concepts.ConceptAs
 import io.cratis.arc.metadata.QueryDescriptor
 import java.util.UUID
 import java.util.concurrent.CompletableFuture

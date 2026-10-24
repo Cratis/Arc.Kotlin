@@ -28,6 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@SuppressWarnings("deprecation") // Preserve coverage of the original Arc validator contract.
 final class ConceptExclusionJavaConformanceTest {
     public record Code(String value) implements ConceptAs<String> { }
     public record Input(Code ignored, Code required) { }

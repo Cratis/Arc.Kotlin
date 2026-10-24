@@ -3,7 +3,7 @@
 
 package io.cratis.arc.contracts.fixtures;
 
-import io.cratis.arc.concepts.ConceptAs;
+import io.cratis.fundamentals.concepts.ConceptAs;
 
 /** Java record numeric concept. */
 public record JavaQuantity(Integer value) implements ConceptAs<Integer> {

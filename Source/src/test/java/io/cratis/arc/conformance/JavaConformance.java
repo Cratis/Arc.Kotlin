@@ -30,7 +30,7 @@ import io.cratis.arc.commands.DefaultCommandPipeline;
 import io.cratis.arc.commands.DefaultCommandValidationFilter;
 import io.cratis.arc.commands.ServiceResolver;
 import io.cratis.arc.concepts.ArcEnum;
-import io.cratis.arc.concepts.ConceptAs;
+import io.cratis.fundamentals.concepts.ConceptAs;
 import io.cratis.arc.http.ArcHttpStatus;
 import io.cratis.arc.http.ArcHttpStatusMapper;
 import io.cratis.arc.identity.AsyncIdentityDetailsProvider;
@@ -46,7 +46,7 @@ import io.cratis.arc.identity.AsyncUsersProviderAdapter;
 import io.cratis.arc.identity.User;
 import io.cratis.arc.identity.UsersProviderAggregator;
 import io.cratis.arc.java.JavaAsyncScope;
-import io.cratis.arc.json.ArcCamelCase;
+import io.cratis.fundamentals.strings.StringExtensions;
 import io.cratis.arc.json.ArcObjectMapper;
 import io.cratis.arc.metadata.ApiEndpointOptions;
 import io.cratis.arc.metadata.AuthorizationMetadata;
@@ -385,7 +385,7 @@ public final class JavaConformance {
         ObjectMapper mapper = ArcObjectMapper.configure(JsonMapper.builder().build(), registry);
         String json = mapper.writeValueAsString(new Cat("Milo"));
         Animal animal = mapper.readValue(json, Animal.class);
-        String converted = ArcCamelCase.convert("OrderId");
+        String converted = StringExtensions.toCamelCase("OrderId");
         if (!"orderId".equals(converted) || !"cat".equals(registry.idFor(Animal.class, Cat.class))) {
             throw new IllegalStateException("Public API contract changed");
         }

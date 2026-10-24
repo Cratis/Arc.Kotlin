@@ -1,7 +1,7 @@
 ```java
-import io.cratis.arc.concepts.ConceptAs;
+import io.cratis.fundamentals.concepts.ConceptAs;
 import io.cratis.arc.results.ValidationResult;
-import io.cratis.arc.validation.ConceptValidator;
+import io.cratis.arc.validation.FundamentalsConceptValidator;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Component;
@@ -30,7 +30,7 @@ public record AuthorName(String value) implements ConceptAs<String>, io.cratis.c
 
 // Authors/AuthorNameValidator.java
 @Component
-public final class AuthorNameValidator implements ConceptValidator<AuthorName> {
+public final class AuthorNameValidator implements FundamentalsConceptValidator<AuthorName> {
     @Override
     public Class<AuthorName> getConceptType() {
         return AuthorName.class;

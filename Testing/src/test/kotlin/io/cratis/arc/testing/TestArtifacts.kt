@@ -8,7 +8,7 @@ import io.cratis.arc.commands.CommandContext
 import io.cratis.arc.commands.CommandHandler
 import io.cratis.arc.commands.CommandHandlerArgumentResolver
 import io.cratis.arc.commands.CommandKeyProvider
-import io.cratis.arc.concepts.ConceptAs
+import io.cratis.fundamentals.concepts.ConceptAs
 import io.cratis.arc.metadata.AuthorizationMetadata
 import io.cratis.arc.metadata.CommandDescriptor
 import io.cratis.arc.metadata.QueryDescriptor

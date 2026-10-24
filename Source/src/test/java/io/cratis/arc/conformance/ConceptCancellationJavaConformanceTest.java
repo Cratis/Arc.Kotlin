@@ -53,6 +53,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@SuppressWarnings("deprecation") // Preserve coverage of the original Arc validator contract.
 final class ConceptCancellationJavaConformanceTest {
     enum Boundary { EXECUTE, VALIDATE, QUERY, OBSERVABLE }
 

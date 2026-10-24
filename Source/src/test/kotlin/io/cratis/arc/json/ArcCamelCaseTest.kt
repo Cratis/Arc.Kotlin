@@ -3,9 +3,11 @@
 
 package io.cratis.arc.json
 
+import io.cratis.fundamentals.strings.toCamelCase
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 
+@Suppress("DEPRECATION")
 class ArcCamelCaseTest {
     @Test
     fun `all 46 golden names follow the Arc first-character rule`() {
@@ -61,16 +63,19 @@ class ArcCamelCaseTest {
         assertEquals(46, goldenRows.size)
         goldenRows.forEach { (input, expected) ->
             assertEquals(expected, ArcCamelCase.convert(input), input)
+            assertEquals(input.toCamelCase(), ArcCamelCase.convert(input), input)
         }
     }
 
     @Test
     fun `capital I with dot is preserved like dotnet invariant lowercase`() {
         assertEquals("\u0130stanbul", ArcCamelCase.convert("\u0130stanbul"))
+        assertEquals("\u0130stanbul".toCamelCase(), ArcCamelCase.convert("\u0130stanbul"))
     }
 
     @Test
     fun `null is preserved`() {
-        assertEquals(null, ArcCamelCase.convert(null))
+        val name: String? = null
+        assertEquals(name?.toCamelCase(), ArcCamelCase.convert(name))
     }
 }

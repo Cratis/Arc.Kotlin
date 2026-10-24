@@ -918,9 +918,9 @@ class ArcGradlePluginFunctionalTest {
                             .collect { it.group + ':' + it.module + ':' + it.version }.sort()
                     }
                     println 'RESOLVED_ARC_COORDINATES ' + coordinates
-                    assert coordinates == [${if (managed && runtimeScope != "runtimeOnly") "['io.cratis:arc:$expectedVersion']" else "[]"},
-                        ${if (managed && runtimeScope != "compileOnly") "['io.cratis:arc:$expectedVersion']" else "[]"},
-                        ${if (managed) "['io.cratis:arc-ksp:$expectedVersion', 'io.cratis:arc:$expectedVersion']" else "[]"}]
+                    assert coordinates == [${if (managed && runtimeScope != "runtimeOnly") "['io.cratis:arc:$expectedVersion', 'io.cratis:fundamentals:0.1.0']" else "[]"},
+                        ${if (managed && runtimeScope != "compileOnly") "['io.cratis:arc:$expectedVersion', 'io.cratis:fundamentals:0.1.0']" else "[]"},
+                        ${if (managed) "['io.cratis:arc-ksp:$expectedVersion', 'io.cratis:arc:$expectedVersion', 'io.cratis:fundamentals:0.1.0']" else "[]"}]
                     println 'RESOLVED_DEPENDENCIES_VERIFIED $expectedVersion'
                 }
             }

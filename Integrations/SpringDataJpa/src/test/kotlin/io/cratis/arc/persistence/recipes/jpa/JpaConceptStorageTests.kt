@@ -4,7 +4,7 @@
 package io.cratis.arc.persistence.recipes.jpa
 
 import io.cratis.arc.artifacts.ReadModel
-import io.cratis.arc.concepts.ConceptAs
+import io.cratis.fundamentals.concepts.ConceptAs
 import io.cratis.arc.springdata.jpa.JpaPersistenceUnit
 import io.cratis.arc.springdata.jpa.JpaPersistenceUnitResolver
 import io.cratis.arc.springdata.jpa.JpaReadModelForCommandResolver

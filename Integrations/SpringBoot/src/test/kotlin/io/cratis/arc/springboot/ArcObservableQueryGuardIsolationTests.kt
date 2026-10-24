@@ -5,7 +5,7 @@ package io.cratis.arc.springboot
 
 import io.cratis.arc.authorization.ArcPrincipal
 import io.cratis.arc.commands.ServiceResolver
-import io.cratis.arc.concepts.ConceptAs
+import io.cratis.fundamentals.concepts.ConceptAs
 import io.cratis.arc.queries.BlockingObservableQueryEmissionGuard
 import io.cratis.arc.queries.FullyQualifiedQueryName
 import io.cratis.arc.queries.GuardObservableQueryEmission

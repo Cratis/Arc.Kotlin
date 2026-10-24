@@ -7,7 +7,7 @@ import io.cratis.arc.artifacts.ReadModel
 import io.cratis.arc.authorization.ArcPrincipal
 import io.cratis.arc.commands.CommandContext
 import io.cratis.arc.commands.ServiceResolver
-import io.cratis.arc.concepts.ConceptAs
+import io.cratis.fundamentals.concepts.ConceptAs
 import io.cratis.arc.springdata.mongodb.MongoReadModelForCommandResolver
 import io.cratis.arc.springdata.mongodb.TenantAwareMongoOperationsResolver
 import io.cratis.arc.springdata.mongodb.TenantMongoOperations

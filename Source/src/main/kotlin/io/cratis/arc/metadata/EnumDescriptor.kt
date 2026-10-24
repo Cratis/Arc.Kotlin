@@ -6,7 +6,7 @@ package io.cratis.arc.metadata
 import com.fasterxml.jackson.annotation.JsonCreator
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
-import io.cratis.arc.json.ArcCamelCase
+import io.cratis.fundamentals.strings.toCamelCase
 
 /** Immutable language-neutral metadata describing an enum. */
 public class EnumDescriptor @JvmOverloads constructor(
@@ -59,7 +59,7 @@ public class EnumDescriptor @JvmOverloads constructor(
     /** Expression used by the .NET FlagsEnum template to initialize `all<Name>`. */
     public val allFlagsExpression: String = if (isFlags) {
         members.filter { member -> member.value != 0 }
-            .joinToString(" | ") { member -> "$name.${ArcCamelCase.convert(member.name)}" }
+            .joinToString(" | ") { member -> "$name.${member.name.toCamelCase()}" }
     } else {
         ""
     }

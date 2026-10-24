@@ -6,7 +6,7 @@ package io.cratis.arc.contracts.negative
 import io.cratis.arc.artifacts.Command
 import io.cratis.arc.artifacts.FromServices
 import io.cratis.arc.artifacts.ReadModel
-import io.cratis.arc.concepts.ConceptAs
+import io.cratis.fundamentals.concepts.ConceptAs
 import io.cratis.arc.polymorphism.DerivedType
 import io.cratis.arc.queries.QueryHttpMethod
 import java.time.Instant

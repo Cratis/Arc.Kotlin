@@ -1,6 +1,9 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+// Retain the legacy supertype for source and binary compatibility.
+@file:Suppress("DEPRECATION")
+
 package io.cratis.arc.authentication
 
 import io.cratis.arc.concepts.ConceptAs

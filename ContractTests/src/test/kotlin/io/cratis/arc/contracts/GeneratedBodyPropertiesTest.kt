@@ -12,7 +12,7 @@ import io.cratis.arc.commands.ServiceResolver
 import io.cratis.arc.contracts.fixtures.BodyOutput
 import io.cratis.arc.contracts.fixtures.KotlinBodyCommand
 import io.cratis.arc.generated.ContractTestsArcArtifactModule
-import io.cratis.arc.json.ArcCamelCase
+import io.cratis.fundamentals.strings.toCamelCase
 import io.cratis.arc.json.ArcObjectMapper
 import java.util.UUID
 import kotlinx.coroutines.runBlocking
@@ -62,7 +62,7 @@ internal class GeneratedBodyPropertiesTest {
         assertEquals("secret", command.secret)
         assertEquals("body-key", handler.resolveCommandKey(command))
         val wire = mapper.readTree(mapper.writeValueAsString(command))
-        assertEquals(names.map { ArcCamelCase.convert(it) }.toSet(), wire.propertyNames().asSequence().toSet())
+        assertEquals(names.map { it.toCamelCase() }.toSet(), wire.propertyNames().asSequence().toSet())
         assertFalse(wire.has("secret"))
         assertFalse(wire.has("computed"))
         val registry = ConcurrentCommandHandlerRegistry().also { it.register(handler) }

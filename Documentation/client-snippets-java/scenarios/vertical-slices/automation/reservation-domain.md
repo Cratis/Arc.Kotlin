@@ -1,5 +1,5 @@
 ```java
-import io.cratis.arc.concepts.ConceptAs;
+import io.cratis.fundamentals.concepts.ConceptAs;
 import io.cratis.chronicle.events.EventType;
 import java.time.Instant;
 import java.util.UUID;

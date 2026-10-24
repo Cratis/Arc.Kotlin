@@ -1,12 +1,18 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+// Preserve the original generic bound and validate JVM descriptor.
+@file:Suppress("DEPRECATION")
+
 package io.cratis.arc.validation
 
 import io.cratis.arc.concepts.ConceptAs
 import io.cratis.arc.results.ValidationResult
 
-/** Reusable host-neutral validator for one strongly typed concept. */
+/**
+ * Reusable host-neutral validator for one legacy Arc concept.
+ * For Fundamentals-only concepts, use [FundamentalsConceptValidator] in the model-validator registration path.
+ */
 public interface ConceptValidator<TConcept : ConceptAs<*>> {
     /** Concept type accepted by this validator; filters also match instances of its subtypes. */
     public val conceptType: Class<TConcept>

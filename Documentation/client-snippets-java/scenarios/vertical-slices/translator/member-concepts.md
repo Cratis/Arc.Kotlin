@@ -1,7 +1,7 @@
 ```java
-import io.cratis.arc.concepts.ConceptAs;
+import io.cratis.fundamentals.concepts.ConceptAs;
 import io.cratis.arc.results.ValidationResult;
-import io.cratis.arc.validation.ConceptValidator;
+import io.cratis.arc.validation.FundamentalsConceptValidator;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Component;
@@ -30,7 +30,7 @@ public record MemberName(String value) implements ConceptAs<String>, io.cratis.c
 
 // Members/MemberNameValidator.java
 @Component
-public final class MemberNameValidator implements ConceptValidator<MemberName> {
+public final class MemberNameValidator implements FundamentalsConceptValidator<MemberName> {
     @Override
     public Class<MemberName> getConceptType() {
         return MemberName.class;

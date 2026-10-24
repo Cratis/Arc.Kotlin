@@ -10,7 +10,7 @@ import com.google.devtools.ksp.symbol.KSPropertyDeclaration
 import com.google.devtools.ksp.symbol.KSValueParameter
 import com.google.devtools.ksp.symbol.Modifier
 import com.google.devtools.ksp.symbol.Origin
-import io.cratis.arc.json.ArcCamelCase
+import io.cratis.fundamentals.strings.toCamelCase
 
 private val symmetricAccess = setOf("AUTO", "READ_ONLY", "READ_WRITE")
 
@@ -57,7 +57,7 @@ internal class WireAnnotationValidator(private val logger: ArcDiagnosticReporter
         if (!isBodyProperty) return true
         val name = annotation.argumentNamed("value") as? String
         val access = annotation.argumentNamed("access")?.toString()
-        val renamed = !name.isNullOrEmpty() && name != ArcCamelCase.convert(property.simpleName.asString())
+        val renamed = !name.isNullOrEmpty() && name != property.simpleName.asString().toCamelCase()
         val asymmetric = access != null && access.substringAfterLast('.') !in symmetricAccess
         return !renamed && !asymmetric
     }

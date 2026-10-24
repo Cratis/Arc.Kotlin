@@ -16,6 +16,7 @@ import com.google.devtools.ksp.symbol.KSDeclarationContainer
 import com.google.devtools.ksp.symbol.Modifier
 import com.google.devtools.ksp.validate
 import io.cratis.arc.metadata.ValidationRuleDescriptor
+import io.cratis.fundamentals.strings.toCamelCase
 import java.io.File
 
 /** Replacement-only round snapshot. Retained discovery state consists solely of qualified names. */
@@ -161,7 +162,7 @@ internal class FluentValidationDiscovery(private val logger: ArcDiagnosticReport
     @OptIn(KspExperimental::class)
     private fun memberType(resolver: Resolver, model: KSClassDeclaration, name: String, sourceProofRequired: Boolean = true): String {
         if (sourceProofRequired) requireWireMember(model, name)
-        require(io.cratis.arc.json.ArcCamelCase.convert(name) == name) { "member '$name' changes its name on the wire; use an unchanged camel-case member" }
+        require(name.toCamelCase() == name) { "member '$name' changes its name on the wire; use an unchanged camel-case member" }
         val modelName = requireNotNull(model.qualifiedName).asString()
         if (!recordTypes.containsKey(modelName)) {
             val source = model.containingFile?.filePath?.let(::File)?.takeIf { it.extension == "java" && it.isFile }

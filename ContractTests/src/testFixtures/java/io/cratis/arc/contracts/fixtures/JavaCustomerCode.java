@@ -8,6 +8,7 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 /** Java record string concept with reusable validation metadata. */
+@SuppressWarnings("deprecation") // Preserve coverage of the original Arc validator contract.
 public record JavaCustomerCode(
     @Size(min = 3, max = 12, message = "Java customer code length is invalid")
     @Pattern(regexp = "^[A-Z]+$", message = "Java customer code must be uppercase") String value

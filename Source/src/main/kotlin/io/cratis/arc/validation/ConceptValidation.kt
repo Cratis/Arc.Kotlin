@@ -3,7 +3,7 @@
 
 package io.cratis.arc.validation
 
-import io.cratis.arc.concepts.ConceptAs
+import io.cratis.fundamentals.concepts.ConceptAs
 import io.cratis.arc.java.BlockingPipelineGuard
 import io.cratis.arc.results.ValidationResult
 import io.cratis.arc.results.ValidationResultReasons
@@ -218,9 +218,10 @@ internal class ConceptValidation(
         if (target is Error) throw target
     }
 
-    @Suppress("UNCHECKED_CAST")
-    private fun validateConcept(validator: ConceptValidator<*>, concept: ConceptAs<*>): List<ValidationResult> =
-        (validator as ConceptValidator<ConceptAs<*>>).validate(concept)
+    @Suppress("DEPRECATION")
+    private fun <T : io.cratis.arc.concepts.ConceptAs<*>> validateConcept(
+        validator: ConceptValidator<T>, concept: ConceptAs<*>
+    ): List<ValidationResult> = validator.validate(validator.conceptType.cast(concept))
 
     private fun ValidationResult.atModelMember(owner: String): ValidationResult {
         val resolvedMembers = if (members.isEmpty()) {

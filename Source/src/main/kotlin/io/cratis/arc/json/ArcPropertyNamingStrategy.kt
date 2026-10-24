@@ -3,9 +3,11 @@
 
 package io.cratis.arc.json
 
+import io.cratis.fundamentals.strings.toCamelCase
+
 import tools.jackson.databind.PropertyNamingStrategies
 
-/** Jackson naming strategy backed by [ArcCamelCase]. */
+/** Jackson naming strategy backed by Fundamentals' [toCamelCase]. */
 public class ArcPropertyNamingStrategy : PropertyNamingStrategies.NamingBase() {
-    override fun translate(propertyName: String?): String? = ArcCamelCase.convert(propertyName)
+    override fun translate(propertyName: String?): String? = propertyName?.toCamelCase()
 }

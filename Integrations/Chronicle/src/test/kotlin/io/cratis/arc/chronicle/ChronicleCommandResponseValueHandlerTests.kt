@@ -14,7 +14,7 @@ import io.cratis.arc.commands.CommandKeyProvider
 import io.cratis.arc.commands.ConcurrentCommandHandlerRegistry
 import io.cratis.arc.commands.DefaultCommandPipeline
 import io.cratis.arc.commands.ServiceResolver
-import io.cratis.arc.concepts.ConceptAs as ArcConceptAs
+import io.cratis.fundamentals.concepts.ConceptAs as ArcConceptAs
 import io.cratis.arc.metadata.CommandDescriptor
 import io.cratis.arc.metadata.CommandEventMetadata
 import io.cratis.arc.metadata.CommandResponseValueDescriptor

@@ -12,6 +12,7 @@ plugins {
 // Compile against the versions Spring Boot 4.1.1 supplies to consuming applications. Keeping Arc
 // aligned prevents the compile/runtime binary skew that issue #135 exposed under the previous host.
 val jacksonVersion = "3.2.2"
+val fundamentalsVersion = "0.1.0"
 val coroutinesVersion = "1.11.0"
 val jakartaValidationVersion = "3.1.1"
 val slf4jVersion = "2.0.20"
@@ -23,6 +24,7 @@ kotlin {
 }
 
 dependencies {
+    api("io.cratis:fundamentals:$fundamentalsVersion")
     api("org.jetbrains.kotlin:kotlin-reflect:2.4.20")
     api("jakarta.validation:jakarta.validation-api:$jakartaValidationVersion")
     api("tools.jackson.core:jackson-databind:$jacksonVersion")

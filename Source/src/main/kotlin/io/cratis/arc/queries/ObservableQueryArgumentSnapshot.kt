@@ -3,7 +3,7 @@
 
 package io.cratis.arc.queries
 
-import io.cratis.arc.concepts.ConceptAs
+import io.cratis.fundamentals.concepts.ConceptAs
 import java.lang.reflect.Modifier
 import java.math.BigDecimal
 import java.math.BigInteger

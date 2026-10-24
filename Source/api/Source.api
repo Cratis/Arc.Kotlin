@@ -609,7 +609,7 @@ public abstract interface annotation class io/cratis/arc/concepts/ArcEnumValue :
 	public abstract fun value ()I
 }
 
-public abstract interface class io/cratis/arc/concepts/ConceptAs {
+public abstract interface class io/cratis/arc/concepts/ConceptAs : io/cratis/fundamentals/concepts/ConceptAs {
 	public abstract fun value ()Ljava/lang/Object;
 }
 
@@ -2852,6 +2852,19 @@ public final class io/cratis/arc/validation/FluentValidatorRegistration {
 	public final fun getExpectedRules ()Ljava/util/List;
 	public final fun getModelType ()Ljava/lang/Class;
 	public final fun getValidator ()Lio/cratis/arc/validation/FluentModelValidator;
+}
+
+public abstract interface class io/cratis/arc/validation/FundamentalsConceptValidator : io/cratis/arc/validation/ModelValidator {
+	public abstract fun getConceptType ()Ljava/lang/Class;
+	public fun getModelType ()Ljava/lang/Class;
+	public abstract fun validate (Lio/cratis/fundamentals/concepts/ConceptAs;)Ljava/util/List;
+	public fun validate (Lio/cratis/fundamentals/concepts/ConceptAs;Lio/cratis/arc/validation/ModelValidationContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public synthetic fun validate (Ljava/lang/Object;Lio/cratis/arc/validation/ModelValidationContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/validation/FundamentalsConceptValidator$DefaultImpls {
+	public static fun getModelType (Lio/cratis/arc/validation/FundamentalsConceptValidator;)Ljava/lang/Class;
+	public static fun validate (Lio/cratis/arc/validation/FundamentalsConceptValidator;Lio/cratis/fundamentals/concepts/ConceptAs;Lio/cratis/arc/validation/ModelValidationContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
 
 public abstract interface annotation class io/cratis/arc/validation/IgnoreValidation : java/lang/annotation/Annotation {

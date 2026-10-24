@@ -7,7 +7,7 @@ import io.cratis.arc.artifacts.Command
 import io.cratis.arc.artifacts.CommandKey
 import io.cratis.arc.concepts.ArcEnum
 import io.cratis.arc.concepts.ArcEnumValue
-import io.cratis.arc.concepts.ConceptAs
+import io.cratis.fundamentals.concepts.ConceptAs
 import io.cratis.arc.concepts.Flags
 import io.cratis.arc.polymorphism.DerivedType
 import io.cratis.arc.validation.CreditCard

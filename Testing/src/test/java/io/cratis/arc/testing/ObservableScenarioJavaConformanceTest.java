@@ -5,7 +5,7 @@ package io.cratis.arc.testing;
 
 import io.cratis.arc.java.AsyncQueryPerformer;
 import io.cratis.arc.java.JavaAsyncScope;
-import io.cratis.arc.concepts.ConceptAs;
+import io.cratis.fundamentals.concepts.ConceptAs;
 import io.cratis.arc.queries.BlockingObservableQueryEmissionGuard;
 import io.cratis.arc.queries.ObservableQueryEmissionVerdict;
 import io.cratis.arc.java.AsyncQueryPerformerAdapter;

@@ -45,7 +45,7 @@ class ArcOnboardingFunctionalTest {
                         metadataSources { mavenPom(); artifact() }
                     }
                 }
-                filter { includeGroup("io.cratis"); includeGroup("io.cratis.arc") }
+                filter { includeModule("io.cratis", "arc"); includeModule("io.cratis", "arc-ksp"); includeModule("io.cratis", "arc-spring-boot-starter"); includeModule("io.cratis", "arc-gradle-plugin"); includeGroup("io.cratis.arc") }
             }
         """.trimIndent()
         write(consumer, "settings.gradle.kts", settings.replaceFirst("repositories {", "repositories {\n$localRepository"))
@@ -139,7 +139,9 @@ class ArcOnboardingFunctionalTest {
                 println("TUTORIAL_PLUGIN_ORIGIN_JAR " + origin)
                 val expected = listOf(setOf("arc", "arc-spring-boot-starter"), setOf("arc", "arc-ksp"))
                 listOf(configurations.runtimeClasspath.get(), processorResolution).forEachIndexed { index, configuration ->
-                    val artifacts = configuration.resolvedConfiguration.resolvedArtifacts.filter { it.moduleVersion.id.group == "io.cratis" }
+                    val cratis = configuration.resolvedConfiguration.resolvedArtifacts.filter { it.moduleVersion.id.group == "io.cratis" }
+                    if (index == 0) check(cratis.any { it.name == "fundamentals" })
+                    val artifacts = cratis.filter { !it.name.startsWith("fundamentals") }
                     check(artifacts.map { it.name }.toSet() == expected[index])
                     artifacts.forEach {
                         check(it.moduleVersion.id.version == "$version")

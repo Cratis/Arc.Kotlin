@@ -9,7 +9,7 @@ import tools.jackson.databind.SerializationFeature
 import tools.jackson.databind.cfg.DateTimeFeature
 import tools.jackson.databind.json.JsonMapper
 import io.cratis.arc.artifacts.ArcArtifactModule
-import io.cratis.arc.json.ArcCamelCase
+import io.cratis.fundamentals.strings.toCamelCase
 import io.cratis.arc.metadata.ApiEndpointOptions
 import io.cratis.arc.metadata.AuthorizationMetadata
 import io.cratis.arc.metadata.CommandDescriptor
@@ -233,7 +233,7 @@ public class ArcOpenApiGenerator @JvmOverloads constructor(
         val schema = objectSchema()
         val required = mutableListOf<String>()
         properties.forEach { property ->
-            val wireName = requireNotNull(ArcCamelCase.convert(property.name))
+            val wireName = property.name.toCamelCase()
             schema.addProperty(wireName, schemaFor(property.shape, names))
             if (!property.isNullable) required.add(wireName)
         }

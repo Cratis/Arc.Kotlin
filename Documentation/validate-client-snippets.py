@@ -175,7 +175,7 @@ FIXTURES: dict[str, DomainFixture] = {
     "capstone": DomainFixture(
         types=("AuthorId", "AuthorRegistered", "Author", "AuthorReducer"),
         imports=(
-            "import io.cratis.arc.concepts.ConceptAs as ArcConceptAs",
+            "import io.cratis.fundamentals.concepts.ConceptAs as ArcConceptAs",
             "import io.cratis.chronicle.concepts.ConceptAs as ChronicleConceptAs",
             "import java.util.UUID",
         ),
@@ -205,7 +205,7 @@ FIXTURES: dict[str, DomainFixture] = {
     "concepts": DomainFixture(
         types=("AuthorId", "AuthorName", "BookId", "BookTitle"),
         imports=(
-            "import io.cratis.arc.concepts.ConceptAs",
+            "import io.cratis.fundamentals.concepts.ConceptAs",
             "import java.util.UUID",
         ),
         declarations="""
@@ -255,7 +255,7 @@ FIXTURES: dict[str, DomainFixture] = {
             "AccountRepository", "AccountService",
         ),
         imports=(
-            "import io.cratis.arc.concepts.ConceptAs",
+            "import io.cratis.fundamentals.concepts.ConceptAs",
             "import java.util.UUID",
         ),
         declarations="""
@@ -294,7 +294,7 @@ FIXTURES: dict[str, DomainFixture] = {
         imports=(
             "import io.cratis.arc.artifacts.Command",
             "import io.cratis.arc.artifacts.CommandKey",
-            "import io.cratis.arc.concepts.ConceptAs",
+            "import io.cratis.fundamentals.concepts.ConceptAs",
             "import java.math.BigDecimal",
             "import java.util.UUID",
         ),
@@ -339,7 +339,7 @@ FIXTURES: dict[str, DomainFixture] = {
     "loan": DomainFixture(
         types=("LoanId", "ApplicantId", "CreditScore", "RiskBand", "CreditBureau", "RiskModel", "LoanAssessment"),
         imports=(
-            "import io.cratis.arc.concepts.ConceptAs",
+            "import io.cratis.fundamentals.concepts.ConceptAs",
             "import java.util.UUID",
         ),
         declarations="""
@@ -430,7 +430,7 @@ FIXTURES: dict[str, DomainFixture] = {
         types=(),
         package_name="library.authors",
         imports=(
-            "import io.cratis.arc.concepts.ConceptAs",
+            "import io.cratis.fundamentals.concepts.ConceptAs",
             "import java.util.UUID",
         ),
         declarations="""
@@ -456,7 +456,7 @@ FIXTURES: dict[str, DomainFixture] = {
             "import io.cratis.arc.artifacts.Command",
             "import io.cratis.arc.artifacts.CommandKey",
             "import io.cratis.arc.authorization.AllowAnonymous",
-            "import io.cratis.arc.concepts.ConceptAs as ArcConceptAs",
+            "import io.cratis.fundamentals.concepts.ConceptAs as ArcConceptAs",
             "import io.cratis.chronicle.concepts.ConceptAs as ChronicleConceptAs",
             "import io.cratis.chronicle.events.EventType",
             "import java.time.Instant",
@@ -609,8 +609,8 @@ IMPORT_GIVEN_CHRONICLE = "import io.cratis.arc.chronicle.givenChronicle"
 IMPORT_BEFORE_EACH = "import org.junit.jupiter.api.BeforeEach"
 IMPORT_BIG_DECIMAL = "import java.math.BigDecimal"
 IMPORT_UUID = "import java.util.UUID"
-IMPORT_CONCEPT_AS = "import io.cratis.arc.concepts.ConceptAs"
-IMPORT_CONCEPT_VALIDATOR = "import io.cratis.arc.validation.ConceptValidator"
+IMPORT_CONCEPT_AS = "import io.cratis.fundamentals.concepts.ConceptAs"
+IMPORT_CONCEPT_VALIDATOR = "import io.cratis.arc.validation.FundamentalsConceptValidator"
 IMPORT_ROLES = "import io.cratis.arc.authorization.Roles"
 IMPORT_ALLOW_ANONYMOUS = "import io.cratis.arc.authorization.AllowAnonymous"
 
@@ -1215,7 +1215,7 @@ SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
     ),
     "guides/spring-data/concepts-mongodb/scalar-converters": SnippetContext(
         imports=(
-            "import io.cratis.arc.concepts.ConceptAs",
+            "import io.cratis.fundamentals.concepts.ConceptAs",
             "import org.springframework.core.convert.converter.Converter",
             "import org.springframework.data.convert.ReadingConverter",
             "import org.springframework.data.convert.WritingConverter",
@@ -1229,7 +1229,7 @@ SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
     "guides/spring-data/concepts-mongodb/register-conversions": SnippetContext(
         kind="member",
         imports=(
-            "import io.cratis.arc.concepts.ConceptAs",
+            "import io.cratis.fundamentals.concepts.ConceptAs",
             "import org.springframework.core.convert.converter.Converter",
             "import org.springframework.data.convert.ReadingConverter",
             "import org.springframework.data.convert.WritingConverter",
@@ -1287,7 +1287,7 @@ SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
     ),
     "guides/spring-data/concepts-jpa/attribute-converter": SnippetContext(
         imports=(
-            "import io.cratis.arc.concepts.ConceptAs",
+            "import io.cratis.fundamentals.concepts.ConceptAs",
             "import jakarta.persistence.AttributeConverter",
             "import jakarta.persistence.Converter",
         ),
@@ -1295,7 +1295,7 @@ SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
     "guides/spring-data/concepts-jpa/embedded-id": SnippetContext(
         imports=(
             "import io.cratis.arc.artifacts.ReadModel",
-            "import io.cratis.arc.concepts.ConceptAs",
+            "import io.cratis.fundamentals.concepts.ConceptAs",
             "import jakarta.persistence.AttributeConverter",
             "import jakarta.persistence.AttributeOverride",
             "import jakarta.persistence.Column",
@@ -1352,7 +1352,7 @@ SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
             IMPORT_COMMAND,
             "import io.cratis.arc.artifacts.CommandKey",
             IMPORT_FROM_SERVICES,
-            "import io.cratis.arc.concepts.ConceptAs",
+            "import io.cratis.fundamentals.concepts.ConceptAs",
             "import java.util.UUID",
         ),
         prelude="""
@@ -1527,7 +1527,7 @@ SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
         fixtures=("concepts",),
         imports=(
             IMPORT_COMPONENT,
-            "import io.cratis.arc.validation.ConceptValidator",
+            "import io.cratis.arc.validation.FundamentalsConceptValidator",
             IMPORT_VALIDATION_RESULT,
         ),
     ),
@@ -1867,8 +1867,8 @@ JAVA_IMPORT_BLOCKING_VALIDATOR = "import io.cratis.arc.java.BlockingCommandValid
 JAVA_IMPORT_BLOCKING_VALIDATOR_ADAPTER = "import io.cratis.arc.java.BlockingCommandValidatorAdapter;"
 JAVA_IMPORT_ASYNC_VALIDATOR = "import io.cratis.arc.java.AsyncCommandValidator;"
 JAVA_IMPORT_ASYNC_VALIDATOR_ADAPTER = "import io.cratis.arc.java.AsyncCommandValidatorAdapter;"
-JAVA_IMPORT_CONCEPT_AS = "import io.cratis.arc.concepts.ConceptAs;"
-JAVA_IMPORT_CONCEPT_VALIDATOR = "import io.cratis.arc.validation.ConceptValidator;"
+JAVA_IMPORT_CONCEPT_AS = "import io.cratis.fundamentals.concepts.ConceptAs;"
+JAVA_IMPORT_CONCEPT_VALIDATOR = "import io.cratis.arc.validation.FundamentalsConceptValidator;"
 JAVA_IMPORT_VALIDATION_FAILURE = "import io.cratis.arc.validation.ValidationFailure;"
 JAVA_IMPORT_VALIDATION_RESULT = "import io.cratis.arc.results.ValidationResult;"
 JAVA_IMPORT_ROLES = "import io.cratis.arc.authorization.Roles;"
@@ -3002,7 +3002,7 @@ JAVA_SNIPPET_CONTEXTS: dict[str, JavaSnippetContext] = {
     ),
     "guides/spring-data/concepts-mongodb/scalar-converters": JavaSnippetContext(
         imports=(
-            "import io.cratis.arc.concepts.ConceptAs;",
+            "import io.cratis.fundamentals.concepts.ConceptAs;",
             "import org.springframework.core.convert.converter.Converter;",
             "import org.springframework.data.convert.ReadingConverter;",
             "import org.springframework.data.convert.WritingConverter;",
@@ -3014,7 +3014,7 @@ JAVA_SNIPPET_CONTEXTS: dict[str, JavaSnippetContext] = {
     "guides/spring-data/concepts-mongodb/register-conversions": JavaSnippetContext(
         kind="member",
         imports=(
-            "import io.cratis.arc.concepts.ConceptAs;",
+            "import io.cratis.fundamentals.concepts.ConceptAs;",
             "import org.springframework.core.convert.converter.Converter;",
             "import org.springframework.data.convert.ReadingConverter;",
             "import org.springframework.data.convert.WritingConverter;",
@@ -3071,7 +3071,7 @@ JAVA_SNIPPET_CONTEXTS: dict[str, JavaSnippetContext] = {
     ),
     "guides/spring-data/concepts-jpa/attribute-converter": JavaSnippetContext(
         imports=(
-            "import io.cratis.arc.concepts.ConceptAs;",
+            "import io.cratis.fundamentals.concepts.ConceptAs;",
             "import jakarta.persistence.AttributeConverter;",
             "import jakarta.persistence.Converter;",
             "import java.util.Objects;",
@@ -3080,7 +3080,7 @@ JAVA_SNIPPET_CONTEXTS: dict[str, JavaSnippetContext] = {
     "guides/spring-data/concepts-jpa/embedded-id": JavaSnippetContext(
         imports=(
             "import io.cratis.arc.artifacts.ReadModel;",
-            "import io.cratis.arc.concepts.ConceptAs;",
+            "import io.cratis.fundamentals.concepts.ConceptAs;",
             "import jakarta.persistence.AttributeConverter;",
             "import jakarta.persistence.AttributeOverride;",
             "import jakarta.persistence.Column;",
@@ -3148,7 +3148,7 @@ JAVA_SNIPPET_CONTEXTS: dict[str, JavaSnippetContext] = {
             "import io.cratis.arc.artifacts.Command;",
             "import io.cratis.arc.artifacts.CommandKey;",
             "import io.cratis.arc.artifacts.FromServices;",
-            "import io.cratis.arc.concepts.ConceptAs;",
+            "import io.cratis.fundamentals.concepts.ConceptAs;",
             "import java.util.UUID;",
         ),
         prelude="""
