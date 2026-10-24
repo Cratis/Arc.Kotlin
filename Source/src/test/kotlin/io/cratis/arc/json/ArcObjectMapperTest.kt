@@ -11,6 +11,8 @@ import io.cratis.arc.concepts.ArcEnum
 import io.cratis.arc.concepts.ConceptAs
 import io.cratis.arc.polymorphism.ConcurrentDerivedTypeRegistry
 import io.cratis.arc.polymorphism.DerivedType
+import java.math.BigDecimal
+import java.time.OffsetDateTime
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalTime
@@ -20,12 +22,29 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 
 class ArcObjectMapperTest {
     private val mapper = ArcObjectMapper.create()
+
+    @Nested
+    inner class ConceptWireStaysArcs {
+        @Test
+        fun `UTC offset date time concept keeps Jackson output`() {
+            assertEquals(
+                "\"2026-01-02T03:04:05Z\"",
+                mapper.writeValueAsString(OffsetDateTimeConcept(OffsetDateTime.parse("2026-01-02T03:04:05Z"))),
+            )
+        }
+
+        @Test
+        fun `exponent decimal concept keeps Jackson output`() {
+            assertEquals("1E+3", mapper.writeValueAsString(BigDecimalConcept(BigDecimal("1E+3"))))
+        }
+    }
 
     @Test
     fun `ordinary enums write ordinal and read case-insensitive names`() {
@@ -211,6 +230,14 @@ enum class ExplicitEnum(private val wireValue: Int) : ArcEnum {
     Answer(42);
 
     override fun value(): Int = wireValue
+}
+
+data class OffsetDateTimeConcept(private val rawValue: OffsetDateTime) : ConceptAs<OffsetDateTime> {
+    override fun value(): OffsetDateTime = rawValue
+}
+
+data class BigDecimalConcept(private val rawValue: BigDecimal) : ConceptAs<BigDecimal> {
+    override fun value(): BigDecimal = rawValue
 }
 
 data class StringConcept(private val rawValue: String) : ConceptAs<String> {
