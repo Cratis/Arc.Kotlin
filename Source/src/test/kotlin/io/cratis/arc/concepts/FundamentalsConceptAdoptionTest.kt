@@ -3,13 +3,17 @@
 
 package io.cratis.arc.concepts
 
+import io.cratis.arc.authorization.ArcPrincipal
+import io.cratis.arc.commands.CommandContext
+import io.cratis.arc.commands.DefaultCommandValidationFilter
+import io.cratis.arc.commands.ServiceResolver
 import io.cratis.arc.json.ArcObjectMapper
 import io.cratis.arc.queries.ObservableQueryArgumentSnapshot
 import io.cratis.arc.results.ValidationResult
-import io.cratis.arc.validation.ConceptValidation
-import io.cratis.arc.validation.ConceptValidator
+import io.cratis.arc.validation.FundamentalsConceptValidator
 import java.util.UUID
 import kotlin.coroutines.EmptyCoroutineContext
+import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotSame
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -35,12 +39,20 @@ class FundamentalsConceptAdoptionTest {
     }
 
     @Test
-    fun `fundamentals concept validators run through concept validation`() {
-        val validator = object : ConceptValidator<OrderId> {
+    fun `fundamentals concept validators use the existing model registration path`(): Unit = runBlocking {
+        val validator = object : FundamentalsConceptValidator<OrderId> {
             override val conceptType = OrderId::class.java
             override fun validate(concept: OrderId) = listOf(ValidationResult.error("order"))
         }
-        val results = ConceptValidation(listOf(validator)).validate(OrderId(UUID.randomUUID()), "id")
+        val command = mapOf("id" to OrderId(UUID.randomUUID()))
+        val context = CommandContext(
+            UUID.randomUUID(), command, command.javaClass, ArcPrincipal.anonymous(),
+            serviceResolver = object : ServiceResolver {
+                override fun <T : Any> resolve(type: Class<T>): T? = null
+            },
+        )
+        val results = DefaultCommandValidationFilter(emptyList(), emptyList(), listOf(validator))
+            .execute(context).validationResults
         assertEquals(listOf("order"), results.map { it.message })
         assertEquals(listOf("id"), results.flatMap { it.members })
     }

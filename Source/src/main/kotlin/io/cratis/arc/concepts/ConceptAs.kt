@@ -13,7 +13,10 @@ package io.cratis.arc.concepts
  * `record OrderId(UUID value) implements ConceptAs<UUID> {}` to implement this contract without boilerplate.
  */
 @Deprecated("Implement io.cratis.fundamentals.concepts.ConceptAs.", ReplaceWith("ConceptAs<T>", "io.cratis.fundamentals.concepts.ConceptAs"))
-public interface ConceptAs<T> : io.cratis.fundamentals.concepts.ConceptAs<T>
+public interface ConceptAs<T> : io.cratis.fundamentals.concepts.ConceptAs<T> {
+    /** Returns the scalar value carried by this concept. */
+    override fun value(): T
+}
 
 /** Kotlin property view of the scalar value carried by this concept; prefer [io.cratis.fundamentals.concepts.value]. */
 @Deprecated("Use io.cratis.fundamentals.concepts.value.", ReplaceWith("value", "io.cratis.fundamentals.concepts.value"))

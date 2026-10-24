@@ -10,7 +10,7 @@ import io.cratis.arc.commands.ConcurrentCommandHandlerRegistry;
 import io.cratis.arc.commands.DefaultCommandPipeline;
 import io.cratis.arc.commands.DefaultCommandValidationFilter;
 import io.cratis.arc.commands.ServiceResolver;
-import io.cratis.fundamentals.concepts.ConceptAs;
+import io.cratis.arc.concepts.ConceptAs;
 import io.cratis.arc.java.BlockingCommandHandler;
 import io.cratis.arc.java.BlockingCommandHandlerAdapter;
 import io.cratis.arc.java.JavaAsyncScope;
@@ -28,6 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@SuppressWarnings("deprecation") // Preserve coverage of the original Arc validator contract.
 final class ConceptExclusionJavaConformanceTest {
     public record Code(String value) implements ConceptAs<String> { }
     public record Input(Code ignored, Code required) { }

@@ -3,7 +3,7 @@
 
 package io.cratis.arc.springboot;
 
-import io.cratis.fundamentals.concepts.ConceptAs;
+import io.cratis.arc.concepts.ConceptAs;
 import io.cratis.arc.results.ValidationResult;
 import io.cratis.arc.validation.ConceptValidator;
 import java.util.List;
@@ -12,6 +12,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /** Java-authored record graphs and synchronous rule beans, shared by context and servlet checks. */
+@SuppressWarnings("deprecation") // Preserve coverage of the original Arc validator contract.
 public final class ConceptValidationJavaFixture {
     private ConceptValidationJavaFixture() { }
 

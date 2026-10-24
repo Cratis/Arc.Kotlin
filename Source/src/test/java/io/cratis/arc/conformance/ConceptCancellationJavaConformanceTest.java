@@ -10,7 +10,7 @@ import io.cratis.arc.commands.ConcurrentCommandHandlerRegistry;
 import io.cratis.arc.commands.DefaultCommandPipeline;
 import io.cratis.arc.commands.DefaultCommandValidationFilter;
 import io.cratis.arc.commands.ServiceResolver;
-import io.cratis.fundamentals.concepts.ConceptAs;
+import io.cratis.arc.concepts.ConceptAs;
 import io.cratis.arc.java.AsyncCommandHandler;
 import io.cratis.arc.java.AsyncCommandHandlerAdapter;
 import io.cratis.arc.java.BlockingCommandExecutionScope;
@@ -53,6 +53,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@SuppressWarnings("deprecation") // Preserve coverage of the original Arc validator contract.
 final class ConceptCancellationJavaConformanceTest {
     enum Boundary { EXECUTE, VALIDATE, QUERY, OBSERVABLE }
 

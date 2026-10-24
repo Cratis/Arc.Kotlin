@@ -1,9 +1,12 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+// Retain the legacy supertype for source and binary compatibility.
+@file:Suppress("DEPRECATION")
+
 package io.cratis.arc.tenancy
 
-import io.cratis.fundamentals.concepts.ConceptAs
+import io.cratis.arc.concepts.ConceptAs
 
 /** Strongly typed tenant identifier. */
 public data class TenantId(private val rawValue: String) : ConceptAs<String> {

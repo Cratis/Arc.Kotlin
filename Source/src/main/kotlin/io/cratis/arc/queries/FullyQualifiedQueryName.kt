@@ -1,9 +1,12 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+// Retain the legacy supertype for source and binary compatibility.
+@file:Suppress("DEPRECATION")
+
 package io.cratis.arc.queries
 
-import io.cratis.fundamentals.concepts.ConceptAs
+import io.cratis.arc.concepts.ConceptAs
 
 /** Exact fully qualified name used to address a generated query performer. */
 public class FullyQualifiedQueryName(public val value: String) :

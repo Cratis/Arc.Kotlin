@@ -5,7 +5,7 @@ package io.cratis.arc.conformance;
 
 import io.cratis.arc.json.ArcObjectMapper;
 import io.cratis.arc.results.ValidationResult;
-import io.cratis.arc.validation.ConceptValidator;
+import io.cratis.arc.validation.FundamentalsConceptValidator;
 import io.cratis.fundamentals.concepts.ConceptAs;
 import io.cratis.fundamentals.strings.StringExtensions;
 import java.util.List;
@@ -28,13 +28,14 @@ final class FundamentalsConceptJavaConformanceTest {
         var json = "\"" + id.value() + "\"";
         assertEquals(json, mapper.writeValueAsString(id));
         assertEquals(id, mapper.readValue(json, OrderId.class));
-        ConceptValidator<OrderId> validator = new ConceptValidator<>() {
+        FundamentalsConceptValidator<OrderId> validator = new FundamentalsConceptValidator<>() {
             @Override public Class<OrderId> getConceptType() { return OrderId.class; }
             @Override public List<ValidationResult> validate(OrderId concept) {
                 return List.of(ValidationResult.error("order"));
             }
         };
         assertEquals(OrderId.class, validator.getConceptType());
+        assertEquals(OrderId.class, validator.getModelType());
         assertEquals("order", validator.validate(id).get(0).getMessage());
         assertEquals("orderId", StringExtensions.toCamelCase("OrderId"));
     }

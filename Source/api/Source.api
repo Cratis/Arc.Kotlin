@@ -130,7 +130,7 @@ public final class io/cratis/arc/authentication/AuthenticationFailure {
 	public final fun getReasons ()Ljava/util/List;
 }
 
-public final class io/cratis/arc/authentication/AuthenticationFailureReason : io/cratis/fundamentals/concepts/ConceptAs {
+public final class io/cratis/arc/authentication/AuthenticationFailureReason : io/cratis/arc/concepts/ConceptAs {
 	public static final field Companion Lio/cratis/arc/authentication/AuthenticationFailureReason$Companion;
 	public fun <init> (Ljava/lang/String;)V
 	public final fun copy (Ljava/lang/String;)Lio/cratis/arc/authentication/AuthenticationFailureReason;
@@ -610,6 +610,7 @@ public abstract interface annotation class io/cratis/arc/concepts/ArcEnumValue :
 }
 
 public abstract interface class io/cratis/arc/concepts/ConceptAs : io/cratis/fundamentals/concepts/ConceptAs {
+	public abstract fun value ()Ljava/lang/Object;
 }
 
 public final class io/cratis/arc/concepts/ConceptAsKt {
@@ -1804,7 +1805,7 @@ public final class io/cratis/arc/queries/DuplicateQueryPerformerException : java
 	public final fun getQueryName ()Lio/cratis/arc/queries/FullyQualifiedQueryName;
 }
 
-public final class io/cratis/arc/queries/FullyQualifiedQueryName : io/cratis/fundamentals/concepts/ConceptAs, java/lang/Comparable {
+public final class io/cratis/arc/queries/FullyQualifiedQueryName : io/cratis/arc/concepts/ConceptAs, java/lang/Comparable {
 	public fun <init> (Ljava/lang/String;)V
 	public fun compareTo (Lio/cratis/arc/queries/FullyQualifiedQueryName;)I
 	public synthetic fun compareTo (Ljava/lang/Object;)I
@@ -2709,7 +2710,7 @@ public final class io/cratis/arc/tenancy/TenantCoroutineContext : kotlin/corouti
 public final class io/cratis/arc/tenancy/TenantCoroutineContext$Key : kotlin/coroutines/CoroutineContext$Key {
 }
 
-public final class io/cratis/arc/tenancy/TenantId : io/cratis/fundamentals/concepts/ConceptAs {
+public final class io/cratis/arc/tenancy/TenantId : io/cratis/arc/concepts/ConceptAs {
 	public static final field Companion Lio/cratis/arc/tenancy/TenantId$Companion;
 	public static final field DEFAULT Lio/cratis/arc/tenancy/TenantId;
 	public static final field DEVELOPMENT Lio/cratis/arc/tenancy/TenantId;
@@ -2734,7 +2735,7 @@ public abstract interface class io/cratis/arc/tenancy/TenantIdResolver {
 	public abstract fun resolve (Lio/cratis/arc/tenancy/TenantResolutionContext;)Lio/cratis/arc/tenancy/TenantId;
 }
 
-public final class io/cratis/arc/tenancy/TenantName : io/cratis/fundamentals/concepts/ConceptAs {
+public final class io/cratis/arc/tenancy/TenantName : io/cratis/arc/concepts/ConceptAs {
 	public static final field Companion Lio/cratis/arc/tenancy/TenantName$Companion;
 	public static final field EMPTY Lio/cratis/arc/tenancy/TenantName;
 	public fun <init> (Ljava/lang/String;)V
@@ -2794,7 +2795,7 @@ public final class io/cratis/arc/validation/ConceptValidationExclusion {
 
 public abstract interface class io/cratis/arc/validation/ConceptValidator {
 	public abstract fun getConceptType ()Ljava/lang/Class;
-	public abstract fun validate (Lio/cratis/fundamentals/concepts/ConceptAs;)Ljava/util/List;
+	public abstract fun validate (Lio/cratis/arc/concepts/ConceptAs;)Ljava/util/List;
 }
 
 public abstract interface annotation class io/cratis/arc/validation/CreditCard : java/lang/annotation/Annotation {
@@ -2851,6 +2852,19 @@ public final class io/cratis/arc/validation/FluentValidatorRegistration {
 	public final fun getExpectedRules ()Ljava/util/List;
 	public final fun getModelType ()Ljava/lang/Class;
 	public final fun getValidator ()Lio/cratis/arc/validation/FluentModelValidator;
+}
+
+public abstract interface class io/cratis/arc/validation/FundamentalsConceptValidator : io/cratis/arc/validation/ModelValidator {
+	public abstract fun getConceptType ()Ljava/lang/Class;
+	public fun getModelType ()Ljava/lang/Class;
+	public abstract fun validate (Lio/cratis/fundamentals/concepts/ConceptAs;)Ljava/util/List;
+	public fun validate (Lio/cratis/fundamentals/concepts/ConceptAs;Lio/cratis/arc/validation/ModelValidationContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public synthetic fun validate (Ljava/lang/Object;Lio/cratis/arc/validation/ModelValidationContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class io/cratis/arc/validation/FundamentalsConceptValidator$DefaultImpls {
+	public static fun getModelType (Lio/cratis/arc/validation/FundamentalsConceptValidator;)Ljava/lang/Class;
+	public static fun validate (Lio/cratis/arc/validation/FundamentalsConceptValidator;Lio/cratis/fundamentals/concepts/ConceptAs;Lio/cratis/arc/validation/ModelValidationContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
 
 public abstract interface annotation class io/cratis/arc/validation/IgnoreValidation : java/lang/annotation/Annotation {

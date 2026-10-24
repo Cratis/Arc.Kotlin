@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+@file:Suppress("DEPRECATION") // Exercise the original Arc concept-validator contract.
+
 package io.cratis.arc.springboot
 
 import io.cratis.arc.authorization.ArcPrincipal
@@ -12,7 +14,7 @@ import io.cratis.arc.commands.CommandPipeline
 import io.cratis.arc.commands.CommandValidator
 import io.cratis.arc.commands.DefaultCommandValidationFilter
 import io.cratis.arc.commands.ServiceResolver
-import io.cratis.fundamentals.concepts.ConceptAs
+import io.cratis.arc.concepts.ConceptAs
 import io.cratis.arc.metadata.AuthorizationMetadata
 import io.cratis.arc.metadata.CommandDescriptor
 import io.cratis.arc.metadata.QueryDescriptor

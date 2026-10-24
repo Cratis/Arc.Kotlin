@@ -3,12 +3,13 @@
 
 package io.cratis.arc.springboot;
 
-import io.cratis.fundamentals.concepts.ConceptAs;
+import io.cratis.arc.concepts.ConceptAs;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 /** Java record graph for real Jakarta provider and HTTP exclusion checks. */
+@SuppressWarnings("deprecation") // Preserve coverage of the original Arc validator contract.
 public record ConceptExclusionJavaInput(@Valid @NotNull Code ignored, @Valid Code required) {
     public record Code(@NotBlank String value) implements ConceptAs<String> { }
 }
