@@ -3,7 +3,7 @@
 
 package io.cratis.arc.gradle
 
-import io.cratis.arc.json.ArcCamelCase
+import io.cratis.fundamentals.strings.toCamelCase
 import java.security.MessageDigest
 
 // Text helpers shared by the TypeScript proxy renderers.
@@ -12,7 +12,7 @@ internal fun roles(values: List<String>): String = values.joinToString(prefix = 
 
 internal fun escape(value: String): String = value.replace("\\", "\\\\").replace("'", "\\'")
 
-internal fun lowerCamel(value: String): String = requireNotNull(ArcCamelCase.convert(value))
+internal fun lowerCamel(value: String): String = value.toCamelCase()
 
 internal fun upperCamel(value: String): String = value.replaceFirstChar(Char::uppercaseChar)
 

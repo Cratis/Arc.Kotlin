@@ -22,7 +22,6 @@ import com.google.devtools.ksp.symbol.Modifier
 import com.google.devtools.ksp.symbol.Nullability
 import com.google.devtools.ksp.symbol.Origin
 import com.google.devtools.ksp.symbol.Variance
-import io.cratis.arc.json.ArcCamelCase
 import io.cratis.arc.metadata.MapKeyCodec
 import io.cratis.arc.metadata.SequenceKind
 import io.cratis.arc.metadata.TypeShapeDescriptor

@@ -3,7 +3,6 @@
 
 package io.cratis.arc.gradle
 
-import io.cratis.arc.json.ArcCamelCase
 import io.cratis.arc.metadata.ApiEndpointOptions
 import io.cratis.arc.metadata.CommandDescriptor
 import io.cratis.arc.metadata.EndpointRouteHelper

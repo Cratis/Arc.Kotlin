@@ -9,5 +9,6 @@ import io.cratis.fundamentals.strings.toCamelCase
 @Deprecated("Use io.cratis.fundamentals.strings.toCamelCase.", ReplaceWith("name?.toCamelCase()", "io.cratis.fundamentals.strings.toCamelCase"))
 public object ArcCamelCase {
     /** Convert a member name using the ASCII acronym rules used by Cratis proxy generation. */
+    @JvmStatic
     public fun convert(name: String?): String? = name?.toCamelCase()
 }
