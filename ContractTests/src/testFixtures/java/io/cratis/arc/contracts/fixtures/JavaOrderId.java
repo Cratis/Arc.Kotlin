@@ -3,9 +3,10 @@
 
 package io.cratis.arc.contracts.fixtures;
 
-import io.cratis.fundamentals.concepts.ConceptAs;
+import io.cratis.arc.concepts.ConceptAs;
 import java.util.UUID;
 
 /** Java record UUID concept. */
+@SuppressWarnings("deprecation") // Preserve coverage of the original Arc validator contract.
 public record JavaOrderId(UUID value) implements ConceptAs<UUID> {
 }
