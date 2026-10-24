@@ -1,8 +1,8 @@
 ```java
-// ConceptValidator has no coroutine in its signature, so Java implements it directly
-// and publishes it as an ordinary component.
+// The concept rule is synchronous; its model-pipeline bridge is inherited.
+// Java publishes it as an ordinary component.
 @Component
-public final class AuthorNameValidator implements ConceptValidator<AuthorName> {
+public final class AuthorNameValidator implements FundamentalsConceptValidator<AuthorName> {
     @Override
     public Class<AuthorName> getConceptType() {
         return AuthorName.class;

@@ -1,7 +1,7 @@
 ```kotlin
 import io.cratis.fundamentals.concepts.ConceptAs as ArcConceptAs
 import io.cratis.arc.results.ValidationResult
-import io.cratis.arc.validation.ConceptValidator
+import io.cratis.arc.validation.FundamentalsConceptValidator
 import io.cratis.chronicle.concepts.ConceptAs as ChronicleConceptAs
 import java.util.UUID
 import org.springframework.stereotype.Component
@@ -24,7 +24,7 @@ data class AuthorName(private val name: String) : ArcConceptAs<String>, Chronicl
 }
 
 @Component
-class AuthorNameValidator : ConceptValidator<AuthorName> {
+class AuthorNameValidator : FundamentalsConceptValidator<AuthorName> {
     override val conceptType: Class<AuthorName> = AuthorName::class.java
 
     override fun validate(concept: AuthorName): List<ValidationResult> =

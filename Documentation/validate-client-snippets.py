@@ -610,7 +610,7 @@ IMPORT_BEFORE_EACH = "import org.junit.jupiter.api.BeforeEach"
 IMPORT_BIG_DECIMAL = "import java.math.BigDecimal"
 IMPORT_UUID = "import java.util.UUID"
 IMPORT_CONCEPT_AS = "import io.cratis.fundamentals.concepts.ConceptAs"
-IMPORT_CONCEPT_VALIDATOR = "import io.cratis.arc.validation.ConceptValidator"
+IMPORT_CONCEPT_VALIDATOR = "import io.cratis.arc.validation.FundamentalsConceptValidator"
 IMPORT_ROLES = "import io.cratis.arc.authorization.Roles"
 IMPORT_ALLOW_ANONYMOUS = "import io.cratis.arc.authorization.AllowAnonymous"
 
@@ -1527,7 +1527,7 @@ SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
         fixtures=("concepts",),
         imports=(
             IMPORT_COMPONENT,
-            "import io.cratis.arc.validation.ConceptValidator",
+            "import io.cratis.arc.validation.FundamentalsConceptValidator",
             IMPORT_VALIDATION_RESULT,
         ),
     ),
@@ -1868,7 +1868,7 @@ JAVA_IMPORT_BLOCKING_VALIDATOR_ADAPTER = "import io.cratis.arc.java.BlockingComm
 JAVA_IMPORT_ASYNC_VALIDATOR = "import io.cratis.arc.java.AsyncCommandValidator;"
 JAVA_IMPORT_ASYNC_VALIDATOR_ADAPTER = "import io.cratis.arc.java.AsyncCommandValidatorAdapter;"
 JAVA_IMPORT_CONCEPT_AS = "import io.cratis.fundamentals.concepts.ConceptAs;"
-JAVA_IMPORT_CONCEPT_VALIDATOR = "import io.cratis.arc.validation.ConceptValidator;"
+JAVA_IMPORT_CONCEPT_VALIDATOR = "import io.cratis.arc.validation.FundamentalsConceptValidator;"
 JAVA_IMPORT_VALIDATION_FAILURE = "import io.cratis.arc.validation.ValidationFailure;"
 JAVA_IMPORT_VALIDATION_RESULT = "import io.cratis.arc.results.ValidationResult;"
 JAVA_IMPORT_ROLES = "import io.cratis.arc.authorization.Roles;"

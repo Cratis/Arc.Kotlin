@@ -1,6 +1,6 @@
 ```kotlin
 @Component
-class AuthorNameValidator : ConceptValidator<AuthorName> {
+class AuthorNameValidator : FundamentalsConceptValidator<AuthorName> {
     override val conceptType: Class<AuthorName> = AuthorName::class.java
 
     override fun validate(concept: AuthorName): List<ValidationResult> =
