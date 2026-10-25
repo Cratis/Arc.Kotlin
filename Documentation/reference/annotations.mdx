@@ -108,6 +108,8 @@ Serialization refuses a value whose base type is registered while the value's ow
 
 Arc writes an enum as an integer: the result of `value()` when the enum implements `ArcEnum`, and the ordinal otherwise. Reading accepts that integer or the member name matched case-insensitively, and rejects anything else.
 
+`ArcEnum`, `@ArcEnumValue` and `@Flags` belong to Arc. Their C# counterparts are language and standard-library features: an enum declares its integer values itself, and `[Flags]` is `System.FlagsAttribute`. Cratis Fundamentals defines neither. Arc's mapper does not need the opt-in `EnumModule` from Fundamentals for Kotlin and Java, which writes ordinals and does not read `ArcEnum`.
+
 ### Polymorphic property declarations
 
 Declare polymorphic properties as an interface or abstract base, not an ordinary concrete base class. KSP reports `ARCKSP0305` when a collected command, read-model, interface, or reachable DTO property declares a concrete class with a distinct, nonabstract `@DerivedType` descendant visible in the current compilation. The check also applies to nullable properties and the element type of supported collections and arrays. Annotating the concrete base itself with `@DerivedType` does not exempt it when it has descendants.
