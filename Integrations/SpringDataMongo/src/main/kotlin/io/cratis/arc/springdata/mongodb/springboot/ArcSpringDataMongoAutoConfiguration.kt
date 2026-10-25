@@ -5,7 +5,6 @@ package io.cratis.arc.springdata.mongodb.springboot
 
 import io.cratis.arc.artifacts.ReadModel
 import io.cratis.arc.commands.CommandHandlerRegistry
-import io.cratis.arc.naming.NamingPolicy
 import io.cratis.arc.springdata.mongodb.DefaultMongoCommandReadModelResolver
 import io.cratis.arc.springdata.mongodb.DefaultNamingPolicy
 import io.cratis.arc.springdata.mongodb.TenantContextMongoAccess
@@ -60,11 +59,14 @@ public class ArcSpringDataMongoAutoConfiguration {
     /**
      * Provides the default Arc naming policy for collection names, backed by English-language plural
      * inflection aligned with the Cratis Chronicle Kernel. Backs off when the application supplies its own
-     * [NamingPolicy] bean.
+     * [io.cratis.fundamentals.serialization.NamingPolicy] bean (or an Arc one, which is the same type).
+     * The bean is an Arc [DefaultNamingPolicy], so it can be injected as either the Fundamentals or the
+     * legacy Arc naming policy type.
      */
     @Bean
-    @ConditionalOnMissingBean(NamingPolicy::class)
-    public fun arcMongoNamingPolicy(): NamingPolicy = DefaultNamingPolicy()
+    @ConditionalOnMissingBean(io.cratis.fundamentals.serialization.NamingPolicy::class)
+    @Suppress("DEPRECATION")
+    public fun arcMongoNamingPolicy(): io.cratis.arc.naming.NamingPolicy = DefaultNamingPolicy()
 
     /**
      * Provides per-call, tenant-bound [TenantContextMongoAccess] so that handlers can inject
@@ -73,13 +75,24 @@ public class ArcSpringDataMongoAutoConfiguration {
      *
      * Registered only when exactly one [TenantAwareMongoOperationsResolver] candidate is present.
      * Backs off when the application supplies its own [TenantContextMongoAccess] bean.
+     *
+     * Compatibility factory for the historical Arc-typed signature; the bean itself is declared by
+     * [arcTenantContextMongoAccessBean], which accepts any Fundamentals naming policy.
      */
-    @Bean
-    @ConditionalOnSingleCandidate(TenantAwareMongoOperationsResolver::class)
-    @ConditionalOnMissingBean(TenantContextMongoAccess::class)
+    @Deprecated("Declare an io.cratis.fundamentals.serialization.NamingPolicy and let the auto-configuration create the bean.")
+    @Suppress("DEPRECATION")
     public fun arcTenantContextMongoAccess(
         resolver: TenantAwareMongoOperationsResolver,
-        namingPolicy: NamingPolicy
+        namingPolicy: io.cratis.arc.naming.NamingPolicy
+    ): TenantContextMongoAccess = TenantContextMongoAccess(resolver, namingPolicy)
+
+    /** Registers the tenant-bound access with whichever naming policy bean the application or Arc provides. */
+    @Bean("arcTenantContextMongoAccess")
+    @ConditionalOnSingleCandidate(TenantAwareMongoOperationsResolver::class)
+    @ConditionalOnMissingBean(TenantContextMongoAccess::class)
+    internal fun arcTenantContextMongoAccessBean(
+        resolver: TenantAwareMongoOperationsResolver,
+        namingPolicy: io.cratis.fundamentals.serialization.NamingPolicy
     ): TenantContextMongoAccess = TenantContextMongoAccess(resolver, namingPolicy)
 
     /** Compatibility factory for the historical fixed MongoDB operations resolver. */

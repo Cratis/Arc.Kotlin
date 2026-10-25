@@ -118,7 +118,7 @@ The same artifact list configures `ChronicleReadModelInterceptor`. Before one-sh
 
 ## Name read model collections
 
-When Arc's MongoDB integration is present, its `NamingPolicy` also names the collection Chronicle projects each read model into, so a projected `Author` lands in `Authors`, the collection Arc reads by default. The Chronicle integration adapts the single `NamingPolicy` bean into a Chronicle `ReadModelNamingPolicy` bean unless the application declares one, and the Chronicle starter applies it to the `ChronicleOptions` it builds. See [read-model naming](read-model-naming.mdx#chronicle-projections-use-the-same-names).
+When Arc's MongoDB integration is present, its naming policy (`io.cratis.fundamentals.serialization.NamingPolicy`) also names the collection Chronicle projects each read model into, so a projected `Author` lands in `Authors`, the collection Arc reads by default. The Chronicle integration adapts the single `NamingPolicy` bean into a Chronicle `ReadModelNamingPolicy` bean unless the application declares one, and the Chronicle starter applies it to the `ChronicleOptions` it builds. See [read-model naming](read-model-naming.mdx#chronicle-projections-use-the-same-names).
 
 ## Execute reactor command side effects
 

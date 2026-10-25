@@ -4,10 +4,10 @@
 package io.cratis.arc.springdata.mongodb
 
 import com.mongodb.client.MongoCollection
-import io.cratis.arc.naming.NamingPolicy
 import io.cratis.arc.tenancy.TenantContextBridge
 import io.cratis.arc.tenancy.TenantId
 import io.cratis.arc.tenancy.currentTenant
+import io.cratis.fundamentals.serialization.NamingPolicy
 import org.springframework.data.mongodb.core.MongoOperations
 
 /**
@@ -76,6 +76,25 @@ public class TenantContextMongoAccess @JvmOverloads constructor(
     private val namingPolicy: NamingPolicy,
     private val fallbackTenantId: TenantId? = null
 ) {
+    /**
+     * Creates the access with Arc's legacy naming policy type.
+     *
+     * Kept so callers compiled against the previous API keep linking. Prefer the constructor taking
+     * [io.cratis.fundamentals.serialization.NamingPolicy]; every Arc policy is also one.
+     *
+     * @param resolver The tenant-aware operations resolver.
+     * @param namingPolicy The legacy Arc naming policy.
+     * @param fallbackTenantId The tenant used when no tenant is in the ambient context, or null to fail.
+     */
+    @Deprecated("Pass an io.cratis.fundamentals.serialization.NamingPolicy.")
+    @Suppress("DEPRECATION")
+    @JvmOverloads
+    public constructor(
+        resolver: TenantAwareMongoOperationsResolver,
+        namingPolicy: io.cratis.arc.naming.NamingPolicy,
+        fallbackTenantId: TenantId? = null
+    ) : this(resolver, widen(namingPolicy), fallbackTenantId)
+
     /**
      * Returns the [MongoOperations] for the tenant in the current coroutine context.
      *
@@ -165,5 +184,10 @@ public class TenantContextMongoAccess @JvmOverloads constructor(
     ): MongoCollection<T> {
         val collectionName = namingPolicy.getReadModelName(documentType)
         return operations.getCollection(collectionName).withDocumentClass(documentType)
+    }
+
+    private companion object {
+        @Suppress("DEPRECATION")
+        fun widen(namingPolicy: io.cratis.arc.naming.NamingPolicy): NamingPolicy = namingPolicy
     }
 }

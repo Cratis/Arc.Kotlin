@@ -7,7 +7,7 @@ import com.mongodb.ConnectionString
 import com.mongodb.MongoClientSettings
 import com.mongodb.client.MongoClients
 import io.cratis.fundamentals.concepts.ConceptAs
-import io.cratis.arc.springdata.mongodb.DefaultNamingPolicy
+import io.cratis.fundamentals.serialization.DefaultNamingPolicy
 import io.cratis.arc.springdata.mongodb.MongoChange
 import io.cratis.arc.springdata.mongodb.MongoChangeOperation
 import io.cratis.arc.springdata.mongodb.MongoObservationOptions

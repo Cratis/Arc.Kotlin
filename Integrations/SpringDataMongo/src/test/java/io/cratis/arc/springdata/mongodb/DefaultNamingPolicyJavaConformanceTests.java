@@ -16,6 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * the boolean parameter, method calls with {@code Class} and {@code String} arguments, and
  * that {@link NamingPolicy} is reachable as an interface type from Java.
  */
+@SuppressWarnings("deprecation")
 final class DefaultNamingPolicyJavaConformanceTests {
 
     // ── Construction ─────────────────────────────────────────────────────────
