@@ -133,6 +133,9 @@ tasks.test {
     inputs.dir(functionalRepository)
     systemProperty("arc.functional.repository", functionalRepository.get().asFile.absolutePath)
     systemProperty("arc.functional.version", project.version.toString())
+    val fundamentalsDependency = project(":Source").configurations.getByName("api").dependencies
+        .single { it.group == "io.cratis" && it.name == "fundamentals" }
+    systemProperty("arc.functional.fundamentalsVersion", requireNotNull(fundamentalsDependency.version))
     providers.gradleProperty("arc.fluent.evidence").orNull?.let { systemProperty("arc.fluent.evidence", it) }
     systemProperty("arc.functional.gradleHome", requireNotNull(gradle.gradleHomeDir).absolutePath)
     systemProperty("arc.functional.work", layout.buildDirectory.dir("functional-tests").get().asFile.absolutePath)

@@ -32,7 +32,8 @@ fun isNonStable(version: String): Boolean {
     val hasUnstableKeyword = listOf("ALPHA", "BETA", "RC", "M", "PREVIEW", "EAP")
         .any { version.uppercase().contains(it) }
     val stableVersionPattern = "^[0-9,.v-]+(-r)?$".toRegex()
-    return hasUnstableKeyword || !stableVersionPattern.matches(version)
+    val stableQualifiedVersionPattern = "^[0-9]+(\\.[0-9]+)*\\.(Final|GA|RELEASE)$".toRegex(RegexOption.IGNORE_CASE)
+    return hasUnstableKeyword || !(stableVersionPattern.matches(version) || stableQualifiedVersionPattern.matches(version))
 }
 
 // Arc's fluent-validation parser pins an exact Kotlin compiler (FluentSourceParser.toolchain()).
@@ -45,6 +46,8 @@ fun isHeldCompilerBaseline(group: String) =
 
 allprojects {
     tasks.withType<com.github.benmanes.gradle.versions.updates.DependencyUpdatesTask>().configureEach {
+        // Versions 0.66 reports prereleases in available.preRelease, which the older updater cannot safely consume.
+        rejectPreReleases = true
         rejectVersionIf {
             (isNonStable(candidate.version) && !isNonStable(currentVersion)) || isHeldCompilerBaseline(candidate.group)
         }

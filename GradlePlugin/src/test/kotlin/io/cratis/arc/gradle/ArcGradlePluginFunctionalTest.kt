@@ -23,6 +23,7 @@ import org.junit.jupiter.params.provider.ValueSource
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class ArcGradlePluginFunctionalTest {
     private val version = property("version")
+    private val fundamentalsVersion = property("fundamentalsVersion")
     private val repository = File(property("repository"))
     private val pluginJar = File(property("pluginJar"))
     private val pluginClasspath = property("pluginClasspath").split(File.pathSeparator).map(::File)
@@ -918,9 +919,9 @@ class ArcGradlePluginFunctionalTest {
                             .collect { it.group + ':' + it.module + ':' + it.version }.sort()
                     }
                     println 'RESOLVED_ARC_COORDINATES ' + coordinates
-                    assert coordinates == [${if (managed && runtimeScope != "runtimeOnly") "['io.cratis:arc:$expectedVersion', 'io.cratis:fundamentals:0.7.0']" else "[]"},
-                        ${if (managed && runtimeScope != "compileOnly") "['io.cratis:arc:$expectedVersion', 'io.cratis:fundamentals:0.7.0']" else "[]"},
-                        ${if (managed) "['io.cratis:arc-ksp:$expectedVersion', 'io.cratis:arc:$expectedVersion', 'io.cratis:fundamentals:0.7.0']" else "[]"}]
+                    assert coordinates == [${if (managed && runtimeScope != "runtimeOnly") "['io.cratis:arc:$expectedVersion', 'io.cratis:fundamentals:$fundamentalsVersion']" else "[]"},
+                        ${if (managed && runtimeScope != "compileOnly") "['io.cratis:arc:$expectedVersion', 'io.cratis:fundamentals:$fundamentalsVersion']" else "[]"},
+                        ${if (managed) "['io.cratis:arc-ksp:$expectedVersion', 'io.cratis:arc:$expectedVersion', 'io.cratis:fundamentals:$fundamentalsVersion']" else "[]"}]
                     println 'RESOLVED_DEPENDENCIES_VERIFIED $expectedVersion'
                 }
             }
