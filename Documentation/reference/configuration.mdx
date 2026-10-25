@@ -246,6 +246,14 @@ Without the plugin, apply Kotlin/JVM and `com.google.devtools.ksp`, add `io.crat
 
 Spring Boot 4 and Arc use the same Jackson 3 mapper. The starter contributes Arc's module and builder customizer, so conventional MVC controllers and generated Arc endpoints share the same naming, inclusion, temporal, enum, concept, and polymorphism policy without an additional property. An application-supplied mapper remains authoritative; construct its Arc-configured replacement with `ArcObjectMapper.configure(mapper)` because Jackson 3 mappers are immutable.
 
+Arc keeps its own concept codec and naming strategy (Cratis/Arc.Kotlin#301, decision D7).
+A concept serializes exactly as its underlying value does under Arc's mapper, including
+its 100 ns `LocalTime` guard. This differs from Fundamentals' optional `ConceptsModule`,
+which uses plain decimals, a `+00:00` UTC offset, and fixed seven-digit `LocalTime`.
+Do not add `fundamentals-jackson`'s `ConceptsModule` to an Arc mapper: Spring Boot's
+`spring.jackson.find-and-add-modules` (default `true`) discovers it when the artifact
+is on the runtime classpath, potentially changing the concept wire.
+
 ## Jackson 3 migration
 
 Arc's JSON API uses Jackson 3.1.x. Runtime types moved from `com.fasterxml.jackson` to `tools.jackson`, including `ObjectMapper`, `JsonNode`, modules, serializers, deserializers, and naming strategies. This is binary- and source-breaking for applications that called `ArcObjectMapper`, constructed `ChangeSetComputer` with a mapper, consumed introspection schemas, supplied an OpenAPI mapper, or referenced `ArcJacksonModule` directly. Replace those imports with their `tools.jackson` equivalents.
