@@ -136,7 +136,7 @@ Existing native Jackson type dispatch, configured through `@JsonTypeInfo` or def
 
 ### Flags combinations
 
-`@Flags` does not give an enum the ability to carry a combination. A JVM enum constant is one named value, so `Read or Write` has a constant to deserialize into only when the enum declares one. A generated client can compose such a value — the emitted `all<Name>` constant exists to be combined with `|` — and the server answers with the ordinary safe `malformedRequest` envelope on both a command body and a query argument, without disclosing the enum type. Arc .NET draws the same boundary, because its enum converter gates reads on whether the integer is a defined member.
+`@Flags` does not give an enum the ability to carry a combination. A JVM enum constant is one named value, so `Read or Write` has a constant to deserialize into only when the enum declares one. A generated client can compose such a value — the emitted `all<Name>` constant exists to be combined with `|` — and the server answers with the ordinary safe `malformedRequest` envelope on both a command body and a query argument, without disclosing the enum type. Arc .NET 22.14.0, the parity baseline, draws the same boundary for numeric JSON tokens. It pins Cratis Fundamentals 7.19.2, whose enum converter accepts a numeric token only when it is a defined member. String tokens such as `"3"` or `"Read, Write"` were always accepted there. From Cratis Fundamentals 7.20.1, a numeric token with any combination of declared flag bits is accepted. Arc .NET 22.49.0 and later pin Cratis Fundamentals 7.22.0.
 
 Two shapes carry a combination:
 
