@@ -21,13 +21,16 @@ internal object DerivedTypeIdentifiers {
      */
     fun honoursFundamentalsOnlyDerivedTypes(): Boolean = true
 
-    /** Returns the identifier declared on [type], or null when it carries no honoured annotation. */
-    fun of(type: Class<*>): String? {
+    /**
+     * Returns the identifier declared on [type], or null when it carries no honoured annotation.
+     * [honoursFundamentalsOnly] exists so tests can exercise the pre-Q-79 behaviour; production callers use the seam.
+     */
+    fun of(type: Class<*>, honoursFundamentalsOnly: Boolean = honoursFundamentalsOnlyDerivedTypes()): String? {
         val legacy = type.getAnnotation(DerivedType::class.java)?.id
         if (legacy != null) {
             return legacy
         }
-        if (!honoursFundamentalsOnlyDerivedTypes()) {
+        if (!honoursFundamentalsOnly) {
             return null
         }
         return type.getAnnotation(FundamentalsDerivedType::class.java)?.value

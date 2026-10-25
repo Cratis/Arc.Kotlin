@@ -6,14 +6,19 @@
 package io.cratis.arc.json
 
 import io.cratis.arc.polymorphism.ConcurrentDerivedTypeRegistry
+import io.cratis.arc.polymorphism.DerivedTypeIdentifiers
 import io.cratis.fundamentals.jackson.DerivedTypesModule
 import io.cratis.fundamentals.serialization.DerivedType
 import io.cratis.fundamentals.serialization.DerivedTypes
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import tools.jackson.databind.DeserializationFeature
+import tools.jackson.databind.exc.UnrecognizedPropertyException
 import tools.jackson.databind.json.JsonMapper
+import tools.jackson.module.kotlin.jacksonMapperBuilder
 import io.cratis.arc.polymorphism.DerivedType as ArcDerivedType
 
 /** Arc honours `io.cratis.fundamentals.serialization.DerivedType` exactly like its own annotation. */
@@ -46,6 +51,22 @@ class FundamentalsDerivedTypeAnnotationTest {
 
     @DerivedType("fundamentals-only")
     data class FundamentalsOnly(val size: Int)
+
+    interface Gadget
+
+    @DerivedType("gadget-fundamentals-only")
+    data class GadgetFundamentalsOnly(val size: Int) : Gadget
+
+    /** Structurally identical to [GadgetFundamentalsOnly] but unannotated: the pre-Q-79 wire shape. */
+    data class GadgetUnannotated(val size: Int)
+
+    private fun gadgetMapper() = ArcObjectMapper.create(
+        ConcurrentDerivedTypeRegistry().apply { register(Gadget::class.java, GadgetFundamentalsOnly::class.java) }
+    )
+
+    private fun strictPlainMapper(failOnUnknown: Boolean) = jacksonMapperBuilder()
+        .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, failOnUnknown)
+        .build()
 
     private fun registryWith(vararg types: Class<*>) = ConcurrentDerivedTypeRegistry().apply {
         types.forEach { register(Figure::class.java, it) }
@@ -131,5 +152,72 @@ class FundamentalsDerivedTypeAnnotationTest {
         val json = mapper.writeValueAsString(Circle(2.0))
 
         assertEquals(1, Regex("_derivedTypeId").findAll(json).count(), json)
+    }
+
+    @Test
+    fun `Q-79 after - a fundamentals only class is written with the fundamentals value as derived type id`() {
+        val json = gadgetMapper().writeValueAsString(GadgetFundamentalsOnly(7))
+
+        assertEquals("""{"size":7,"_derivedTypeId":"gadget-fundamentals-only"}""", json)
+    }
+
+    @Test
+    fun `Q-79 registered base reader yields the concrete type and round trips`() {
+        val mapper = gadgetMapper()
+        val json = mapper.writeValueAsString(GadgetFundamentalsOnly(7))
+
+        assertEquals(GadgetFundamentalsOnly(7), mapper.readValue(json, Gadget::class.java))
+    }
+
+    @Test
+    fun `Q-79 arc concrete reader tolerates the derived type id it writes`() {
+        val mapper = gadgetMapper()
+        val json = mapper.writeValueAsString(GadgetFundamentalsOnly(7))
+
+        assertEquals(GadgetFundamentalsOnly(7), mapper.readValue(json, GadgetFundamentalsOnly::class.java))
+    }
+
+    @Test
+    fun `Q-79 caveat - an older strict concrete reader rejects the added derived type id`() {
+        val json = gadgetMapper().writeValueAsString(GadgetFundamentalsOnly(7))
+
+        val exception = assertThrows(UnrecognizedPropertyException::class.java) {
+            strictPlainMapper(failOnUnknown = true).readValue(json, GadgetFundamentalsOnly::class.java)
+        }
+
+        assertEquals("_derivedTypeId", exception.propertyName)
+    }
+
+    @Test
+    fun `Q-79 caveat - a lenient concrete reader reads the added derived type id`() {
+        val json = gadgetMapper().writeValueAsString(GadgetFundamentalsOnly(7))
+
+        assertEquals(
+            GadgetFundamentalsOnly(7),
+            strictPlainMapper(failOnUnknown = false).readValue(json, GadgetFundamentalsOnly::class.java)
+        )
+    }
+
+    @Test
+    fun `Q-79 before - with the seam off the class has no identifier so the wire has no derived type id and the strict reader accepts it`() {
+        assertNull(DerivedTypeIdentifiers.of(GadgetFundamentalsOnly::class.java, honoursFundamentalsOnly = false))
+
+        // An unannotated twin is exactly what the serializer writes when the identifier is null (pre-Q-79).
+        val json = ArcObjectMapper.create().writeValueAsString(GadgetUnannotated(7))
+
+        assertEquals("""{"size":7}""", json)
+        assertEquals(
+            GadgetUnannotated(7),
+            strictPlainMapper(failOnUnknown = true).readValue(json, GadgetUnannotated::class.java)
+        )
+    }
+
+    @Test
+    fun `Q-79 seam - fundamentals only derived types are honoured, reverting is a one line change plus this test`() {
+        assertEquals(true, DerivedTypeIdentifiers.honoursFundamentalsOnlyDerivedTypes())
+        assertEquals(
+            "gadget-fundamentals-only",
+            DerivedTypeIdentifiers.of(GadgetFundamentalsOnly::class.java)
+        )
     }
 }

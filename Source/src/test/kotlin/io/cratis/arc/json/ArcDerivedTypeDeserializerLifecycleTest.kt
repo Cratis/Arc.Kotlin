@@ -215,19 +215,17 @@ class ArcDerivedTypeDeserializerLifecycleTest {
     }
 
     @Test
-    fun `native Jackson selection leaves the Arc discriminator as an unknown bean property`() {
+    fun `native Jackson selection ignores the Arc discriminator on an annotated derived type`() {
         val mapper = (ArcObjectMapper.create(registry()) as JsonMapper).rebuild()
             .addMixIn(LifecycleBase::class.java, LifecycleNativeType::class.java)
             .build()
-        val exception = assertThrows(UnrecognizedPropertyException::class.java) {
-            mapper.readValue(
-                """{"nativeKind":"alternate","_derivedTypeId":"middle","payload":"value","nested":[]}""",
-                LifecycleBase::class.java
-            )
-        }
 
-        assertEquals("_derivedTypeId", exception.propertyName)
-        assertEquals(LifecycleAlternate::class.java, exception.referringClass)
+        val value = mapper.readValue(
+            """{"nativeKind":"alternate","_derivedTypeId":"middle","payload":"value","nested":[]}""",
+            LifecycleBase::class.java
+        )
+
+        assertEquals(LifecycleAlternate::class.java, value.javaClass)
     }
 
     @Test

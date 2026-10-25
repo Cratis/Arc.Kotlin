@@ -6,6 +6,7 @@ import { test } from "node:test";
 import { EventSource as NodeEventSource } from "eventsource";
 import { Globals } from "@cratis/arc";
 import { IdentityProvider } from "@cratis/arc/identity";
+import { JsonSerializer } from "@cratis/fundamentals";
 import {
     Paging,
     QueryHttpMethod,
@@ -509,4 +510,21 @@ test("published TypeScript proxies interoperate with the Kotlin Spring Boot runt
         });
         assert.equal(tasks.length, 6);
     });
+
+    await t.test(
+        "Q-79 proxies ignore an extra _derivedTypeId on a payload",
+        () => {
+            // Arc.Kotlin writes _derivedTypeId for classes annotated only with the Fundamentals
+            // @DerivedType (Q-79). The generated proxy declares no such field, so it is simply not a declared member.
+            const payload = JSON.stringify({
+                id: "task-1",
+                title: "Plain",
+                _derivedTypeId: "fundamentals-only",
+            });
+            const result = JsonSerializer.deserialize(TaskCreated, payload);
+
+            assert.equal(result.id, "task-1");
+            assert.equal(result.title, "Plain");
+        },
+    );
 });
