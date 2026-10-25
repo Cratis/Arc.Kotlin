@@ -95,8 +95,8 @@ internal class GeneratedCommandHandlersTest {
         val explicit = ContractTestsArcArtifactModule()
         val loaded = ServiceLoader.load(ArcArtifactModule::class.java).toList()
 
-        assertEquals(33, explicit.commandHandlers.size)
-        assertEquals(35, explicit.queryPerformers.size)
+        assertEquals(35, explicit.commandHandlers.size)
+        assertEquals(39, explicit.queryPerformers.size)
         assertEquals(listOf(ContractTestsArcArtifactModule::class.java), loaded.map(Any::javaClass))
         assertEquals(
             listOf(
@@ -107,6 +107,7 @@ internal class GeneratedCommandHandlersTest {
                 "io.cratis.arc.contracts.fixtures.ImplicitVisibilityCommand",
                 JavaAsyncCommand::class.java.name,
                 "io.cratis.arc.contracts.fixtures.JavaExclusionCommand",
+                "io.cratis.arc.contracts.fixtures.JavaFundamentalsExclusionCommand",
                 "io.cratis.arc.contracts.fixtures.JavaIgnoreContractCommand",
                 JavaMapMetadataCommand::class.java.name,
                 JavaOptionalReadModelCommand::class.java.name,
@@ -118,6 +119,7 @@ internal class GeneratedCommandHandlersTest {
                 "io.cratis.arc.contracts.fixtures.KotlinBodyCommand",
                 KotlinCommandResultResponseCommand::class.java.name,
                 "io.cratis.arc.contracts.fixtures.KotlinExclusionCommand",
+                "io.cratis.arc.contracts.fixtures.KotlinFundamentalsExclusionCommand",
                 KotlinHandledOnlyResponseCommand::class.java.name,
                 KotlinMapMetadataCommand::class.java.name,
                 KotlinNestedResponseCommand::class.java.name,

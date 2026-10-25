@@ -11,11 +11,11 @@ import kotlin.reflect.jvm.javaField
 import kotlin.reflect.jvm.javaGetter
 
 /**
- * Suppresses concept rules only on one direct member of an exact runtime owner type.
+ * Suppresses concept rules ([ConceptValidator] and [FundamentalsConceptValidator]) only on one direct member of an exact runtime owner type.
  * The declared member type must implement [ConceptAs]. Inherited public readable members are
  * supported, but registration for a base owner does not match derived runtime owners.
  * Metadata is checked immediately, without constructing an owner or invoking its getters.
- * Model rules, Jakarta constraints and other pipeline filters are never excluded.
+ * Other model rules, Jakarta constraints and other pipeline filters are never excluded.
  */
 public class ConceptValidationExclusion(public val ownerType: Class<*>, public val member: String) {
     init {

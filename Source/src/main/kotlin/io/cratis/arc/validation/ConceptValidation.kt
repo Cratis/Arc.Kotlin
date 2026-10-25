@@ -36,7 +36,9 @@ internal class ConceptValidation(
     fun validate(value: Any?, member: String = ""): List<ValidationResult> {
         if (validators.isEmpty()) return emptyList()
         val validatedConcepts = IdentityHashMap<Any, Unit>()
-        return nodes(value, member).flatMap { node -> conceptResults(node, validatedConcepts) }.toList()
+        return nodes(value, member).flatMap { node ->
+            if (claimsConceptRules(node, validatedConcepts)) conceptResults(node.value, node.member) else emptyList()
+        }.toList()
     }
 
     suspend fun validate(value: Any?, context: ModelValidationContext): List<ValidationResult> {
@@ -46,8 +48,10 @@ internal class ConceptValidation(
         for (entry in nodes(value, context.memberPath)) {
             val node = entry.value
             val member = entry.member
+            val conceptRules = claimsConceptRules(entry, validatedConcepts)
             for (validator in modelValidators) {
-                if (!entry.firstVisit || validator.modelType != node.javaClass) continue
+                val runs = if (validator is FundamentalsConceptValidator<*>) conceptRules else entry.firstVisit
+                if (!runs || validator.modelType != node.javaClass) continue
                 try {
                     // Validate and snapshot the entire Java-provided list before publishing any feedback.
                     val feedback: Any? = validateModel(validator, node, context.atMember(member))
@@ -62,7 +66,7 @@ internal class ConceptValidation(
                     results.add(failure(member))
                 }
             }
-            results.addAll(conceptResults(entry, validatedConcepts))
+            if (conceptRules) results.addAll(conceptResults(node, member))
         }
         return results
     }
@@ -74,10 +78,8 @@ internal class ConceptValidation(
         validator: ModelValidator<T>, value: Any, context: ModelValidationContext
     ): List<ValidationResult> = validator.validate(validator.modelType.cast(value), context)
 
-    private fun conceptResults(node: Node, validatedConcepts: IdentityHashMap<Any, Unit>): List<ValidationResult> {
-        if (node.value !is ConceptAs<*> || node.excludeConcept || validatedConcepts.put(node.value, Unit) != null) return emptyList()
-        return conceptResults(node.value, node.member)
-    }
+    private fun claimsConceptRules(node: Node, validatedConcepts: IdentityHashMap<Any, Unit>): Boolean =
+        node.value is ConceptAs<*> && !node.excludeConcept && validatedConcepts.put(node.value, Unit) == null
 
     private fun conceptResults(value: Any, member: String): List<ValidationResult> {
         if (value !is ConceptAs<*>) return emptyList()
@@ -113,7 +115,7 @@ internal class ConceptValidation(
     ) {
         if (value == null) return
         val firstVisit = visited.put(value, Unit) == null
-        // Model/traversal identity is independent of whether a concept rule has actually run.
+        // Model/traversal identity is independent of the shared legacy/Fundamentals concept-rule identity.
         // A later required alias can therefore validate a concept first reached on an ignored edge.
         if (!firstVisit && value !is ConceptAs<*>) return
         yield(Node(value, member, firstVisit, excludeConcept))
