@@ -20,6 +20,7 @@ import static org.mockito.Mockito.when;
  * Exercises the public API as a plain Java consumer would call it — no Kotlin default
  * arguments, no suspend functions, no Kotlin extension syntax.
  */
+@SuppressWarnings("deprecation")
 final class JavaTenantContextMongoAccessTests {
 
     @Test

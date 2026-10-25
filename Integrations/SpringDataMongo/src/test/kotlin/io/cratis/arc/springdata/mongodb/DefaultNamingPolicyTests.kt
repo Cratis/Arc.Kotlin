@@ -1,10 +1,15 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+@file:Suppress("DEPRECATION")
+
 package io.cratis.arc.springdata.mongodb
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
+import io.cratis.fundamentals.serialization.DefaultNamingPolicy as FundamentalsDefaultNamingPolicy
 
 /**
  * Pins what Evo Inflector 1.3 actually produces for the nouns most likely to appear as read-model
@@ -81,6 +86,22 @@ class DefaultNamingPolicyTests {
     fun `getReadModelName pluralises a regular noun by appending s`() {
         // Confirmed: 'task' follows the default append-s rule.
         assertEquals("Tasks", DefaultNamingPolicy().getReadModelName(Task::class.java))
+    }
+
+    // ── facade parity with Fundamentals ──────────────────────────────────────
+
+    @ParameterizedTest
+    @ValueSource(strings = ["Person", "Child", "Index", "Status", "Series", "Category", "Entry", "Task"])
+    fun `the Arc facade names every pinned noun exactly as the Fundamentals policy does`(noun: String) {
+        val type = Class.forName("io.cratis.arc.springdata.mongodb.DefaultNamingPolicyTests\$$noun")
+        assertEquals(
+            FundamentalsDefaultNamingPolicy().getReadModelName(type),
+            DefaultNamingPolicy().getReadModelName(type)
+        )
+        assertEquals(
+            FundamentalsDefaultNamingPolicy(false).getReadModelName(type),
+            DefaultNamingPolicy(false).getReadModelName(type)
+        )
     }
 
     // ── pluralizeReadModelNames = false ──────────────────────────────────────

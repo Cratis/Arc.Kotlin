@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+@file:Suppress("DEPRECATION")
+
 package io.cratis.arc.springdata.mongodb
 
 import io.cratis.arc.authorization.ArcPrincipal
@@ -315,6 +317,39 @@ class MongoAutoConfigurationTests {
             .run { context ->
                 assertFalse(context.failed())
                 assertSame(custom, context.getBean(NamingPolicy::class.java))
+            }
+    }
+
+    @Test
+    fun `the default naming policy bean is both the Arc and the Fundamentals type`() {
+        runner().run { context ->
+            assertFalse(context.failed())
+            val arc = context.getBean(NamingPolicy::class.java)
+            val fundamentals = context.getBean(io.cratis.fundamentals.serialization.NamingPolicy::class.java)
+            assertSame(arc, fundamentals)
+            assertTrue(arc is DefaultNamingPolicy)
+        }
+    }
+
+    @Test
+    fun `a Fundamentals naming policy bean backs off the default and is used by the tenant access`() {
+        val custom = io.cratis.fundamentals.serialization.CamelCaseNamingPolicy()
+        val operations = mock(MongoOperations::class.java)
+        val raw = mock(com.mongodb.client.MongoCollection::class.java)
+        val typed = mock(com.mongodb.client.MongoCollection::class.java)
+        org.mockito.Mockito.doReturn(typed).`when`(raw).withDocumentClass(MongoTaskReadModel::class.java)
+        org.mockito.Mockito.doReturn(raw).`when`(operations).getCollection("mongoTaskReadModels")
+        runner()
+            .withBean(io.cratis.fundamentals.serialization.NamingPolicy::class.java, { custom })
+            .withBean(TenantAwareMongoOperationsResolver::class.java, {
+                TenantAwareMongoOperationsResolver { tenantId -> TenantMongoOperations(tenantId, operations) }
+            })
+            .run { context ->
+                assertFalse(context.failed())
+                assertSame(custom, context.getBean(io.cratis.fundamentals.serialization.NamingPolicy::class.java))
+                assertEquals(1, context.getBeanNamesForType(io.cratis.fundamentals.serialization.NamingPolicy::class.java).size)
+                val access = context.getBean(TenantContextMongoAccess::class.java)
+                assertSame(typed, access.collection(io.cratis.arc.tenancy.TenantId.of("tenant-a"), MongoTaskReadModel::class.java))
             }
     }
 

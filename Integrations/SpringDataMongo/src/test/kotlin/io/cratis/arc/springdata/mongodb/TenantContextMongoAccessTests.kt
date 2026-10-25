@@ -9,6 +9,7 @@ import de.bwaldvogel.mongo.backend.memory.MemoryBackend
 import io.cratis.arc.tenancy.TenantContextBridge
 import io.cratis.arc.tenancy.TenantId
 import io.cratis.arc.tenancy.withTenant
+import io.cratis.fundamentals.serialization.DefaultNamingPolicy
 import java.util.concurrent.Callable
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.AfterEach

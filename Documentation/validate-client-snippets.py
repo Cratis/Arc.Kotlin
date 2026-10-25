@@ -873,7 +873,7 @@ SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
     "guides/spring-data/repositories/bean-override": SnippetContext(
         kind="member",
         imports=(
-            "import io.cratis.arc.naming.NamingPolicy",
+            "import io.cratis.fundamentals.serialization.NamingPolicy",
             "import io.cratis.arc.springdata.mongodb.TenantAwareMongoOperationsResolver",
             "import io.cratis.arc.springdata.mongodb.TenantContextMongoAccess",
             "import io.cratis.arc.tenancy.TenantId",
@@ -1383,14 +1383,14 @@ SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
     "guides/read-model-naming/default-policy": SnippetContext(
         kind="member",
         imports=(
-            "import io.cratis.arc.naming.NamingPolicy",
-            "import io.cratis.arc.springdata.mongodb.DefaultNamingPolicy",
+            "import io.cratis.fundamentals.serialization.NamingPolicy",
+            "import io.cratis.fundamentals.serialization.DefaultNamingPolicy",
         ),
     ),
     "guides/read-model-naming/override-policy": SnippetContext(
         imports=(
-            "import io.cratis.arc.naming.NamingPolicy",
-            "import io.cratis.arc.springdata.mongodb.DefaultNamingPolicy",
+            "import io.cratis.fundamentals.serialization.NamingPolicy",
+            "import io.cratis.fundamentals.serialization.DefaultNamingPolicy",
             "import org.springframework.context.annotation.Bean",
             "import org.springframework.context.annotation.Configuration",
         ),
@@ -2613,7 +2613,7 @@ JAVA_SNIPPET_CONTEXTS: dict[str, JavaSnippetContext] = {
     "guides/spring-data/repositories/bean-override": JavaSnippetContext(
         kind="member",
         imports=(
-            "import io.cratis.arc.naming.NamingPolicy;",
+            "import io.cratis.fundamentals.serialization.NamingPolicy;",
             "import io.cratis.arc.springdata.mongodb.TenantAwareMongoOperationsResolver;",
             "import io.cratis.arc.springdata.mongodb.TenantContextMongoAccess;",
             "import io.cratis.arc.tenancy.TenantId;",
@@ -3177,14 +3177,14 @@ JAVA_SNIPPET_CONTEXTS: dict[str, JavaSnippetContext] = {
     "guides/read-model-naming/default-policy": JavaSnippetContext(
         kind="member",
         imports=(
-            "import io.cratis.arc.naming.NamingPolicy;",
-            "import io.cratis.arc.springdata.mongodb.DefaultNamingPolicy;",
+            "import io.cratis.fundamentals.serialization.NamingPolicy;",
+            "import io.cratis.fundamentals.serialization.DefaultNamingPolicy;",
         ),
     ),
     "guides/read-model-naming/override-policy": JavaSnippetContext(
         imports=(
-            "import io.cratis.arc.naming.NamingPolicy;",
-            "import io.cratis.arc.springdata.mongodb.DefaultNamingPolicy;",
+            "import io.cratis.fundamentals.serialization.NamingPolicy;",
+            "import io.cratis.fundamentals.serialization.DefaultNamingPolicy;",
             "import org.springframework.context.annotation.Bean;",
             "import org.springframework.context.annotation.Configuration;",
         ),

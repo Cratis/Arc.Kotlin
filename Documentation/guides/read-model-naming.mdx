@@ -5,7 +5,7 @@ description: Control how Arc derives MongoDB collection names from read-model ty
 
 ## How Arc names read-model collections
 
-When Arc resolves a MongoDB read-model collection, it delegates to a `NamingPolicy` bean to convert the JVM type into a storage name. The `NamingPolicy` interface declares two methods:
+When Arc resolves a MongoDB read-model collection, it delegates to a `NamingPolicy` bean to convert the JVM type into a storage name. `NamingPolicy` lives in `io.cratis:fundamentals` (`io.cratis.fundamentals.serialization`) and declares two methods:
 
 - `getReadModelName(Class<?>)` — returns the collection name for a read-model type. Must be non-blank and stable across calls for the same type.
 - `getPropertyName(String)` — returns the stored field name for a declared member name. The default implementation returns the name unchanged.
@@ -14,15 +14,21 @@ When Arc resolves a MongoDB read-model collection, it delegates to a `NamingPoli
 
 ## Default policy
 
-`DefaultNamingPolicy` is registered automatically by the MongoDB integration. It pluralizes the simple class name using [Evo Inflector](https://github.com/atteo/evo-inflector) (`org.atteo:evo-inflector`), except for a small built-in list of nouns where Evo Inflector and the kernel disagree: `Person` becomes `People` and `Index` becomes `Indices`, matching the kernel.
+`DefaultNamingPolicy` (`io.cratis.fundamentals.serialization.DefaultNamingPolicy`) is registered automatically by the MongoDB integration. It pluralizes the simple class name using [Evo Inflector](https://github.com/atteo/evo-inflector) (`org.atteo:evo-inflector`), except for a small built-in list of nouns where Evo Inflector and the kernel disagree: `Person` becomes `People` and `Index` becomes `Indices`, matching the kernel.
 
 <ArcBackendTabs snippet="guides/read-model-naming/default-policy" variants="kotlin,java" />
 
 Setting `pluralizeReadModelNames = false` returns the simple class name unchanged.
 
+`CamelCaseNamingPolicy` from the same package camel-cases both the pluralized collection name and member names (`Person` becomes `people`). It is the equivalent of the .NET Arc `WithCamelCaseNamingPolicy`: declare it as a bean to replace the default.
+
+## Deprecated Arc names
+
+`io.cratis.arc.naming.NamingPolicy` and `io.cratis.arc.springdata.mongodb.DefaultNamingPolicy` are deprecated for one minor release and will be removed in the next major. The Arc `NamingPolicy` is a sub-interface of the Fundamentals one, and the Arc `DefaultNamingPolicy` delegates to the Fundamentals default, so existing beans and injection points keep working. An application bean of either type replaces the default. New code should use the Fundamentals types.
+
 ## Chronicle projections use the same names
 
-With the Chronicle integration (`io.cratis:arc-chronicle-spring-boot-starter`, or `io.cratis:cratis`) next to the MongoDB integration, Arc's `NamingPolicy` also names the collection Chronicle projects each read model into. The integration adapts the single `NamingPolicy` bean into a Chronicle `ReadModelNamingPolicy` bean, and the Chronicle Spring Boot starter gives that bean to the `ChronicleOptions` it builds. A projected `Author` therefore lands in `Authors`, the collection Arc reads by default, with no configuration:
+With the Chronicle integration (`io.cratis:arc-chronicle-spring-boot-starter`, or `io.cratis:cratis`) next to the MongoDB integration, the naming policy also names the collection Chronicle projects each read model into. The integration adapts the single `NamingPolicy` bean (of either type) into a Chronicle `ReadModelNamingPolicy` bean, and the Chronicle Spring Boot starter gives that bean to the `ChronicleOptions` it builds. A projected `Author` therefore lands in `Authors`, the collection Arc reads by default, with no configuration:
 
 - The default `DefaultNamingPolicy` flows through, and so does a custom `NamingPolicy` bean that replaces it.
 - The policy names only the collection. The read model identifier, and everything keyed on it (projections, reducers, observers), is unchanged, and an explicit `@ReadModel(id = ...)` no longer changes the collection name.

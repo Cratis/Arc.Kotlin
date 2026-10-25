@@ -52,7 +52,7 @@ command handler, which Arc already runs in a coroutine, use the explicit-tenant 
 
 <ArcBackendTabs snippet="guides/spring-data/repositories/ambient-tenant" variants="kotlin,java" />
 
-For direct native driver access, the collection accessors return a `MongoCollection<T>` named by the `NamingPolicy`:
+For direct native driver access, the collection accessors return a `MongoCollection<T>` named by the `NamingPolicy` (`io.cratis.fundamentals.serialization.NamingPolicy`; the Arc type of the same name is deprecated):
 
 <ArcBackendTabs snippet="guides/spring-data/repositories/native-collection" variants="kotlin,java" />
 

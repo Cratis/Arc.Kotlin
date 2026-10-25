@@ -181,6 +181,9 @@ public final class io/cratis/arc/springdata/mongodb/TenantContextMongoAccess {
 	public fun <init> (Lio/cratis/arc/springdata/mongodb/TenantAwareMongoOperationsResolver;Lio/cratis/arc/naming/NamingPolicy;)V
 	public fun <init> (Lio/cratis/arc/springdata/mongodb/TenantAwareMongoOperationsResolver;Lio/cratis/arc/naming/NamingPolicy;Lio/cratis/arc/tenancy/TenantId;)V
 	public synthetic fun <init> (Lio/cratis/arc/springdata/mongodb/TenantAwareMongoOperationsResolver;Lio/cratis/arc/naming/NamingPolicy;Lio/cratis/arc/tenancy/TenantId;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Lio/cratis/arc/springdata/mongodb/TenantAwareMongoOperationsResolver;Lio/cratis/fundamentals/serialization/NamingPolicy;)V
+	public fun <init> (Lio/cratis/arc/springdata/mongodb/TenantAwareMongoOperationsResolver;Lio/cratis/fundamentals/serialization/NamingPolicy;Lio/cratis/arc/tenancy/TenantId;)V
+	public synthetic fun <init> (Lio/cratis/arc/springdata/mongodb/TenantAwareMongoOperationsResolver;Lio/cratis/fundamentals/serialization/NamingPolicy;Lio/cratis/arc/tenancy/TenantId;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun collection (Lio/cratis/arc/tenancy/TenantId;Ljava/lang/Class;)Lcom/mongodb/client/MongoCollection;
 	public final fun collection (Ljava/lang/Class;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun collectionForCurrentTenant (Ljava/lang/Class;)Lcom/mongodb/client/MongoCollection;

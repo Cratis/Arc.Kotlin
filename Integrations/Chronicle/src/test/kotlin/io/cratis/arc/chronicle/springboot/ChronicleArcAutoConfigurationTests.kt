@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+@file:Suppress("DEPRECATION")
+
 package io.cratis.arc.chronicle.springboot
 
 import io.cratis.arc.chronicle.ChronicleCommandResponseValueHandler
@@ -177,6 +179,33 @@ internal class ChronicleArcAutoConfigurationTests {
             .withConfiguration(AutoConfigurations.of(ChronicleArcAutoConfiguration::class.java))
             .withBean("first", NamingPolicy::class.java, { first })
             .withBean("second", NamingPolicy::class.java, { second })
+            .run { context -> assertThat(context).doesNotHaveBean(ReadModelNamingPolicy::class.java) }
+    }
+
+    @Test
+    fun `a Fundamentals naming policy flows through to the chronicle options`() {
+        val custom = io.cratis.fundamentals.serialization.CamelCaseNamingPolicy()
+
+        namingContextRunner
+            .withBean(io.cratis.fundamentals.serialization.NamingPolicy::class.java, { custom })
+            .run { context ->
+                assertThat(context).hasSingleBean(ReadModelNamingPolicy::class.java)
+                val policy = context.getBean(ChronicleOptions::class.java).readModelNamingPolicy
+                assertEquals("authors", policy.getReadModelName(Author::class.java))
+                assertEquals("people", policy.getReadModelName(Person::class.java))
+            }
+    }
+
+    @Test
+    fun `the read model naming policy backs off when an Arc and a Fundamentals naming policy both exist`() {
+        ApplicationContextRunner()
+            .withConfiguration(AutoConfigurations.of(ChronicleArcAutoConfiguration::class.java))
+            .withBean("arc", NamingPolicy::class.java, { namingPolicy("arc") })
+            .withBean(
+                "fundamentals",
+                io.cratis.fundamentals.serialization.NamingPolicy::class.java,
+                { io.cratis.fundamentals.serialization.CamelCaseNamingPolicy() }
+            )
             .run { context -> assertThat(context).doesNotHaveBean(ReadModelNamingPolicy::class.java) }
     }
 

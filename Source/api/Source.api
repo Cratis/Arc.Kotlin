@@ -1614,7 +1614,7 @@ public final class io/cratis/arc/metadata/ValidationRuleDescriptor {
 	public fun toString ()Ljava/lang/String;
 }
 
-public abstract interface class io/cratis/arc/naming/NamingPolicy {
+public abstract interface class io/cratis/arc/naming/NamingPolicy : io/cratis/fundamentals/serialization/NamingPolicy {
 	public fun getPropertyName (Ljava/lang/String;)Ljava/lang/String;
 	public abstract fun getReadModelName (Ljava/lang/Class;)Ljava/lang/String;
 }
