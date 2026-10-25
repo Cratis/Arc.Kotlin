@@ -21,7 +21,7 @@ import tools.jackson.databind.json.JsonMapper
 import tools.jackson.databind.module.SimpleModule
 import io.cratis.fundamentals.concepts.ConceptAs
 import io.cratis.arc.polymorphism.ConcurrentDerivedTypeRegistry
-import io.cratis.arc.polymorphism.DerivedType
+import io.cratis.fundamentals.serialization.DerivedType
 import io.cratis.arc.polymorphism.DerivedTypeRegistry
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors

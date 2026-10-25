@@ -10,7 +10,7 @@ import tools.jackson.databind.JsonNode
 import io.cratis.arc.concepts.ArcEnum
 import io.cratis.fundamentals.concepts.ConceptAs
 import io.cratis.arc.polymorphism.ConcurrentDerivedTypeRegistry
-import io.cratis.arc.polymorphism.DerivedType
+import io.cratis.fundamentals.serialization.DerivedType
 import java.math.BigDecimal
 import java.time.OffsetDateTime
 import java.time.Duration

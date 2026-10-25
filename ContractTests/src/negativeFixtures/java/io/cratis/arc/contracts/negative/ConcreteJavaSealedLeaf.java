@@ -3,8 +3,8 @@
 
 package io.cratis.arc.contracts.negative;
 
-import io.cratis.arc.polymorphism.DerivedType;
+import io.cratis.fundamentals.serialization.DerivedType;
 
-@DerivedType(id = "java-sealed-leaf")
+@DerivedType("java-sealed-leaf")
 public final class ConcreteJavaSealedLeaf extends ConcreteJavaSealedBase {
 }

@@ -3,9 +3,9 @@
 
 package io.cratis.arc.contracts.fixtures;
 
-import io.cratis.arc.polymorphism.DerivedType;
+import io.cratis.fundamentals.serialization.DerivedType;
 
 /** Java record derivative preserved without converting it to a Kotlin model. */
-@DerivedType(id = "java-contract")
+@DerivedType("java-contract")
 public record JavaFixtureImplementation(String label) implements JavaFixtureContract {
 }

@@ -6,7 +6,7 @@ package io.cratis.arc.polymorphism
 /**
  * Contributes derived types that code generation could not see.
  *
- * Generated artifact modules already carry every `@DerivedType` declared in their own compilation. An application
+ * Generated artifact modules already carry every `@DerivedType` (either annotation) declared in their own compilation. An application
  * supplies one of these for a hierarchy that arrives from a dependency binary Arc's code generation never processed.
  * Registrars run after the generated registrations, in declaration order.
  */

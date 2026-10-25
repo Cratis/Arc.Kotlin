@@ -6,7 +6,7 @@ package io.cratis.arc.artifacts
 import tools.jackson.databind.DatabindException
 import io.cratis.arc.json.ArcObjectMapper
 import io.cratis.arc.polymorphism.ConcurrentDerivedTypeRegistry
-import io.cratis.arc.polymorphism.DerivedType
+import io.cratis.fundamentals.serialization.DerivedType
 import io.cratis.arc.polymorphism.DerivedTypeRegistrar
 import io.cratis.arc.polymorphism.DerivedTypeRegistration
 import org.junit.jupiter.api.Assertions.assertEquals

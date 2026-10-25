@@ -40,7 +40,7 @@ import io.cratis.arc.metadata.QueryParameterSource
 import io.cratis.arc.metadata.SequenceKind
 import io.cratis.arc.metadata.TypeShapeKind
 import io.cratis.arc.polymorphism.ConcurrentDerivedTypeRegistry
-import io.cratis.arc.polymorphism.DerivedType
+import io.cratis.arc.polymorphism.DerivedTypeIdentifiers
 import io.cratis.arc.polymorphism.DerivedTypeRegistry
 import io.cratis.arc.queries.ObservableQueryHubMessageType
 import io.cratis.arc.queries.ObservableQueryTransferMode
@@ -397,9 +397,9 @@ private class ArcDerivedTypeSerializerModifier(private val registry: DerivedType
         beanDesc: BeanDescription.Supplier,
         serializer: ValueSerializer<*>
     ): ValueSerializer<*> {
-        val derivedType = beanDesc.get().beanClass.getAnnotation(DerivedType::class.java) ?: return serializer
+        val id = DerivedTypeIdentifiers.of(beanDesc.get().beanClass) ?: return serializer
         @Suppress("UNCHECKED_CAST")
-        return ArcDerivedTypeSerializer(serializer as ValueSerializer<Any>, derivedType.id, registry)
+        return ArcDerivedTypeSerializer(serializer as ValueSerializer<Any>, id, registry)
     }
 }
 

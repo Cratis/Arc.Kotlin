@@ -98,7 +98,7 @@ An operation — a command `handle` function or a read-model query function — 
 
 | Annotation | Target | Contract |
 | --- | --- | --- |
-| `@DerivedType(id)` | Class | Adds `_derivedTypeId` and registers a stable identifier for polymorphic Arc JSON. The identifier must be nonblank and unique for its base type. Code generation records the base-to-derivative mappings, and a host registers them so the identifier resolves when reading. See [Polymorphic reads](#polymorphic-reads). |
+| `@DerivedType(value)` (`io.cratis.fundamentals.serialization`) | Class | Adds `_derivedTypeId` and registers a stable identifier for polymorphic Arc JSON. The identifier must be nonblank and unique for its base type. Java writes `@DerivedType("circle")`. Arc ignores `targetType` because registrations follow the declared base type, and the Fundamentals `DerivedTypesModule` must not be registered on Arc's mapper. The former `io.cratis.arc.polymorphism.DerivedType(id)` is deprecated and still honoured, and wins when a class declares both with different identifiers (code generation warns). The wire format of Arc-annotated types is unchanged; moving to the new annotation is an import change that matters to builds treating warnings as errors. Code generation records the base-to-derivative mappings, and a host registers them so the identifier resolves when reading. See [Polymorphic reads](#polymorphic-reads). |
 | `@Flags` | Class | Marks an enum as a bit field. Generated TypeScript gains an `all<Name>` constant combining every nonzero member. Nothing about JVM serialization changes. |
 | `@ArcEnumValue(value)` | Field | Declares an enum member's integer wire value where KSP cannot prove it from a single integer-literal constructor argument. |
 

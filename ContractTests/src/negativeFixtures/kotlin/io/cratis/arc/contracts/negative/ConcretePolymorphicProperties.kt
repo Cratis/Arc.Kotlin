@@ -5,7 +5,7 @@ package io.cratis.arc.contracts.negative
 
 import io.cratis.arc.artifacts.Command
 import io.cratis.arc.artifacts.ReadModel
-import io.cratis.arc.polymorphism.DerivedType
+import io.cratis.fundamentals.serialization.DerivedType
 
 public open class ConcretePropertyBase(public val name: String = "base")
 

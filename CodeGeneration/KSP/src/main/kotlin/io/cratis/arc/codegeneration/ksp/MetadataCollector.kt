@@ -86,7 +86,7 @@ internal class MetadataCollector(
         collectedConcepts.clear()
         visits.clear()
         propertyDerivedTypeNames += derivedTypeNames
-        propertyDerivedTypeNames += resolver.getSymbolsWithAnnotation(DERIVED_TYPE_ANNOTATION)
+        propertyDerivedTypeNames += derivedTypeAnnotations().flatMap { resolver.getSymbolsWithAnnotation(it) }
             .filterIsInstance<KSClassDeclaration>()
             .mapNotNull { declaration -> declaration.qualifiedName?.asString() }
         derivedDeclarations = propertyDerivedTypeNames.sorted().mapNotNull(::resolveNamedDeclaration)
@@ -249,7 +249,7 @@ internal class MetadataCollector(
         val baseTypeName = superDeclarations.firstOrNull { candidate -> candidate.classKind == ClassKind.CLASS }
             ?.qualifiedName?.asString()
         val derivedTypeId = declaration.derivedTypeId()
-        if (declaration.hasAnnotation(DERIVED_TYPE_ANNOTATION) && derivedTypeId.isNullOrBlank()) {
+        if (declaration.hasDerivedTypeAnnotation() && derivedTypeId.isNullOrBlank()) {
             logger.error(
                 ArcDiagnostic.DERIVED_TYPE_ID,
                 "Derived type '$qualifiedName' must declare a nonblank @DerivedType id.",
@@ -514,11 +514,32 @@ internal class MetadataCollector(
         return true
     }
 
-    private fun KSClassDeclaration.derivedTypeId(): String? = annotations
-        .firstOrNull { annotation ->
-            annotation.annotationType.resolve().declaration.qualifiedName?.asString() == DERIVED_TYPE_ANNOTATION
+    private fun KSClassDeclaration.hasDerivedTypeAnnotation(): Boolean =
+        derivedTypeAnnotations().any { name -> hasAnnotation(name) }
+
+    /** Arc's own identifier wins when both annotations are present; Fundamentals-only classes are governed by the seam. */
+    private fun KSClassDeclaration.derivedTypeId(): String? {
+        val legacy = derivedTypeIdOf(LEGACY_DERIVED_TYPE_ANNOTATION, "id")
+        val fundamentals = if (honoursFundamentalsOnlyDerivedTypes()) derivedTypeIdOf(DERIVED_TYPE_ANNOTATION, "value") else null
+        if (legacy != null && fundamentals != null && legacy != fundamentals && warnedConflictingDerivedIds.add(this)) {
+            logger.warn(
+                ArcDiagnostic.DERIVED_TYPE_ID,
+                "Derived type '${qualifiedName?.asString()}' declares different @DerivedType identifiers " +
+                    "'$legacy' (io.cratis.arc.polymorphism.DerivedType) and '$fundamentals' " +
+                    "(io.cratis.fundamentals.serialization.DerivedType); Arc uses '$legacy'.",
+                this
+            )
         }
-        ?.arguments?.firstOrNull { argument -> argument.name?.asString() == "id" || argument.name == null }
+        return legacy ?: fundamentals
+    }
+
+    private fun KSClassDeclaration.derivedTypeIdOf(annotationName: String, elementName: String): String? = annotations
+        .firstOrNull { annotation ->
+            annotation.annotationType.resolve().declaration.qualifiedName?.asString() == annotationName
+        }
+        ?.arguments?.firstOrNull { argument -> argument.name?.asString() == elementName || argument.name == null }
         ?.value as? String
+
+    private val warnedConflictingDerivedIds = mutableSetOf<KSClassDeclaration>()
 
 }

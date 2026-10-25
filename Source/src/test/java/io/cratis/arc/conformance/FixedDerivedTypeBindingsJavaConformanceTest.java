@@ -8,7 +8,7 @@ import tools.jackson.databind.DatabindException;
 import tools.jackson.databind.ObjectMapper;
 import io.cratis.arc.json.ArcObjectMapper;
 import io.cratis.arc.polymorphism.ConcurrentDerivedTypeRegistry;
-import io.cratis.arc.polymorphism.DerivedType;
+import io.cratis.fundamentals.serialization.DerivedType;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -174,21 +174,21 @@ final class FixedDerivedTypeBindingsJavaConformanceTest {
         public T payload;
     }
 
-    @DerivedType(id = "fixed")
+    @DerivedType("fixed")
     public static final class FixedStringLeaf extends Base<String> { }
 
-    @DerivedType(id = "list")
+    @DerivedType("list")
     public static final class FixedListLeaf extends Base<List<String>> { }
 
     public abstract static class Middle<A, B> extends Base<A[]> { }
 
-    @DerivedType(id = "fixed-array")
+    @DerivedType("fixed-array")
     public static final class FixedArrayLeaf extends Middle<String, Integer> { }
 
-    @DerivedType(id = "fixed-list-array")
+    @DerivedType("fixed-list-array")
     public static final class FixedListArrayLeaf extends Middle<List<String>, Integer> { }
 
-    @DerivedType(id = "fixed-matrix")
+    @DerivedType("fixed-matrix")
     public static final class FixedMatrixLeaf extends Middle<String[], Integer> { }
 
     public static final class Holder<X, Y> {

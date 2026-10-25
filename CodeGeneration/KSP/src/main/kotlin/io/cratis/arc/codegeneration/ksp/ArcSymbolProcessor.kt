@@ -167,7 +167,7 @@ internal class ArcSymbolProcessor(environment: SymbolProcessorEnvironment) : Sym
         val commandSymbols = discoverRoots(resolver, COMMAND_ANNOTATION, commandNames)
         val readModelSymbols = discoverRoots(resolver, READ_MODEL_ANNOTATION, readModelNames)
         val exportedTypeSymbols = discoverRoots(resolver, EXPORTED_TYPE_ANNOTATION, exportedTypeNames)
-        derivedTypeNames += resolver.getSymbolsWithAnnotation("io.cratis.arc.polymorphism.DerivedType")
+        derivedTypeNames += derivedTypeAnnotations().flatMap { resolver.getSymbolsWithAnnotation(it) }
             .filterIsInstance<KSClassDeclaration>().mapNotNull { it.qualifiedName?.asString() }
         metadataCollector.useResolver(resolver, derivedTypeNames)
         deferred += (commandSymbols + readModelSymbols + exportedTypeSymbols).filterNot(KSAnnotated::validateForProcessing)

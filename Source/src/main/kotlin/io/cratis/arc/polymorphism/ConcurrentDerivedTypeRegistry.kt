@@ -20,23 +20,23 @@ public class ConcurrentDerivedTypeRegistry : DerivedTypeRegistry {
             "${derivedType.name} is not assignable to ${baseType.name}"
         }
 
-        val annotation = derivedType.getAnnotation(DerivedType::class.java)
+        val id = DerivedTypeIdentifiers.of(derivedType)
             ?: throw IllegalArgumentException("${derivedType.name} must be annotated with @DerivedType")
-        require(annotation.id.isNotBlank()) { "Derived type identifiers cannot be blank" }
+        require(id.isNotBlank()) { "Derived type identifiers cannot be blank" }
 
         val current = registrations[baseType] ?: Registrations()
-        val typeForId = current.byId[annotation.id]
+        val typeForId = current.byId[id]
         require(typeForId == null || typeForId == derivedType) {
-            "Derived type identifier '${annotation.id}' is already registered for ${typeForId?.name}"
+            "Derived type identifier '${id}' is already registered for ${typeForId?.name}"
         }
         val idForType = current.byType[derivedType]
-        require(idForType == null || idForType == annotation.id) {
+        require(idForType == null || idForType == id) {
             "${derivedType.name} is already registered with derived type identifier '$idForType'"
         }
 
         registrations[baseType] = Registrations(
-            current.byId + (annotation.id to derivedType),
-            current.byType + (derivedType to annotation.id)
+            current.byId + (id to derivedType),
+            current.byType + (derivedType to id)
         )
     }
 

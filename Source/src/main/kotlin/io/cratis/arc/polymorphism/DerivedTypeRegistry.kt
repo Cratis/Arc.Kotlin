@@ -5,7 +5,7 @@ package io.cratis.arc.polymorphism
 
 /** Registry used to resolve Arc derived-type identifiers without classpath scanning. */
 public interface DerivedTypeRegistry {
-    /** Registers an annotated concrete type for the supplied base type. Re-registering the same mapping is idempotent. */
+    /** Registers a concrete type annotated with either `@DerivedType` (Arc's or [io.cratis.fundamentals.serialization.DerivedType]) for the supplied base type. Re-registering the same mapping is idempotent. */
     public fun register(baseType: Class<*>, derivedType: Class<*>)
 
     /** Resolves an identifier for a declared base type, or returns null when it is unknown. */
