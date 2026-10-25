@@ -6,6 +6,10 @@ package io.cratis.arc.contracts
 import io.cratis.arc.contracts.fixtures.JavaCustomerCode
 import io.cratis.arc.contracts.fixtures.KotlinExclusionCommand
 import io.cratis.arc.contracts.fixtures.KotlinExclusionInput
+import io.cratis.arc.contracts.fixtures.KotlinFundamentalsExclusionCode
+import io.cratis.arc.contracts.fixtures.KotlinFundamentalsExclusionCommand
+import io.cratis.arc.contracts.fixtures.KotlinFundamentalsExclusionInput
+import io.cratis.arc.validation.FundamentalsConceptValidator
 import io.cratis.arc.generated.ContractTestsArcArtifactModule
 import io.cratis.arc.queries.FullyQualifiedQueryName
 import io.cratis.arc.results.ValidationResult
@@ -71,5 +75,55 @@ internal class GeneratedConceptExclusionScenarioTest {
         assertEquals(listOf("input.ignored.value"), query.perform(modelInvalid).result.validationResults.flatMap { it.members })
         assertEquals(listOf("input.ignored.value"), observable.collect(1, arguments = modelInvalid).shouldFail().validationResults.flatMap { it.members })
     }
+    private val fundamentalsExclusion = ConceptValidationExclusion(KotlinFundamentalsExclusionInput::class.java, "ignored")
+    private val fundamentals = object : FundamentalsConceptValidator<KotlinFundamentalsExclusionCode> {
+        override val conceptType = KotlinFundamentalsExclusionCode::class.java
+        override fun validate(concept: KotlinFundamentalsExclusionCode): List<ValidationResult> =
+            if (concept.value() == "RULE") listOf(ValidationResult.error("concept")) else emptyList()
+    }
+    private val fundamentalsModel = object : ModelValidator<KotlinFundamentalsExclusionCode> {
+        override val modelType = KotlinFundamentalsExclusionCode::class.java
+        override suspend fun validate(model: KotlinFundamentalsExclusionCode, context: ModelValidationContext): List<ValidationResult> =
+            if (model.value() == "MODEL") listOf(ValidationResult.error("model", listOf("value"))) else emptyList()
+    }
+
+    @Test
+    fun `generated Kotlin fundamentals commands honor exclusions after JSON and at required shared aliases`() : Unit = runBlocking {
+        val scenario = CommandScenario(module, KotlinFundamentalsExclusionCommand::class.java)
+            .addModelValidator(fundamentals).addModelValidator(fundamentalsModel).addConceptExclusion(fundamentalsExclusion)
+        val shared = KotlinFundamentalsExclusionCode("RULE")
+        val invalid = KotlinFundamentalsExclusionCommand(KotlinFundamentalsExclusionInput(shared, shared))
+        for (roundTrip in listOf(true, false)) {
+            scenario.withSerializationRoundTrip(roundTrip)
+            assertEquals(listOf("input.required"), scenario.execute(invalid).result.validationResults.flatMap { it.members })
+            assertEquals(listOf("input.required"), scenario.validate(invalid).result.validationResults.flatMap { it.members })
+            scenario.execute(KotlinFundamentalsExclusionCommand(KotlinFundamentalsExclusionInput(shared, KotlinFundamentalsExclusionCode("VALID")))).shouldSucceed()
+            assertEquals(listOf("input.ignored.value"), scenario.execute(KotlinFundamentalsExclusionCommand(KotlinFundamentalsExclusionInput(KotlinFundamentalsExclusionCode("MODEL"), null)))
+                .result.validationResults.flatMap { it.members })
+        }
+    }
+
+    @Test
+    fun `generated Kotlin fundamentals queries and observables retain nullable inputs and model rules`() : Unit = runBlocking {
+        val query = QueryScenario<Any>(module, fundamentalsName("findKotlinFundamentalsExclusions"))
+            .addModelValidator(fundamentals).addModelValidator(fundamentalsModel).addConceptExclusion(fundamentalsExclusion)
+        val observable = ObservableQueryScenario<Any>(module, fundamentalsName("observeKotlinFundamentalsExclusions"))
+            .addModelValidator(fundamentals).addModelValidator(fundamentalsModel).addConceptExclusion(fundamentalsExclusion)
+        val shared = KotlinFundamentalsExclusionCode("RULE")
+        val invalid = mapOf("input" to KotlinFundamentalsExclusionInput(shared, shared))
+        for (roundTrip in listOf(true, false)) {
+            query.withArgumentSerializationRoundTrip(roundTrip)
+            assertEquals(listOf("input.required"), query.perform(invalid).result.validationResults.flatMap { it.members })
+        }
+        assertEquals(listOf("input.required"), observable.collect(1, arguments = invalid).shouldFail().validationResults.flatMap { it.members })
+        for (arguments in listOf(emptyMap(), mapOf("input" to null), mapOf("input" to KotlinFundamentalsExclusionInput(shared, null)))) {
+            query.perform(arguments).shouldSucceed()
+            observable.collect(1, arguments = arguments).shouldSucceed().shouldHaveEmissionCount(1)
+        }
+        val modelInvalid = mapOf("input" to KotlinFundamentalsExclusionInput(KotlinFundamentalsExclusionCode("MODEL"), null))
+        assertEquals(listOf("input.ignored.value"), query.perform(modelInvalid).result.validationResults.flatMap { it.members })
+        assertEquals(listOf("input.ignored.value"), observable.collect(1, arguments = modelInvalid).shouldFail().validationResults.flatMap { it.members })
+    }
+    private fun fundamentalsName(method: String) = FullyQualifiedQueryName("io.cratis.arc.contracts.fixtures.KotlinFundamentalsExclusionView.$method")
     private fun name(method: String) = FullyQualifiedQueryName("io.cratis.arc.contracts.fixtures.KotlinExclusionView.$method")
 }

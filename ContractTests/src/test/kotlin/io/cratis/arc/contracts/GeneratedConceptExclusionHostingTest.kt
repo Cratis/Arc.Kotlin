@@ -6,6 +6,11 @@ package io.cratis.arc.contracts
 import io.cratis.arc.contracts.fixtures.JavaCustomerCode
 import io.cratis.arc.contracts.fixtures.JavaExclusionInput
 import io.cratis.arc.contracts.fixtures.KotlinExclusionInput
+import io.cratis.arc.contracts.fixtures.KotlinFundamentalsExclusionCode
+import io.cratis.arc.contracts.fixtures.KotlinFundamentalsExclusionInput
+import io.cratis.arc.contracts.fixtures.JavaFundamentalsExclusionCode
+import io.cratis.arc.contracts.fixtures.JavaFundamentalsExclusionInput
+import io.cratis.arc.validation.FundamentalsConceptValidator
 import io.cratis.arc.generated.ContractTestsArcArtifactModule
 import io.cratis.arc.metadata.EndpointRouteHelper
 import io.cratis.arc.results.ValidationResult
@@ -44,7 +49,7 @@ internal class GeneratedConceptExclusionHostingTest {
     private val http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build()
 
     @ParameterizedTest
-    @ValueSource(strings = ["Kotlin", "Java"])
+    @ValueSource(strings = ["Kotlin", "Java", "KotlinFundamentals", "JavaFundamentals"])
     fun `generated HTTP command execution and validation exclude only concept category`(language: String) {
         val handler = module.commandHandlers.single { it.commandType.simpleName == "${language}ExclusionCommand" }
         val route = EndpointRouteHelper.commandRoute(handler.metadata)
@@ -56,7 +61,7 @@ internal class GeneratedConceptExclusionHostingTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = ["Kotlin", "Java"])
+    @ValueSource(strings = ["Kotlin", "Java", "KotlinFundamentals", "JavaFundamentals"])
     fun `generated HTTP one shot and observable snapshots retain required concept and model validation`(language: String) {
         for (method in listOf("find", "observe")) {
             val name = "${language}ExclusionView.$method${language}Exclusions"
@@ -72,7 +77,7 @@ internal class GeneratedConceptExclusionHostingTest {
             invalid(request("""{"ignored":"RULE","required":"RULE"}"""), "input.required", "concept")
             invalid(request("""{"ignored":"MODEL","required":"VALID"}"""), "input.ignored.value", "model")
             valid(request("null"))
-            if (language == "Kotlin") valid(get("$route?waitForFirstResult=true&waitForFirstResultTimeout=2"))
+            if (language.startsWith("Kotlin")) valid(get("$route?waitForFirstResult=true&waitForFirstResultTimeout=2"))
         }
     }
 
@@ -101,6 +106,30 @@ internal class GeneratedConceptExclusionHostingTest {
         fun exclusionConversionService(mapper: ObjectMapper): ConversionService = DefaultConversionService().apply {
             addConverter(String::class.java, KotlinExclusionInput::class.java) { mapper.readValue(it, KotlinExclusionInput::class.java) }
             addConverter(String::class.java, JavaExclusionInput::class.java) { mapper.readValue(it, JavaExclusionInput::class.java) }
+            addConverter(String::class.java, KotlinFundamentalsExclusionInput::class.java) { mapper.readValue(it, KotlinFundamentalsExclusionInput::class.java) }
+            addConverter(String::class.java, JavaFundamentalsExclusionInput::class.java) { mapper.readValue(it, JavaFundamentalsExclusionInput::class.java) }
+        }
+        @Bean fun kotlinFundamentalsExclusion(): ConceptValidationExclusion = ConceptValidationExclusion(KotlinFundamentalsExclusionInput::class.java, "ignored")
+        @Bean fun javaFundamentalsExclusion(): ConceptValidationExclusion = ConceptValidationExclusion(JavaFundamentalsExclusionInput::class.java, "ignored")
+        @Bean fun kotlinFundamentalsConceptRule(): FundamentalsConceptValidator<KotlinFundamentalsExclusionCode> = object : FundamentalsConceptValidator<KotlinFundamentalsExclusionCode> {
+            override val conceptType = KotlinFundamentalsExclusionCode::class.java
+            override fun validate(concept: KotlinFundamentalsExclusionCode): List<ValidationResult> =
+                if (concept.value() == "RULE") listOf(ValidationResult.error("concept")) else emptyList()
+        }
+        @Bean fun javaFundamentalsConceptRule(): FundamentalsConceptValidator<JavaFundamentalsExclusionCode> = object : FundamentalsConceptValidator<JavaFundamentalsExclusionCode> {
+            override val conceptType = JavaFundamentalsExclusionCode::class.java
+            override fun validate(concept: JavaFundamentalsExclusionCode): List<ValidationResult> =
+                if (concept.value() == "RULE") listOf(ValidationResult.error("concept")) else emptyList()
+        }
+        @Bean fun kotlinFundamentalsModelRule(): ModelValidator<KotlinFundamentalsExclusionCode> = object : ModelValidator<KotlinFundamentalsExclusionCode> {
+            override val modelType = KotlinFundamentalsExclusionCode::class.java
+            override suspend fun validate(model: KotlinFundamentalsExclusionCode, context: ModelValidationContext): List<ValidationResult> =
+                if (model.value() == "MODEL") listOf(ValidationResult.error("model", listOf("value"))) else emptyList()
+        }
+        @Bean fun javaFundamentalsModelRule(): ModelValidator<JavaFundamentalsExclusionCode> = object : ModelValidator<JavaFundamentalsExclusionCode> {
+            override val modelType = JavaFundamentalsExclusionCode::class.java
+            override suspend fun validate(model: JavaFundamentalsExclusionCode, context: ModelValidationContext): List<ValidationResult> =
+                if (model.value() == "MODEL") listOf(ValidationResult.error("model", listOf("value"))) else emptyList()
         }
         @Bean fun kotlinExclusion(): ConceptValidationExclusion = ConceptValidationExclusion(KotlinExclusionInput::class.java, "ignored")
         @Bean fun javaExclusion(): ConceptValidationExclusion = ConceptValidationExclusion(JavaExclusionInput::class.java, "ignored")

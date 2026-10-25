@@ -9,6 +9,8 @@ import io.cratis.fundamentals.concepts.ConceptAs
 /**
  * Validator for a Fundamentals concept, registered as a [ModelValidator].
  * Rules match the exact runtime class, just like other model validators.
+ * As a concept rule, [ConceptValidationExclusion] suppresses it on the excluded edge;
+ * it follows the same concept-identity rules as [ConceptValidator].
  * Legacy Arc concept validators continue to implement [ConceptValidator] unchanged.
  */
 public interface FundamentalsConceptValidator<TConcept : ConceptAs<*>> : ModelValidator<TConcept> {

@@ -6,6 +6,10 @@ package io.cratis.arc.contracts;
 import io.cratis.arc.contracts.fixtures.JavaCustomerCode;
 import io.cratis.arc.contracts.fixtures.JavaExclusionCommand;
 import io.cratis.arc.contracts.fixtures.JavaExclusionInput;
+import io.cratis.arc.contracts.fixtures.JavaFundamentalsExclusionCode;
+import io.cratis.arc.contracts.fixtures.JavaFundamentalsExclusionCommand;
+import io.cratis.arc.contracts.fixtures.JavaFundamentalsExclusionInput;
+import io.cratis.arc.validation.FundamentalsConceptValidator;
 import io.cratis.arc.generated.ContractTestsArcArtifactModule;
 import io.cratis.arc.java.JavaAsyncScope;
 import io.cratis.arc.queries.FullyQualifiedQueryName;
@@ -68,5 +72,44 @@ final class GeneratedConceptExclusionScenarioJavaContractTest {
                 .shouldSucceed().shouldHaveEmissionCount(1);
         }
     }
+    @Test
+    void javaFundamentalsRulesHonorExclusionsThroughAllThreeGeneratedScenarioBridges() throws Exception {
+        var fundamentals = new FundamentalsConceptValidator<JavaFundamentalsExclusionCode>() {
+            @Override public Class<JavaFundamentalsExclusionCode> getConceptType() { return JavaFundamentalsExclusionCode.class; }
+            @Override public List<ValidationResult> validate(JavaFundamentalsExclusionCode value) {
+                return value.value().equals("RULE") ? List.of(ValidationResult.error("concept")) : List.of();
+            }
+        };
+        var ignored = new ConceptValidationExclusion(JavaFundamentalsExclusionInput.class, "ignored");
+        var commands = new CommandScenario<>(module, JavaFundamentalsExclusionCommand.class).addModelValidator(fundamentals);
+        var queries = new QueryScenario<Object>(module, fundamentalsName("findJavaFundamentalsExclusions")).addModelValidator(fundamentals);
+        var observables = new ObservableQueryScenario<Object>(module, fundamentalsName("observeJavaFundamentalsExclusions")).addModelValidator(fundamentals);
+        assertSame(commands, commands.addConceptExclusion(ignored));
+        assertSame(queries, queries.addConceptExclusion(ignored));
+        assertSame(observables, observables.addConceptExclusion(ignored));
+        var shared = new JavaFundamentalsExclusionCode("RULE");
+        var input = new JavaFundamentalsExclusionInput(shared, shared);
+        try (var command = new BlockingCommandScenario<>(commands); var query = new BlockingQueryScenario<>(queries);
+             var scope = JavaAsyncScope.usingExecutor(Runnable::run)) {
+            for (boolean roundTrip : List.of(true, false)) {
+                commands.withSerializationRoundTrip(roundTrip);
+                queries.withArgumentSerializationRoundTrip(roundTrip);
+                assertEquals(List.of("input.required"), command.execute(new JavaFundamentalsExclusionCommand(input)).getResult().getValidationResults().get(0).getMembers());
+                assertEquals(List.of("input.required"), command.validate(new JavaFundamentalsExclusionCommand(input)).getResult().getValidationResults().get(0).getMembers());
+                assertEquals(List.of("input.required"), query.perform(Map.of("input", input)).getResult().getValidationResults().get(0).getMembers());
+                command.execute(new JavaFundamentalsExclusionCommand(new JavaFundamentalsExclusionInput(shared, null))).shouldSucceed();
+                query.perform(Map.of("input", new JavaFundamentalsExclusionInput(shared, null))).shouldSucceed();
+            }
+            query.perform(Collections.singletonMap("input", null)).shouldSucceed();
+            var observable = new AsyncObservableQueryScenario<>(observables, scope);
+            var invalid = observable.collectAsync(1, 5000, Map.of("input", input)).toCompletableFuture().get(5, TimeUnit.SECONDS);
+            assertEquals(List.of("input.required"), invalid.shouldFail().getValidationResults().get(0).getMembers());
+            observable.collectAsync(1, 5000, Map.of("input", new JavaFundamentalsExclusionInput(shared, null))).toCompletableFuture().get(5, TimeUnit.SECONDS)
+                .shouldSucceed().shouldHaveEmissionCount(1);
+            observable.collectAsync(1, 5000, Collections.singletonMap("input", null)).toCompletableFuture().get(5, TimeUnit.SECONDS)
+                .shouldSucceed().shouldHaveEmissionCount(1);
+        }
+    }
+    private static FullyQualifiedQueryName fundamentalsName(String method) { return new FullyQualifiedQueryName("io.cratis.arc.contracts.fixtures.JavaFundamentalsExclusionView." + method); }
     private static FullyQualifiedQueryName name(String method) { return new FullyQualifiedQueryName("io.cratis.arc.contracts.fixtures.JavaExclusionView." + method); }
 }
