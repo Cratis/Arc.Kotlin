@@ -98,7 +98,7 @@ An operation — a command `handle` function or a read-model query function — 
 
 | Annotation | Target | Contract |
 | --- | --- | --- |
-| `@DerivedType(id)` | Class | Adds `_derivedTypeId` and registers a stable identifier for polymorphic Arc JSON. The identifier must be nonblank and unique for its base type. Code generation records the base-to-derivative mappings, and a host registers them so the identifier resolves when reading. See [Polymorphic reads](#polymorphic-reads). |
+| `@DerivedType(value)` (`io.cratis.fundamentals.serialization`) | Class | Adds `_derivedTypeId` and registers a stable identifier for polymorphic Arc JSON. The identifier must be nonblank and unique for its base type. Java writes `@DerivedType("circle")`. Arc ignores `targetType` because registrations follow the declared base type, and the Fundamentals `DerivedTypesModule` must not be registered on Arc's mapper. The former `io.cratis.arc.polymorphism.DerivedType(id)` is deprecated and still honoured, and wins when a class declares both with different identifiers (code generation warns). The wire format of Arc-annotated types is unchanged; moving to the new annotation is an import change that matters to builds treating warnings as errors. Code generation records the base-to-derivative mappings, and a host registers them so the identifier resolves when reading. See [Polymorphic reads](#polymorphic-reads). |
 | `@Flags` | Class | Marks an enum as a bit field. Generated TypeScript gains an `all<Name>` constant combining every nonzero member. Nothing about JVM serialization changes. |
 | `@ArcEnumValue(value)` | Field | Declares an enum member's integer wire value where KSP cannot prove it from a single integer-literal constructor argument. |
 
@@ -107,6 +107,8 @@ The annotation alone does not make a value readable again. Resolving an identifi
 Serialization refuses a value whose base type is registered while the value's own type is not, and names both types. Such a value would otherwise be written with an identifier nothing can resolve and could never be read back. A type whose base type has no registrations at all is still written with its identifier, so a model that only travels to a client keeps working without a registry.
 
 Arc writes an enum as an integer: the result of `value()` when the enum implements `ArcEnum`, and the ordinal otherwise. Reading accepts that integer or the member name matched case-insensitively, and rejects anything else.
+
+`ArcEnum`, `@ArcEnumValue` and `@Flags` belong to Arc. Their C# counterparts are language and standard-library features: an enum declares its integer values itself, and `[Flags]` is `System.FlagsAttribute`. Cratis Fundamentals defines neither. Arc's mapper does not need the opt-in `EnumModule` from Fundamentals for Kotlin and Java, which writes ordinals and does not read `ArcEnum`.
 
 ### Polymorphic property declarations
 
@@ -134,7 +136,7 @@ Existing native Jackson type dispatch, configured through `@JsonTypeInfo` or def
 
 ### Flags combinations
 
-`@Flags` does not give an enum the ability to carry a combination. A JVM enum constant is one named value, so `Read or Write` has a constant to deserialize into only when the enum declares one. A generated client can compose such a value — the emitted `all<Name>` constant exists to be combined with `|` — and the server answers with the ordinary safe `malformedRequest` envelope on both a command body and a query argument, without disclosing the enum type. Arc .NET draws the same boundary, because its enum converter gates reads on whether the integer is a defined member.
+`@Flags` does not give an enum the ability to carry a combination. A JVM enum constant is one named value, so `Read or Write` has a constant to deserialize into only when the enum declares one. A generated client can compose such a value — the emitted `all<Name>` constant exists to be combined with `|` — and the server answers with the ordinary safe `malformedRequest` envelope on both a command body and a query argument, without disclosing the enum type. Arc .NET 22.14.0, the parity baseline, draws the same boundary for numeric JSON tokens. It pins Cratis Fundamentals 7.19.2, whose enum converter accepts a numeric token only when it is a defined member. String tokens such as `"3"` or `"Read, Write"` were always accepted there. From Cratis Fundamentals 7.20.1, a numeric token with any combination of declared flag bits is accepted. Arc .NET 22.49.0 and later pin Cratis Fundamentals 7.22.0.
 
 Two shapes carry a combination:
 

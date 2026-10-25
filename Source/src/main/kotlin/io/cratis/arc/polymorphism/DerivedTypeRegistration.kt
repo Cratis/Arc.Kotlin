@@ -12,7 +12,7 @@ package io.cratis.arc.polymorphism
 public class DerivedTypeRegistration(
     /** Type a polymorphic value is declared as on the wire. */
     public val baseType: Class<*>,
-    /** Concrete [DerivedType]-annotated implementation of [baseType]. */
+    /** Concrete `@DerivedType`-annotated (Arc's or [io.cratis.fundamentals.serialization.DerivedType]) implementation of [baseType]. */
     public val derivedType: Class<*>
 ) {
     override fun equals(other: Any?): Boolean = other is DerivedTypeRegistration &&

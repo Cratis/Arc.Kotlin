@@ -9,7 +9,7 @@ import tools.jackson.databind.DatabindException;
 import tools.jackson.databind.ObjectMapper;
 import io.cratis.arc.json.ArcObjectMapper;
 import io.cratis.arc.polymorphism.ConcurrentDerivedTypeRegistry;
-import io.cratis.arc.polymorphism.DerivedType;
+import io.cratis.fundamentals.serialization.DerivedType;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -106,7 +106,7 @@ final class MultilevelDerivedTypeJavaConformanceTest {
         }
     }
 
-    @DerivedType(id = "java-middle")
+    @DerivedType("java-middle")
     public static class Middle extends Root {
         public final String middle;
         public final Middle child;
@@ -123,7 +123,7 @@ final class MultilevelDerivedTypeJavaConformanceTest {
         }
     }
 
-    @DerivedType(id = "java-leaf")
+    @DerivedType("java-leaf")
     public static final class Leaf extends Middle {
         public final String leaf;
 

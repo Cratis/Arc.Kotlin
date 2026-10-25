@@ -4,7 +4,7 @@
 package io.cratis.arc.contracts.negative;
 
 import io.cratis.arc.artifacts.Command;
-import io.cratis.arc.polymorphism.DerivedType;
+import io.cratis.fundamentals.serialization.DerivedType;
 
 /** Invalid Java command whose model is an interface carrying @DerivedType. */
 @Command
@@ -13,7 +13,7 @@ public record AnnotatedDerivedTypeJavaInterfaceCommand(AnnotatedDerivedTypeJavaI
     }
 }
 
-@DerivedType(id = "annotated-java-interface")
+@DerivedType("annotated-java-interface")
 interface AnnotatedDerivedTypeJavaInterface {
     String value();
 }

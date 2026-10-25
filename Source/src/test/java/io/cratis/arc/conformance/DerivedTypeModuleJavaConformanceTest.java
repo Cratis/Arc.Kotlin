@@ -8,7 +8,7 @@ import io.cratis.arc.artifacts.ArcArtifactModule;
 import io.cratis.arc.artifacts.ArcArtifactModuleRegistry;
 import io.cratis.arc.json.ArcObjectMapper;
 import io.cratis.arc.polymorphism.ConcurrentDerivedTypeRegistry;
-import io.cratis.arc.polymorphism.DerivedType;
+import io.cratis.fundamentals.serialization.DerivedType;
 import io.cratis.arc.polymorphism.DerivedTypeRegistrar;
 import io.cratis.arc.polymorphism.DerivedTypeRegistration;
 import io.cratis.arc.polymorphism.DerivedTypeRegistry;
@@ -74,12 +74,12 @@ final class DerivedTypeModuleJavaConformanceTest {
     }
 
     /** Java record derivative of {@link JavaHostedShape}. */
-    @DerivedType(id = "java-circle")
+    @DerivedType("java-circle")
     public record JavaHostedCircle(double radius) implements JavaHostedShape {
     }
 
     /** Second Java record derivative, contributed by a registrar rather than a module. */
-    @DerivedType(id = "java-square")
+    @DerivedType("java-square")
     public record JavaHostedSquare(double side) implements JavaHostedShape {
     }
 }

@@ -10,7 +10,7 @@ import io.cratis.arc.metadata.ParameterDescriptor
 import io.cratis.arc.metadata.QueryDescriptor
 import io.cratis.arc.metadata.SequenceKind
 import io.cratis.arc.metadata.TypeShapeDescriptor
-import io.cratis.arc.polymorphism.DerivedType
+import io.cratis.fundamentals.serialization.DerivedType
 import io.cratis.arc.polymorphism.DerivedTypeRegistration
 import io.cratis.arc.queries.FullyQualifiedQueryName
 import io.cratis.arc.queries.QueryContext

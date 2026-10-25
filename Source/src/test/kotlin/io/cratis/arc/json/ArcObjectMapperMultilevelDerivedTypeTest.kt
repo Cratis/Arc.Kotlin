@@ -10,7 +10,7 @@ import tools.jackson.databind.DatabindException
 import tools.jackson.databind.exc.UnrecognizedPropertyException
 import tools.jackson.databind.json.JsonMapper
 import io.cratis.arc.polymorphism.ConcurrentDerivedTypeRegistry
-import io.cratis.arc.polymorphism.DerivedType
+import io.cratis.fundamentals.serialization.DerivedType
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull

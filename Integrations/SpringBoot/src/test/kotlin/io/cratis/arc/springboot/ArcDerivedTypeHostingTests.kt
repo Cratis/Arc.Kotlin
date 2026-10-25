@@ -9,7 +9,7 @@ import io.cratis.arc.commands.CommandHandler
 import io.cratis.arc.metadata.AuthorizationMetadata
 import io.cratis.arc.metadata.CommandDescriptor
 import io.cratis.arc.metadata.RouteOptions
-import io.cratis.arc.polymorphism.DerivedType
+import io.cratis.fundamentals.serialization.DerivedType
 import io.cratis.arc.polymorphism.DerivedTypeRegistrar
 import io.cratis.arc.polymorphism.DerivedTypeRegistration
 import org.junit.jupiter.api.Test

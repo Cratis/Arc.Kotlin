@@ -31,6 +31,8 @@ dependencies {
     api("tools.jackson.module:jackson-module-kotlin:$jacksonVersion")
     api("org.jetbrains.kotlinx:kotlinx-coroutines-core:$coroutinesVersion")
     api("org.slf4j:slf4j-api:$slf4jVersion")
+    // Test-only: proves an explicitly registered Fundamentals DerivedTypesModule coexists with Arc (not on any runtime classpath).
+    testImplementation("io.cratis:fundamentals-jackson:$fundamentalsVersion")
 }
 
 tasks.named("apiCheck") {

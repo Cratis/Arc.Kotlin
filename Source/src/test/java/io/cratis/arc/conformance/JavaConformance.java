@@ -57,7 +57,7 @@ import io.cratis.arc.metadata.PropertyDescriptor;
 import io.cratis.arc.metadata.QueryDescriptor;
 import io.cratis.arc.metadata.RouteOptions;
 import io.cratis.arc.polymorphism.ConcurrentDerivedTypeRegistry;
-import io.cratis.arc.polymorphism.DerivedType;
+import io.cratis.fundamentals.serialization.DerivedType;
 import io.cratis.arc.polymorphism.DerivedTypeRegistry;
 import io.cratis.arc.queries.ConcurrentQueryPerformerRegistry;
 import io.cratis.arc.queries.DefaultQueryPipeline;
@@ -428,7 +428,7 @@ public final class JavaConformance {
     }
 
     /** Java derived record. */
-    @DerivedType(id = "cat")
+    @DerivedType("cat")
     public record Cat(String name) implements Animal {
     }
 

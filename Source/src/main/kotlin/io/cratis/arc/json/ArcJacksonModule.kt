@@ -19,6 +19,7 @@ import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ValueSerializer
 import tools.jackson.databind.SerializationConfig
 import tools.jackson.databind.SerializationContext
+import tools.jackson.databind.deser.BeanDeserializerBuilder
 import tools.jackson.databind.deser.ValueDeserializerModifier
 import tools.jackson.databind.deser.Deserializers
 import tools.jackson.databind.deser.std.DelegatingDeserializer
@@ -40,7 +41,7 @@ import io.cratis.arc.metadata.QueryParameterSource
 import io.cratis.arc.metadata.SequenceKind
 import io.cratis.arc.metadata.TypeShapeKind
 import io.cratis.arc.polymorphism.ConcurrentDerivedTypeRegistry
-import io.cratis.arc.polymorphism.DerivedType
+import io.cratis.arc.polymorphism.DerivedTypeIdentifiers
 import io.cratis.arc.polymorphism.DerivedTypeRegistry
 import io.cratis.arc.queries.ObservableQueryHubMessageType
 import io.cratis.arc.queries.ObservableQueryTransferMode
@@ -251,6 +252,18 @@ private class ArcConceptDeserializer(private val conceptType: JavaType) : ValueD
 }
 
 private class ArcDerivedTypeDeserializerModifier(private val registry: DerivedTypeRegistry) : ValueDeserializerModifier() {
+    /** A concrete derived type reads back the `_derivedTypeId` Arc wrote for it (Q-79). */
+    override fun updateBuilder(
+        config: DeserializationConfig,
+        beanDesc: BeanDescription.Supplier,
+        builder: BeanDeserializerBuilder
+    ): BeanDeserializerBuilder {
+        if (DerivedTypeIdentifiers.of(beanDesc.get().beanClass) != null) {
+            builder.addIgnorable(DERIVED_TYPE_ID)
+        }
+        return builder
+    }
+
     override fun modifyDeserializer(
         config: DeserializationConfig,
         beanDesc: BeanDescription.Supplier,
@@ -397,9 +410,9 @@ private class ArcDerivedTypeSerializerModifier(private val registry: DerivedType
         beanDesc: BeanDescription.Supplier,
         serializer: ValueSerializer<*>
     ): ValueSerializer<*> {
-        val derivedType = beanDesc.get().beanClass.getAnnotation(DerivedType::class.java) ?: return serializer
+        val id = DerivedTypeIdentifiers.of(beanDesc.get().beanClass) ?: return serializer
         @Suppress("UNCHECKED_CAST")
-        return ArcDerivedTypeSerializer(serializer as ValueSerializer<Any>, derivedType.id, registry)
+        return ArcDerivedTypeSerializer(serializer as ValueSerializer<Any>, id, registry)
     }
 }
 

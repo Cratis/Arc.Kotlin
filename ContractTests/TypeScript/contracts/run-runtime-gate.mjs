@@ -46,7 +46,7 @@ const childRuns = [
         label: "general runtime contract [UTC]",
         contract: "contracts/runtime.contract.ts",
         timeZone: "UTC",
-        expectedTests: 15,
+        expectedTests: 16,
     },
 ];
 

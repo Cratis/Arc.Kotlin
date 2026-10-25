@@ -4,7 +4,7 @@
 package io.cratis.arc.contracts.negative;
 
 import io.cratis.arc.artifacts.Command;
-import io.cratis.arc.polymorphism.DerivedType;
+import io.cratis.fundamentals.serialization.DerivedType;
 
 /** Invalid Java command whose model carries a blank @DerivedType id. */
 @Command
@@ -13,6 +13,6 @@ public record BlankDerivedTypeIdJavaCommand(BlankDerivedTypeIdJavaShape shape) {
     }
 }
 
-@DerivedType(id = "")
+@DerivedType("")
 record BlankDerivedTypeIdJavaShape(String value) {
 }

@@ -12,7 +12,19 @@ internal const val ARC_ENUM_VALUE_ANNOTATION = "io.cratis.arc.concepts.ArcEnumVa
 internal const val FLAGS_ANNOTATION = "io.cratis.arc.concepts.Flags"
 internal const val JSON_IGNORE_ANNOTATION = "com.fasterxml.jackson.annotation.JsonIgnore"
 internal const val JSON_PROPERTY_ANNOTATION = "com.fasterxml.jackson.annotation.JsonProperty"
-internal const val DERIVED_TYPE_ANNOTATION = "io.cratis.arc.polymorphism.DerivedType"
+internal const val DERIVED_TYPE_ANNOTATION = "io.cratis.fundamentals.serialization.DerivedType"
+internal const val LEGACY_DERIVED_TYPE_ANNOTATION = "io.cratis.arc.polymorphism.DerivedType"
+
+/**
+ * Single switch (Cratis/Arc.Kotlin#301, Q-79) for classes that carry only the Fundamentals `@DerivedType`.
+ * Mirrors the runtime seam in `io.cratis.arc.polymorphism.DerivedTypeIdentifiers`, which KSP cannot reference.
+ */
+internal fun honoursFundamentalsOnlyDerivedTypes(): Boolean = true
+
+/** The `@DerivedType` annotations Arc honours, legacy first. */
+internal fun derivedTypeAnnotations(): List<String> =
+    if (honoursFundamentalsOnlyDerivedTypes()) listOf(LEGACY_DERIVED_TYPE_ANNOTATION, DERIVED_TYPE_ANNOTATION)
+    else listOf(LEGACY_DERIVED_TYPE_ANNOTATION)
 internal val JAVA_COLLECTION_NAMES = setOf("List", "Collection", "java.util.List", "java.util.Collection")
 internal val JAVA_MAP_NAMES = setOf("Map", "java.util.Map")
 internal val JAVA_TYPE_ALIASES = mapOf(

@@ -3,7 +3,7 @@
 
 package io.cratis.arc.contracts.negative;
 
-import io.cratis.arc.polymorphism.DerivedType;
+import io.cratis.fundamentals.serialization.DerivedType;
 
-@DerivedType(id = "java-concrete-leaf")
+@DerivedType("java-concrete-leaf")
 public final class ConcreteJavaPropertyLeaf extends ConcreteJavaPropertyIntermediate { }
