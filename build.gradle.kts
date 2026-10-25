@@ -35,10 +35,18 @@ fun isNonStable(version: String): Boolean {
     return hasUnstableKeyword || !stableVersionPattern.matches(version)
 }
 
+// Arc's fluent-validation parser pins an exact Kotlin compiler (FluentSourceParser.toolchain()).
+// Kotlin and kctfork (which embeds that compiler) move only by a deliberate baseline bump.
+// A manual bump must update the 2.4.20 messages in FluentSourceParser.kt/FluentValidationDiscovery.kt,
+// CodeGeneration/KSP/build.gradle.kts, the Kotlin plugins, kotlin-reflect/kotlin-gradle-plugin,
+// and the GradlePlugin functional tests together.
+fun isHeldCompilerBaseline(group: String) =
+    group == "org.jetbrains.kotlin" || group.startsWith("org.jetbrains.kotlin.") || group == "dev.zacsweers.kctfork"
+
 allprojects {
     tasks.withType<com.github.benmanes.gradle.versions.updates.DependencyUpdatesTask>().configureEach {
         rejectVersionIf {
-            isNonStable(candidate.version) && !isNonStable(currentVersion)
+            (isNonStable(candidate.version) && !isNonStable(currentVersion)) || isHeldCompilerBaseline(candidate.group)
         }
     }
 

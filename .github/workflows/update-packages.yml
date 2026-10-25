@@ -8,5 +8,8 @@ on:
 jobs:
   update:
     uses: Cratis/Workflows/.github/workflows/update-packages.yml@main
+    with:
+      # JDK 17 matches build.yml; arc-ksp's fluent parser runs only on JDK 17.
+      java-version: '17'
     secrets:
       PAT_WORKFLOWS: ${{ secrets.PAT_WORKFLOWS }}
