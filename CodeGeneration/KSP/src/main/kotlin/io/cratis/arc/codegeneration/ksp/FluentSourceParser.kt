@@ -55,11 +55,17 @@ internal object FluentSourceParser {
         val loader = javaClass.classLoader
         val parser = Class.forName("org.jetbrains.kotlin.cli.jvm.compiler.KotlinCoreEnvironment", false, loader)
         val version = Class.forName("org.jetbrains.kotlin.config.KotlinCompilerVersion", true, loader).getField("VERSION").get(null)
-        require(version == "2.4.20" && Runtime.version().feature() == 17) {
-            "shared fluent extraction requires kotlin-compiler-embeddable 2.4.20 and JDK17 (found $version / ${Runtime.version()})"
-        }
+        requireEnvironment(version.toString(), Runtime.version().feature(), ToolProvider.getSystemJavaCompiler() != null)
         val parentParser = try { Class.forName(parser.name, false, loader.parent); true } catch (_: ClassNotFoundException) { false }
-        return "parser=${parser.protectionDomain.codeSource.location}; version=$version; sameLoader=${parser.classLoader === loader}; parentParser=$parentParser; javac=${JavacTask::class.java.module.name}"
+        return "parser=${parser.protectionDomain.codeSource.location}; version=$version; sameLoader=${parser.classLoader === loader}; parentParser=$parentParser; javac=${JavacTask::class.java.module.name}; runtime=${Runtime.version().feature()}"
+    }
+
+    internal fun requireEnvironment(compilerVersion: String, runtimeFeature: Int, hasJavaCompiler: Boolean) {
+        require(compilerVersion == "2.4.20" && runtimeFeature in setOf(17, 21) && hasJavaCompiler) {
+            "shared fluent extraction requires kotlin-compiler-embeddable 2.4.20 and a full JDK17 or JDK21 with jdk.compiler " +
+                "(found compiler=$compilerVersion, processor runtime=$runtimeFeature, javac=$hasJavaCompiler); " +
+                "retain arc-ksp's published parser dependency and run the processor on a supported full JDK"
+        }
     }
 
     @OptIn(org.jetbrains.kotlin.compiler.plugin.ExperimentalCompilerApi::class, CompilerConfiguration.Internals::class)
@@ -184,9 +190,9 @@ internal object FluentSourceParser {
         } ?: throw FluentSourceRejected("numeric literal is outside the supported range")
     }
 
-    /** JDK17 parse only, never attribution, compilation, class loading or application execution. */
+    /** Supported JDK parse only, never attribution, compilation, class loading or application execution. */
     fun java(source: String, packageName: String, name: String, model: String): List<List<FluentCall>> {
-        val compiler = ToolProvider.getSystemJavaCompiler() ?: throw FluentSourceRejected("use JDK17 with the jdk.compiler parser")
+        val compiler = ToolProvider.getSystemJavaCompiler() ?: throw FluentSourceRejected("use a full JDK17 or JDK21 with the jdk.compiler parser")
         val diagnostics = DiagnosticCollector<JavaFileObject>()
         val input = object : SimpleJavaFileObject(URI.create("string:///$name.java"), JavaFileObject.Kind.SOURCE) {
             override fun getCharContent(ignoreEncodingErrors: Boolean): CharSequence = source
@@ -227,7 +233,7 @@ internal object FluentSourceParser {
 
     /** KSP omits source record components on some toolchains. Parse their declarations, never infer a getter body. */
     fun javaRecordTypes(source: String, packageName: String, name: String, resolve: (String, List<String>) -> String): Map<String, String>? {
-        val compiler = ToolProvider.getSystemJavaCompiler() ?: throw FluentSourceRejected("use JDK17 with jdk.compiler")
+        val compiler = ToolProvider.getSystemJavaCompiler() ?: throw FluentSourceRejected("use a full JDK17 or JDK21 with jdk.compiler")
         val diagnostics = DiagnosticCollector<JavaFileObject>()
         val input = object : SimpleJavaFileObject(URI.create("string:///$name.java"), JavaFileObject.Kind.SOURCE) {
             override fun getCharContent(ignoreEncodingErrors: Boolean): CharSequence = source
@@ -260,7 +266,7 @@ internal object FluentSourceParser {
 
     /** Default record components/public fields, or explicit identity accessors only; never infer from names. */
     fun javaWireMembers(source: String, packageName: String, name: String): Set<String> {
-        val compiler = ToolProvider.getSystemJavaCompiler() ?: throw FluentSourceRejected("use JDK17 with jdk.compiler")
+        val compiler = ToolProvider.getSystemJavaCompiler() ?: throw FluentSourceRejected("use a full JDK17 or JDK21 with jdk.compiler")
         val diagnostics = DiagnosticCollector<JavaFileObject>()
         val input = object : SimpleJavaFileObject(URI.create("string:///$name.java"), JavaFileObject.Kind.SOURCE) {
             override fun getCharContent(ignoreEncodingErrors: Boolean): CharSequence = source

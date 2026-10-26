@@ -85,7 +85,7 @@ internal class FluentValidationDiscovery(private val logger: ArcDiagnosticReport
                 val file = File(path)
                 require(file.isFile) { "source '$path' is unavailable" }
                 val toolchain = try { FluentSourceParser.toolchain() } catch (exception: Exception) {
-                    logger.error(ArcDiagnostic.FLUENT_METADATA, "Fluent validator '$name': parser dependency unavailable or unsupported (${exception.message}); use arc-ksp with kotlin-compiler-embeddable 2.4.20 on JDK17.", declaration)
+                    logger.error(ArcDiagnostic.FLUENT_METADATA, "Fluent validator '$name': parser dependency unavailable or unsupported (${exception.message}); retain arc-ksp's kotlin-compiler-embeddable 2.4.20 dependency and use a full JDK17 or JDK21 with jdk.compiler.", declaration)
                     continue
                 }
                 trace?.invoke("[ARC-FLUENT-PARSER] $toolchain")
@@ -109,7 +109,7 @@ internal class FluentValidationDiscovery(private val logger: ArcDiagnosticReport
                 val code = if (name !in names || !indexed) ArcDiagnostic.FLUENT_METADATA else ArcDiagnostic.FLUENT_DECLARATION
                 logger.error(code, "Fluent validator '$name': ${exception.message}; use the restricted literal constructor grammar.", declaration)
             } catch (exception: LinkageError) {
-                logger.error(ArcDiagnostic.FLUENT_METADATA, "Fluent validator '$name': compiler parser unavailable (${exception.javaClass.simpleName}); use arc-ksp with its exact kotlin-compiler-embeddable 2.4.20 dependency on JDK17.", declaration)
+                logger.error(ArcDiagnostic.FLUENT_METADATA, "Fluent validator '$name': compiler parser unavailable (${exception.javaClass.simpleName}); retain arc-ksp's exact kotlin-compiler-embeddable 2.4.20 dependency and use a full JDK17 or JDK21 with jdk.compiler.", declaration)
             }
         }
         return Snapshot(local, all, deferred)
