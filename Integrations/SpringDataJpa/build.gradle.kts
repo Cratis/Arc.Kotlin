@@ -8,7 +8,7 @@ plugins {
     id("com.vanniktech.maven.publish")
 }
 
-val springBootVersion = "4.1.1"
+val springBootVersion = "4.1.2"
 val h2Version = "2.5.252"
 
 dependencies {

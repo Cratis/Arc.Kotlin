@@ -12,7 +12,7 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
-val springDataVersion = "4.1.1"
+val springDataVersion = "4.1.2"
 val testcontainersVersion = "2.0.5"
 val defaultChronicleKernelImage =
     "cratis/chronicle:19.22.2-development@sha256:83e33a9ac7b5ded1b31801083498782d370e5b4ac86b7cc2447165b08e48057f"
@@ -72,9 +72,9 @@ dependencies {
     testImplementation(project(":Integrations:OpenApi"))
     testImplementation(project(":Integrations:Chronicle"))
     testImplementation("io.mockk:mockk:1.14.11")
-    testImplementation("org.springframework.boot:spring-boot-starter-test:4.1.1")
-    testImplementation("org.springframework.boot:spring-boot-starter-webmvc:4.1.1")
-    testImplementation("org.springframework.boot:spring-boot-starter-websocket:4.1.1")
+    testImplementation("org.springframework.boot:spring-boot-starter-test:4.1.2")
+    testImplementation("org.springframework.boot:spring-boot-starter-webmvc:4.1.2")
+    testImplementation("org.springframework.boot:spring-boot-starter-websocket:4.1.2")
 
     add(chronicleRealKernelTest.implementationConfigurationName, project(":Integrations:Chronicle"))
     add(chronicleRealKernelTest.implementationConfigurationName, "org.junit.jupiter:junit-jupiter:6.1.3")
@@ -90,7 +90,7 @@ dependencies {
     add(documentationSnippet.implementationConfigurationName, project(":Integrations:SpringDataJpa"))
     // The security guide documents a SecurityFilterChain that installs Arc's platform
     // authentication filter, so the snippets need Spring Security's own types.
-    add(documentationSnippet.implementationConfigurationName, "org.springframework.boot:spring-boot-starter-security:4.1.1")
+    add(documentationSnippet.implementationConfigurationName, "org.springframework.boot:spring-boot-starter-security:4.1.2")
     // kotlin("test") rather than a pinned coordinate, so this tracks the Kotlin plugin
     // version applied above instead of becoming a second place to remember to bump.
     add(documentationSnippet.implementationConfigurationName, kotlin("test"))

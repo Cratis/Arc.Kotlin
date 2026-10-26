@@ -11,8 +11,8 @@ plugins {
 
 // Compile against the versions Spring Boot 4.1.1 supplies to consuming applications. Keeping Arc
 // aligned prevents the compile/runtime binary skew that issue #135 exposed under the previous host.
-val jacksonVersion = "3.2.2"
-val fundamentalsVersion = "0.7.0"
+val jacksonVersion = "3.2.4"
+val fundamentalsVersion = "0.7.1"
 val coroutinesVersion = "1.11.0"
 val jakartaValidationVersion = "3.1.1"
 val slf4jVersion = "2.0.20"
