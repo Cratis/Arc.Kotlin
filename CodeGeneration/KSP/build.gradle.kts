@@ -26,6 +26,11 @@ dependencies {
 }
 
 tasks.test {
+    providers.gradleProperty("arc.fluentParserTestJdk").orNull?.let { feature ->
+        javaLauncher.set(javaToolchains.launcherFor {
+            languageVersion.set(JavaLanguageVersion.of(feature.toInt()))
+        })
+    }
     systemProperty("arc.ksp.projectDir", projectDir.absolutePath)
     providers.gradleProperty("arc.prototype.evidence").orNull?.let { systemProperty("arc.prototype.evidence", it) }
     providers.gradleProperty("arc.fluent.evidence").orNull?.let { systemProperty("arc.fluent.evidence", it) }

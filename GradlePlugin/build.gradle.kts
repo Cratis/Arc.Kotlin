@@ -133,6 +133,9 @@ tasks.test {
     inputs.dir(functionalRepository)
     systemProperty("arc.functional.repository", functionalRepository.get().asFile.absolutePath)
     systemProperty("arc.functional.version", project.version.toString())
+    val fluentRuntimeJdks = providers.gradleProperty("arc.fluentRuntimeJdks")
+    inputs.property("arc.fluentRuntimeJdks", fluentRuntimeJdks.orElse("current"))
+    fluentRuntimeJdks.orNull?.let { systemProperty("arc.fluentRuntimeJdks", it) }
     val fundamentalsDependency = project(":Source").configurations.getByName("api").dependencies
         .single { it.group == "io.cratis" && it.name == "fundamentals" }
     systemProperty("arc.functional.fundamentalsVersion", requireNotNull(fundamentalsDependency.version))

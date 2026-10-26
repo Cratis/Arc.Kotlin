@@ -50,6 +50,67 @@ jobs:
       - name: Lint workflow files
         run: actionlint -color
 
+  # Required before merge: this executes the processor on both supported runtimes,
+  # not just a JDK17 compiler toolchain hosted by a different Gradle runtime.
+  fluent-parser-compatibility:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        processor-jdk: [17, 21]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install full JDK 21
+        id: jdk21
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      # Keep the parent Gradle build on 17; tests explicitly choose the parser and
+      # nested Gradle processor runtime and assert the actual in-processor trace.
+      - name: Set up JDK 17
+        id: jdk17
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: ContractTests/TypeScript/package-lock.json
+
+      - name: Verify embedded parser and native processor runtime compatibility
+        env:
+          PROCESSOR_JDK: ${{ matrix.processor-jdk }}
+          JDK17_HOME: ${{ steps.jdk17.outputs.path }}
+          JDK21_HOME: ${{ steps.jdk21.outputs.path }}
+        run: |
+          set -euo pipefail
+          runtime_homes="${JDK17_HOME}"
+          if [ "${PROCESSOR_JDK}" = 21 ]; then
+            runtime_homes="${JDK17_HOME}:${JDK21_HOME}"
+          fi
+          ./gradlew :CodeGeneration:KSP:test :GradlePlugin:test \
+            --tests '*FluentSourceParserCompatibilityTest' \
+            --tests '*ArcFluentValidationCompilationTest' \
+            --tests '*ArcFluentValidationNativeFunctionalTest' \
+            --tests '*ArcFluentValidationRuntimeCompatibilityFunctionalTest' \
+            "-Parc.fluentParserTestJdk=${PROCESSOR_JDK}" \
+            "-Parc.fluentRuntimeJdks=${runtime_homes}" \
+            "-Dorg.gradle.java.installations.paths=${JDK17_HOME},${JDK21_HOME}" \
+            -Dorg.gradle.java.installations.auto-download=false \
+            --no-build-cache --no-configuration-cache --stacktrace
+
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 45
