@@ -32,13 +32,24 @@ fun isNonStable(version: String): Boolean {
     val hasUnstableKeyword = listOf("ALPHA", "BETA", "RC", "M", "PREVIEW", "EAP")
         .any { version.uppercase().contains(it) }
     val stableVersionPattern = "^[0-9,.v-]+(-r)?$".toRegex()
-    return hasUnstableKeyword || !stableVersionPattern.matches(version)
+    val stableQualifiedVersionPattern = "^[0-9]+(\\.[0-9]+)*\\.(Final|GA|RELEASE)$".toRegex(RegexOption.IGNORE_CASE)
+    return hasUnstableKeyword || !(stableVersionPattern.matches(version) || stableQualifiedVersionPattern.matches(version))
 }
+
+// Arc's fluent-validation parser pins an exact Kotlin compiler (FluentSourceParser.toolchain()).
+// Kotlin and kctfork (which embeds that compiler) move only by a deliberate baseline bump.
+// A manual bump must update the 2.4.20 messages in FluentSourceParser.kt/FluentValidationDiscovery.kt,
+// CodeGeneration/KSP/build.gradle.kts, the Kotlin plugins, kotlin-reflect/kotlin-gradle-plugin,
+// and the GradlePlugin functional tests together.
+fun isHeldCompilerBaseline(group: String) =
+    group == "org.jetbrains.kotlin" || group.startsWith("org.jetbrains.kotlin.") || group == "dev.zacsweers.kctfork"
 
 allprojects {
     tasks.withType<com.github.benmanes.gradle.versions.updates.DependencyUpdatesTask>().configureEach {
+        // Versions 0.66 reports prereleases in available.preRelease, which the older updater cannot safely consume.
+        rejectPreReleases = true
         rejectVersionIf {
-            isNonStable(candidate.version) && !isNonStable(currentVersion)
+            (isNonStable(candidate.version) && !isNonStable(currentVersion)) || isHeldCompilerBaseline(candidate.group)
         }
     }
 
