@@ -461,6 +461,8 @@ private class ArcCommandHttpRequestHandler(
     private val principalFactory: ArcPrincipalFactory,
     private val tenantResolution: ArcTenantResolutionService
 ) : HttpRequestHandler {
+    private val callerSeverityMaximum = CallerValidationSeverity.commandMaximum(handler.commandType)
+
     override fun handleRequest(request: HttpServletRequest, response: HttpServletResponse) {
         val requestStartedAt = System.nanoTime()
         val asyncManager = WebAsyncUtils.getAsyncManager(request)
@@ -564,16 +566,10 @@ private class ArcCommandHttpRequestHandler(
         } catch (_: TenantAccessDeniedException) {
             return CapturedCommandRequest.Completed(correlationId, CommandResult.unauthorized(correlationId))
         }
-        val allowedSeverityHeader = request.getHeader(ALLOWED_SEVERITY_HEADER)
-        val parsedAllowedSeverity = parseAllowedSeverity(allowedSeverityHeader)
-        if (allowedSeverityHeader != null && parsedAllowedSeverity == null) {
-            return CapturedCommandRequest.Completed(correlationId, CommandResult.malformed(correlationId))
-        }
-        val allowedSeverity = parsedAllowedSeverity ?: if (handler.metadata.treatWarningsAsErrors) {
-            ValidationResultSeverity.Information
-        } else {
-            null
-        }
+        val requested = CallerValidationSeverity.parse(request.getHeader(ALLOWED_SEVERITY_HEADER))
+        val allowedSeverity = CallerValidationSeverity.cap(
+            requested, callerSeverityMaximum, properties.command, handler.metadata.treatWarningsAsErrors
+        )
         val command = try {
             objectMapper.readValue(
                 boundedRequestBody(request, properties.maximumRequestBodyBytes),
@@ -726,15 +722,5 @@ private class ArcCommandHttpRequestHandler(
             )
         )
 
-        fun parseAllowedSeverity(value: String?): ValidationResultSeverity? {
-            if (value == null) return null
-            val normalized = value.trim()
-            normalized.toIntOrNull()?.let { wireValue ->
-                return ValidationResultSeverity.entries.firstOrNull { severity -> severity.value() == wireValue }
-            }
-            return ValidationResultSeverity.entries.firstOrNull { severity ->
-                severity.name.equals(normalized, ignoreCase = true)
-            }
-        }
     }
 }

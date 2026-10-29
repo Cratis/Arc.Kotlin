@@ -5,6 +5,10 @@ public final class io/cratis/arc/ExceptionDetailRedactor {
 	public static final fun redact (Lio/cratis/arc/results/QueryResult;Z)Lio/cratis/arc/results/QueryResult;
 }
 
+public abstract interface annotation class io/cratis/arc/artifacts/AllowCallerValidationSeverity : java/lang/annotation/Annotation {
+	public abstract fun maximum ()Lio/cratis/arc/results/ValidationResultSeverity;
+}
+
 public final class io/cratis/arc/artifacts/ArcArtifactManifest {
 	public static final field CURRENT_FORMAT_VERSION I
 	public static final field Companion Lio/cratis/arc/artifacts/ArcArtifactManifest$Companion;

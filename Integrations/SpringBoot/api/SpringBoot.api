@@ -99,6 +99,7 @@ public abstract interface class io/cratis/arc/springboot/ArcPrincipalFactory {
 
 public final class io/cratis/arc/springboot/ArcProperties {
 	public fun <init> ()V
+	public fun getCommand ()Lio/cratis/arc/springboot/ArcProperties$CommandProperties;
 	public fun getCommandScopeCompletionTimeout ()Ljava/time/Duration;
 	public fun getCoroutineParallelism ()I
 	public fun getCoroutineQueueCapacity ()I
@@ -112,6 +113,7 @@ public final class io/cratis/arc/springboot/ArcProperties {
 	public fun getRequestTimeout ()Ljava/time/Duration;
 	public fun getTenancy ()Lio/cratis/arc/springboot/ArcTenancyProperties;
 	public fun getTenantHeader ()Ljava/lang/String;
+	public fun setCommand (Lio/cratis/arc/springboot/ArcProperties$CommandProperties;)V
 	public fun setCommandScopeCompletionTimeout (Ljava/time/Duration;)V
 	public fun setCoroutineParallelism (I)V
 	public fun setCoroutineQueueCapacity (I)V
@@ -125,6 +127,14 @@ public final class io/cratis/arc/springboot/ArcProperties {
 	public fun setRequestTimeout (Ljava/time/Duration;)V
 	public fun setTenancy (Lio/cratis/arc/springboot/ArcTenancyProperties;)V
 	public fun setTenantHeader (Ljava/lang/String;)V
+}
+
+public final class io/cratis/arc/springboot/ArcProperties$CommandProperties {
+	public fun <init> ()V
+	public fun getMaximumCallerAllowedSeverity ()Lio/cratis/arc/results/ValidationResultSeverity;
+	public fun isIgnoreCallerAllowedSeverity ()Z
+	public fun setIgnoreCallerAllowedSeverity (Z)V
+	public fun setMaximumCallerAllowedSeverity (Lio/cratis/arc/results/ValidationResultSeverity;)V
 }
 
 public final class io/cratis/arc/springboot/ArcProperties$EndpointProperties {

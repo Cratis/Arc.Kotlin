@@ -12,7 +12,8 @@ description: Exact Arc annotations available to Kotlin and Java application mode
 | `@ExportedType` | Class | Makes a type an artifact root when no command or query references it. See [Exported types](#exported-types). |
 | `@CommandKey` | Property, field, value parameter, getter | Selects the command identity. Required for plain Chronicle event responses. |
 | `@FromServices` | Value parameter | Resolves a query parameter from the host service container instead of the request. Command handler dependencies are service-resolved by their generated signature. |
-| `@TreatWarningsAsErrors` | Class, function | Makes information and warning validation feedback blocking by default. |
+| `@TreatWarningsAsErrors` | Class, function | On command execute and validate routes, warnings and errors always block: the maximum nonblocking severity is at most `Information`. Caller headers, opt-ins and host settings cannot relax this floor; stricter caller thresholds are preserved unless the header is ignored. |
+| `@AllowCallerValidationSeverity` | Class (also read from superclasses) | Highest severity a caller's `X-Allowed-Severity` may make nonblocking for this command; replaces `cratis.arc.command.maximum-caller-allowed-severity`, but cannot relax a `@TreatWarningsAsErrors` floor. The host's ignore option still takes precedence over caller input. |
 
 Generated command, model, read-model, and interface sequence properties require nonnullable elements. KSP reports `ARCKSP0300` for nullable entries, including Java record `List<@Nullable T>` type uses; nullable outer `List<T>?`, `Collection<T>?`, and `Array<T>?` remain supported. This is an earlier source rejection of an already unsupported manifest shape, not a source-compatible change. See [sequence properties](../guides/typescript-proxies.mdx#declare-nonnullable-sequence-elements).
 

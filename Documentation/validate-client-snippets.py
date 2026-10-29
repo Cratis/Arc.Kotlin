@@ -1020,6 +1020,13 @@ SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
             data class CreateTask(val title: String)
         """,
     ),
+    "guides/commands/caller-severity": SnippetContext(
+        imports=(
+            IMPORT_COMMAND,
+            "import io.cratis.arc.artifacts.AllowCallerValidationSeverity",
+            "import io.cratis.arc.results.ValidationResultSeverity",
+        ),
+    ),
     "guides/commands/validation-failure": SnippetContext(
         imports=(
             IMPORT_VALIDATION_RESULT,
@@ -2746,6 +2753,13 @@ JAVA_SNIPPET_CONTEXTS: dict[str, JavaSnippetContext] = {
             record TaskCreated(String id, String title) { }
             interface TaskRepository { Task create(String title); }
         """,
+    ),
+    "guides/commands/caller-severity": JavaSnippetContext(
+        imports=(
+            "import io.cratis.arc.artifacts.Command;",
+            "import io.cratis.arc.artifacts.AllowCallerValidationSeverity;",
+            "import io.cratis.arc.results.ValidationResultSeverity;",
+        ),
     ),
     "guides/commands/provide": JavaSnippetContext(
         imports=("import io.cratis.arc.artifacts.Command;",),

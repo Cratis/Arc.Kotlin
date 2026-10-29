@@ -16,6 +16,11 @@
       "description": "HTTP command and query endpoint route settings. Arc identity endpoints use their fixed /.cratis routes."
     },
     {
+      "name": "cratis.arc.command",
+      "type": "io.cratis.arc.springboot.ArcProperties$CommandProperties",
+      "description": "Limits for caller-supplied validation severity on command HTTP endpoints."
+    },
+    {
       "name": "cratis.arc.observable-queries",
       "type": "io.cratis.arc.springboot.ArcProperties$ObservableQueryProperties",
       "description": "Observable-query snapshot, direct streaming, and multiplexed hub limits."
@@ -50,6 +55,18 @@
       "type": "java.lang.Integer",
       "defaultValue": 4,
       "description": "Maximum number of Arc request coroutines that may execute concurrently."
+    },
+    {
+      "name": "cratis.arc.command.maximum-caller-allowed-severity",
+      "type": "io.cratis.arc.results.ValidationResultSeverity",
+      "defaultValue": "Warning",
+      "description": "Highest validation severity a caller may make nonblocking by default on command and validate endpoints. A command opt-in replaces this maximum."
+    },
+    {
+      "name": "cratis.arc.command.ignore-caller-allowed-severity",
+      "type": "java.lang.Boolean",
+      "defaultValue": false,
+      "description": "Ignores caller-supplied allowed severity on command and validate endpoints, including command opt-ins."
     },
     {
       "name": "cratis.arc.observable-queries.allowed-origins",

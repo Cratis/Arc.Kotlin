@@ -69,6 +69,8 @@ All properties use the `cratis.arc` prefix.
 | `platform-identity.enabled` | `false` | Opts into the optional Spring Security platform-header bridge. The default trust policy denies all ingress; supply an application `ArcPlatformIdentityTrust` and secure, header-rewriting ingress. With no application chain, all routes require authentication and CSRF stays enabled; see [platform security](../guides/security.mdx#establish-trust-before-accepting-platform-headers). |
 | `identity-cookie-secure-policy` | `auto` | `always`, `never`, or `auto`; auto secures HTTPS and every non-development profile. |
 | `expose-exception-details` | Profile-derived | When unset, enabled only for `dev`, `development`, or `local` profiles. |
+| `command.maximum-caller-allowed-severity` | `Warning` | Highest severity a caller's `X-Allowed-Severity` may make nonblocking on command and validate routes: `Unknown`, `Information`, `Warning`, or `Error` (case-insensitive). A command's `@AllowCallerValidationSeverity` replaces this maximum. |
+| `command.ignore-caller-allowed-severity` | `false` | Ignores `X-Allowed-Severity` on command and validate routes, including command opt-ins; server defaults still apply. |
 | `observable-queries.wait-for-first-result-timeout` | `30s` | Maximum default wait for the first HTTP snapshot result. A request may shorten it. |
 | `observable-queries.keep-alive-interval` | `30s` | Idle interval between hub `Ping` messages; zero disables heartbeats. |
 | `observable-queries.connection-timeout` | `30m` | Maximum SSE connection lifetime; zero disables the transport timeout. |
