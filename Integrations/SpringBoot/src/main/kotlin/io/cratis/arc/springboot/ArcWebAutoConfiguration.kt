@@ -567,8 +567,9 @@ private class ArcCommandHttpRequestHandler(
             return CapturedCommandRequest.Completed(correlationId, CommandResult.unauthorized(correlationId))
         }
         val requested = CallerValidationSeverity.parse(request.getHeader(ALLOWED_SEVERITY_HEADER))
-        val allowedSeverity = CallerValidationSeverity.cap(requested, callerSeverityMaximum, properties.command)
-            ?: ValidationResultSeverity.Information.takeIf { handler.metadata.treatWarningsAsErrors }
+        val allowedSeverity = CallerValidationSeverity.cap(
+            requested, callerSeverityMaximum, properties.command, handler.metadata.treatWarningsAsErrors
+        )
         val command = try {
             objectMapper.readValue(
                 boundedRequestBody(request, properties.maximumRequestBodyBytes),

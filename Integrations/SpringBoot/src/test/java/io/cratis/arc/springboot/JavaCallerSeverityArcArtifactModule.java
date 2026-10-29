@@ -5,6 +5,7 @@ package io.cratis.arc.springboot;
 
 import io.cratis.arc.artifacts.AllowCallerValidationSeverity;
 import io.cratis.arc.artifacts.ArcArtifactModule;
+import io.cratis.arc.artifacts.TreatWarningsAsErrors;
 import io.cratis.arc.commands.CommandContext;
 import io.cratis.arc.commands.CommandHandler;
 import io.cratis.arc.metadata.AuthorizationMetadata;
@@ -22,14 +23,16 @@ public final class JavaCallerSeverityArcArtifactModule extends ArcArtifactModule
         PlainSeverityCommand.class, new AtomicInteger(),
         OptedInSeverityCommand.class, new AtomicInteger(),
         StricterSeverityCommand.class, new AtomicInteger(),
-        WarningsAsErrorsSeverityCommand.class, new AtomicInteger());
+        WarningsAsErrorsSeverityCommand.class, new AtomicInteger(),
+        OptedInWarningsAsErrorsSeverityCommand.class, new AtomicInteger());
 
     public JavaCallerSeverityArcArtifactModule() {
         super(List.of(
             new SeverityCommandHandler(PlainSeverityCommand.class, false),
             new SeverityCommandHandler(OptedInSeverityCommand.class, false),
             new SeverityCommandHandler(StricterSeverityCommand.class, false),
-            new SeverityCommandHandler(WarningsAsErrorsSeverityCommand.class, true)), List.of());
+            new SeverityCommandHandler(WarningsAsErrorsSeverityCommand.class, true),
+            new SeverityCommandHandler(OptedInWarningsAsErrorsSeverityCommand.class, true)), List.of());
     }
 
     public record PlainSeverityCommand(String value) { }
@@ -40,7 +43,12 @@ public final class JavaCallerSeverityArcArtifactModule extends ArcArtifactModule
     @AllowCallerValidationSeverity(maximum = ValidationResultSeverity.Information)
     public record StricterSeverityCommand(String value) { }
 
+    @TreatWarningsAsErrors
     public record WarningsAsErrorsSeverityCommand(String value) { }
+
+    @TreatWarningsAsErrors
+    @AllowCallerValidationSeverity(maximum = ValidationResultSeverity.Error)
+    public record OptedInWarningsAsErrorsSeverityCommand(String value) { }
 
     private static final class SeverityCommandHandler implements CommandHandler {
         private final Class<?> commandType;

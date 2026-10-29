@@ -25,6 +25,15 @@ internal class ArcCallerValidationSeverityHostMaximumHostingTests {
     }
 
     @Test
+    fun `host maximum cannot relax the warnings as errors floor`() {
+        listOf("Warning", "1", "2", "3").forEach { header ->
+            listOf("", "/validate").forEach { suffix ->
+                mockMvc.severityRequest("warnings-as-errors", "warning", header, suffix).expectSeverityError(2)
+            }
+        }
+    }
+
+    @Test
     fun `command maximum replaces a more permissive host maximum`() {
         mockMvc.severityRequest("stricter", "warning", "2").expectSeverityError(2)
     }

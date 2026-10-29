@@ -30,9 +30,12 @@ internal object CallerValidationSeverity {
     fun cap(
         requested: ValidationResultSeverity?,
         commandMaximum: ValidationResultSeverity?,
-        settings: ArcProperties.CommandProperties
+        settings: ArcProperties.CommandProperties,
+        treatWarningsAsErrors: Boolean = false
     ): ValidationResultSeverity? {
-        if (requested == null || settings.isIgnoreCallerAllowedSeverity) return null
-        return minOf(requested, commandMaximum ?: settings.maximumCallerAllowedSeverity, compareBy { it.value() })
+        val floorMaximum = ValidationResultSeverity.Information.takeIf { treatWarningsAsErrors }
+        if (requested == null || settings.isIgnoreCallerAllowedSeverity) return floorMaximum
+        val allowed = minOf(requested, commandMaximum ?: settings.maximumCallerAllowedSeverity, compareBy { it.value() })
+        return if (floorMaximum != null) minOf(allowed, floorMaximum, compareBy { it.value() }) else allowed
     }
 }

@@ -61,7 +61,7 @@ Register a Spring bean implementing `CommandValidator<T>`. Java implements `Bloc
 
 `ValidationResult.information`, `ValidationResult.warning`, and `ValidationResult.error` are static factories that name the severity and default members, state, reason, and reason detail. They read the same from Java, and the `ValidationResult` constructor with an explicit `ValidationResultSeverity` remains available.
 
-Without an explicit threshold, only errors block execution. Use `@TreatWarningsAsErrors` to set `Information` as the default maximum nonblocking severity, so warnings and errors block. Callers can send `X-Allowed-Severity` as a severity name or wire number; feedback numerically above the effective threshold blocks. On command and validate routes, the caller's threshold is capped at `Warning` unless the command opts in or the host changes the maximum. Unrecognised values and numbers outside 0–3 are ignored.
+Without an explicit threshold, only errors block execution. On command and validate routes, `@TreatWarningsAsErrors` sets a blocking floor: the effective maximum nonblocking severity is at most `Information`, so warnings and errors always block, regardless of the header. Callers can send `X-Allowed-Severity` as a severity name or wire number; feedback numerically above the effective threshold blocks. On command and validate routes, the caller's threshold is capped at `Warning` unless the command opts in or the host changes the maximum. Unrecognised values and numbers outside 0–3 are ignored.
 
 ### Let callers relax validation errors
 
@@ -69,7 +69,9 @@ Use `@AllowCallerValidationSeverity` to replace the host maximum for a command, 
 
 <ArcBackendTabs snippet="guides/commands/caller-severity" variants="kotlin,java" />
 
-`cratis.arc.command.ignore-caller-allowed-severity=true` takes precedence over command opt-ins and ignores the header completely. Otherwise, the command annotation replaces `cratis.arc.command.maximum-caller-allowed-severity` (default `Warning`). With no usable header, the existing `@TreatWarningsAsErrors` default applies. That annotation is a default, not a floor; use a maximum of `Information` when callers must not relax warnings.
+`cratis.arc.command.ignore-caller-allowed-severity=true` takes precedence over command opt-ins and ignores the header completely. Otherwise, `@AllowCallerValidationSeverity` replaces `cratis.arc.command.maximum-caller-allowed-severity` (default `Warning`) when capping the caller's threshold.
+
+The `@TreatWarningsAsErrors` floor applies after that cap, matching C#'s inclusive blocking-policy floor. Neither `@AllowCallerValidationSeverity(maximum = ValidationResultSeverity.Error)` nor a host maximum of `Error` can relax it: `Warning`, `1`, `2`, and `3` headers still leave warnings blocking on both execute and validate routes. A stricter caller threshold, such as `Unknown` (`0`), remains stricter. With no usable header, or with the ignore option enabled, the floor still supplies `Information`; ignoring a header never disables the command's floor.
 
 :::caution[The header is caller-controlled]
 Any client can send this header. Only opt in commands whose Error rules are advisory. Never use severity for authorization or invariants. Set `cratis.arc.command.ignore-caller-allowed-severity=true` when no client needs it. Queries are not covered by this cap.

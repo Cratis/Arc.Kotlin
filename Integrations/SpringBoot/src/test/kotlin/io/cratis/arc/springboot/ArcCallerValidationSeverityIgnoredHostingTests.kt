@@ -30,7 +30,13 @@ internal class ArcCallerValidationSeverityIgnoredHostingTests {
     }
 
     @Test
-    fun `ignored header cannot relax warnings as errors default`() {
-        mockMvc.severityRequest("warnings-as-errors", "warning", "2").expectSeverityError(2)
+    fun `ignored header cannot relax the warnings as errors floor even with a command opt in`() {
+        listOf("warnings-as-errors", "opted-in-warnings-as-errors").forEach { command ->
+            listOf("Warning", "1", "2", "3").forEach { header ->
+                listOf("", "/validate").forEach { suffix ->
+                    mockMvc.severityRequest(command, "warning", header, suffix).expectSeverityError(2)
+                }
+            }
+        }
     }
 }

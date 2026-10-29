@@ -58,6 +58,35 @@ internal class CallerValidationSeverityTests {
     }
 
     @Test
+    fun `warnings as errors floor permits at most information and preserves stricter requests`() {
+        val settings = ArcProperties.CommandProperties()
+        mapOf(Error to Information, Warning to Information, Information to Information, Unknown to Unknown, null to Information)
+            .forEach { (requested, expected) ->
+                assertEquals(expected, CallerValidationSeverity.cap(requested, null, settings, true))
+            }
+    }
+
+    @Test
+    fun `command and host opt ins cannot lift the warnings as errors floor`() {
+        val settings = ArcProperties.CommandProperties()
+        settings.maximumCallerAllowedSeverity = Error
+        assertEquals(Information, CallerValidationSeverity.cap(Error, null, settings, true))
+        assertEquals(Information, CallerValidationSeverity.cap(Error, Error, settings, true))
+        settings.isIgnoreCallerAllowedSeverity = true
+        assertEquals(Information, CallerValidationSeverity.cap(Error, Error, settings, true))
+        assertEquals(Information, CallerValidationSeverity.cap(Unknown, Error, settings, true))
+    }
+
+    @Test
+    fun `warnings as errors floor preserves stricter host and command maxima`() {
+        val settings = ArcProperties.CommandProperties()
+        settings.maximumCallerAllowedSeverity = Unknown
+        assertEquals(Unknown, CallerValidationSeverity.cap(Error, null, settings, true))
+        settings.maximumCallerAllowedSeverity = Error
+        assertEquals(Unknown, CallerValidationSeverity.cap(Error, Unknown, settings, true))
+    }
+
+    @Test
     fun `command maximum consults superclasses but prefers the nearest annotation`() {
         assertEquals(Error, CallerValidationSeverity.commandMaximum(InheritedCommand::class.java))
         assertEquals(Information, CallerValidationSeverity.commandMaximum(StricterCommand::class.java))

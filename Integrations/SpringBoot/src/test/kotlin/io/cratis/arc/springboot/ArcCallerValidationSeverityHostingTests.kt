@@ -88,7 +88,28 @@ internal class ArcCallerValidationSeverityHostingTests {
     }
 
     @Test
-    fun `invalid header retains warnings as errors default`() {
+    fun `warnings as errors floor blocks hostile headers even with a command opt in`() {
+        listOf("warnings-as-errors", "opted-in-warnings-as-errors").forEach { command ->
+            listOf("Warning", "wArNiNg", "1", "2", "3").forEach { header ->
+                listOf("", "/validate").forEach { suffix ->
+                    mockMvc.severityRequest(command, "warning", header, suffix).expectSeverityError(2)
+                }
+            }
+        }
+        assertEquals(0, INVOCATIONS.getValue(WarningsAsErrorsSeverityCommand::class.java).get())
+        assertEquals(0, INVOCATIONS.getValue(OptedInWarningsAsErrorsSeverityCommand::class.java).get())
+    }
+
+    @Test
+    fun `warnings as errors floor preserves a stricter caller threshold`() {
+        listOf("", "/validate").forEach { suffix ->
+            mockMvc.severityRequest("warnings-as-errors", "information", "0", suffix).expectSeverityError(1)
+            mockMvc.severityRequest("warnings-as-errors", "information", "3", suffix).andExpect(status().isOk)
+        }
+    }
+
+    @Test
+    fun `invalid header retains warnings as errors floor`() {
         mockMvc.severityRequest("warnings-as-errors", "warning", "not-a-severity").expectSeverityError(2)
     }
 
@@ -113,6 +134,10 @@ internal class ArcCallerValidationSeverityHostingTests {
         @Bean
         fun warningsAsErrorsValidator(): CommandValidator<WarningsAsErrorsSeverityCommand> =
             severityValidator(WarningsAsErrorsSeverityCommand::class.java) { it.value() }
+
+        @Bean
+        fun optedInWarningsAsErrorsValidator(): CommandValidator<OptedInWarningsAsErrorsSeverityCommand> =
+            severityValidator(OptedInWarningsAsErrorsSeverityCommand::class.java) { it.value() }
     }
 }
 
