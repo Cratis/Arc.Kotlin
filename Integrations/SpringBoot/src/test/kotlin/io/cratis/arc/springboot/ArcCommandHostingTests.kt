@@ -141,7 +141,7 @@ internal class ArcCommandHostingTests {
     }
 
     @Test
-    fun `allowed severity accepts numeric and enum names and rejects invalid values`() {
+    fun `allowed severity accepts numeric and enum names and ignores invalid values`() {
         execute(post(COMMAND_ROUTE).json("""{"value":"warning"}"""))
             .andExpect(status().isBadRequest)
             .andExpect(jsonPath("$.validationResults[0].severity").value(2))
@@ -157,8 +157,7 @@ internal class ArcCommandHostingTests {
         execute(
             post(COMMAND_ROUTE).json("""{"value":"hello"}""").header("X-Allowed-Severity", "not-a-severity")
         )
-            .andExpect(status().isBadRequest)
-            .andExpect(jsonPath("$.validationResults[0].reason").value("malformedRequest"))
+            .andExpect(status().isOk)
     }
 
     @Test

@@ -4,6 +4,7 @@
 package io.cratis.arc.springboot;
 
 import io.cratis.arc.metadata.ApiEndpointOptions;
+import io.cratis.arc.results.ValidationResultSeverity;
 import java.time.Duration;
 import java.util.List;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -26,6 +27,7 @@ public final class ArcProperties {
     private IdentityCookieSecurePolicy identityCookieSecurePolicy = IdentityCookieSecurePolicy.AUTO;
     private Boolean exposeExceptionDetails;
     private ObservableQueryProperties observableQueries = new ObservableQueryProperties();
+    private CommandProperties command = new CommandProperties();
 
     /** Gets HTTP endpoint route settings. */
     public EndpointProperties getEndpoints() {
@@ -183,6 +185,43 @@ public final class ArcProperties {
     /** Sets observable-query transport settings. */
     public void setObservableQueries(ObservableQueryProperties value) {
         observableQueries = value;
+    }
+
+    /** Gets caller-supplied command validation severity settings. */
+    public CommandProperties getCommand() {
+        return command;
+    }
+
+    /** Sets caller-supplied command validation severity settings. */
+    public void setCommand(CommandProperties value) {
+        command = value;
+    }
+
+    /** Limits for caller-supplied validation severity on command HTTP endpoints. */
+    public static final class CommandProperties {
+        private ValidationResultSeverity maximumCallerAllowedSeverity = ValidationResultSeverity.Warning;
+        private boolean ignoreCallerAllowedSeverity = false;
+
+        /** Gets the highest severity a caller may make nonblocking by default. */
+        public ValidationResultSeverity getMaximumCallerAllowedSeverity() {
+            return maximumCallerAllowedSeverity;
+        }
+
+        /** Sets the highest severity a caller may make nonblocking by default. */
+        public void setMaximumCallerAllowedSeverity(ValidationResultSeverity value) {
+            if (value == null) throw new IllegalArgumentException("maximumCallerAllowedSeverity must not be null.");
+            maximumCallerAllowedSeverity = value;
+        }
+
+        /** Gets whether caller-supplied severity is ignored, including command opt-ins. */
+        public boolean isIgnoreCallerAllowedSeverity() {
+            return ignoreCallerAllowedSeverity;
+        }
+
+        /** Sets whether caller-supplied severity is ignored, including command opt-ins. */
+        public void setIgnoreCallerAllowedSeverity(boolean value) {
+            ignoreCallerAllowedSeverity = value;
+        }
     }
 
     /** Observable-query snapshot, streaming, and hub limits. */
