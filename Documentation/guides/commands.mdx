@@ -61,7 +61,19 @@ Register a Spring bean implementing `CommandValidator<T>`. Java implements `Bloc
 
 `ValidationResult.information`, `ValidationResult.warning`, and `ValidationResult.error` are static factories that name the severity and default members, state, reason, and reason detail. They read the same from Java, and the `ValidationResult` constructor with an explicit `ValidationResultSeverity` remains available.
 
-Without an explicit threshold, only errors block execution. Use `@TreatWarningsAsErrors` to set `Information` as the maximum nonblocking severity, so warnings and errors block. Callers can set `X-Allowed-Severity` to a severity name or wire number; feedback numerically above that threshold blocks, and invalid header values produce `malformedRequest`.
+Without an explicit threshold, only errors block execution. Use `@TreatWarningsAsErrors` to set `Information` as the default maximum nonblocking severity, so warnings and errors block. Callers can send `X-Allowed-Severity` as a severity name or wire number; feedback numerically above the effective threshold blocks. On command and validate routes, the caller's threshold is capped at `Warning` unless the command opts in or the host changes the maximum. Unrecognised values and numbers outside 0–3 are ignored.
+
+### Let callers relax validation errors
+
+Use `@AllowCallerValidationSeverity` to replace the host maximum for a command, either with a higher or a lower cap. Superclasses are consulted; interfaces are not.
+
+<ArcBackendTabs snippet="guides/commands/caller-severity" variants="kotlin,java" />
+
+`cratis.arc.command.ignore-caller-allowed-severity=true` takes precedence over command opt-ins and ignores the header completely. Otherwise, the command annotation replaces `cratis.arc.command.maximum-caller-allowed-severity` (default `Warning`). With no usable header, the existing `@TreatWarningsAsErrors` default applies. That annotation is a default, not a floor; use a maximum of `Information` when callers must not relax warnings.
+
+:::caution[The header is caller-controlled]
+Any client can send this header. Only opt in commands whose Error rules are advisory. Never use severity for authorization or invariants. Set `cratis.arc.command.ignore-caller-allowed-severity=true` when no client needs it. Queries are not covered by this cap.
+:::
 
 When Spring has a Jakarta `Validator` bean, the starter automatically adds a command filter. It validates the command and nested `@Valid` object, array, iterable, and map values, maps paths such as `items[0].name` into Arc members, terminates safely on cyclic graphs, and returns ordinary `rule` validation results before `provide` or `handle` runs.
 
