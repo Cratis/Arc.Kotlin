@@ -14,7 +14,7 @@ plugins {
 dependencies {
     implementation(project(":Source"))
     implementation("org.jetbrains.kotlin:kotlin-gradle-plugin:2.4.20")
-    implementation("com.google.devtools.ksp:symbol-processing-gradle-plugin:2.3.12")
+    implementation("com.google.devtools.ksp:symbol-processing-gradle-plugin:2.3.13")
     testImplementation(gradleTestKit())
 }
 

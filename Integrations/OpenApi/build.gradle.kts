@@ -9,7 +9,7 @@ plugins {
 }
 
 val springBootVersion = "4.1.2"
-val swaggerModelsVersion = "2.2.55"
+val swaggerModelsVersion = "3.0.0"
 
 dependencies {
     api(project(":Integrations:SpringBoot"))
