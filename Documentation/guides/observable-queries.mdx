@@ -102,9 +102,7 @@ Add `transferMode` to the subscription body:
 - `delta` — the first emission is a full snapshot; subsequent emissions carry only the change set.
 - Omitting `transferMode` keeps the legacy behaviour: every emission carries both the full snapshot and a `changeSet`, with the first one listing every item as added.
 
-For delta mode, Arc needs a stable item identity. When no identity accessor exists, or an extracted key is null or duplicated, Arc falls back to exact serialised JSON identity. That fallback reports additions and removals only — changing any field appears as one removal plus one addition, not a replacement. Use stable, unique item identities when replacements or lower serialisation cost matter.
-
-Change sets do not encode position changes. Do not rely on delta updates to reproduce list reordering.
+With explicit `transferMode=delta`, Arc prefers a stable generated or conventional item identity. When no identity accessor exists, or an extracted key is null or duplicated, Arc falls back to exact serialized JSON identity. The fallback reports additions and removals only: changing any field is one removal plus one addition, never a replacement. It compares set membership, matching Arc .NET, so changing only the number of identical duplicate values produces no delta. Use stable, unique item identities when replacements, duplicate counts, or lower serialization cost matter. Change sets do not encode position changes, so do not rely on delta updates to reproduce list reordering.
 
 ## Subscription lifetime
 
