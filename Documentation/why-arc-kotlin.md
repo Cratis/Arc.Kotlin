@@ -50,17 +50,16 @@ See [What Arc.Kotlin owns](https://github.com/Cratis/Arc.Kotlin/blob/main/README
 
 ## When Arc is not the right fit
 
-- **You need a non-Spring host, or hand-written controllers.** Arc targets Spring Boot exclusively
-  and generates model-bound MVC endpoints; neither another host nor controller-based endpoints are
-  planned. See [Non-Spring hosting](reference/parity.md) and [Controllers](reference/parity.md) in
-  the parity matrix.
+- **You need a non-Spring host, or Arc-generated controller-based endpoints.** Arc targets Spring Boot
+  exclusively and generates model-bound MVC endpoints, not controllers. Hand-written controllers can
+  still run alongside Arc's endpoints. See [Non-Spring hosting](reference/parity.md) and
+  [Controllers](reference/parity.md) in the parity matrix.
 - **You need raw-output compatibility with Arc on .NET.** Arc.Kotlin implements the same ideas with
   JVM-native choices (coroutines and `CompletionStage` instead of `async`/`await`, `Flow` instead of
   `IObservable`). The [parity reference](reference/parity.md) tracks exactly which behaviors are
   equivalent and which intentionally diverge — read it before assuming byte-for-byte compatibility.
-- **You do not want event sourcing, and you also do not want Spring Data JPA/MongoDB.** Arc.Core has
-  no dependency on Chronicle or on the Spring Data integrations, but if your application has no
-  persistence story at all, Arc still assumes Spring Boot as the host.
+
+Arc.Core has no dependency on Chronicle or on the Spring Data integrations. You can use Arc without event sourcing or Spring Data JPA/MongoDB; Spring Boot remains the host requirement.
 
 ## Where to go next
 
