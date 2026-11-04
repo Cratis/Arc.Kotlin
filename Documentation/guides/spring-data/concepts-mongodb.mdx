@@ -5,35 +5,47 @@ description: Register concrete scalar pairs and identifiers so a ConceptAs value
 
 ## Map MongoDB concepts explicitly in the application
 
-MongoDB concept storage is also an **application-owned recipe**, not Arc autodiscovery. Register
-concrete, stateless `@WritingConverter`/`@ReadingConverter` pairs for each concept and scalar in
-one authoritative `MongoCustomConversions.create` configuration. A bare Spring `Converter` bean
-is not this registration. Configure the application's mapping context and converter before
-creating templates, repositories, or tenant certificates; Arc must not mutate an application-owned
-custom `MongoConverter` during lookup.
+If your documents store concepts, MongoDB needs a mapping between each wrapper and its BSON
+scalar. This is an **application-owned recipe**, not Arc autodiscovery. Register concrete,
+stateless `@WritingConverter`/`@ReadingConverter` pairs for each concept and scalar in one
+authoritative `MongoCustomConversions.create` configuration. A bare Spring `Converter` bean
+does not register that configuration.
+
+Finish configuring the application's mapping context and converter before creating templates,
+repositories, or tenant certificates. Arc must not mutate an application-owned custom
+`MongoConverter` during lookup.
 
 ### Register concrete scalar pairs
 
-For a concept such as the `TextValue` shown in [Map JPA concepts](concepts-jpa.mdx), the pair is:
+The writing converter unwraps the concept; the reading converter reconstructs it from the scalar.
+For a concept such as the `TextValue` shown in [Map JPA concepts](concepts-jpa.mdx), define both
+directions explicitly:
 
 <ArcBackendTabs snippet="guides/spring-data/concepts-mongodb/scalar-converters" variants="kotlin,java" />
 
 Here `Converter` means Spring's `org.springframework.core.convert.converter.Converter`, not the
 JPA annotation. The executable recipes provide equivalent concrete UUID-to-UUID and Long-to-Long
-pairs named `UuidWrite`/`UuidRead` and `LongWrite`/`LongRead`. Do not replace them with an erased
-`Converter<ConceptAs<?>, ?>` or infer constructors reflectively. Install all six together:
+pairs named `UuidWrite`/`UuidRead` and `LongWrite`/`LongRead`. These are concrete fixture types,
+not definitions supplied by Arc or by this excerpt. Do not replace them with an erased
+`Converter<ConceptAs<?>, ?>` or infer constructors reflectively.
+
+Defining the pairs is only the first step. Install all six together so Spring Data uses them
+when reading and writing:
 
 <ArcBackendTabs snippet="guides/spring-data/concepts-mongodb/register-conversions" variants="kotlin,java" />
 
-For programmatically owned templates, use that same configuration in both places, in this order
-(the complete `RecipeMongoStore` fixture also owns and closes its client):
+For a programmatically owned template, apply that same configuration to both the mapping context
+and the converter before constructing the template. The order matters: repositories must see the
+finished mappings, not a template that will be reconfigured on lookup. The complete
+`RecipeMongoStore` fixture also owns and closes its client:
 
 <ArcBackendTabs snippet="guides/spring-data/concepts-mongodb/programmatic-template" variants="kotlin,java" />
 
 Configure the client explicitly with
 `MongoClientSettings.builder().uuidRepresentation(UuidRepresentation.STANDARD)` before building
-it. The tests read raw `BsonDocument` values and assert UUID binary **subtype 4**, BSON string,
-and BSON int64 for IDs and ordinary fields, not nested wrappers or numeric strings.
+it. This determines the UUID representation used by the recipe. Its tests read raw `BsonDocument`
+values and assert UUID binary **subtype 4**, BSON string, and BSON int64 for IDs and ordinary
+fields, rather than nested wrappers or numeric strings.
 
 ### Choose identifier and null mappings deliberately
 
@@ -49,35 +61,41 @@ documents use no-argument construction and field hydration, with immutable conce
 their values; this avoids relying on Java constructor parameter-name compiler metadata. Do not
 change an identifier after saving a document.
 
-Spring bypasses these scalar converters for null. Apply `@Field(write = Field.Write.ALWAYS)`
+Choose the stored null shape separately from the scalar conversion: Spring bypasses these
+converters for null. Apply `@Field(write = Field.Write.ALWAYS)`
 (`@field:Field(write = Field.Write.ALWAYS)` in Kotlin) when a nullable concept field must be
 written as explicit BSON null. Without it, the tested null field is absent. Both read as null;
 the tests separately remove an explicitly written field and verify absent-field hydration.
-Non-null blank text fails in the concept constructor. A stored String in the Long field fails
-with `ConverterNotFoundException` rather than becoming a default Long concept; the configured
+
+Non-null blank text still fails in the concept constructor. A stored String in the Long field
+fails with `ConverterNotFoundException` rather than becoming a default Long concept. The configured
 reading pair accepts Long, not arbitrary malformed storage types.
 
-MongoDB documents are not JPA managed entities: changing a loaded field alone does not persist
-it. Call repository `save` explicitly or use a mapped `MongoTemplate.updateFirst` with a
-concept-valued query and update. Verify with another read through a fresh template/converter.
+Unlike a JPA managed entity, a loaded MongoDB document has no dirty tracking that will persist
+an in-memory field change for you. Call repository `save` explicitly or use a mapped
+`MongoTemplate.updateFirst` with a concept-valued query and update. Then read through a fresh
+template/converter to verify the stored result.
 
 ### MongoDB recipe evidence and limits
 
-`Integrations/SpringDataMongo` tests `io.cratis.arc.persistence.recipes.mongodb.MongoConceptStorageTests`
-and `JavaMongoConceptStorageTests` execute configured repositories, concept `findById` and equality
-predicates, fresh class reconstruction, explicit save/update, distinct null/absent BSON shapes,
-malformed-value failures, and exact signed Long boundaries including values beyond JavaScript's
-exact integer range. The missing-registration control stores a nested concept document instead
-of a scalar; adding the application registration produces the asserted scalar. This is an
-application omission control, not an existing Arc product bug.
+Finish configuring each template before issuing its `TenantMongoOperations` certificate. For
+[tenant-routed command lookup](repositories.mdx#route-mongodb-by-tenant), that certificate covers
+`tenantId`, not JPA's tenant namespace; it does not establish Mongo namespace isolation. Repository
+injection alone remains ordinary Spring dependency injection, not tenant routing.
+
+The documented recipe coverage in `Integrations/SpringDataMongo` comes from
+`io.cratis.arc.persistence.recipes.mongodb.MongoConceptStorageTests` and `JavaMongoConceptStorageTests`.
+They execute configured repositories, concept `findById` and equality predicates, fresh class
+reconstruction, explicit save/update, distinct null/absent BSON shapes, malformed-value failures,
+and exact signed Long boundaries including values beyond JavaScript's exact integer range.
+The missing-registration control stores a nested concept document instead of a scalar; adding
+the application registration produces the asserted scalar. This demonstrates an application
+omission, not an existing Arc product bug.
 
 Each language stores the same UUID, String, and Long concept keys with different values in two
-databases. Templates are fully configured before issuing `TenantMongoOperations` certificates.
-The existing contextual resolver rejects unknown tenants, mismatched certificates, missing/blank
-tenants, scalar keys, and a different concept key class. Exact resolver-call and driver `find`
-command counts prove no retry or fallback database read. Mongo certificates certify `tenantId`,
-not JPA's tenant namespace; no Mongo namespace-isolation claim follows. Repository injection
-alone remains ordinary Spring dependency injection, not tenant routing.
+databases. The existing contextual resolver rejects unknown tenants, mismatched certificates,
+missing/blank tenants, scalar keys, and a different concept key class. Exact resolver-call and
+driver `find` command counts prove no retry or fallback database read.
 
 This evidence uses Spring Data MongoDB 5.1.1 and Mongo Java driver 5.8.1 against the existing
 **mongo-java-server 1.47.0 `MemoryBackend` emulator**, not a real MongoDB server, Testcontainers,
