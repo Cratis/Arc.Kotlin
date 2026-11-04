@@ -17,9 +17,9 @@ For Java records and `CompletionStage`, follow [Build your first Arc application
 
 Use Kotlin 2.4.20 and KSP 2.3.12 (KSP2), as in the examples below. The Arc plugin applies exactly this pair itself; choose it yourself only for the manual setup. Arc's compiled classes carry Kotlin metadata version 2.4.0; Kotlin 2.1.0 and 2.2.0 reject that metadata when compiling a consumer. Upgrade the consumer compiler rather than disabling metadata validation, and retain the Kotlin runtime versions selected by the dependency graph. JVM bytecode still targets Java 17.
 
-Compiler-generated forwarding methods for inherited interface defaults may appear in implementation classes' `getDeclaredMethods()` results. Reflective lookup can return a class-declared forwarder instead of an inherited interface method, changing its declaring class and `Method.isDefault()` result. An added declared method does not necessarily represent a new handwritten implementation or a changed default.
-
 The repository requires Gradle 8.14.4 and JDK 17. Use the checked-in wrapper with Kotlin 2.4.20 and KSP 2.3.12; this baseline avoids the Kotlin plugin's deprecated Gradle version warning without suppressing it.
+
+If you use reflective tooling, keep this distinction in mind. Compiler-generated forwarding methods for inherited interface defaults may appear in implementation classes' `getDeclaredMethods()` results. Reflective lookup can return a class-declared forwarder instead of an inherited interface method, changing its declaring class and `Method.isDefault()` result. An added declared method does not necessarily represent a new handwritten implementation or a changed default.
 
 ## Configure Gradle
 
@@ -103,7 +103,9 @@ cratis.arc.endpoints.segments-to-skip-for-route=2
 
 ## Add the application model
 
-Create `src/main/kotlin/example/tasks/Tasks.kt` with a Spring repository, a command, and a read model. Arc discovers the model and resolves parameters from Spring. Use public model types, properties, and invocation methods. Kotlin's default public visibility is supported; the explicit `public` keywords below are style, not a compiler requirement. `@AllowAnonymous` makes the tutorial endpoints callable without authentication.
+Create `src/main/kotlin/example/tasks/Tasks.kt` with a Spring repository, a command, and a read model. Arc discovers the model and resolves parameters from Spring. The repository keeps tasks in memory. The command writes to it and returns the new task's identifier and title; the query reads the same store. The tasks are lost when the application restarts, so this is not durable storage.
+
+Use public model types, properties, and invocation methods. Kotlin's default public visibility is supported; the explicit `public` keywords below are style, not a compiler requirement. `@AllowAnonymous` makes the tutorial endpoints callable without authentication. Anonymous Arc metadata does not bypass a host security chain.
 
 ```kotlin
 package example.tasks
@@ -163,7 +165,7 @@ fun main(args: Array<String>) {
 }
 ```
 
-Run the application:
+Start the application before sending the command and query below:
 
 ```bash
 ./gradlew bootRun
@@ -172,6 +174,8 @@ Run the application:
 The build runs KSP before compiling, so a model mistake surfaces as an `ARCKSP` compiler error rather than at startup; the [diagnostics reference](../reference/diagnostics.md) explains each code. When Spring Boot logs `Tomcat started on port 8080`, the generated endpoints are live.
 
 ## Execute the command
+
+Send a command to store a task in the running application's repository:
 
 ```bash
 curl -sS -X POST http://localhost:8080/api/create-task \
@@ -187,6 +191,8 @@ The identifier changes on every run. The response has this shape:
 
 ## Query the read model
 
+Read back the tasks from that same running application:
+
 ```bash
 curl -sS -X QUERY http://localhost:8080/api/tasks \
   -H 'Content-Type: application/json' \
@@ -199,8 +205,10 @@ The one-shot query returns the created task in a `QueryResult` envelope:
 {"correlationId":"<uuid>","data":[{"id":"<task-id>","title":"Try Arc"}],"isReady":true,"isAuthorized":true,"validationResults":[],"exceptionMessages":[],"exceptionStackTrace":"","paging":{"page":0,"size":0,"totalItems":1,"totalPages":0},"isValid":true,"hasExceptions":false,"isSuccess":true}
 ```
 
-The repository's `:GradlePlugin:test --tests '*ArcOnboardingFunctionalTest'` check materializes the preferred Kotlin and Java tutorial files, resolves locally staged Arc plugin-marker and runtime publications, compiles generated artifacts, and sends these POST and QUERY requests to a real Spring Boot host on a random port. It substitutes only the Arc version and local Arc repository seams, with an added test probe; public transitive dependencies still use the documented repositories. This is separate from the source-only documentation snippet checker and does not compile every documentation snippet or execute the manual setup.
-
 If a request returns `404`, the route convention and the package disagree; [troubleshooting](../troubleshooting.md) walks through that and other first-run failures.
 
 Continue with the [commands guide](../guides/commands.mdx) and [queries guide](../guides/queries.mdx), or generate a typed frontend client with [TypeScript proxies](../guides/typescript-proxies.mdx).
+
+The following is optional background on the repository's verification of this tutorial.
+
+The repository's `:GradlePlugin:test --tests '*ArcOnboardingFunctionalTest'` check materializes the preferred Kotlin and Java tutorial files, resolves locally staged Arc plugin-marker and runtime publications, compiles generated artifacts, and sends these POST and QUERY requests to a real Spring Boot host on a random port. It substitutes only the Arc version and local Arc repository seams, with an added test probe; public transitive dependencies still use the documented repositories. This is separate from the source-only documentation snippet checker and does not compile every documentation snippet or execute the manual setup.
