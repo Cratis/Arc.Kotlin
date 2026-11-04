@@ -3,6 +3,8 @@ title: TypeScript proxy options compatibility matrix
 description: Classification of every proxy generator option and model-shape boundary against Arc .NET, with pinned reference versions, enforcing guards, and a precise slice definition for anything implementable but not yet present.
 ---
 
+To choose a JVM setting, use the [option compatibility matrix](#option-compatibility-matrix). The [named slice](#named-slice-proxy-namespace-roots) is an unimplemented contributor design, not an available JVM setting.
+
 ## Pinned reference versions
 
 | Side | Component | Pinned version | Source |
@@ -139,7 +141,7 @@ strips a namespace prefix from the output path and places the remainder under a 
 multiple roots are configured the longest matching prefix wins. This is a file-layout control only
 and does not affect routes.
 
-**What the JVM slice would do.**
+**Contributor design — not implemented in the JVM generator.**
 
 1. Add `namespaceRoots: List<Pair<String, String>>` to `ProxyGenerationOptions` and a corresponding
    `proxies.mapNamespaceRoot(jvmPackage: String, outputFolder: String)` method on `ArcProxyOptions`.
