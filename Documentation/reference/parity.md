@@ -3,7 +3,7 @@ title: JVM feature parity reference
 description: Honest implementation status for Arc on Kotlin and Java compared with broader Arc concepts.
 ---
 
-This page is the evidence behind the Kotlin and Java columns of the shared [capability matrix](/arc/capabilities/). The matrix states whether each capability exists in C#, Kotlin, and Java; this page records how the JVM implements each one, where its boundary lies, and which test, contract test, or sample proves it. The statuses below are this page's own and are not restated there.
+Use the shared [capability matrix](/arc/capabilities/) to check whether a capability exists in C#, Kotlin, and Java. Use this page to look up its JVM contract, boundary, and named test, contract test, or runnable sample. The statuses below are this page's own and are not restated in the shared matrix.
 
 ## Status key
 
@@ -15,6 +15,10 @@ This page is the evidence behind the Kotlin and Java columns of the shared [capa
 | Not planned | Outside the Spring Boot, model-bound framework direction. |
 
 ## Feature matrix
+
+- For a capability, find its row below and read the current JVM contract, not just its status.
+- For a cross-runtime comparison, read the separate proxy differential, measured agreement, reproducible capture, and paired HTTP conformance rows. Each states its own evidence and limits.
+- For temporal interoperability, read [Remaining temporal client limits](#remaining-temporal-client-limits) and [Server-side temporal precision](#server-side-temporal-precision).
 
 | Area | Status | Current JVM contract |
 | --- | --- | --- |

@@ -91,6 +91,10 @@ not subject to the same-origin policy `fetch` obeys, so this check is what stops
 opening a socket with your visitor's cookies attached.
 :::
 
+Resolver configuration is validated at startup: the resolver list cannot be empty or contain duplicates, selected resolver options cannot be blank, fixed/development identifiers must be nonblank, and subdomain configuration must have a valid base domain. `CompositeTenantIdResolver` follows the listed order exactly. An application-defined `TenantIdResolver` or `TenantAccessEvaluator` bean replaces the default with Spring Boot's normal `@ConditionalOnMissingBean` behavior.
+
+The host captures case-insensitive headers, each query parameter's first value, host, principal, and claims into an explicit `TenantResolutionContext` at request or subscription entry. Resolution is performed once and the resulting value is supplied as both `tenantId` and `tenantNamespace`; no thread-local state is used. Optional unresolved tenancy remains `null` for backward compatibility. Fixed or development resolution must be configured explicitly before either can supply a default. Access denial is generic and returns 403.
+
 The optional observability starter adds properties under `cratis.arc.observability`:
 
 | Property | Default | Meaning |
@@ -125,11 +129,9 @@ Correlation identifiers are observation context, baggage, and logging values, no
 
 The [TypeScript proxy options reference](typescript-proxy-options.md) compares each option with the Arc .NET generator.
 
-Resolver configuration is validated at startup: the resolver list cannot be empty or contain duplicates, selected resolver options cannot be blank, fixed/development identifiers must be nonblank, and subdomain configuration must have a valid base domain. `CompositeTenantIdResolver` follows the listed order exactly. An application-defined `TenantIdResolver` or `TenantAccessEvaluator` bean replaces the default with Spring Boot's normal `@ConditionalOnMissingBean` behavior.
-
-The host captures case-insensitive headers, each query parameter's first value, host, principal, and claims into an explicit `TenantResolutionContext` at request or subscription entry. Resolution is performed once and the resulting value is supplied as both `tenantId` and `tenantNamespace`; no thread-local state is used. Optional unresolved tenancy remains `null` for backward compatibility. Fixed or development resolution must be configured explicitly before either can supply a default. Access denial is generic and returns 403.
-
 The plugin applies Kotlin/JVM `2.4.20` and KSP `2.3.12` (KSP2), targets JDK 17, and treats Kotlin and Java warnings as errors. Use Gradle 8.14.4, the repository's wrapper baseline. See the [compiler compatibility notes](../get-started/index.md#compiler-compatibility) before retaining older consumer compiler or runtime pins. `generateArcProxies` depends on main classes, KSP, and resources, and `build` depends on it. Use the standard active JDK selection through `JAVA_HOME` and `PATH`; the repository requires no machine-specific absolute JDK path.
+
+### Build and verification evidence
 
 KSP diagnostics use stable `ARCKSP` codes. Configuration, command, query, proxy-shape, validation-metadata, enum-wire-value, and interoperability diagnostics are cataloged in `CodeGeneration/KSP/DIAGNOSTICS.md`; errors stop generation, while warnings identify risky but compilable conventions.
 

@@ -70,7 +70,9 @@ cratis.arc.endpoints.segments-to-skip-for-route=2
 
 ## Add the application model
 
-Create each public type in its named Java file under `src/main/java/example/tasks/`. The command and query return `CompletionStage`; generated Arc adapters await them without reflection.
+Create each public type in its named Java file under `src/main/java/example/tasks/`. The command stores a task in the in-memory repository and returns its identifier and title. The query reads the stored tasks. Restarting the application loses those tasks; the repository is not durable storage.
+
+The command and query return `CompletionStage`; generated Arc adapters await them without reflection. The anonymous access declared in this example is a tutorial choice; it does not bypass a host security chain.
 
 `TaskCreated.java`:
 
@@ -165,7 +167,7 @@ public class TaskApplication {
 }
 ```
 
-Run the application:
+Start the application before sending the command and query below:
 
 ```bash
 ./gradlew bootRun
@@ -174,6 +176,8 @@ Run the application:
 KSP runs before compilation, so a model mistake surfaces as an `ARCKSP` compiler error; the [diagnostics reference](../reference/diagnostics.md) explains each code. When Spring Boot logs `Tomcat started on port 8080`, the generated endpoints are live.
 
 ## Execute and query
+
+Send the command to store a task, then query the same running application's repository:
 
 ```bash
 curl -sS -X POST http://localhost:8080/api/create-task \
@@ -201,9 +205,13 @@ The current array-returning adapter leaves paging totals at zero; the Kotlin tut
 
 If a request returns `404`, see [troubleshooting](../troubleshooting.md) for the route convention.
 
+Continue with [in-process Java testing](../guides/testing.mdx) or compare the [Kotlin tutorial](index.md).
+
 The [executable tutorial check](index.md#query-the-read-model) compiles these Java files and generated Kotlin adapters with warnings as errors, then verifies the documented requests against a real Spring Boot host. It tests the preferred plugin setup using locally staged Arc publications, not every documentation snippet or the manual setup.
 
 ## Call pipelines from an imperative Java service
+
+This section is optional. Use it when an ordinary Java service or scheduled job needs to call the pipelines directly; it is not another step in the HTTP tutorial.
 
 Inject `io.cratis.arc.java.BlockingCommandPipeline` and `BlockingQueryPipeline` for an ordinary
 imperative service or scheduled job. The Spring starter supplies both beans and backs off when you
@@ -311,5 +319,3 @@ execution rather than silently choosing security context.
   a caller timeout is not a promise that cleanup or external work has already stopped. Cleanup must
   cooperate, so an uncooperative handler or cleanup can keep the caller blocked. Existing pipeline
   scope-completion timeouts still apply. Use the async API when retaining a blocked thread is wrong.
-
-Continue with [in-process Java testing](../guides/testing.mdx) or compare the [Kotlin tutorial](index.md).

@@ -5,54 +5,83 @@ description: Translate Arc paging and sorting, resolve current state, reach tena
 
 ## Consume paging and sorting
 
-Arc carries zero-based paging and one sort field in `QueryRequest`. A model-bound query can declare the exact non-null Spring Data Commons `Pageable` and `Sort` types. Generated performers create both values directly from the captured query request; they do not use request scope, thread-local state, or a request-scoped bean.
+To page a repository query, declare the exact non-null Spring Data Commons `Pageable` and `Sort` types as query parameters. Arc carries zero-based paging and one sort field in `QueryRequest`; the generated performer turns that captured request into both Spring Data values before calling the query. It does not use request scope, thread-local state, or a request-scoped bean.
 
 <ArcBackendTabs snippet="guides/spring-data/repositories/paged-query" variants="kotlin,java" />
 
-A page size of zero becomes `Pageable.unpaged(sort)`. A blank sort field becomes `Sort.unsorted()`. Exact Spring Data `Page<TaskView>` returns are normalized by the generated performer before Arc renderers run, preserving `content`, zero-based page number, and the repository's pre-page `totalElements`; an unpaged result reports Arc page size zero, matching the compatibility adapters.
+The example passes the paging value to the repository and returns its page. A page size of zero becomes `Pageable.unpaged(sort)`; a blank sort field becomes `Sort.unsorted()`. The two injected values describe the same sorting, as the example checks.
 
-`Pageable` marks paging and sorting capabilities; `Sort` marks sorting capability. A query using either host adapter must return exact `Page<T>` so Arc cannot page or sort an already provider-shaped collection again. Client parameters cannot use the reserved names `page`, `pageSize`, `sortBy`, or `sortDirection`. These explicit generated descriptor flags control TypeScript and OpenAPI paging and sorting surfaces. Host-adapter parameters remain in declaration-order metadata for invocation and validation indexes, but Spring binding, Jakarta model-graph validation, TypeScript, OpenAPI, and endpoint introspection expose only client parameters.
+Exact Spring Data `Page<TaskView>` returns are normalized by the generated performer before Arc renderers run. The result preserves `content`, the zero-based page number, and the repository's pre-page `totalElements`. An unpaged result reports Arc page size zero, matching the compatibility adapters. A query using either host adapter must return exact `Page<T>` so Arc cannot page or sort an already provider-shaped collection again.
+
+`Pageable` marks paging and sorting capabilities; `Sort` marks sorting capability. Those explicit generated descriptor flags control the TypeScript and OpenAPI paging and sorting surfaces. Client parameters cannot use the reserved names `page`, `pageSize`, `sortBy`, or `sortDirection`.
+
+The host-adapter parameters are infrastructure inputs, not caller arguments. They remain in declaration-order metadata for invocation and validation indexes, but Spring binding, Jakarta model-graph validation, TypeScript, OpenAPI, and endpoint introspection expose only client parameters.
 
 The existing `JpaQueryRequestAdapter`, `JpaQueryPageAdapter`, `MongoQueryRequestAdapter`, and `MongoQueryPageAdapter` APIs remain available for manually implemented performers and compatibility. They use the same Spring Data Commons semantics as generated performers.
 
 ## Resolve current state for a command
 
-The JPA and MongoDB integrations contribute storage-neutral `CanResolveReadModelForCommand` providers. A generated handler can therefore request its current read model directly; Arc uses the command's generated key and captured tenant context before invoking the handler:
+A command can request its current read model as a handler parameter instead of looking it up inside the handler. The JPA and MongoDB integrations contribute storage-neutral `CanResolveReadModelForCommand` providers: Arc uses the command's generated key and captured tenant context to resolve that parameter before invoking the generated handler.
 
 <ArcBackendTabs snippet="guides/spring-data/repositories/current-state" variants="kotlin,java" />
 
-Only exact mapped types carrying `@ReadModel` are claimed. JPA uses `DECLARED` ownership because an entity mapping explicitly selects that store. MongoDB uses `FALLBACK`, so a declaring JPA, Chronicle, or application provider wins. Equal-strength claims fail startup rather than selecting a store by bean order. The supplied command key must already be an instance of the persistence identifier type; contextual providers do not recompute or coerce it. Registry-owned read-model parameters are resolved before ordinary Spring services, so a bean of the model class cannot bypass tenant or key selection. For an owned type, a missing row supplies `null` to Kotlin `T?` and `Optional.empty()` to an ordinary Java `Optional<T>`. A missing command key or missing required owned row produces one `dependencyUnavailable` validation result and HTTP 400. Resolver/storage failures and missing ordinary Spring services remain exceptions. Replacing Arc's `ReadModelForCommandResolverRegistry` bean is an expert override: the application then owns equivalent arbitration and tenancy guarantees.
+In the example, the generated key identifies the state supplied to the handler. The body only shows where that state becomes available; it does not rename or save the stored model. The supplied command key must already be an instance of the persistence identifier type. Contextual providers do not recompute or coerce it.
+
+Only exact mapped types carrying `@ReadModel` are claimed. JPA uses `DECLARED` ownership because an entity mapping explicitly selects that store. MongoDB uses `FALLBACK`, so a declaring JPA, Chronicle, or application provider wins. Equal-strength claims fail startup rather than selecting a store by bean order. Registry-owned read-model parameters are resolved before ordinary Spring services, so a bean of the model class cannot bypass tenant or key selection.
+
+For an owned type, a missing row supplies `null` to Kotlin `T?` and `Optional.empty()` to an ordinary Java `Optional<T>`. A missing command key or missing required owned row produces one `dependencyUnavailable` validation result and HTTP 400. Resolver/storage failures and missing ordinary Spring services remain exceptions; they are not converted into missing-row results.
+
+Replacing Arc's `ReadModelForCommandResolverRegistry` bean is an expert override. The application then owns equivalent arbitration and tenancy guarantees.
 
 The historical `JpaCommandReadModelResolver` and `MongoCommandReadModelResolver` APIs remain for fixed-store compatibility. Auto-configuration publishes them only with a verified fixed store and optional tenancy. They recompute a key without `CommandContext` and must not be used for tenant routing.
 
 ### Route JPA by tenant
 
-Optional, single-unit applications receive a fixed `JpaPersistenceUnitResolver`. Tenant-routed applications provide one resolver that reports its exact type union and returns a `JpaPersistenceUnit` certified for the requested `tenantId` and `tenantNamespace`. The unit pairs its `EntityManagerFactory` with an optional matching `JpaTransactionManager`; Arc verifies both the certificate and mapped type before lookup. With `cratis.arc.tenancy.required=true`, mapped and resolver-owned JPA read-model claims must match, and the contextual provider must enforce the exact application resolver.
+With optional tenancy, a single-unit application receives a fixed `JpaPersistenceUnitResolver`. For tenant-routed commands, provide one resolver that reports its exact type union and returns a `JpaPersistenceUnit` certified for the requested `tenantId` and `tenantNamespace`. The unit pairs its `EntityManagerFactory` with an optional matching `JpaTransactionManager`.
+
+Arc verifies both the certificate and mapped type before lookup. With `cratis.arc.tenancy.required=true`, mapped and resolver-owned JPA read-model claims must match, and the contextual provider must enforce the exact application resolver. Injecting an ordinary repository is not a substitute for this contextual selection.
 
 ### Route MongoDB by tenant
 
-A fixed `MongoOperationsResolver` serves only commands and observations without a tenant; supplying a tenant fails rather than reading and relabeling the default database. Tenant-routed applications provide one `TenantAwareMongoOperationsResolver`; each lookup returns `TenantMongoOperations`, which certifies the exact tenant identifier together with its isolated `MongoOperations`. Unknown tenants must throw, and Arc rejects mismatched certificates without retrying a default database. Required tenancy validates that command lookup, snapshots, and change streams use adapters for that exact resolver, with no unrelated plain resolver.
+A fixed `MongoOperationsResolver` serves only commands and observations without a tenant. Supplying a tenant fails rather than reading and relabeling the default database.
+
+For tenant-routed access, provide one `TenantAwareMongoOperationsResolver`. Each lookup returns `TenantMongoOperations`, which certifies the exact tenant identifier together with its isolated `MongoOperations`, not a JPA tenant namespace. Unknown tenants must throw, and Arc rejects mismatched certificates without retrying a default database.
+
+Required tenancy validates that command lookup, snapshots, and change streams use adapters for that exact resolver, with no unrelated plain resolver.
 
 ## Inject tenant-bound MongoDB access
 
-When a tenant-aware resolver is configured, Arc auto-configures a `TenantContextMongoAccess` bean that handlers
-can inject. It resolves the correct tenant's `MongoOperations` at the moment each method is called — the tenant
-is never captured at construction time. This mirrors the `IMongoDatabase` and `IMongoCollection<T>` scoped registrations
+When a tenant-aware resolver is configured, handlers can inject the auto-configured
+`TenantContextMongoAccess` bean. It resolves the correct tenant's `MongoOperations` on each method
+call, never by capturing a tenant at construction time.
+
+If you already have the tenant, use the [explicit-tenant overload](#explicit-tenant-call-paths).
+Otherwise, establish an ambient scope as described below before calling an ambient accessor.
+Java command handlers should use the explicit path rather than open a blocking tenant scope.
+
+The per-call access mirrors the `IMongoDatabase` and `IMongoCollection<T>` scoped registrations
 in Arc .NET's `ServiceCollectionExtensions.AddCratisMongoDB` (`Source/DotNET/MongoDB/ServiceCollectionExtensions.cs`).
 
 ### Ambient-tenant call paths
 
-`operations()` and `collection()` read the ambient tenant on every call, so call them inside a `withTenant`
-scope or any coroutine whose context carries a `TenantCoroutineContext`. Java reaches the same tenant through
-`operationsForCurrentTenant()` and `collectionForCurrentTenant()` inside `TenantContextBridge.withTenant`.
-Arc's command pipeline does not establish this scope for you: a handler that calls them with no scope
-fails with `IllegalStateException` unless a [fallback tenant](#no-tenant-fallback) is configured.
-`TenantContextBridge.withTenant` blocks its calling thread, so it is for plain Java threads; inside a Java
-command handler, which Arc already runs in a coroutine, use the explicit-tenant overload below instead.
+`operations()` and `collection()` read the ambient tenant on every call. Call them inside a
+`withTenant` scope or a coroutine whose context carries a `TenantCoroutineContext`; see
+[establish a tenant scope](../ambient-tenancy.mdx#establish-a-tenant-scope) for context propagation.
+Arc's command pipeline does not establish this scope for you. Calling an ambient accessor with
+no scope fails with `IllegalStateException` unless a [fallback tenant](#no-tenant-fallback) is configured.
+
+On a plain Java thread, `operationsForCurrentTenant()` and `collectionForCurrentTenant()` read
+the tenant established by `TenantContextBridge.withTenant`. That is a
+[blocking bridge](../ambient-tenancy.mdx#bridge-for-blocking-java-call-paths):
+`TenantContextBridge.withTenant` blocks its calling thread. Do not use it inside a Java command
+handler, which Arc already runs in a coroutine; use the explicit-tenant overload below instead.
 
 <ArcBackendTabs snippet="guides/spring-data/repositories/ambient-tenant" variants="kotlin,java" />
 
-For direct native driver access, the collection accessors return a `MongoCollection<T>` named by the `NamingPolicy` (`io.cratis.fundamentals.serialization.NamingPolicy`; the Arc type of the same name is deprecated):
+Choose mapped operations for Spring Data documents, or a collection accessor when you deliberately
+need the native driver. The collection accessors return a `MongoCollection<T>` named by the
+`NamingPolicy` (`io.cratis.fundamentals.serialization.NamingPolicy`; the Arc type of the same name
+is deprecated):
 
 <ArcBackendTabs snippet="guides/spring-data/repositories/native-collection" variants="kotlin,java" />
 
@@ -70,19 +99,23 @@ This overload is callable from both Kotlin and Java without any context setup.
 
 ### No-tenant fallback
 
-When no tenant is present in the current context and no fallback tenant is configured, all resolution methods
-throw `IllegalStateException`. Construct `TenantContextMongoAccess` with an explicit `fallbackTenantId` when
-the application has a default tenant for non-tenanted code paths:
+The default is to fail when a tenant is missing: with no tenant in the current context and no
+configured fallback, all resolution methods throw `IllegalStateException`. If the application
+deliberately provides a default tenant for non-tenanted code paths, construct
+`TenantContextMongoAccess` with an explicit `fallbackTenantId`:
 
 <ArcBackendTabs snippet="guides/spring-data/repositories/bean-override" variants="kotlin,java" />
 
-The auto-configured bean uses no fallback (throw on missing tenant). Override it as above when a fallback is needed.
+The auto-configured bean uses no fallback (throw on missing tenant). Override it as above only
+when the application needs that policy. This fills a missing tenant; it is not a retry against a
+default database after a resolver rejects a tenant or certificate.
 
 ### Real-server coverage
 
-`TenantContextMongoAccessTests` and `JavaTenantContextMongoAccessTests` verify per-call tenant resolution and
-isolation against the `mongo-java-server` 1.47.0 `MemoryBackend` emulator. The `mongoReplicaSetTest` gate
-additionally proves the following against a real pinned MongoDB 8.2 single-node replica set
+The documented coverage has two distinct levels. `TenantContextMongoAccessTests` and
+`JavaTenantContextMongoAccessTests` verify per-call tenant resolution and isolation against the
+`mongo-java-server` 1.47.0 `MemoryBackend` emulator. The additional `mongoReplicaSetTest` gate
+covers the following against a real pinned MongoDB 8.2 single-node replica set
 (`mongo:8.2@sha256:e0ce8c35124d4a9f9785532d1f268f39e9728ffa1cb38f46fa482436424c4bd3`):
 
 - `TenantContextMongoAccess` routes both coroutine (`withTenant`) and Java blocking (`TenantContextBridge`) calls
@@ -100,7 +133,7 @@ deterministic resume/reconnect under cursor interruption. Those limitations rema
 
 ## Enroll commands in transactions
 
-Imperative Spring transactions are disabled by default because JPA and MongoDB transaction managers bind resources to a thread while Arc command handlers may suspend and resume on another worker. Fixed-store applications can explicitly opt in:
+Repository access does not automatically enroll a command in a transaction. Imperative Spring transactions are disabled by default: JPA and MongoDB transaction managers bind resources to a thread, while Arc command handlers may suspend and resume on another worker. A fixed-store application can explicitly opt in if its command code obeys that thread-affinity constraint:
 
 ```yaml
 cratis:
@@ -112,6 +145,8 @@ cratis:
         command-transactions-enabled: true
 ```
 
-Opt-in succeeds only for a verified fixed store with an identity-aligned transaction manager. Dynamic tenant resolvers never receive a fixed transaction scope. Even when enabled, command code must not suspend or execute persistence work on another thread; the scope is imperative, not coroutine-safe. The scopes commit only a successful final `CommandResult` and roll back failures when completion remains on the opening thread.
+Opt-in succeeds only for a verified fixed store with an identity-aligned transaction manager. Dynamic tenant resolvers never receive a fixed transaction scope. Even when enabled, command code must not suspend or execute persistence work on another thread: the scope is imperative, not coroutine-safe. The scopes commit only a successful final `CommandResult` and roll back failures when completion remains on the opening thread.
 
-There is no distributed transaction across JPA, MongoDB, and Chronicle. Chronicle now completes after the local scopes, so a JPA or MongoDB completion failure prevents the append. Partial outcomes remain possible in the other direction: MongoDB may commit before JPA fails, and both local stores may commit before Chronicle fails or has an indeterminate external outcome. Imperative coroutine affinity and cross-store reconciliation remain explicit limitations.
+There is no distributed transaction across JPA, MongoDB, and Chronicle. Chronicle completes after the local scopes, so a JPA or MongoDB completion failure prevents the append. Partial outcomes remain possible in the other direction: MongoDB may commit before JPA fails, and both local stores may commit before Chronicle fails or has an indeterminate external outcome. Imperative coroutine affinity and cross-store reconciliation remain explicit limitations.
+
+For observable JPA queries, connect the write side to [explicit change notifications](observable-snapshots.mdx#observe-jpa) separately. Transaction enrollment alone is not a database change feed.

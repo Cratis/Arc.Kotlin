@@ -3,10 +3,6 @@ title: Generate TypeScript proxies
 description: Configure the Arc Gradle plugin to generate command, one-shot query, observable query, model, interface, and enum proxies.
 ---
 
-## Share model validation
-
-[Fluent validation](validation.mdx) contributes verified declarations to the existing renderer. Active models export `<Model>Validator`; command and supported RFC QUERY validators compose nested shared rules, including indexed siblings. Structurally equal duplicate model descriptors merge validation conjunctions; incompatible structures reject. Annotation-only output and its differential boundary are unchanged. Manual shared-generation CLI calls require `--module-name` and the complete compiled root/dependency classpath, not only manifest resources. Follow the [generated excerpt and handwritten caller](validation.mdx#display-generated-client-feedback), or consult the [dependency extraction and root inventory contract](../reference/validation.md#manual-build-tooling).
-
 ## Configure generation
 
 Use the `io.cratis.arc` plugin and set an output directory. Route configuration exists on both sides — build-time (`cratisArc.endpoints.*`) and runtime (`cratis.arc.endpoints.*`) — and both sides must agree. The Arc Spring Boot starter enforces this automatically. The plugin's `writeArcEndpointOptionsResource` task packages the build-time settings as `META-INF/arc/endpoint-options.json` on the main resources, whether or not proxy generation runs. At startup the starter reads that resource and fails with an error that names the disagreeing setting and both values if they differ. The check is skipped only when `META-INF/arc/endpoint-options.json` is absent from the application classpath. Builds without the Arc Gradle plugin can package the same resource through the proxy CLI's `--endpoint-options-output` option, described below.
@@ -39,6 +35,29 @@ cratisArc {
     }
 }
 ```
+
+## Run the task
+
+```bash
+./gradlew generateArcProxies
+```
+
+The task is also attached to `build`. It reads `META-INF/cratis/arc/*.json` manifests from main output and classpaths, rewrites only changed content, and deletes only stale files bearing Arc's generated marker.
+
+The `io.cratis.arc` plugin also registers a `writeArcEndpointOptionsResource` task that writes `META-INF/arc/endpoint-options.json` to the main source set resources. The Spring Boot starter reads this file at startup and fails fast when any setting disagrees with the runtime configuration. Both routes — the Gradle task and the standalone CLI — delegate to the same serialiser, so their output is byte-identical for the same options.
+
+```mermaid
+graph LR
+    Models[Kotlin and Java models] --> KSP[KSP]
+    KSP --> Manifest[Arc artifact manifest]
+    Manifest --> Task[generateArcProxies]
+    Task --> TS[Command, query, model, and enum TypeScript]
+    TS --> Packages[@cratis/arc, @cratis/arc.react, @cratis/fundamentals]
+    Task --> Options[META-INF/arc/endpoint-options.json]
+    Options --> Check[Spring Boot startup consistency check]
+```
+
+With the files generated, continue with [using the generated client from React](frontend.md). The remaining sections cover generation options and generated-output contracts.
 
 ## Share types with an existing npm package
 
@@ -86,27 +105,6 @@ The standalone CLI takes the same values as repeatable
 `--package-to-npm <JvmPackage>=<NpmPackage>` options. The value is split on at most two separators.
 Anything after the second stays in the package field and is validated as part of its import path; it is never silently discarded. Neither the exported
 identifier nor the npm import path may contain an `=`.
-
-## Run the task
-
-```bash
-./gradlew generateArcProxies
-```
-
-The task is also attached to `build`. It reads `META-INF/cratis/arc/*.json` manifests from main output and classpaths, rewrites only changed content, and deletes only stale files bearing Arc's generated marker.
-
-The `io.cratis.arc` plugin also registers a `writeArcEndpointOptionsResource` task that writes `META-INF/arc/endpoint-options.json` to the main source set resources. The Spring Boot starter reads this file at startup and fails fast when any setting disagrees with the runtime configuration. Both routes — the Gradle task and the standalone CLI — delegate to the same serialiser, so their output is byte-identical for the same options.
-
-```mermaid
-graph LR
-    Models[Kotlin and Java models] --> KSP[KSP]
-    KSP --> Manifest[Arc artifact manifest]
-    Manifest --> Task[generateArcProxies]
-    Task --> TS[Command, query, model, and enum TypeScript]
-    TS --> Packages[@cratis/arc, @cratis/arc.react, @cratis/fundamentals]
-    Task --> Options[META-INF/arc/endpoint-options.json]
-    Options --> Check[Spring Boot startup consistency check]
-```
 
 ## Use the standalone CLI
 
@@ -287,6 +285,10 @@ command.nested = { flags: { ready: true } };
 KSP translates exactly representable Jakarta constraints on command properties and query parameters into Arc validation rules. Arc's Jakarta-compatible `@Phone` and `@Url` annotations emit the TypeScript `phone` and `url` rules and preserve an explicitly supplied message. `@CreditCard` is enforced on the server and retained in manifest metadata, but is not emitted into TypeScript because the pinned `@cratis/arc` 22.10.4 has no `creditCard` rule-builder or runtime rule; generating the .NET extractor's current output would produce an uncompilable proxy. Their default server messages are `must be a valid phone number`, `must be a valid URL`, and `must be a valid credit card number`. Optional Hibernate Validator `@URL` maps to the client `url` rule when Hibernate Validator is on the application's compile classpath; `@CreditCardNumber` remains server-only for the same client-runtime limitation. Arc does not require Hibernate Validator at runtime.
 
 The manifest carries those rules and recursive `@Valid` metadata, and the generator emits the matching TypeScript validators. Rules declared on a concept value are merged with rules declared on the owning command property or query parameter, so the browser enforces the same combined constraints as the server even though the wrapper is erased. Unsupported JavaScript regular expressions, custom groups/payloads, contradictory bounds, and other unrepresentable client constraints stop generation with `ARCKSP0301` rather than silently weakening client validation.
+
+## Share model validation
+
+[Fluent validation](validation.mdx) contributes verified declarations to the existing renderer. Active models export `<Model>Validator`; command and supported RFC QUERY validators compose nested shared rules, including indexed siblings. Structurally equal duplicate model descriptors merge validation conjunctions; incompatible structures reject. Annotation-only output and its differential boundary are unchanged. Manual shared-generation CLI calls require `--module-name` and the complete compiled root/dependency classpath, not only manifest resources. Follow the [generated excerpt and handwritten caller](validation.mdx#display-generated-client-feedback), or consult the [dependency extraction and root inventory contract](../reference/validation.md#manual-build-tooling).
 
 ## Propagate source documentation
 
