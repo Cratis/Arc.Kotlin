@@ -23,24 +23,6 @@ dependencies {
 
 Either starter transitively includes `io.cratis:chronicle-spring-boot-starter` and follows its Spring Boot bean backoff conventions. The current integration depends on Chronicle.Kotlin 6.10.0; the compatibility gate below runs it against kernel 19.22.2. The Chronicle client checks the kernel contracts during connection and refuses incompatible servers. Configure `cratis.chronicle.event-store`; Chronicle then supplies the conventional client and `IEventStore` beans while Arc adds tenant-aware event-store resolution, a staged command scope, response handlers, read-model adapters, and a reactor command-side-effect helper.
 
-## Run the complete Kotlin and Java samples
-
-The optional `Samples:Kotlin:ChronicleSpringBoot` and `Samples:Java:ChronicleSpringBoot` applications use only public starters and generated model-bound endpoints. Each includes:
-
-- `CreateTask`, whose returned `TaskCreated` event is appended and omitted from the client response;
-- `RenameTask`, which receives the tenant-local `TaskView`, records its previous title, and applies the caller's exact observed event-log position;
-- a Chronicle reducer that materializes `TaskView` from event context without duplicating the event-source ID in event payloads;
-- generated GET and RFC QUERY endpoints at `/api/tasks/by-id` and `/api/tasks`;
-- strict generated TypeScript contracts for Kotlin and Java.
-
-Run either sample against a compatible Chronicle 19.22.2 kernel and include `x-cratis-tenant-id` on every request. `Samples/run.sh --chronicle` starts the digest-pinned `cratis/chronicle:19.22.2-development` image for you. The explicit compatibility gate starts its own pinned development image and exercises both applications:
-
-```shell
-./gradlew :ContractTests:chronicleRealKernelTest --no-configuration-cache
-```
-
-Override `-PchronicleKernelImage=<pinned-image>` only for a deliberate compatibility run. The default image is `cratis/chronicle:19.22.2-development` pinned to digest `sha256:83e33a9ac7b5ded1b31801083498782d370e5b4ac86b7cc2447165b08e48057f`. Docker absence fails this explicit task; normal unit tests do not start a kernel.
-
 ## Return an event
 
 A plain Chronicle event response needs a stable command key backed by `String`, `UUID`, a number, or an Arc/Chronicle concept wrapping one of those values.
@@ -137,3 +119,23 @@ Add `io.cratis:arc-testing` in the test configuration alongside the Chronicle in
 Given events establish ordered history and are excluded from appended-event assertions. Builders can arrange deterministic constraint and concurrency violations; assertions inspect the same machine-readable `ValidationResult` contract used at runtime. Java uses the generated `ChronicleCommandScenarios` static bridge. See [Test commands and queries in process](testing.mdx) for the complete Kotlin and Java examples.
 
 A command that injects a Chronicle read model does not need the read-model service either: pin the model to a known state with `withReadModel` or `withReadModelForKey` on the scenario. The pin claims declared ownership through Arc's own resolver registry rather than substituting a Chronicle service, so it works the same way for a Chronicle, JPA, or MongoDB-owned read model. See [Pin a command-side read model](testing.mdx#pin-a-command-side-read-model).
+
+These in-process scenarios are separate from the running-host checks below.
+
+## Run the complete Kotlin and Java samples
+
+The optional `Samples:Kotlin:ChronicleSpringBoot` and `Samples:Java:ChronicleSpringBoot` applications use only public starters and generated model-bound endpoints. Each includes:
+
+- `CreateTask`, whose returned `TaskCreated` event is appended and omitted from the client response;
+- `RenameTask`, which receives the tenant-local `TaskView`, records its previous title, and applies the caller's exact observed event-log position;
+- a Chronicle reducer that materializes `TaskView` from event context without duplicating the event-source ID in event payloads;
+- generated GET and RFC QUERY endpoints at `/api/tasks/by-id` and `/api/tasks`;
+- strict generated TypeScript contracts for Kotlin and Java.
+
+Run either sample against a compatible Chronicle 19.22.2 kernel and include `x-cratis-tenant-id` on every request. `Samples/run.sh --chronicle` starts the digest-pinned `cratis/chronicle:19.22.2-development` image for you. The explicit compatibility gate starts its own pinned development image and exercises both applications:
+
+```shell
+./gradlew :ContractTests:chronicleRealKernelTest --no-configuration-cache
+```
+
+Override `-PchronicleKernelImage=<pinned-image>` only for a deliberate compatibility run. The default image is `cratis/chronicle:19.22.2-development` pinned to digest `sha256:83e33a9ac7b5ded1b31801083498782d370e5b4ac86b7cc2447165b08e48057f`. Docker absence fails this explicit task; normal unit tests do not start a kernel.

@@ -5,11 +5,17 @@ description: Stream collection changes into an observable query, and the boundar
 
 ## Return observable storage snapshots
 
-Both Spring Data integrations publish injectable query services whose methods return Kotlin `Flow`. A Flow is cold by default: it reads the initial snapshot when collected, owns its subscription, and closes it on cancellation. `observeShared` is the explicit shared alternative and replays one complete snapshot while subscribers exist. Java callers can use the demand-aware `observePublisher` methods or callback overloads, whose returned `AutoCloseable` cancels collection.
+Use storage observations when a query should return current results again as the stored data changes. Each snapshot replaces the previous result; it is not a mutation event for the caller to apply. Both Spring Data integrations provide injectable query services whose methods return Kotlin `Flow`.
+
+A Flow is cold by default: collection reads the initial snapshot, owns the subscription, and closes it on cancellation. Use `observeShared` when subscribers should share an observation and replay one complete snapshot while subscribers exist. Java callers can use the demand-aware `observePublisher` methods or callback overloads, whose returned `AutoCloseable` cancels collection.
+
+These storage results are separate from the [transport's full or delta transfer mode](../observable-queries.mdx#transfer-mode-full-snapshots-versus-deltas). Returning a storage snapshot does not require sending every replacement as a full snapshot over the wire.
 
 ### Observe MongoDB
 
-Inject `MongoObservableQuery` into a model-bound query. `observe`, `observeSingle`, and `observeById` re-run the Spring Data query after insert, update, replace, delete, or invalidate notifications. The Kotlin fences on this page are excerpts: each method belongs inside the `companion object` of a `@ReadModel` class such as `TaskView`, as in the [queries guide](../queries.mdx).
+MongoDB change streams require a replica set or sharded cluster. With that prerequisite in place, inject `MongoObservableQuery` into a model-bound query. Its `observe`, `observeSingle`, and `observeById` methods re-run the Spring Data query after insert, update, replace, delete, or invalidate notifications: a relevant change leads to another read of the current result.
+
+The Kotlin fences on this page are excerpts, not complete classes. Each method belongs inside the `companion object` of a `@ReadModel` class such as `TaskView`, as in the [queries guide](../queries.mdx).
 
 ```kotlin
 @JvmStatic
@@ -24,9 +30,13 @@ fun observeTask(
 ): Flow<TaskView> = queries.observeById(TaskView::class.java, id)
 ```
 
-`MongoChangeStreamWatcher` is the change-stream SPI. The default `ReconnectingMongoChangeStreamWatcher` uses `SpringDataMongoChangeStreamSource`, resumes from the last token after transient failures, applies capped exponential backoff, and closes its cursor when the collector is canceled. Cursor operations run on `Dispatchers.IO` without a hidden `flowOn` channel. `MongoObservationOptions.bufferCapacity` is exact: zero keeps the producer and collector in rendezvous, while a positive value permits only that many queued changes. MongoDB change streams require a replica set or sharded cluster.
+A `Query` supplies filtering; `observeById` also narrows change notifications by document key. Updates and replacements trigger a fresh snapshot, so a document that stops matching a filter disappears from the result rather than remaining in a client-maintained list.
 
-A custom `MongoOperationsResolver` can select operations from the captured `tenantId`; it must not consult thread-local request state. Pass the tenant explicitly to the observation method. The default resolver uses the application's single `MongoOperations` bean. A `Query` supplies filtering, and `observeById` additionally narrows change notifications by document key. Updates and replacements always trigger a fresh snapshot, so a document that stops matching a filter is removed correctly.
+Pass the tenant explicitly to the observation method. A custom `MongoOperationsResolver` can select operations from the captured `tenantId`; it must not consult thread-local request state. The default resolver uses the application's single `MongoOperations` bean, not an automatically selected tenant store.
+
+`MongoChangeStreamWatcher` is the change-stream SPI. The default `ReconnectingMongoChangeStreamWatcher` uses `SpringDataMongoChangeStreamSource`, resumes from the last token after transient failures, applies capped exponential backoff, and closes its cursor when the collector is canceled. Cursor operations run on `Dispatchers.IO` without a hidden `flowOn` channel.
+
+`MongoObservationOptions.bufferCapacity` controls the queued changes exactly: zero keeps the producer and collector in rendezvous, while a positive value permits only that many queued changes.
 
 #### Kotlin type-inference extensions for MongoDB
 
@@ -45,13 +55,13 @@ fun observeTask(
 ): Flow<TaskView> = queries.observeById<TaskView>(id)
 ```
 
-Criteria-based filtering is also supported without manually wrapping in a `Query`:
+For criteria-based filtering, the extension wraps the criteria in a `Query` for you. The two language tabs below request the same filtered snapshot:
 
 <ArcBackendTabs snippet="guides/spring-data/observable-snapshots/observe-criteria" variants="kotlin,java" />
 
 The same extensions cover `observeList`, `observeSingle`, `observeById`, and `observeShared`; each delegates to the corresponding `MongoObservableQuery` method.
 
-**Limitation:** extensions cannot be placed on Spring Data's `MongoCollection<T>`, repository interfaces, or any other foreign type. All `observe*` extensions are on Arc's own `MongoObservableQuery`.
+Call these extensions on Arc's own `MongoObservableQuery`. They cannot be placed on Spring Data's `MongoCollection<T>`, repository interfaces, or any other foreign type; all `observe*` extensions belong to the Arc query service.
 
 #### Java convenience access for MongoDB
 
@@ -67,13 +77,21 @@ MongoObservations.observe(queries, TaskView.class, Criteria.where("active").is(t
 
 ### Observe JPA
 
-Inject `JpaObservableQuery` and return `observe`, `observeList`, `observeSingle`, or `observeById` from the read-model query. The default list query uses the mapped JPA entity name; `JpaSnapshotQuery` provides a Java-friendly customization seam for predicates, ordering, and fetch joins.
+Inject `JpaObservableQuery` and return `observe`, `observeList`, `observeSingle`, or `observeById` from the read-model query. The default list query uses the mapped JPA entity name. Supply a `JpaSnapshotQuery` when the snapshot needs predicates, ordering, or fetch joins; the callback is also usable from Java.
+
+The tab below defines the read side. Unlike MongoDB change streams, JPA needs the application to connect successful writes to explicit notifications.
 
 <ArcBackendTabs snippet="guides/spring-data/observable-snapshots/jpa-observe" variants="kotlin,java" />
 
-**Limitation:** JPA observation is in-process only. It is backed by `TransactionAwareDatabaseChangeNotifier`, an explicit in-process publisher: call its `DatabaseChangePublisher.publish(TaskView::class.java, tenantId)` contract from the write side. Unlike MongoDB change streams there is no cross-process change mechanism; applications needing cross-process notifications must replace the `DatabaseChangeNotifier` bean with a database-native implementation and expose a corresponding `DatabaseChangePublisher` where local writes also need publishing. Arc does not silently poll either store; polling must be an application-owned, explicitly configured notifier.
+On the write side, perform the persistence operation and explicitly call the existing `DatabaseChangePublisher.publish(TaskView::class.java, tenantId)` contract for the observed entity class and matching tenant ID. Returning the observation or injecting a repository does not install a database-wide write hook. Arrange publication so a notification can cause a read of a successful, visible write; [transaction enrollment](repositories.mdx#enroll-commands-in-transactions) and notification wiring are separate concerns.
 
-Notifications are coalesced per transaction, discarded on rollback, and emitted only after commit. `JpaObservationOptions.bufferCapacity` must be positive and bounds pending invalidations; when it is full, the oldest invalidation is replaced because every notification causes a complete snapshot read. Snapshot delivery itself uses a rendezvous handoff rather than `flowOn`'s implicit buffer. The Flow performs its initial snapshot immediately, then debounce-coalesces committed changes into bounded replacement snapshots.
+With active Spring transaction synchronization, `TransactionAwareDatabaseChangeNotifier` coalesces repeated entity-class/tenant-ID pairs per notifier instance and attempts to emit them from `afterCommit`. Its `afterCompletion` callback clears the pending pairs, including on rollback completion. Without active synchronization, publication immediately attempts `tryEmit` rather than waiting for commit: call it only after the write has succeeded and is visible. Publishing does not create a transaction or guarantee notification delivery.
+
+The notification must match both the observed entity class and the tenant ID. That tenant label filters notifications; it does not select storage. A subsequent snapshot still reads through the query service's configured entity-manager factory, not a persistence unit selected by the label.
+
+The built-in notifier is process-local, with no replay. Applications needing cross-process notifications must replace the `DatabaseChangeNotifier` bean with a database-native implementation and expose a corresponding `DatabaseChangePublisher` where local writes also need publishing. Arc does not silently poll either store; polling must be an application-owned, explicitly configured notifier.
+
+`JpaObservationOptions.bufferCapacity` must be positive and bounds pending invalidations. When full, it replaces the oldest invalidation: these are requests to read current state again, not a durable record of each write. Collection reads the initial snapshot before starting notification collection. Later notifications are debounce-coalesced, and equal snapshots are suppressed, so do not rely on observing every write or on gap-free subscription startup. Snapshot delivery itself uses a rendezvous handoff rather than `flowOn`'s implicit buffer.
 
 #### Kotlin type-inference extensions for JPA
 
@@ -110,7 +128,7 @@ fun observeActiveTasks(
 
 The same extensions cover `observeList`, `observeSingle`, `observeById`, and `observeShared`.
 
-**Limitation:** extensions cannot be placed on Spring Data's `JpaRepository` or any other foreign interface. All `observe*` extensions are on Arc's own `JpaObservableQuery`.
+As with the MongoDB helpers, all `observe*` extensions are on Arc's own `JpaObservableQuery`. They cannot be placed on Spring Data's `JpaRepository` or any other foreign interface.
 
 #### Java convenience access for JPA
 
@@ -123,6 +141,8 @@ Both helpers supply the same default JPQL query (`select entity from <EntityName
 
 ## Current public-seam boundary
 
-The integrations deliberately use public Arc and Spring contracts. Contextual command read-model parameters, deterministic ownership, generated `QueryRequest`/`QueryContext` injection, exact Spring Data Commons `Pageable`/`Sort` parameters, and exact `Page<T>` response normalization are implemented. The store-specific request and page adapters remain compatibility utilities rather than request-scoped beans.
+The integrations use public Arc and Spring contracts for contextual command read-model parameters, deterministic ownership, generated `QueryRequest`/`QueryContext` injection, exact Spring Data Commons `Pageable`/`Sort` parameters, and exact `Page<T>` response normalization. The store-specific request and page adapters remain compatibility utilities, not request-scoped beans.
 
-Repository injection remains ordinary Spring dependency injection and is not automatically tenant-routed by Arc. JPA observable snapshots still use their configured entity-manager factory; tenant labels on notifications are not storage isolation. Mongo observable paths use `MongoOperationsResolver`, including the certified adapter when a tenant-aware resolver is supplied. Imperative transaction scopes remain explicit fixed-store opt-ins and are not coroutine-safe.
+Choose the access path that actually selects the store. Repository injection is ordinary Spring dependency injection and is not automatically tenant-routed by Arc. JPA observable snapshots use their configured entity-manager factory; tenant labels on notifications are not storage isolation. Mongo observable paths use `MongoOperationsResolver`, including the certified adapter when a tenant-aware resolver is supplied.
+
+Transaction enrollment is a separate decision again. Imperative transaction scopes remain explicit fixed-store opt-ins and are not coroutine-safe; observing a query does not remove those restrictions.

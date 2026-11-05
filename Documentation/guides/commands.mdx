@@ -13,6 +13,10 @@ A handler may return `Unit`/`void`, a response value, a Kotlin suspend result, o
 
 <ArcBackendTabs snippet="guides/commands/handle" variants="kotlin,java" />
 
+## Call the endpoint
+
+Commands accept `POST` with a JSON body. Conventional routes use the configured prefix, package segments, and kebab-cased command name. The response is always a `CommandResult` JSON envelope. Kotlin callers can use `fold`, `getOrThrow`, `onSuccess`, and `validationOrNull` without changing that envelope or its Java API. See the [HTTP contract reference](../reference/http-contract.md) for status and header rules.
+
 ## Declare body state explicitly
 
 KSP keeps public primary-constructor properties in constructor order, then appends remaining public declared Kotlin properties in name order without duplicates. A public backed body `var`, backed `val`, or `var` with a private setter participates in the generated command contract: Arc's Jackson 3 mapper accepts supplied JSON values for all three. Body initializers are server behavior, not client default literals or evidence that a property is optional. Field/getter validation constraints, `@Valid`, documentation summaries, and a body `@CommandKey` use the same metadata path as constructor properties. A constructor key plus a body key fails with `ARCKSP0106` rather than selecting one silently.
@@ -155,7 +159,3 @@ For both `execute` and `validate`, the default pipeline builds context values in
 A failed nested `execute` marks its root execution rollback-only even when the caller ignores the child result. Provider cancellation remains `CancellationException` (a cancelled `CompletionStage` through `JavaAsyncScope`), and an ignored nested execution cancellation also marks the root rollback-only. `validate` never creates an execution frame or enlists scopes, so an ignored validation result or caught validation cancellation does not itself mark an active root rollback-only. Closed execution tokens and mismatched root, correlation, or tenant-namespace joins remain programmer errors rather than provider error results.
 
 For ordinary failures without a usable `ValidationFailure` payload, Core retains exception messages and stack traces for host logging regardless of `exposeExceptionDetails`. Hosts must apply the existing exception-detail redaction policy before serializing a production response; see the [HTTP contract reference](../reference/http-contract.md).
-
-## Call the endpoint
-
-Commands accept `POST` with a JSON body. Conventional routes use the configured prefix, package segments, and kebab-cased command name. The response is always a `CommandResult` JSON envelope. Kotlin callers can use `fold`, `getOrThrow`, `onSuccess`, and `validationOrNull` without changing that envelope or its Java API. See the [HTTP contract reference](../reference/http-contract.md) for status and header rules.

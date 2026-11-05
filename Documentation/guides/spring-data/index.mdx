@@ -5,7 +5,7 @@ description: Inject JPA and MongoDB repositories into model-bound queries and co
 
 ## Add an integration
 
-Choose the store used by the application:
+Start with the store your application already uses. Choose the JPA integration for a relational store or the MongoDB integration for MongoDB; you do not need both to use a repository:
 
 ```kotlin
 // JPA
@@ -21,22 +21,23 @@ dependencies {
 }
 ```
 
-Both modules include the Arc Spring Boot starter and the corresponding Spring Data starter. Spring Boot continues to own the datasource, entity manager, Mongo client, repository discovery, and their standard configuration.
+Each module includes the Arc Spring Boot starter and the corresponding Spring Data starter. Configure the chosen store through Spring Boot as usual: it still owns the datasource, entity manager, Mongo client, repository discovery, and their standard configuration.
 
 ## Inject a repository into a query
 
-Spring Data repositories are ordinary Spring services. Mark a model-bound query dependency with `@FromServices`; Arc's generated performer resolves the repository from the current application context.
+Once Spring has discovered the application's repository, use it as an ordinary Spring service. In a [model-bound query](../queries.mdx#add-a-query-to-a-read-model), mark the repository parameter with `@FromServices`. Arc's generated performer then obtains that dependency from the current application context rather than treating it as caller input.
 
 <ArcBackendTabs snippet="guides/spring-data/index/repository-in-query" variants="kotlin,java" />
 
-The same pattern works with `MongoRepository`, repository fragments, and application query services. An application bean replaces an auto-configured adapter bean of the same integration contract.
+In the example, the query calls the injected repository and returns its results. The Kotlin companion method and Java static method expose the same read operation; neither creates the repository or configures its store.
+
+The same injection pattern works with `MongoRepository`, repository fragments, and application query services. An application bean replaces an auto-configured adapter bean of the same integration contract. Repository injection alone does not select a tenant's storage or subscribe to changes.
 
 ## Then
 
-Storing a domain concept, routing by tenant and streaming changes each need
-their own setup:
+Continue with the operation you need. Concept mapping is an optional branch for the chosen store, not a requirement to configure both integrations:
 
-- [Map JPA concepts](concepts-jpa.mdx) — attribute converters and embedded ids.
-- [Map MongoDB concepts](concepts-mongodb.mdx) — concrete scalar pairs and identifiers.
-- [Repositories in queries and commands](repositories.mdx) — paging, current state, tenant-bound access and transactions.
-- [Observable storage snapshots](observable-snapshots.mdx) — change streams and JPA notifications.
+- [Repositories in queries and commands](repositories.mdx) — consume paging, resolve a command's current state, choose tenant-bound access, and opt into supported transactions.
+- [Map JPA concepts](concepts-jpa.mdx) — use attribute converters and embedded ids when a JPA model stores domain concepts.
+- [Map MongoDB concepts](concepts-mongodb.mdx) — register concrete scalar pairs and identifier mappings when a MongoDB document stores domain concepts.
+- [Observable storage snapshots](observable-snapshots.mdx) — return replacement query results as storage changes, using MongoDB change streams or explicit JPA notifications.

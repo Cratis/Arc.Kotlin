@@ -3,12 +3,10 @@ title: Use the generated client from React
 description: Consume generated Arc commands and queries from a React application, including observable subscriptions, conditional queries, and identity.
 ---
 
-Generating a TypeScript client is only half the promise. The other half is that the client is
-pleasant to use — that a command is a class you construct and execute, that a live query is a hook,
-and that neither one makes you write a URL, a request body, or a response type by hand.
-
-This guide is about that half. [TypeScript proxies](typescript-proxies.mdx) covers producing the
-files; everything here assumes you already have them.
+Start with the generated files; [TypeScript proxies](typescript-proxies.mdx) covers producing them.
+Install the runtime packages and wrap the application, then execute a command or read a query.
+If you serve the page from a separate development server, complete its proxy and origin setup
+before starting a subscription.
 
 ## Get the proxies into your application
 
@@ -51,6 +49,41 @@ That is the whole setup for a single-origin application. If your page is served 
 than the backend — a Vite dev server, typically — read [Serving the page from a dev
 server](#serving-the-page-from-a-dev-server) before you go further, because one thing does need
 saying out loud.
+
+## Serving the page from a dev server
+
+In development the page usually comes from Vite on one port while Arc runs on another. Proxy Arc's
+two path prefixes so the browser still sees a single origin:
+
+```ts
+export default defineConfig({
+    server: {
+        proxy: {
+            '/api': { target: 'http://localhost:8080', ws: true },
+            '/.cratis': { target: 'http://localhost:8080', ws: true }
+        }
+    }
+});
+```
+
+`ws: true` matters on both: observable queries upgrade to a WebSocket under `/.cratis`. The backend
+registers those WebSocket routes only when Spring WebSocket is on its classpath, as described in
+[Consume an observable query](queries.mdx#consume-an-observable-query).
+
+:::caution[Name the dev-server origin on the backend]
+Spring refuses a cross-origin WebSocket handshake with `403`, and a browser reports that as a socket
+that never opens — no error, no status, just a subscription that stays at "connecting" forever.
+Because the page comes from the dev server's origin, every handshake is cross-origin. Tell the
+backend to accept it:
+
+```properties
+cratis.arc.observable-queries.allowed-origins=http://localhost:5173
+```
+
+Leave it empty in a deployment. A WebSocket handshake is not subject to the same-origin policy that
+`fetch` obeys, so this check is what stops another site from opening a socket with your visitor's
+cookies attached.
+:::
 
 ## Execute a command
 
@@ -180,41 +213,6 @@ A bare `useIdentity()` types `details` as `object`. The generic argument only ch
 type. To hydrate complex values such as a `Guid` into real instances, declare the details class with
 `@field` decorators and pass it once as `<Arc detailsType={YourIdentityDetails}>`. The shared
 [identity guide](/arc/frontend/react/identity/) describes both steps.
-
-## Serving the page from a dev server
-
-In development the page usually comes from Vite on one port while Arc runs on another. Proxy Arc's
-two path prefixes so the browser still sees a single origin:
-
-```ts
-export default defineConfig({
-    server: {
-        proxy: {
-            '/api': { target: 'http://localhost:8080', ws: true },
-            '/.cratis': { target: 'http://localhost:8080', ws: true }
-        }
-    }
-});
-```
-
-`ws: true` matters on both: observable queries upgrade to a WebSocket under `/.cratis`. The backend
-registers those WebSocket routes only when Spring WebSocket is on its classpath, as described in
-[Consume an observable query](queries.mdx#consume-an-observable-query).
-
-:::caution[Name the dev-server origin on the backend]
-Spring refuses a cross-origin WebSocket handshake with `403`, and a browser reports that as a socket
-that never opens — no error, no status, just a subscription that stays at "connecting" forever.
-Because the page comes from the dev server's origin, every handshake is cross-origin. Tell the
-backend to accept it:
-
-```properties
-cratis.arc.observable-queries.allowed-origins=http://localhost:5173
-```
-
-Leave it empty in a deployment. A WebSocket handshake is not subject to the same-origin policy that
-`fetch` obeys, so this check is what stops another site from opening a socket with your visitor's
-cookies attached.
-:::
 
 ## Authenticating a subscription
 
