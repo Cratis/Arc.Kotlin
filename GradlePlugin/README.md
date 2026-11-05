@@ -82,6 +82,10 @@ Arc accepts and emits `LocalTime` values with up to seven fractional digits for 
 
 This generated TypeScript change is source-breaking: consumers must replace `Date`, time strings, and UUID strings assigned to affected generated properties with `DateOnly`, `TimeOnly`, and `Guid` class values. Generated interfaces use type-only imports where appropriate, and strict contracts enable `verbatimModuleSyntax`. Recursive type metadata was already present in manifest format 5, and format 6 added source summaries. The current format is 8 and retains immutable Java-friendly shape descriptors, legacy constructor descriptors, and compatibility getters. Rebuild producer and dependency manifests together with their consumers, as the [format-8 migration](../Documentation/reference/validation.md#manifest-format-8-migration) describes.
 
+## Tutorial verification for contributors
+
+The repository's `:GradlePlugin:test --tests '*ArcOnboardingFunctionalTest'` check materializes the preferred [Kotlin](../Documentation/get-started/index.md) and [Java](../Documentation/get-started/java.md) tutorial files, resolves locally staged Arc plugin-marker and runtime publications, compiles generated artifacts, and sends the documented POST and QUERY requests to a real Spring Boot host on a random port. It substitutes only the Arc version and local Arc repository seams, with an added test probe; public transitive dependencies still use the documented repositories. This is separate from the source-only documentation snippet checker and does not compile every documentation snippet or execute the manual setup.
+
 ## TypeScript compatibility gate
 
 `:GradlePlugin:generateContractTestProxies` depends on `:ContractTests:kspTestFixturesKotlin`, reads the real `ContractTests` KSP manifest, and generates into `ContractTests/TypeScript/generated`. The directory is a clean, gitignored build fixture rather than a tracked golden fixture. Both route and proxy generation skip the five common `io.cratis.arc.contracts.fixtures` package segments, producing sensible root imports and routes while preserving explicit paths.
