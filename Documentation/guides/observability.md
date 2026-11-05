@@ -1,6 +1,7 @@
 ---
 title: Observe Arc execution
 summary: Add Micrometer metrics and traces for Arc commands, queries, authentication, and identity details.
+description: Observe Arc Kotlin and Java pipelines with Micrometer metrics and traces, bounded outcome tags and correlation context propagation without payload logging.
 ---
 
 Add the Arc observability starter alongside the Arc Spring Boot starter:

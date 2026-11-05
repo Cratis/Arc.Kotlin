@@ -1,6 +1,6 @@
 ---
 title: Publish an OpenAPI document
-description: Add the Arc OpenAPI Spring Boot starter and serve a generated OpenAPI 3.1 document.
+description: Add the Arc OpenAPI Spring Boot starter for Kotlin and Java to serve OpenAPI 3.1 contracts, understand schema coverage and override document ownership.
 ---
 
 ## Add the starter

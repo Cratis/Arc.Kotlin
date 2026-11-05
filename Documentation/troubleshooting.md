@@ -1,6 +1,6 @@
 ---
 title: Troubleshooting and FAQ
-description: Common Arc.Kotlin errors and questions, with the fix and where the full contract is documented.
+description: Troubleshoot Arc Kotlin and Java Gradle setup, KSP diagnostics, missing endpoints, Chronicle startup and generated clients, with fixes and contract links.
 ---
 
 ## Build and Gradle
