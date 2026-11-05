@@ -4,6 +4,7 @@
 package io.cratis.arc.springboot
 
 import io.cratis.arc.artifacts.AllowCallerValidationSeverity
+import io.cratis.arc.queries.QueryPerformer
 import io.cratis.arc.results.ValidationResultSeverity
 
 internal object CallerValidationSeverity {
@@ -25,6 +26,25 @@ internal object CallerValidationSeverity {
             current = current.superclass
         }
         return null
+    }
+
+    fun forQuery(
+        requested: ValidationResultSeverity?,
+        performer: QueryPerformer,
+        settings: ArcProperties.CommandProperties,
+    ): ValidationResultSeverity? {
+        val classLoader = performer.javaClass.classLoader ?: Thread.currentThread().contextClassLoader
+        val declaringType = try {
+            Class.forName(performer.descriptor.declaringTypeName, false, classLoader)
+        } catch (_: ClassNotFoundException) {
+            null
+        }
+        return cap(
+            requested,
+            declaringType?.let(::commandMaximum),
+            settings,
+            performer.descriptor.treatWarningsAsErrors,
+        )
     }
 
     fun cap(

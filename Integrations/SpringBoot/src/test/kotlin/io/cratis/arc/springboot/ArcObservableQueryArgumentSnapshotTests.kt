@@ -180,12 +180,12 @@ internal class ArcObservableQueryArgumentSnapshotTests {
     }
 
     @Test
-    fun `subscription severity retains explicit overrides and selects per-query defaults`() {
+    fun `subscription severity caps caller values and selects per-query defaults`() {
         listOf(false, true).forEach { warningsAsErrors ->
             listOf(null, ValidationResultSeverity.Warning).forEach { override ->
                 Fixture(emptyList(), warningsAsErrors = warningsAsErrors, severity = override).use { fixture ->
                     fixture.subscribe(ObservableQuerySubscriptionRequest(fixture.performer.fullyQualifiedName.value))
-                    val expected = override ?: ValidationResultSeverity.Information.takeIf { warningsAsErrors }
+                    val expected = if (warningsAsErrors) ValidationResultSeverity.Information else override
                     assertEquals(expected, fixture.awaitInvocation().options.allowedValidationSeverity)
                 }
             }
