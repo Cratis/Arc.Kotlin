@@ -208,7 +208,3 @@ The one-shot query returns the created task in a `QueryResult` envelope:
 If a request returns `404`, the route convention and the package disagree; [troubleshooting](../troubleshooting.md) walks through that and other first-run failures.
 
 Continue with the [commands guide](../guides/commands.mdx) and [queries guide](../guides/queries.mdx), or generate a typed frontend client with [TypeScript proxies](../guides/typescript-proxies.mdx).
-
-The following is optional background on the repository's verification of this tutorial.
-
-The repository's `:GradlePlugin:test --tests '*ArcOnboardingFunctionalTest'` check materializes the preferred Kotlin and Java tutorial files, resolves locally staged Arc plugin-marker and runtime publications, compiles generated artifacts, and sends these POST and QUERY requests to a real Spring Boot host on a random port. It substitutes only the Arc version and local Arc repository seams, with an added test probe; public transitive dependencies still use the documented repositories. This is separate from the source-only documentation snippet checker and does not compile every documentation snippet or execute the manual setup.
