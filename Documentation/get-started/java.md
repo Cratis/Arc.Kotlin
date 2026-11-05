@@ -1,6 +1,6 @@
 ---
 title: Build your first Arc application with Java
-description: Create and run a minimal Java Spring Boot command and query using records and CompletionStage.
+description: Build an Arc Java Spring Boot application using records and CompletionStage, generate command and query endpoints, and call pipelines from imperative services.
 ---
 
 By the end of this page you have a Spring Boot application, written in Java records, that accepts a `CreateTask` command at `POST /api/create-task` and answers a `TaskView` query at `/api/tasks`. You write no controller: Arc generates both endpoints at compile time.

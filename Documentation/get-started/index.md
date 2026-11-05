@@ -1,6 +1,6 @@
 ---
 title: Build your first Arc application with Kotlin
-description: Create and run a minimal Kotlin Spring Boot command and query with Arc's generated, model-bound endpoints.
+description: Build a minimal Arc Kotlin Spring Boot application with generated command and query endpoints, configuring Gradle and executing requests without controllers.
 ---
 
 By the end of this page you have a Spring Boot application that accepts a `CreateTask` command at `POST /api/create-task` and answers a `TaskView` query at `/api/tasks`. You write no controller: Arc generates both endpoints from the model at compile time.

@@ -1,6 +1,6 @@
 ---
 title: TypeScript proxy options compatibility matrix
-description: Classification of every proxy generator option and model-shape boundary against Arc .NET, with pinned reference versions, enforcing guards, and a precise slice definition for anything implementable but not yet present.
+description: Compare Arc JVM TypeScript proxy options and model shapes with .NET, using pinned versions, compatibility matrices and a clearly marked future namespace design.
 ---
 
 To choose a JVM setting, use the [option compatibility matrix](#option-compatibility-matrix). The [named slice](#named-slice-proxy-namespace-roots) is an unimplemented contributor design, not an available JVM setting.

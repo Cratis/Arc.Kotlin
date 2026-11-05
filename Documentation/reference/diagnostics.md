@@ -1,6 +1,6 @@
 ---
 title: KSP diagnostics
-description: Every compile-time diagnostic Arc's annotation processor can report, what it means, and whether it stops the build.
+description: Reference Arc Kotlin and Java KSP diagnostic codes, explaining compile-time failures, warning severities and when annotation processing reports each issue.
 ---
 
 Arc discovers your commands, read models and validation rules while the JVM

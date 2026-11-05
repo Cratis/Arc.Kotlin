@@ -1,6 +1,6 @@
 ---
 title: JVM feature parity reference
-description: Honest implementation status for Arc on Kotlin and Java compared with broader Arc concepts.
+description: Check Arc Kotlin and Java feature implementation status, JVM contract boundaries and supporting tests or samples, including outstanding parity limits.
 ---
 
 Use the shared [capability matrix](/arc/capabilities/) to check whether a capability exists in C#, Kotlin, and Java. Use this page to look up its JVM contract, boundary, and named test, contract test, or runnable sample. The statuses below are this page's own and are not restated in the shared matrix.

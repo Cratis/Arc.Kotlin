@@ -1,6 +1,6 @@
 ---
 title: HTTP contract - JVM conformance notes
-description: Spring Boot specifics behind Arc's shared HTTP wire contract - paired conformance evidence, correlation filter registration, development provider endpoints, and bounded runtime behavior.
+description: Reference Arc Spring Boot HTTP behavior for correlation filters, argument binding, observable lifetimes, development endpoints and shared-wire conformance.
 ---
 
 :::note[The contract itself lives on the shared page]

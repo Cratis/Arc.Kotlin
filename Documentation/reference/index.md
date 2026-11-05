@@ -1,6 +1,6 @@
 ---
 title: Arc reference
-description: Look up Arc annotations, configuration, HTTP contracts, and current JVM feature status.
+description: Find Arc Kotlin and Java reference guides for annotations, configuration, HTTP contracts, validation, TypeScript proxy options, terminology and feature status.
 ---
 
 ## Reference sections

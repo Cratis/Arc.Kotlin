@@ -1,6 +1,6 @@
 ---
 title: Glossary
-description: One precise line per Arc.Kotlin term, cross-referenced to the guide or reference page that covers it in full.
+description: Look up Arc Kotlin and Java terminology for commands, queries, generated artifacts, validation, identity and Chronicle, with links to detailed contracts.
 ---
 
 ## Commands and queries
