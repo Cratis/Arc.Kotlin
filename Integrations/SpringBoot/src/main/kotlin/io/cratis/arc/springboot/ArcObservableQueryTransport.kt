@@ -140,7 +140,7 @@ public class ArcObservableQueryTransport internal constructor(
             tenantId,
             correlationId,
             request.parameterMap.mapValues { (_, value) -> value.toList() },
-            allowedSeverity(request, performer),
+            allowedSeverity(request),
             request.remoteAddr,
             request.getHeader("User-Agent")
         )
@@ -152,7 +152,9 @@ public class ArcObservableQueryTransport internal constructor(
             handshake.tenantId,
             requestBinder.fromParameters(handshake.parameters, performer),
             correlationId = handshake.correlationId,
-            allowedValidationSeverity = handshake.allowedValidationSeverity
+            allowedValidationSeverity = CallerValidationSeverity.forQuery(
+                handshake.allowedValidationSeverity, performer, properties.command,
+            )
         )
 
     internal suspend fun open(captured: CapturedObservableQuery, transferMode: ObservableQueryTransferMode): ObservableQueryOpenResult =
@@ -269,8 +271,7 @@ public class ArcObservableQueryTransport internal constructor(
         val job = applicationScope.tryLaunch(start = CoroutineStart.LAZY) {
             runSubscription(
                 connection, queryId, operation, request, performer, identity,
-                subscriptionHandshake.allowedValidationSeverity
-                    ?: ValidationResultSeverity.Information.takeIf { performer.descriptor.treatWarningsAsErrors }
+                CallerValidationSeverity.forQuery(subscriptionHandshake.allowedValidationSeverity, performer, properties.command)
             )
         } ?: run {
             connection.subscriptions.terminate(queryId, operation)
@@ -667,7 +668,7 @@ public class ArcObservableQueryTransport internal constructor(
             tenantResolution.resolve(request, principal).value,
             queryRequest,
             correlationId,
-            allowedSeverity(request, performer)
+            CallerValidationSeverity.forQuery(allowedSeverity(request), performer, properties.command)
         )
     }
 
@@ -721,15 +722,11 @@ public class ArcObservableQueryTransport internal constructor(
         return listOfNotNull(requested, settings.waitForFirstResultTimeout, properties.requestTimeout).minOrNull()!!
     }
 
-    private fun allowedSeverity(request: HttpServletRequest, performer: QueryPerformer?): ValidationResultSeverity? {
+    private fun allowedSeverity(request: HttpServletRequest): ValidationResultSeverity? {
         val header = request.getHeader(ALLOWED_SEVERITY_HEADER)
-        val parsed = header?.trim()?.let { value ->
-            value.toIntOrNull()?.let { wire ->
-                ValidationResultSeverity.entries.firstOrNull { it.value() == wire }
-            } ?: ValidationResultSeverity.entries.firstOrNull { it.name.equals(value, ignoreCase = true) }
-        }
+        val parsed = CallerValidationSeverity.parse(header)
         if (header != null && parsed == null) throw MalformedQueryRequestException()
-        return parsed ?: ValidationResultSeverity.Information.takeIf { performer?.descriptor?.treatWarningsAsErrors == true }
+        return parsed
     }
 
     private fun requiredRoles(performer: QueryPerformer?): List<String> = performer?.descriptor?.authorization?.roles.orEmpty()

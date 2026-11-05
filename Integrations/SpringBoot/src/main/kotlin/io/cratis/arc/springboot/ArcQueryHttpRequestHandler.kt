@@ -166,15 +166,11 @@ internal class ArcQueryHttpRequestHandler(
             return CapturedQueryRequest.Completed(correlationId, QueryResult.unauthorized<Any?>(correlationId))
         }
         val allowedSeverityHeader = request.getHeader(ALLOWED_SEVERITY_HEADER)
-        val parsedAllowedSeverity = parseAllowedSeverity(allowedSeverityHeader)
+        val parsedAllowedSeverity = CallerValidationSeverity.parse(allowedSeverityHeader)
         if (allowedSeverityHeader != null && parsedAllowedSeverity == null) {
             return CapturedQueryRequest.Completed(correlationId, malformed(correlationId))
         }
-        val allowedSeverity = parsedAllowedSeverity ?: if (performer.descriptor.treatWarningsAsErrors) {
-            ValidationResultSeverity.Information
-        } else {
-            null
-        }
+        val allowedSeverity = CallerValidationSeverity.forQuery(parsedAllowedSeverity, performer, properties.command)
         val queryRequest = when {
             request.method.equals(GET_METHOD, ignoreCase = true) -> requestBinder.fromGet(request, performer)
             request.method.equals(QUERY_METHOD, ignoreCase = true) -> requestBinder.fromQuery(
@@ -333,17 +329,6 @@ internal class ArcQueryHttpRequestHandler(
                 )
             )
         )
-
-        fun parseAllowedSeverity(value: String?): ValidationResultSeverity? {
-            if (value == null) return null
-            val normalized = value.trim()
-            normalized.toIntOrNull()?.let { wireValue ->
-                return ValidationResultSeverity.entries.firstOrNull { severity -> severity.value() == wireValue }
-            }
-            return ValidationResultSeverity.entries.firstOrNull { severity ->
-                severity.name.equals(normalized, ignoreCase = true)
-            }
-        }
     }
 }
 
